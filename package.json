@@ -1,0 +1,12 @@
+{
+  "name": "lumen",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/agent-service",
+    "packages/ui-client"
+  ],
+  "scripts": {
+    "test": "npm test --workspace @lumen/agent-service"
+  }
+}

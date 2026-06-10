@@ -1,0 +1,21 @@
+/* 占位样式：正式接入 Lumen_Design_System 的 CSS 变量（--paper/--ink/--sand 等），此处仅保证可用 */
+:root {
+  --paper: #faf9f6;
+  --ink: #1f1d1a;
+  --sand: #eceae3;
+  --ember: #b4532a;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: 'Inter Tight', system-ui, sans-serif; color: var(--ink); background: var(--paper); }
+.lumen-app { display: flex; flex-direction: column; height: 100vh; }
+.lumen-titlebar { padding: 10px 16px; font-size: 13px; border-bottom: 1px solid var(--sand); }
+.lumen-chat { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.bubble { max-width: 70ch; padding: 10px 14px; border-radius: 12px; white-space: pre-wrap; line-height: 1.5; }
+.bubble-user { align-self: flex-end; background: var(--sand); }
+.bubble-assistant { align-self: flex-start; background: #fff; border: 1px solid var(--sand); }
+.bubble-error { align-self: flex-start; background: #fbeae5; color: var(--ember); }
+.bubble-status { align-self: flex-start; color: #8a857c; font-size: 13px; }
+.lumen-composer { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--sand); }
+.lumen-composer input { flex: 1; padding: 10px 12px; border: 1px solid var(--sand); border-radius: 8px; font: inherit; }
+.lumen-composer button { padding: 10px 16px; border: none; border-radius: 8px; background: var(--ink); color: var(--paper); cursor: pointer; }
+.lumen-composer button:disabled { opacity: 0.4; cursor: default; }

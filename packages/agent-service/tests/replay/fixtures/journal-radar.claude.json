@@ -1,0 +1,30 @@
+[
+  {
+    "id": "msg_turn1",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-sonnet-4-6",
+    "content": [
+      { "type": "text", "text": "我先检索今天的论文。" },
+      {
+        "type": "tool_use",
+        "id": "toolu_search_1",
+        "name": "search_papers",
+        "input": { "query": "today", "journals": ["Nature"], "date_from": "2026-06-08" }
+      }
+    ],
+    "stop_reason": "tool_use",
+    "usage": { "input_tokens": 320, "output_tokens": 48 }
+  },
+  {
+    "id": "msg_turn2",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-sonnet-4-6",
+    "content": [
+      { "type": "text", "text": "今天 Nature 有 1 篇相关论文：A study on X (doi:10.1000/x)。" }
+    ],
+    "stop_reason": "end_turn",
+    "usage": { "input_tokens": 540, "output_tokens": 32 }
+  }
+]

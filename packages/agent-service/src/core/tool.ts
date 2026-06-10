@@ -1,0 +1,67 @@
+/**
+ * [INPUT]: types.ts 的 AgentEvent / ToolSpec
+ * [OUTPUT]: Tool 契约 + ToolContext + SpawnFn
+ * [POS]: agent-core 的工具边界；工具执行结果 llmContent 必由内核回灌进线程
+ */
+import type { AgentEvent, ToolSpec } from './types.ts'
+
+export interface ToolResult {
+  /** 回灌进线程的内容（铁律）。错误也走这里——交给模型下一轮自行恢复 */
+  llmContent: string
+  /** 给观测 / 上层用，不进线程 */
+  data?: unknown
+}
+
+export interface SpawnInput {
+  role: string
+  scope: string
+  prompt: string
+}
+
+export type SpawnFn = (
+  input: SpawnInput,
+  callerCtx: ToolContext,
+  signal?: AbortSignal,
+) => Promise<ToolResult>
+
+// ---- Workspace 端口：内核只认接口，具体 FsWorkspace 实现在 workspace 包 ----
+export interface DirEntry {
+  name: string
+  type: 'file' | 'dir'
+}
+
+export interface GrepHit {
+  path: string
+  line: number
+  text: string
+}
+
+export interface Workspace {
+  readFile(path: string): Promise<string>
+  readBytes(path: string): Promise<Uint8Array>
+  writeFile(path: string, content: string): Promise<void>
+  editFile(path: string, oldString: string, newString: string): Promise<void>
+  listDir(path?: string): Promise<DirEntry[]>
+  grep(pattern: string, options?: { path?: string; flags?: string }): Promise<GrepHit[]>
+  glob(pattern: string): Promise<string[]>
+}
+
+export interface ToolContext {
+  taskId: string
+  agentRole: string
+  depth: number
+  spawn: SpawnFn
+  emit: (event: AgentEvent) => void | Promise<void>
+  /** 沙箱工作区句柄。M2 起注入；不依赖它的工具可忽略 */
+  workspace?: Workspace
+  deps: Record<string, unknown>
+}
+
+export interface Tool {
+  spec: ToolSpec
+  run(
+    args: Record<string, unknown>,
+    ctx: ToolContext,
+    signal?: AbortSignal,
+  ): Promise<ToolResult>
+}
