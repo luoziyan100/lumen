@@ -4,7 +4,7 @@ import { computeBudgetUsage, mergeBudget, DEFAULT_BUDGET } from '../../src/stora
 import type { TaskEvent } from '../../src/storage/task-store.ts'
 
 function ev(seq: number, kind: string, payload: unknown, createdAt = '2026-06-08T00:00:00.000Z'): TaskEvent {
-  return { id: `e${seq}`, task_id: 't', seq, kind, payload_json: JSON.stringify(payload), created_at: createdAt }
+  return { id: `e${seq}`, task_id: 't', seq, kind, payload_json: JSON.stringify(payload), agent_role: null, created_at: createdAt }
 }
 
 test('mergeBudget 用默认值兜底，过滤非正数维度', () => {

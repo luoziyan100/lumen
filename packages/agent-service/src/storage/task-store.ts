@@ -35,6 +35,8 @@ export interface TaskEvent {
   seq: number
   kind: string
   payload_json: string
+  /** 事件来自哪个 agent：'main' / worker 角色名；NULL = 老数据（视为 main）或系统事件 */
+  agent_role: string | null
   created_at: string
 }
 
@@ -63,7 +65,7 @@ export class TaskStore {
     listEventsAfter: ReturnType<DB['prepare']>
     findInterrupted: ReturnType<DB['prepare']>
   }
-  private readonly appendTx: (taskId: string, kind: string, payloadJson: string) => TaskEvent
+  private readonly appendTx: (taskId: string, kind: string, payloadJson: string, agentRole: string | null) => TaskEvent
 
   constructor(db: DB) {
     this.db = db
@@ -77,7 +79,7 @@ export class TaskStore {
       updateTask: db.prepare('UPDATE tasks SET status=?, last_error=?, finished_at=?, updated_at=? WHERE id=?'),
       touchTask: db.prepare('UPDATE tasks SET updated_at=? WHERE id=?'),
       insertEvent: db.prepare(
-        'INSERT INTO task_events (id, task_id, seq, kind, payload_json, created_at) VALUES (?,?,?,?,?,?)',
+        'INSERT INTO task_events (id, task_id, seq, kind, payload_json, agent_role, created_at) VALUES (?,?,?,?,?,?,?)',
       ),
       maxSeq: db.prepare('SELECT COALESCE(MAX(seq), 0) AS m FROM task_events WHERE task_id = ?'),
       listEvents: db.prepare('SELECT * FROM task_events WHERE task_id = ? ORDER BY seq ASC'),
@@ -86,10 +88,12 @@ export class TaskStore {
         "SELECT * FROM tasks WHERE status IN ('running','interrupted') ORDER BY updated_at DESC",
       ),
     }
-    this.appendTx = db.transaction((taskId: string, kind: string, payloadJson: string): TaskEvent => {
+    this.appendTx = db.transaction((taskId: string, kind: string, payloadJson: string, agentRole: string | null): TaskEvent => {
       const seq = (this.stmts.maxSeq.get(taskId) as { m: number }).m + 1
-      const event: TaskEvent = { id: uuid(), task_id: taskId, seq, kind, payload_json: payloadJson, created_at: now() }
-      this.stmts.insertEvent.run(event.id, event.task_id, event.seq, event.kind, event.payload_json, event.created_at)
+      const event: TaskEvent = {
+        id: uuid(), task_id: taskId, seq, kind, payload_json: payloadJson, agent_role: agentRole, created_at: now(),
+      }
+      this.stmts.insertEvent.run(event.id, event.task_id, event.seq, event.kind, event.payload_json, event.agent_role, event.created_at)
       this.stmts.touchTask.run(event.created_at, taskId)
       return event
     })
@@ -127,9 +131,9 @@ export class TaskStore {
     this.appendEvent(id, 'status_change', { to: status, error: lastError })
   }
 
-  appendEvent(taskId: string, kind: TaskEventKind | string, payload: unknown): TaskEvent {
+  appendEvent(taskId: string, kind: TaskEventKind | string, payload: unknown, agentRole?: string): TaskEvent {
     const payloadJson = typeof payload === 'string' ? payload : JSON.stringify(payload)
-    return this.appendTx(taskId, kind, payloadJson)
+    return this.appendTx(taskId, kind, payloadJson, agentRole ?? null)
   }
 
   listEvents(taskId: string, afterSeq?: number): TaskEvent[] {

@@ -6,7 +6,7 @@
  * 铁律：每个 tool_call 的结果必回灌进同一条线程，再连同完整线程喂回模型。
  * 模型每一轮都从 thread.forModel() 取最新线程——所以上一轮的 tool_result 必然被看见。
  */
-import type { Thread } from './thread.ts'
+import type { Thread, ForModelOptions } from './thread.ts'
 import type { ModelPort } from './model-port.ts'
 import type { Tool, ToolContext, ToolResult } from './tool.ts'
 import type { Limits } from './limits.ts'
@@ -21,8 +21,8 @@ export interface RunAgentInput {
   limits: Limits
   ctx: ToolContext
   signal?: AbortSignal
-  /** 折叠超长 tool_result 的阈值（传给 thread.forModel） */
-  forModelMaxToolResultChars?: number
+  /** 上下文折叠配置（传给 thread.forModel）；runtime 生产路径默认启用 */
+  forModelOptions?: ForModelOptions
 }
 
 export interface RunAgentResult {
@@ -45,19 +45,19 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
   const specs = tools.map((tool) => tool.spec)
   const emit = (event: AgentEvent): void | Promise<void> => ctx.emit(event)
 
+  const startedAt = Date.now()
   let steps = 0
   while (true) {
     if (signal?.aborted) return { status: 'aborted', reply: '', thread }
     if (steps >= limits.maxSteps) return { status: 'exhausted', reply: '', thread }
+    if (limits.maxSeconds != null && (Date.now() - startedAt) / 1000 >= limits.maxSeconds) {
+      return { status: 'exhausted', reply: '', thread }
+    }
     steps += 1
 
     let response
     try {
-      response = await model.chat(
-        thread.forModel({ maxToolResultChars: input.forModelMaxToolResultChars }),
-        specs,
-        signal,
-      )
+      response = await model.chat(thread.forModel(input.forModelOptions), specs, signal)
     } catch (error) {
       if (isAbort(error)) return { status: 'aborted', reply: '', thread }
       await emit({ kind: 'error', agentRole: ctx.agentRole, payload: { error: errorMessage(error) } })

@@ -4,8 +4,11 @@
  * [POS]: §4 服务边界。一条连接可 submit/subscribe/cancel/resume/list，service 推 event 流
  *
  * 断线重连用 subscribe.afterSeq 拉齐遗漏事件（事件 seq 单调，不丢不重）。
+ * 鉴权：浏览器对 ws://127.0.0.1 没有跨源限制，任意网页都能发起连接——
+ * 所以凡传入 token 必须校验（?token= 查询参数；浏览器 WS 设不了自定义 header）。
  */
 import { WebSocketServer, type WebSocket } from 'ws'
+import type { IncomingMessage } from 'node:http'
 import type { AgentRuntime } from '../runtime/agent-runtime.ts'
 import type { ClientMessage, ServerMessage } from './messages.ts'
 
@@ -14,7 +17,10 @@ export interface ServerHandle {
   close: () => Promise<void>
 }
 
-export function startServer(runtime: AgentRuntime, options: { port?: number; host?: string } = {}): Promise<ServerHandle> {
+export function startServer(
+  runtime: AgentRuntime,
+  options: { port?: number; host?: string; token?: string } = {},
+): Promise<ServerHandle> {
   return new Promise((resolve) => {
     const wss = new WebSocketServer({ port: options.port ?? 0, host: options.host ?? '127.0.0.1' }, () => {
       const address = wss.address()
@@ -24,8 +30,19 @@ export function startServer(runtime: AgentRuntime, options: { port?: number; hos
         close: () => new Promise<void>((done) => wss.close(() => done())),
       })
     })
-    wss.on('connection', (ws) => handleConnection(runtime, ws))
+    wss.on('connection', (ws, req) => {
+      if (options.token && !isAuthorized(req, options.token)) {
+        ws.close(4401, 'unauthorized')
+        return
+      }
+      handleConnection(runtime, ws)
+    })
   })
+}
+
+function isAuthorized(req: IncomingMessage, token: string): boolean {
+  const url = new URL(req.url ?? '/', 'ws://127.0.0.1')
+  return url.searchParams.get('token') === token
 }
 
 function handleConnection(runtime: AgentRuntime, ws: WebSocket): void {

@@ -6,7 +6,8 @@
  * 运行：ANTHROPIC_API_KEY=... node --experimental-strip-types src/service.ts
  */
 import { homedir } from 'node:os'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
 import * as path from 'node:path'
 import { openDatabase } from './storage/db.ts'
 import { TaskStore } from './storage/task-store.ts'
@@ -29,10 +30,12 @@ export interface ServiceConfig {
   host?: string // WS 监听地址；'::' = 双栈（同时收 127.0.0.1 / ::1 / localhost）
   libraryRoot?: string
   modelPort?: ModelPort // 测试可直接注入
+  token?: string // 不填则每次启动生成随机 token；客户端从 portfile 读
 }
 
 export interface Service {
   runtime: AgentRuntime
+  token: string
   start(): Promise<ServerHandle>
 }
 
@@ -80,13 +83,21 @@ export function createService(config: ServiceConfig = {}): Service {
     roles,
   })
 
+  runtime.sweepInterrupted() // 上次进程死亡遗留的 'running' 任务 → interrupted（可 resume）
+
+  const token = config.token ?? randomBytes(32).toString('hex')
+
   return {
     runtime,
+    token,
     async start() {
-      const handle = await startServer(runtime, { port: config.port, host: config.host ?? process.env.LUMEN_HOST })
+      const handle = await startServer(runtime, { port: config.port, host: config.host ?? process.env.LUMEN_HOST, token })
+      const portfile = path.join(home, 'agent-service.json')
+      rmSync(portfile, { force: true }) // 先删再写，确保 0600 生效（writeFileSync 的 mode 只在新建时应用）
       writeFileSync(
-        path.join(home, 'agent-service.json'),
-        JSON.stringify({ port: handle.port, pid: process.pid, startedAt: new Date().toISOString() }, null, 2),
+        portfile,
+        JSON.stringify({ port: handle.port, pid: process.pid, token, startedAt: new Date().toISOString() }, null, 2),
+        { mode: 0o600 },
       )
       return handle
     },

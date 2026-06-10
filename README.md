@@ -20,6 +20,12 @@ doc/
 agent = 一条只增不减线程上的循环；**每个 tool_call 的结果必回灌进同一条线程，模型必须看见自己行为的后果**。
 sub-agent = runAgent 的递归调用（同一内核两处复用）。验收禁止用注入假循环的测试绕过真实路径。
 
+## 连接服务
+
+agent-service 启动后把 `{port, token, pid}` 写进 `~/.lumen/agent-service.json`（权限 0600）。
+**所有 WS 连接必须带 `?token=`**（浏览器对 `ws://127.0.0.1` 没有跨源限制，token 是唯一的门）。
+`scripts/ask.ts` 与 `LumenClient` 会自动从 portfile 读；浏览器 dev 用页面 URL `?token=` 传入。
+
 ## 跑测试
 
 ```bash

@@ -143,3 +143,29 @@ test('多工具并发回灌：一轮里多个 tool_call 的结果都进线程', 
   assert.equal(second.find((m) => m.toolCallId === 'a')?.content, 'R_A')
   assert.equal(second.find((m) => m.toolCallId === 'b')?.content, 'R_B')
 })
+
+test('墙钟预算：超过 maxSeconds 后循环以 exhausted 收场，不再调模型', async () => {
+  const slowTool = {
+    spec: { name: 'slow', description: 'slow', parameters: { type: 'object', properties: {} } },
+    run: async (): Promise<{ llmContent: string }> => {
+      await new Promise((r) => setTimeout(r, 30))
+      return { llmContent: 'slow done' }
+    },
+  }
+  const model = new ScriptedModel([
+    assistantToolCall('s1', 'slow'),
+    assistantToolCall('s2', 'slow'),
+    assistantReply('不该到这里'),
+  ])
+  const result = await runAgent({
+    thread: new Thread([{ role: 'user', content: 'u' }]),
+    model,
+    tools: [slowTool],
+    limits: { maxSteps: 10, maxDepth: 1, maxSeconds: 0.02 },
+    ctx: noopCtx(),
+  })
+  assert.equal(result.status, 'exhausted')
+  assert.ok(model.calls.length < 3, '墙钟耗尽后不得继续调模型')
+  // 已执行的工具结果仍然在线程里（部分进度不丢）
+  assert.ok(result.thread.messages.some((m) => m.role === 'tool_result' && m.content === 'slow done'))
+})

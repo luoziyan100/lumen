@@ -78,9 +78,80 @@ test('runtime + roles：主 agent spawn searcher worker（受限工具），work
   assert.match(mainSecond?.content ?? '', /命中: 3 篇/)
 })
 
+test('runtime 默认上下文折叠经真实循环生效：老的超长 tool_result 在后续模型调用里被折叠', async (t) => {
+  const { base, store } = await makeEnv(t)
+  const model = new ScriptedModel([
+    assistantToolCall('t1', 'big', {}),
+    assistantToolCall('t2', 'big', {}),
+    assistantReply('完成'),
+  ])
+  const runtime = new AgentRuntime({
+    store,
+    model,
+    sessionDir: path.join(base, 'sessions'),
+    workspacesDir: path.join(base, 'workspaces'),
+    mainTools: [fixedTool('big', 'B'.repeat(50))],
+    contextFold: { maxToolResultChars: 10, keepRecentToolResults: 1 },
+  })
+
+  const taskId = runtime.submit({ projectId: 'p', userText: '干活' })
+  await runtime.waitFor(taskId)
+
+  assert.equal(store.getTask(taskId)?.status, 'done')
+  // 第三次模型调用：t1 已老化 → 折叠；t2 是最近 1 条 → 原文可见
+  const third = model.calls[2]
+  const t1 = third.find((m) => m.toolCallId === 't1')
+  const t2 = third.find((m) => m.toolCallId === 't2')
+  assert.match(t1?.content ?? '', /collapsed/, '老 tool_result 应被折叠')
+  assert.equal(t2?.content, 'B'.repeat(50), '最近一条必须原文可见')
+  // 折叠只影响模型视图：落库事件与线程仍是原文
+  const events = store.listEvents(taskId).filter((e) => e.kind === 'tool_result')
+  assert.ok(events.every((e) => (JSON.parse(e.payload_json) as { llmContent: string }).llmContent === 'B'.repeat(50)))
+})
+
 test('worker 受限工具：searcher 角色不包含 edit_file', () => {
   const roles = buildRoles([...ENV_TOOLS, fixedTool('search_papers', '{}')])
   const searcherToolNames = roles.searcher.tools.map((ttt) => ttt.spec.name)
   assert.ok(searcherToolNames.includes('search_papers'))
   assert.ok(!searcherToolNames.includes('edit_file'), 'searcher 不应拿到 edit_file')
+})
+
+test('预算耗尽 ≠ done：maxSteps 用完 → 任务 interrupted（可 resume），不伪装成完成', async (t) => {
+  const { base, store } = await makeEnv(t)
+  const model = new ScriptedModel([
+    assistantToolCall('t1', 'note', {}),
+    assistantReply('不该到这里'),
+  ])
+  const runtime = new AgentRuntime({
+    store,
+    model,
+    sessionDir: path.join(base, 'sessions'),
+    workspacesDir: path.join(base, 'workspaces'),
+    mainTools: [fixedTool('note', 'ok')],
+    budget: { maxSteps: 1 },
+  })
+  const taskId = runtime.submit({ projectId: 'p', userText: '长任务' })
+  await runtime.waitFor(taskId)
+
+  const task = store.getTask(taskId)
+  assert.equal(task?.status, 'interrupted')
+  assert.match(task?.last_error ?? '', /预算耗尽/)
+})
+
+test('sweepInterrupted：服务重启后，遗留 running 的任务被标记为 interrupted', async (t) => {
+  const { base, store } = await makeEnv(t)
+  const orphan = store.createTask('p', '上个进程死前在跑')
+  store.updateTaskStatus(orphan.id, 'running')
+
+  const runtime = new AgentRuntime({
+    store,
+    model: new ScriptedModel([]),
+    sessionDir: path.join(base, 'sessions'),
+    workspacesDir: path.join(base, 'workspaces'),
+    mainTools: [],
+  })
+  assert.equal(runtime.sweepInterrupted(), 1)
+  assert.equal(store.getTask(orphan.id)?.status, 'interrupted')
+  // 再 sweep 一次应是幂等的（interrupted 不再是 running）
+  assert.equal(runtime.sweepInterrupted(), 0)
 })

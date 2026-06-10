@@ -28,8 +28,17 @@ export class AgentClient {
   private ws: WebSocket | null = null
   private readonly handlers = new Set<(e: TaskEvent) => void>()
   private pendingCreated: ((id: string) => void) | null = null
+  private readonly url: string
 
-  constructor(private readonly url: string) {}
+  constructor(url: string, token?: string) {
+    if (token) {
+      const u = new URL(url)
+      u.searchParams.set('token', token)
+      this.url = u.toString()
+    } else {
+      this.url = url
+    }
+  }
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {

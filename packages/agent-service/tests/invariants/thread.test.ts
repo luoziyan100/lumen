@@ -30,3 +30,18 @@ test('forModel 折叠超长 tool_result，但保留其存在事实', () => {
   assert.match(collapsed?.content ?? '', /collapsed/) // 存在事实保留
   assert.equal(thread.messages[1].content, long) // 原始线程不被改动
 })
+
+test('forModel keepRecentToolResults：最近 N 条豁免折叠，模型先看到后果、老化后才折叠', () => {
+  const long = (tag: string) => `${tag}:${'x'.repeat(100)}`
+  const thread = new Thread([
+    { role: 'user', content: 'u' },
+    { role: 'tool_result', toolCallId: 't1', content: long('old') },
+    { role: 'assistant', content: 'a1' },
+    { role: 'tool_result', toolCallId: 't2', content: long('recent') },
+  ])
+  const view = thread.forModel({ maxToolResultChars: 10, keepRecentToolResults: 1 })
+  const t1 = view.find((m) => m.toolCallId === 't1')
+  const t2 = view.find((m) => m.toolCallId === 't2')
+  assert.match(t1?.content ?? '', /collapsed/, '老的 tool_result 折叠')
+  assert.equal(t2?.content, long('recent'), '最近 1 条豁免，模型必须看到刚返回的后果')
+})

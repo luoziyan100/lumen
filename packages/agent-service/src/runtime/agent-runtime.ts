@@ -3,7 +3,7 @@
  * [OUTPUT]: AgentRuntime —— 把内核、存储、工作区、worker 角色拼成可执行、可订阅、可恢复的任务运行时
  * [POS]: §4 运行环境。一个任务 = 一次 runAgent；emit 同时落 task_events + session jsonl + 通知订阅者（WS）
  */
-import { Thread } from '../core/thread.ts'
+import { Thread, type ForModelOptions } from '../core/thread.ts'
 import { runAgent } from '../core/loop.ts'
 import { createSpawnFn, spawnTool, type RoleDef } from '../core/spawn.ts'
 import type { ModelPort } from '../core/model-port.ts'
@@ -33,7 +33,12 @@ export interface AgentRuntimeConfig {
   maxDepth?: number
   buildSystemPrompt?: (info: RuntimeContextInfo) => string
   contextInfo?: () => RuntimeContextInfo
+  /** 上下文折叠；不传用 DEFAULT_CONTEXT_FOLD。显式传 {} 可关闭（测试用） */
+  contextFold?: ForModelOptions
 }
+
+/** 长任务不撑爆上下文的泄压阀：老 tool_result 超 8000 字符折叠，最近 6 条豁免 */
+export const DEFAULT_CONTEXT_FOLD: ForModelOptions = { maxToolResultChars: 8000, keepRecentToolResults: 6 }
 
 export interface SubmitInput {
   projectId: string
@@ -120,6 +125,21 @@ export class AgentRuntime {
     await Promise.all([...this.running.values()].map((r) => r.promise))
   }
 
+  /**
+   * 服务启动时调用：上个进程死亡时仍 'running' 的任务标记为 interrupted（可 resume）。
+   * 不自动续跑——续跑花钱，交给用户/UI 决定。
+   */
+  sweepInterrupted(): number {
+    let swept = 0
+    for (const task of this.cfg.store.findInterrupted()) {
+      if (task.status === 'running' && !this.running.has(task.id)) {
+        this.cfg.store.updateTaskStatus(task.id, 'interrupted', '服务中断时任务未完成；resume 可续跑')
+        swept += 1
+      }
+    }
+    return swept
+  }
+
   // ---- internals ----
 
   private systemPrompt(): string {
@@ -151,7 +171,7 @@ export class AgentRuntime {
 
   private makeEmit(taskId: string): (event: AgentEvent) => void {
     return (event: AgentEvent) => {
-      const stored = this.cfg.store.appendEvent(taskId, event.kind, event.payload)
+      const stored = this.cfg.store.appendEvent(taskId, event.kind, event.payload, event.agentRole)
       for (const entry of toSessionEntries(taskId, event)) appendSessionEntry(this.cfg.sessionDir, entry)
       this.notify(taskId, stored)
     }
@@ -165,7 +185,7 @@ export class AgentRuntime {
     const startedAt = Date.now()
     const emit = this.makeEmit(task.id)
     const budget = mergeBudget(this.cfg.budget)
-    const limits: Limits = { maxSteps: budget.maxSteps, maxDepth: this.cfg.maxDepth ?? 3 }
+    const limits: Limits = { maxSteps: budget.maxSteps, maxDepth: this.cfg.maxDepth ?? 3, maxSeconds: budget.maxSeconds }
     const workspace = this.makeWorkspace(task.project_id)
     const spawn = createSpawnFn({
       model: this.cfg.model,
@@ -186,12 +206,18 @@ export class AgentRuntime {
     try {
       this.cfg.store.updateTaskStatus(task.id, 'running')
       this.notifyStatus(task.id)
-      const result = await runAgent({ thread, model: this.cfg.model, tools, limits, ctx, signal })
+      const result = await runAgent({
+        thread, model: this.cfg.model, tools, limits, ctx, signal,
+        forModelOptions: this.cfg.contextFold ?? DEFAULT_CONTEXT_FOLD,
+      })
+      // exhausted ≠ done：预算耗尽是"可续跑的中断"，不能伪装成完成（reply 是空的）
       const status = result.status === 'done' ? 'done'
         : result.status === 'aborted' ? 'canceled'
-          : result.status === 'exhausted' ? 'done'
+          : result.status === 'exhausted' ? 'interrupted'
             : 'failed'
-      this.cfg.store.updateTaskStatus(task.id, status, result.status === 'error' ? result.reply : null)
+      const lastError = result.status === 'error' ? result.reply
+        : result.status === 'exhausted' ? '预算耗尽（步数或墙钟）；resume 可续跑' : null
+      this.cfg.store.updateTaskStatus(task.id, status, lastError)
       this.notifyStatus(task.id)
       this.endSession(task.id, status, Date.now() - startedAt)
     } catch (error) {
@@ -220,13 +246,14 @@ export class AgentRuntime {
 
 function toSessionEntries(taskId: string, event: AgentEvent): SessionEntry[] {
   const timestamp = new Date().toISOString()
+  const agent = event.agentRole !== 'main' ? { agent: event.agentRole } : {}
   if (event.kind === 'model_step') {
     const p = event.payload as { content?: string; toolCalls?: unknown[] }
-    return [{ type: 'assistant', task_id: taskId, timestamp, content: p.content ?? '', ...(p.toolCalls?.length ? { tool_calls: p.toolCalls } : {}) }]
+    return [{ type: 'assistant', task_id: taskId, timestamp, content: p.content ?? '', ...(p.toolCalls?.length ? { tool_calls: p.toolCalls } : {}), ...agent }]
   }
   if (event.kind === 'tool_result') {
     const p = event.payload as { id?: string; name?: string; llmContent?: string }
-    return [{ type: 'tool_result', task_id: taskId, timestamp, tool_call_id: p.id ?? '', tool: p.name ?? '', content: p.llmContent ?? '' }]
+    return [{ type: 'tool_result', task_id: taskId, timestamp, tool_call_id: p.id ?? '', tool: p.name ?? '', content: p.llmContent ?? '', ...agent }]
   }
   if (event.kind === 'error') {
     const p = event.payload as { error?: string }

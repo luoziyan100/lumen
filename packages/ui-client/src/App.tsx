@@ -6,9 +6,14 @@ import { useState } from 'react'
 import { useAgent } from './useAgent'
 
 const SERVICE_URL = (window as { __LUMEN_WS__?: string }).__LUMEN_WS__ ?? 'ws://localhost:8787'
+// token 来源：Tauri 注入 window.__LUMEN_TOKEN__；浏览器 dev 用页面 URL 的 ?token=（从 ~/.lumen/agent-service.json 拷）
+const SERVICE_TOKEN =
+  (window as { __LUMEN_TOKEN__?: string }).__LUMEN_TOKEN__ ??
+  new URLSearchParams(window.location.search).get('token') ??
+  undefined
 
 export function App() {
-  const { messages, running, send } = useAgent(SERVICE_URL, 'default')
+  const { messages, running, send } = useAgent(SERVICE_URL, 'default', SERVICE_TOKEN)
   const [input, setInput] = useState('')
 
   async function onSubmit(e: React.FormEvent): Promise<void> {

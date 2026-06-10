@@ -18,8 +18,14 @@ export class LumenClient {
   private pendingCreated: ((taskId: string) => void) | null = null
   private pendingTasks: ((tasks: Task[]) => void) | null = null
 
-  constructor(url: string) {
-    this.url = url
+  constructor(url: string, options: { token?: string } = {}) {
+    if (options.token) {
+      const u = new URL(url)
+      u.searchParams.set('token', options.token)
+      this.url = u.toString()
+    } else {
+      this.url = url
+    }
   }
 
   connect(): Promise<void> {

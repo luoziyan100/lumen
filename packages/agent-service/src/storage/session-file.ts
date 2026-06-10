@@ -11,8 +11,8 @@ import * as path from 'node:path'
 export type SessionEntry =
   | { type: 'session_start'; task_id: string; timestamp: string; user_text: string; project_id: string }
   | { type: 'user'; task_id: string; timestamp: string; content: string }
-  | { type: 'assistant'; task_id: string; timestamp: string; content: string; tool_calls?: unknown[] }
-  | { type: 'tool_result'; task_id: string; timestamp: string; tool_call_id: string; tool: string; content: string }
+  | { type: 'assistant'; task_id: string; timestamp: string; content: string; tool_calls?: unknown[]; agent?: string }
+  | { type: 'tool_result'; task_id: string; timestamp: string; tool_call_id: string; tool: string; content: string; agent?: string }
   | { type: 'error'; task_id: string; timestamp: string; error: string }
   | { type: 'session_end'; task_id: string; timestamp: string; status: string; duration_ms: number }
 

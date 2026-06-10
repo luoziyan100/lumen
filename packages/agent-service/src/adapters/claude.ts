@@ -8,6 +8,7 @@
  */
 import type { ModelPort, ModelResponse } from '../core/model-port.ts'
 import type { Message, ToolCall, ToolSpec } from '../core/types.ts'
+import { postJsonWithRetry, type RetryOptions } from './retry.ts'
 
 // ---- Anthropic Messages API 线格式 ----
 type ClaudeRole = 'user' | 'assistant'
@@ -123,28 +124,25 @@ export interface FetchTransportOptions {
   apiKey: string
   baseUrl?: string
   version?: string
+  retry?: RetryOptions
 }
 
-/** 生产用：直连 Anthropic（Node 侧无需浏览器的 dangerous-direct-browser-access header） */
+/** 生产用：直连 Anthropic（Node 侧无需浏览器的 dangerous-direct-browser-access header）。瞬时错误自动退避重试 */
 export function createFetchTransport(options: FetchTransportOptions): ClaudeTransport {
   const baseUrl = options.baseUrl ?? 'https://api.anthropic.com'
-  return async (request, signal) => {
-    const response = await fetch(`${baseUrl}/v1/messages`, {
-      method: 'POST',
-      headers: {
+  return async (request, signal) =>
+    (await postJsonWithRetry(
+      `${baseUrl}/v1/messages`,
+      {
         'content-type': 'application/json',
         'x-api-key': options.apiKey,
         'anthropic-version': options.version ?? '2023-06-01',
       },
-      body: JSON.stringify(request),
+      request,
+      'Claude request',
+      options.retry,
       signal,
-    })
-    if (!response.ok) {
-      const text = await response.text().catch(() => '')
-      throw new Error(`Claude request failed (${response.status}): ${text}`)
-    }
-    return (await response.json()) as ClaudeResponseBody
-  }
+    )) as ClaudeResponseBody
 }
 
 export interface ClaudeAdapterOptions {

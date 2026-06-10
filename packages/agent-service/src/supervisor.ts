@@ -11,6 +11,7 @@ import * as path from 'node:path'
 
 export interface ServiceProcess {
   port: number
+  token?: string
   pid: number
   stop(): void
 }
@@ -28,14 +29,18 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function waitForPortfile(file: string, child: ChildProcess, timeoutMs: number): Promise<number> {
+async function waitForPortfile(
+  file: string,
+  child: ChildProcess,
+  timeoutMs: number,
+): Promise<{ port: number; token?: string }> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     if (child.exitCode != null) throw new Error(`agent-service 进程提前退出 (code ${child.exitCode})`)
     if (existsSync(file)) {
       try {
-        const info = JSON.parse(readFileSync(file, 'utf8')) as { port?: number }
-        if (typeof info.port === 'number' && info.port > 0) return info.port
+        const info = JSON.parse(readFileSync(file, 'utf8')) as { port?: number; token?: string }
+        if (typeof info.port === 'number' && info.port > 0) return { port: info.port, token: info.token }
       } catch {
         // 文件写到一半，下个 tick 再读
       }
@@ -60,8 +65,8 @@ export async function spawnService(options: SpawnServiceOptions): Promise<Servic
   })
 
   try {
-    const port = await waitForPortfile(portfile, child, options.timeoutMs ?? 10_000)
-    return { port, pid: child.pid ?? -1, stop: () => child.kill() }
+    const { port, token } = await waitForPortfile(portfile, child, options.timeoutMs ?? 10_000)
+    return { port, token, pid: child.pid ?? -1, stop: () => child.kill() }
   } catch (error) {
     child.kill()
     throw error

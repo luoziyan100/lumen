@@ -10,14 +10,14 @@ export interface ChatMessage {
   content: string
 }
 
-export function useAgent(url: string, projectId: string) {
+export function useAgent(url: string, projectId: string, token?: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [running, setRunning] = useState(false)
   const clientRef = useRef<AgentClient | null>(null)
 
   useEffect(() => {
     let active = true
-    const client = new AgentClient(url)
+    const client = new AgentClient(url, token)
     clientRef.current = client
     client.onEvent((event: TaskEvent) => {
       const payload = safeParse(event.payload_json)
@@ -40,7 +40,7 @@ export function useAgent(url: string, projectId: string) {
       active = false
       client.close()
     }
-  }, [url])
+  }, [url, token])
 
   function push(message: ChatMessage): void {
     setMessages((prev) => [...prev, message])

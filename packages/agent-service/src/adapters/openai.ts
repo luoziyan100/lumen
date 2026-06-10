@@ -7,6 +7,7 @@
  */
 import type { ModelPort, ModelResponse } from '../core/model-port.ts'
 import type { Message, ToolCall, ToolSpec } from '../core/types.ts'
+import { postJsonWithRetry, type RetryOptions } from './retry.ts'
 
 type OAToolCall = { id: string; type: 'function'; function: { name: string; arguments: string } }
 type OAMessage = {
@@ -138,23 +139,20 @@ export interface OpenAIFetchTransportOptions {
   apiKey: string
   baseUrl: string // 如 https://xuedingtoken.com
   path?: string // 默认 /v1/chat/completions
+  retry?: RetryOptions
 }
 
 export function createOpenAIFetchTransport(options: OpenAIFetchTransportOptions): OpenAITransport {
   const url = `${options.baseUrl.replace(/\/$/, '')}${options.path ?? '/v1/chat/completions'}`
-  return async (request, signal) => {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${options.apiKey}` },
-      body: JSON.stringify(request),
+  return async (request, signal) =>
+    (await postJsonWithRetry(
+      url,
+      { 'content-type': 'application/json', authorization: `Bearer ${options.apiKey}` },
+      request,
+      'OpenAI request',
+      options.retry,
       signal,
-    })
-    if (!response.ok) {
-      const text = await response.text().catch(() => '')
-      throw new Error(`OpenAI request failed (${response.status}): ${text}`)
-    }
-    return (await response.json()) as OpenAIResponseBody
-  }
+    )) as OpenAIResponseBody
 }
 
 export interface OpenAIAdapterOptions {

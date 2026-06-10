@@ -7,7 +7,7 @@ import Database from 'better-sqlite3'
 
 export type DB = Database.Database
 
-const SCHEMA_VERSION = 2
+const SCHEMA_VERSION = 3
 
 export function openDatabase(filename: string): DB {
   const db = new Database(filename)
@@ -66,6 +66,11 @@ function migrate(db: DB): void {
     `)
   }
 
-  // 后续 migration：if (current < 3) { ... } 然后更新 SCHEMA_VERSION
+  if (current < 3) {
+    // 事件归属：区分 main 与 worker 的事件，resume 重建主线程时只回放 main（NULL=老数据，视为 main）
+    db.exec('ALTER TABLE task_events ADD COLUMN agent_role TEXT')
+  }
+
+  // 后续 migration：if (current < 4) { ... } 然后更新 SCHEMA_VERSION
   db.pragma(`user_version = ${SCHEMA_VERSION}`)
 }

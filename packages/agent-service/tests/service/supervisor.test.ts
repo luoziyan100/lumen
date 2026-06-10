@@ -21,8 +21,10 @@ test('进程生命周期：service 作为独立子进程启动 → 写 portfile 
   assert.ok(proc.port > 0, '应从 portfile 读到真实端口')
   assert.ok(existsSync(path.join(home, 'agent-service.json')), 'portfile 应存在')
 
-  // 独立进程，本测试进程通过 WS 连上它（模拟 UI 客户端）
-  const client = new LumenClient(`ws://127.0.0.1:${proc.port}`)
+  assert.ok(proc.token, 'portfile 应带 token')
+
+  // 独立进程，本测试进程通过 WS 连上它（模拟 UI 客户端，带 token）
+  const client = new LumenClient(`ws://127.0.0.1:${proc.port}`, { token: proc.token })
   await client.connect()
   const tasks = await client.list('p')
   assert.ok(Array.isArray(tasks), 'list 应返回数组')

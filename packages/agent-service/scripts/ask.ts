@@ -15,9 +15,9 @@ if (!prompt) {
 }
 
 const home = process.env.LUMEN_HOME ?? path.join(homedir(), '.lumen')
-const info = JSON.parse(readFileSync(path.join(home, 'agent-service.json'), 'utf8')) as { port: number }
+const info = JSON.parse(readFileSync(path.join(home, 'agent-service.json'), 'utf8')) as { port: number; token?: string }
 
-const client = new LumenClient(`ws://127.0.0.1:${info.port}`)
+const client = new LumenClient(`ws://127.0.0.1:${info.port}`, { token: info.token })
 await client.connect()
 
 function payload(json: string): Record<string, unknown> {
