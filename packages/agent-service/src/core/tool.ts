@@ -34,6 +34,8 @@ export interface GrepHit {
   path: string
   line: number
   text: string
+  /** 命中处在文件中的字符偏移；PDF 等少换行文本里 line 无意义，靠它配合 read_file 的 offset 跟进 */
+  charOffset?: number
 }
 
 export interface Workspace {

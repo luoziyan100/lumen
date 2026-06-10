@@ -41,10 +41,19 @@ export function createPdfTools(deps: { engine?: PdfTextEngine; http?: HttpClient
           bytes = await ctx.workspace.readBytes(source)
         }
         const text = await deps.engine(bytes)
-        if (args.save_as && ctx.workspace) await ctx.workspace.writeFile(String(args.save_as), text).catch(() => {})
         if (!text.trim()) return { llmContent: '(抽取到空文本，可能是扫描版/图片型 PDF)' }
-        const shown = text.length > MAX_CHARS ? `${text.slice(0, MAX_CHARS)}\n…[截断，共 ${text.length} 字符]` : text
-        return { llmContent: shown, data: { chars: text.length } }
+        let saved: string | undefined
+        if (args.save_as && ctx.workspace) {
+          saved = String(args.save_as)
+          await ctx.workspace.writeFile(saved, text).catch(() => { saved = undefined })
+        }
+        if (text.length <= MAX_CHARS) return { llmContent: text, data: { chars: text.length, savedAs: saved } }
+        // 长论文：预览只是开头。核心内容（挑战/局限/结论）常在后半，必须引导分段读全文，别只凭预览下结论。
+        const guide = saved
+          ? `\n…[这只是前 ${MAX_CHARS} 字符的预览，全文共 ${text.length} 字符，已存到 ${saved}。` +
+            `用 grep 在 ${saved} 里定位关键词、或 read_file(offset=…) 分段读全文，不要只凭此预览作答。]`
+          : `\n…[预览截断，全文共 ${text.length} 字符。建议加 save_as 存盘后用 grep / read_file 分段读全文。]`
+        return { llmContent: `${text.slice(0, MAX_CHARS)}${guide}`, data: { chars: text.length, savedAs: saved } }
       } catch (error) {
         return { llmContent: `error: ${error instanceof Error ? error.message : String(error)}` }
       }

@@ -25,21 +25,39 @@ function objectParam(schema: Record<string, unknown>, required: string[]): Recor
 export const readFileTool: Tool = {
   spec: {
     name: 'read_file',
-    description: '读取工作区（或 library/ 只读论文库）下某个文件的文本内容。',
-    parameters: objectParam({ path: { type: 'string', description: '工作区相对路径' } }, ['path']),
+    description:
+      '读取工作区（或 library/ 只读论文库）下文件的文本。长文件用 offset/limit 分段翻页读，' +
+      '配合 grep 返回的 charOffset 可直接跳到命中处——不要只读开头就下结论。',
+    parameters: objectParam(
+      {
+        path: { type: 'string', description: '工作区相对路径' },
+        offset: { type: 'number', description: '起始字符偏移，默认 0' },
+        limit: { type: 'number', description: `本次最多读取的字符数，默认 ${READ_MAX_CHARS}` },
+      },
+      ['path'],
+    ),
   },
   run: async (args, ctx): Promise<ToolResult> => {
     const ws = requireWorkspace(ctx)
     if (!ws) return { llmContent: 'error: workspace 未注入' }
     try {
       const content = await ws.readFile(String(args.path))
-      if (content.length > READ_MAX_CHARS) {
-        return {
-          llmContent: `${content.slice(0, READ_MAX_CHARS)}\n…[已截断，共 ${content.length} 字符；用 grep 定位或分段读取]`,
-          data: { truncated: true, totalChars: content.length },
-        }
+      const total = content.length
+      const offset = Math.max(0, Math.floor(Number(args.offset ?? 0)) || 0)
+      const limit = Math.max(1, Math.floor(Number(args.limit ?? READ_MAX_CHARS)) || READ_MAX_CHARS)
+      if (offset >= total && total > 0) {
+        return { llmContent: `error: offset ${offset} 超出文件长度 ${total}`, data: { totalChars: total } }
       }
-      return { llmContent: content }
+      const slice = content.slice(offset, offset + limit)
+      const end = offset + slice.length
+      const windowed = offset > 0 || end < total
+      if (!windowed) return { llmContent: content, data: { totalChars: total } }
+      const head = `[读取 ${offset}–${end} / 共 ${total} 字符]`
+      const tail = end < total ? `\n…[还有 ${total - end} 字符；继续读用 offset=${end}]` : '\n[已到文件末尾]'
+      return {
+        llmContent: `${head}\n${slice}${tail}`,
+        data: { totalChars: total, offset, end, nextOffset: end < total ? end : null },
+      }
     } catch (error) {
       return { llmContent: `error: ${errorMessage(error)}` }
     }
@@ -111,11 +129,13 @@ export const listDirTool: Tool = {
 export const grepTool: Tool = {
   spec: {
     name: 'grep',
-    description: '在工作区里按正则搜索文本，返回 path:line:内容。',
+    description:
+      '在工作区里按正则搜索文本，返回 path:line(@字符偏移): 内容。' +
+      'path 可以是目录或单个文件。命中后可用返回的 @偏移 作为 read_file 的 offset 读上下文。',
     parameters: objectParam(
       {
         pattern: { type: 'string' },
-        path: { type: 'string', description: '限定搜索子目录，默认整个工作区' },
+        path: { type: 'string', description: '限定搜索的子目录或单个文件，默认整个工作区' },
         flags: { type: 'string', description: '正则 flags，如 i' },
       },
       ['pattern'],
@@ -131,7 +151,9 @@ export const grepTool: Tool = {
       })
       if (hits.length === 0) return { llmContent: '(无匹配)' }
       const shown = hits.slice(0, GREP_MAX_HITS)
-      const text = shown.map((h) => `${h.path}:${h.line}: ${h.text}`).join('\n')
+      const text = shown
+        .map((h) => `${h.path}:${h.line}${h.charOffset != null ? `(@${h.charOffset})` : ''}: ${h.text}`)
+        .join('\n')
       const note = hits.length > GREP_MAX_HITS ? `\n…[共 ${hits.length} 处，仅显示前 ${GREP_MAX_HITS}]` : ''
       return { llmContent: text + note, data: { total: hits.length } }
     } catch (error) {

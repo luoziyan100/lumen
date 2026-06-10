@@ -50,6 +50,28 @@ test('grep 跨嵌套文件命中，返回虚拟路径', async (t) => {
   assert.equal(hits[0].line, 2)
 })
 
+test('grep path 指向单个文件也能命中（回归：walkFiles 对文件 readdir 抛 ENOTDIR 曾静默返回空）', async (t) => {
+  const { ws } = await makeWorkspace(t)
+  await ws.writeFile('paper.txt', 'intro 部分\n中间有 challenge 关键词\n结尾')
+  const viaFile = await ws.grep('challenge', { path: 'paper.txt' })
+  const viaDir = await ws.grep('challenge')
+  assert.equal(viaFile.length, 1, 'grep path=文件 必须能命中（这正是 Soul Computing 任务里三次无匹配的根因）')
+  assert.equal(viaDir.length, 1)
+  assert.equal(viaFile[0].path, 'paper.txt')
+})
+
+test('grep 命中返回字符偏移，长行截断到匹配上下文（模拟无换行 PDF）', async (t) => {
+  const { ws } = await makeWorkspace(t)
+  const filler = 'x'.repeat(1000)
+  const body = `${filler} CORE_CHALLENGES_HERE ${filler}` // 整段无换行，关键词在中段
+  await ws.writeFile('full.txt', body)
+  const hits = await ws.grep('CORE_CHALLENGES_HERE')
+  assert.equal(hits.length, 1)
+  assert.equal(hits[0].charOffset, body.indexOf('CORE_CHALLENGES_HERE'), 'charOffset 必须指向匹配处')
+  assert.ok(hits[0].text.length < body.length, '长行必须被截断，不灌爆上下文')
+  assert.match(hits[0].text, /CORE_CHALLENGES_HERE/, '截断窗口必须含匹配词')
+})
+
 test('glob 支持 ** 与 *', async (t) => {
   const { ws } = await makeWorkspace(t)
   await ws.writeFile('notes/a.md', '1')
