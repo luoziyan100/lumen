@@ -57,7 +57,7 @@ export function createService(config: ServiceConfig = {}): Service {
   const apiKey = config.apiKey ?? process.env.LUMEN_API_KEY ?? process.env.ANTHROPIC_API_KEY
   const provider = config.provider ?? (process.env.LUMEN_PROVIDER as 'anthropic' | 'openai' | undefined) ?? 'anthropic'
   const baseUrl = config.baseUrl ?? process.env.LUMEN_BASE_URL
-  const modelId = config.model ?? process.env.LUMEN_MODEL ?? 'claude-sonnet-4-6'
+  const modelId = config.model ?? process.env.LUMEN_MODEL ?? 'claude-opus-4-8'
   const model: ModelPort = config.modelPort
     ?? (apiKey
       ? (provider === 'openai'

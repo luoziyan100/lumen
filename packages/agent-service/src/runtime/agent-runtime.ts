@@ -15,6 +15,7 @@ import { appendSessionEntry, type SessionEntry } from '../storage/session-file.t
 import { rebuildThread } from '../storage/resume.ts'
 import { mergeBudget, type TaskBudget } from '../storage/budget.ts'
 import { FsWorkspace } from '../workspace/fs-workspace.ts'
+import { LUMEN_PERSONA } from '../agents/persona.ts'
 
 export interface RuntimeContextInfo {
   currentDate: string
@@ -48,13 +49,8 @@ export interface SubmitInput {
 type Listener = (event: TaskEvent) => void
 
 function defaultSystemPrompt(info: RuntimeContextInfo): string {
-  return [
-    '你是 Lumen 的研究 agent，面向独立研究者。',
-    `今天是 ${info.currentDate}。本地论文库有 ${info.localPaperCount} 篇。`,
-    '你有工作区文件工具（read_file/write_file/edit_file/list_dir/grep/glob）与研究工具。',
-    '把检索到的内容、笔记、草稿写进工作区文件，需要时再读回——不要把所有内容堆在对话里。',
-    '事实性结论要能追溯到来源。完成后直接给用户简洁的中文回答。',
-  ].join('\n')
+  // 人格(剧本)+ 运行时上下文。人格在 agents/persona.ts,改动需经 owner。
+  return `${LUMEN_PERSONA}\n\n# 此刻\n今天是 ${info.currentDate}。本地论文库有 ${info.localPaperCount} 篇。`
 }
 
 export class AgentRuntime {

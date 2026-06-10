@@ -28,7 +28,7 @@ if (!apiKey) {
   process.exit(1)
 }
 const baseUrl = process.env.BASE ?? 'https://xuedingtoken.com'
-const model = process.env.MODEL ?? 'claude-sonnet-4-6'
+const model = process.env.MODEL ?? 'claude-opus-4-8' // 当前代理最稳的可用 Claude；sonnet 常 accounts-exhausted
 
 const recorded: OpenAIResponseBody[] = []
 const transport = createOpenAIRecordingTransport(createOpenAIFetchTransport({ apiKey, baseUrl }), recorded)
@@ -66,6 +66,8 @@ const wrote = thread.messages.some((m) => m.role === 'tool_result' && m.content.
 console.log('工作区文件:', await workspace.listDir('notes').then((e) => e.map((x) => x.name)).catch(() => []))
 console.log('线程里有 tool_result:', wrote)
 
-const fixturePath = path.join(import.meta.dirname, '..', 'tests', 'replay', 'fixtures', 'openai-live.json')
-writeFileSync(fixturePath, JSON.stringify(recorded, null, 2))
-console.log('\n录制已写入:', fixturePath)
+// 默认写临时文件，不污染 tests/replay/fixtures 里的回归基线（代理输出有损 + 隐藏注入，不可当真理）。
+// 要刷新真实基线时显式传 OUT=…/tests/replay/fixtures/openai-live.json。
+const outPath = process.env.OUT ?? path.join(tmpdir(), 'lumen-live-recording.json')
+writeFileSync(outPath, JSON.stringify(recorded, null, 2))
+console.log('\n录制已写入:', outPath)
