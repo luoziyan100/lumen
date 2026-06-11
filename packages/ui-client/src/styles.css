@@ -84,3 +84,23 @@ body, #root { margin: 0; }
 .pdf-nav:disabled { opacity: .35; cursor: default; }
 .pdf-stage { flex: 1; overflow: auto; display: flex; justify-content: center; padding: var(--s-6); background: var(--sand); }
 .pdf-canvas { max-width: 100%; height: -moz-fit-content; height: fit-content; box-shadow: var(--shadow-2); background: #fff; border-radius: var(--radius-sm); }
+
+/* ---- 过程块(§9)---- */
+.proc { align-self: stretch; max-width: 92%; }
+.proc-head { display: flex; align-items: center; gap: var(--s-3); width: 100%; padding: 8px 12px; border: 1px solid var(--sand); border-radius: var(--radius-md); background: var(--paper-deep); color: var(--ink-soft); font: inherit; font-size: var(--t-body-sm); cursor: pointer; text-align: left; }
+.proc-head:hover { background: var(--sand); }
+.proc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-mute); flex: none; }
+.proc-running .proc-dot { background: var(--ember); animation: proc-pulse 1.2s ease-in-out infinite; }
+@keyframes proc-pulse { 0%, 100% { opacity: 1 } 50% { opacity: .3 } }
+.proc-label { flex: 1; }
+.proc-toggle { color: var(--ink-mute); font-size: var(--t-body-sm); flex: none; }
+.proc-steps { list-style: none; margin: var(--s-1) 0 0; padding: var(--s-2) 0 var(--s-2) var(--s-5); display: flex; flex-direction: column; gap: var(--s-2); }
+.proc-step { display: flex; align-items: center; gap: var(--s-3); color: var(--ink-soft); font-size: var(--t-body-sm); }
+.proc-step-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--sand-deep); flex: none; }
+.proc-step-dot.is-done { background: var(--ember); }
+
+/* ---- 空状态 ---- */
+.empty { margin: auto; text-align: center; max-width: 38ch; color: var(--ink-mute); }
+.empty-mark { font-family: var(--font-serif); font-size: 32px; color: var(--ink-soft); letter-spacing: .04em; margin-bottom: var(--s-4); }
+.empty-tip { font-size: var(--t-body-lg); color: var(--ink-soft); line-height: 1.6; margin: 0 0 var(--s-3); }
+.empty-sub { font-size: var(--t-body-sm); line-height: 1.6; margin: 0; }

@@ -8,6 +8,7 @@ import { useAgent } from './useAgent'
 import { useWorkspace } from './useWorkspace'
 import { WorkspaceDrawer } from './components/WorkspaceDrawer'
 import { ReaderPane } from './components/ReaderPane'
+import { ProcessRow } from './components/ProcessRow'
 
 const w = window as { __LUMEN_WS__?: string; __LUMEN_TOKEN__?: string }
 const SERVICE_URL = w.__LUMEN_WS__ ?? 'ws://localhost:8787'
@@ -23,7 +24,7 @@ export function App() {
     return () => { live = false; client.close() }
   }, [client])
 
-  const { messages, running, send, newConversation } = useAgent(client, PROJECT)
+  const { items, running, send, newConversation } = useAgent(client, PROJECT)
   const ws = useWorkspace(client, PROJECT, connected)
   const [drawer, setDrawer] = useState(false)
   const [input, setInput] = useState('')
@@ -51,6 +52,8 @@ export function App() {
     setUploading(false)
   }
 
+  const lastItem = items[items.length - 1]
+  const lastRunning = lastItem?.kind === 'process' && lastItem.running
   const showReader = ws.open != null
 
   return (
@@ -67,10 +70,11 @@ export function App() {
       <div className="body">
         <main className={`chat ${showReader ? 'chat-with-reader' : ''}`}>
           <div className="messages">
-            {messages.map((m) => (
-              <div key={m.id} className={`bubble bubble-${m.role}`}>{m.content}</div>
-            ))}
-            {running && <div className="bubble bubble-status">思考中…</div>}
+            {items.length === 0 && !running && <EmptyState />}
+            {items.map((it) => it.kind === 'msg'
+              ? <div key={it.id} className={`bubble bubble-${it.role}`}>{it.content}</div>
+              : <ProcessRow key={it.id} block={it} />)}
+            {running && !lastRunning && <div className="bubble bubble-status">思考中…</div>}
           </div>
           <form className="composer" onSubmit={onSubmit}>
             <button type="button" className="composer-attach" disabled={uploading} onClick={() => fileRef.current?.click()}>{uploading ? '上传中…' : '＋ PDF'}</button>
@@ -83,6 +87,16 @@ export function App() {
         {showReader && ws.open && <ReaderPane open={ws.open} pdfUrl={(p) => client.pdfUrl(PROJECT, p)} onClose={ws.close} />}
         {drawer && !showReader && <WorkspaceDrawer assets={ws.assets} onOpen={ws.openAsset} onClose={() => setDrawer(false)} />}
       </div>
+    </div>
+  )
+}
+
+function EmptyState() {
+  return (
+    <div className="empty">
+      <div className="empty-mark">Lumen</div>
+      <p className="empty-tip">问一个研究问题,或让我去检索、读 PDF、把发现整理成笔记。</p>
+      <p className="empty-sub">右上「工作区」看论文与产物;「＋ PDF」上传你自己的论文。</p>
     </div>
   )
 }
