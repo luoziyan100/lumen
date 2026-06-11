@@ -27,6 +27,7 @@ type ServerMessage =
 export class AgentClient {
   private ws: WebSocket | null = null
   private readonly handlers = new Set<(e: TaskEvent) => void>()
+  private readonly closeHandlers = new Set<(code: number, reason: string) => void>()
   private pendingCreated: ((id: string) => void) | null = null
   private readonly url: string
 
@@ -44,10 +45,18 @@ export class AgentClient {
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(this.url)
       this.ws = ws
-      ws.onopen = () => resolve()
-      ws.onerror = (e) => reject(e)
+      let opened = false
+      ws.onopen = () => { opened = true; resolve() }
+      ws.onerror = (e) => { if (!opened) reject(e) }
+      // 关键:握手成功后被服务端 4401 踢掉时,onopen 已 resolve,只有 onclose 能告诉我们"被拒"
+      ws.onclose = (ev) => { for (const h of this.closeHandlers) h(ev.code, ev.reason) }
       ws.onmessage = (ev) => this.onMessage(JSON.parse(ev.data) as ServerMessage)
     })
+  }
+
+  onClose(handler: (code: number, reason: string) => void): () => void {
+    this.closeHandlers.add(handler)
+    return () => this.closeHandlers.delete(handler)
   }
 
   onEvent(handler: (e: TaskEvent) => void): () => void {

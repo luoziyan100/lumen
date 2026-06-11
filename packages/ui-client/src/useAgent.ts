@@ -32,6 +32,15 @@ export function useAgent(url: string, projectId: string, token?: string) {
         push({ id: event.id, role: 'status', content: `· 调用 ${String(payload.name)}` })
       }
     })
+    client.onClose((code, reason) => {
+      if (!active) return // StrictMode/卸载主动关闭不报错
+      if (code === 4401) {
+        push({ id: `close-${Date.now()}`, role: 'error', content: '连接被拒:未授权(token 缺失或不对)。刷新页面重试;若仍不行,确认 agent-service 在运行。' })
+      } else if (code !== 1000) {
+        push({ id: `close-${Date.now()}`, role: 'error', content: `连接断开（code ${code}）${reason ? '：' + reason : ''}` })
+      }
+      setRunning(false)
+    })
     client.connect().catch(() => {
       // 被 StrictMode/卸载主动关闭的连接不报错（dev 双挂载假象）
       if (active) push({ id: `conn-err-${Date.now()}`, role: 'error', content: '无法连接 agent-service（确认服务已在 8787 运行）' })
