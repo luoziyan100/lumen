@@ -1,51 +1,72 @@
 /**
- * Lumen LUI —— 主屏只有聊天：user / assistant / error 气泡 + 输入框。
- * 内部状态（route/budget/trace/evidence）后续放抽屉，不堆主流（遵循 V2 LUI 原则）。
+ * Lumen 形态 A:对话主屏 + 可收工作区抽屉 + PDF/文件右侧分屏(阅读器)。
+ * client 在此建并 connect,传给 useAgent(对话)/ useWorkspace(资产)。
  */
-import { useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { AgentClient } from './agent-client'
 import { useAgent } from './useAgent'
+import { useWorkspace } from './useWorkspace'
+import { WorkspaceDrawer } from './components/WorkspaceDrawer'
+import { ReaderPane } from './components/ReaderPane'
 
-const SERVICE_URL = (window as { __LUMEN_WS__?: string }).__LUMEN_WS__ ?? 'ws://localhost:8787'
-// token 来源：Tauri 注入 window.__LUMEN_TOKEN__；浏览器 dev 用页面 URL 的 ?token=（从 ~/.lumen/agent-service.json 拷）
-const SERVICE_TOKEN =
-  (window as { __LUMEN_TOKEN__?: string }).__LUMEN_TOKEN__ ??
-  new URLSearchParams(window.location.search).get('token') ??
-  undefined
+const w = window as { __LUMEN_WS__?: string; __LUMEN_TOKEN__?: string }
+const SERVICE_URL = w.__LUMEN_WS__ ?? 'ws://localhost:8787'
+const SERVICE_TOKEN = w.__LUMEN_TOKEN__ ?? new URLSearchParams(window.location.search).get('token') ?? undefined
+const PROJECT = 'default'
 
 export function App() {
-  const { messages, running, send } = useAgent(SERVICE_URL, 'default', SERVICE_TOKEN)
+  const client = useMemo(() => new AgentClient(SERVICE_URL, SERVICE_TOKEN), [])
+  const [connected, setConnected] = useState(false)
+  useEffect(() => {
+    let live = true
+    client.connect().then(() => { if (live) setConnected(true) }).catch(() => {})
+    return () => { live = false; client.close() }
+  }, [client])
+
+  const { messages, running, send, newConversation } = useAgent(client, PROJECT)
+  const ws = useWorkspace(client, PROJECT, connected)
+  const [drawer, setDrawer] = useState(false)
   const [input, setInput] = useState('')
 
-  async function onSubmit(e: React.FormEvent): Promise<void> {
+  async function onSubmit(e: FormEvent): Promise<void> {
     e.preventDefault()
-    const text = input.trim()
-    if (!text || running) return
+    const t = input.trim()
+    if (!t || running) return
     setInput('')
-    await send(text)
+    await send(t)
   }
 
+  const showReader = ws.open != null
+
   return (
-    <div className="lumen-app">
-      <header className="lumen-titlebar">Lumen · 研究</header>
-      <main className="lumen-chat">
-        {messages.map((m) => (
-          <div key={m.id} className={`bubble bubble-${m.role}`}>
-            {m.content}
+    <div className="app">
+      <header className="titlebar">
+        <span className="brand">Lumen<span className="brand-sub"> · 研究</span></span>
+        <nav className="titlebar-actions">
+          <button onClick={() => { newConversation(); ws.close() }}>＋ 新对话</button>
+          <button>任务</button>
+          <button className={drawer ? 'tb-on' : ''} onClick={() => setDrawer((v) => !v)}>工作区</button>
+        </nav>
+      </header>
+
+      <div className="body">
+        <main className={`chat ${showReader ? 'chat-with-reader' : ''}`}>
+          <div className="messages">
+            {messages.map((m) => (
+              <div key={m.id} className={`bubble bubble-${m.role}`}>{m.content}</div>
+            ))}
+            {running && <div className="bubble bubble-status">思考中…</div>}
           </div>
-        ))}
-        {running && <div className="bubble bubble-status">思考中…</div>}
-      </main>
-      <form className="lumen-composer" onSubmit={onSubmit}>
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="问点什么，或让它去研究…"
-          disabled={running}
-        />
-        <button type="submit" disabled={running || !input.trim()}>
-          发送
-        </button>
-      </form>
+          <form className="composer" onSubmit={onSubmit}>
+            <button type="button" className="composer-attach" title="上传 PDF(P3)">＋ PDF</button>
+            <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="问点什么,或让它去研究…" disabled={running} />
+            <button type="submit" className="composer-send" disabled={running || !input.trim()}>发送</button>
+          </form>
+        </main>
+
+        {showReader && ws.open && <ReaderPane open={ws.open} pdfUrl={(p) => client.pdfUrl(PROJECT, p)} onClose={ws.close} />}
+        {drawer && !showReader && <WorkspaceDrawer assets={ws.assets} onOpen={ws.openAsset} onClose={() => setDrawer(false)} />}
+      </div>
     </div>
   )
 }
