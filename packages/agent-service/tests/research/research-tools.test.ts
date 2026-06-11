@@ -65,13 +65,20 @@ test('htmlToText 去标签/脚本，保留正文', () => {
   assert.doesNotMatch(text, /x\{\}/)
 })
 
-test('search_papers 工具：经 stub HTTP 返回排序后的列表', async () => {
-  const tools = createResearchTools({ http: stubHttp(() => jsonResponse(S2_SEARCH_BODY)) })
+const OA_SEARCH_BODY = {
+  results: [
+    { title: 'Diffusion models', authorships: [{ author: { display_name: 'A. One' } }], publication_year: 2026, primary_location: { source: { display_name: 'arXiv' } }, ids: { arxiv: '2601.001' }, abstract_inverted_index: { about: [0], diffusion: [1] }, open_access: { is_oa: true, oa_url: 'https://arxiv.org/pdf/2601.001' } },
+    { title: 'A Nature study', authorships: [{ author: { display_name: 'C. Three' } }], publication_year: 2026, primary_location: { source: { display_name: 'Nature' } }, doi: 'https://doi.org/10.1038/x', abstract_inverted_index: { big: [0], result: [1] } },
+  ],
+}
+
+test('search_papers 工具：经 stub HTTP（OpenAlex 格式）排序 + 展示开放全文链接', async () => {
+  const tools = createResearchTools({ http: stubHttp(() => jsonResponse(OA_SEARCH_BODY)) })
   const searchPapers = tools.find((t) => t.spec.name === 'search_papers')!
   const result = await searchPapers.run({ query: 'diffusion' }, noopCtx())
   assert.match(result.llmContent, /A Nature study/)
-  // Nature 应排在 Diffusion models 之前
-  assert.ok(result.llmContent.indexOf('A Nature study') < result.llmContent.indexOf('Diffusion models'))
+  assert.ok(result.llmContent.indexOf('A Nature study') < result.llmContent.indexOf('Diffusion models'), 'Nature 应排在前')
+  assert.match(result.llmContent, /开放全文: https:\/\/arxiv\.org\/pdf\/2601\.001/, '有 oa_url 的应展示开放全文链接')
 })
 
 test('fetch_url 工具：抓 HTML 转正文', async () => {

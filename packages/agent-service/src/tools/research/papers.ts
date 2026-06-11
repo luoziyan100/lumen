@@ -8,6 +8,7 @@
 import type { Tool, ToolResult } from '../../core/tool.ts'
 import type { HttpClient } from './http.ts'
 import { journalRank } from './journal-ranks.ts'
+import { buildOpenAlexUrl, parseOpenAlex } from './openalex.ts'
 
 const S2_BASE = 'https://api.semanticscholar.org/graph/v1'
 const SEARCH_FIELDS = 'title,authors,year,venue,externalIds,abstract'
@@ -22,6 +23,7 @@ export interface PaperRecord {
   doi?: string
   arxiv?: string
   abstract?: string
+  oaUrl?: string // 开放获取全文链接(OpenAlex 提供,有则可直接 fetch_url / extract_pdf)
 }
 
 export function buildSearchUrl(query: string, limit: number): string {
@@ -73,7 +75,8 @@ export function formatPapers(papers: PaperRecord[]): string {
       const id = p.doi ? `doi:${p.doi}` : p.arxiv ? `arXiv:${p.arxiv}` : (p.paperId ?? '')
       const authors = p.authors.slice(0, 3).join(', ') + (p.authors.length > 3 ? ' et al.' : '')
       const abs = p.abstract ? `\n   ${p.abstract.slice(0, 240)}` : ''
-      return `${i + 1}. ${p.title}\n   ${authors}${meta ? ' | ' + meta : ''}${id ? ' | ' + id : ''}${abs}`
+      const oa = p.oaUrl ? `\n   开放全文: ${p.oaUrl}` : ''
+      return `${i + 1}. ${p.title}\n   ${authors}${meta ? ' | ' + meta : ''}${id ? ' | ' + id : ''}${abs}${oa}`
     })
     .join('\n')
 }
@@ -82,7 +85,7 @@ export function createPaperTools(deps: { http: HttpClient }): Tool[] {
   const searchPapers: Tool = {
     spec: {
       name: 'search_papers',
-      description: '按关键词检索学术论文（Semantic Scholar）。返回标题/作者/年份/期刊/DOI/摘要片段，按期刊分级排序。',
+      description: '按关键词检索学术论文（OpenAlex，覆盖 2.5 亿作品、限流宽松）。返回标题/作者/年份/期刊/DOI/摘要/开放全文链接，按期刊分级排序。有"开放全文"链接的可直接 fetch_url / extract_pdf 拿正文。',
       parameters: {
         type: 'object',
         properties: { query: { type: 'string' }, limit: { type: 'number', description: '默认 10' } },
@@ -92,9 +95,9 @@ export function createPaperTools(deps: { http: HttpClient }): Tool[] {
     run: async (args, ctx, signal): Promise<ToolResult> => {
       try {
         const limit = typeof args.limit === 'number' ? Math.min(Math.max(1, args.limit), 50) : 10
-        const res = await deps.http(buildSearchUrl(String(args.query), limit), { signal })
+        const res = await deps.http(buildOpenAlexUrl(String(args.query), limit), { signal })
         if (!res.ok) return { llmContent: `error: search_papers 请求失败 (${res.status})` }
-        const papers = rankPapers(parseSearchResponse(await res.json()))
+        const papers = rankPapers(parseOpenAlex(await res.json()))
         if (ctx.workspace && papers.length) {
           const file = `notes/search-${Date.now()}.md`
           await ctx.workspace.writeFile(file, `# 检索: ${String(args.query)}\n\n${formatPapers(papers)}\n`).catch(() => {})
