@@ -2,7 +2,7 @@
  * Lumen 形态 A:对话主屏 + 可收工作区抽屉 + PDF/文件右侧分屏(阅读器)。
  * client 在此建并 connect,传给 useAgent(对话)/ useWorkspace(资产)。
  */
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { AgentClient } from './agent-client'
 import { useAgent } from './useAgent'
 import { useWorkspace } from './useWorkspace'
@@ -36,6 +36,21 @@ export function App() {
     await send(t)
   }
 
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  async function onPickPdf(e: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const file = e.target.files?.[0]
+    e.target.value = '' // 允许重选同名文件
+    if (!file) return
+    setUploading(true)
+    try {
+      await client.uploadPdf(PROJECT, file)
+      ws.refresh()
+      setDrawer(true) // 上传后展开工作区,让用户看到刚加入的论文
+    } catch { /* 失败先静默,后续接 toast */ }
+    setUploading(false)
+  }
+
   const showReader = ws.open != null
 
   return (
@@ -58,7 +73,8 @@ export function App() {
             {running && <div className="bubble bubble-status">思考中…</div>}
           </div>
           <form className="composer" onSubmit={onSubmit}>
-            <button type="button" className="composer-attach" title="上传 PDF(P3)">＋ PDF</button>
+            <button type="button" className="composer-attach" disabled={uploading} onClick={() => fileRef.current?.click()}>{uploading ? '上传中…' : '＋ PDF'}</button>
+            <input ref={fileRef} type="file" accept="application/pdf" hidden onChange={onPickPdf} />
             <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="问点什么,或让它去研究…" disabled={running} />
             <button type="submit" className="composer-send" disabled={running || !input.trim()}>发送</button>
           </form>
