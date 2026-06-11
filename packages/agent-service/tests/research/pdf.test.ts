@@ -44,3 +44,21 @@ test('extract_pdf 无引擎：返回清晰提示而非崩溃', async () => {
   const result = await extractPdf.run({ source: 'x.pdf' }, noopCtx())
   assert.match(result.llmContent, /引擎未接入/)
 })
+
+test('extract_pdf 工具：抓 URL PDF 时把原件落盘到 papers/ 并回 data.pdfAsset', async (t: TestContext) => {
+  const base = await mkdtemp(path.join(tmpdir(), 'lumen-pdf-url-'))
+  t.after(() => rm(base, { recursive: true, force: true }))
+  const ws = new FsWorkspace({ root: path.join(base, 'ws') })
+  const pdfBytes = new Uint8Array(buildMinimalPdf('URL fetched pdf body'))
+  const http = async () => ({
+    status: 200, ok: true,
+    text: async () => '', json: async () => ({}), bytes: async () => pdfBytes,
+  })
+  const extractPdf = createResearchTools({ pdfEngine: createUnpdfEngine(), http }).find((t2) => t2.spec.name === 'extract_pdf')!
+  const result = await extractPdf.run({ source: 'https://x.org/paper.pdf' }, noopCtx({ workspace: ws }))
+
+  assert.match(result.llmContent, /URL fetched pdf body/, '正文应抽出')
+  const saved = await ws.readBytes('papers/paper.pdf')
+  assert.ok(saved.length > 0, '原件 PDF 应落盘到 papers/paper.pdf')
+  assert.equal((result.data as { pdfAsset?: string }).pdfAsset, 'papers/paper.pdf', 'data 应带原件路径供侧栏/渲染')
+})

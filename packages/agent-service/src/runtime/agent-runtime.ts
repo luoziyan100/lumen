@@ -46,6 +46,13 @@ export interface SubmitInput {
   userText: string
 }
 
+/** 侧栏要显示的"会话资产":论文 PDF 原件 / 模型生成的文档(.md) */
+export interface WorkspaceAsset {
+  path: string
+  kind: 'pdf' | 'doc'
+  name: string
+}
+
 type Listener = (event: TaskEvent) => void
 
 function defaultSystemPrompt(info: RuntimeContextInfo): string {
@@ -118,6 +125,44 @@ export class AgentRuntime {
 
   listEvents(taskId: string, afterSeq?: number): TaskEvent[] {
     return this.cfg.store.listEvents(taskId, afterSeq)
+  }
+
+  /** 列本 project 工作区的"会话资产":论文 PDF 原件 + 生成的 .md(过滤 txt 抽取中间物与检索缓存) */
+  async listAssets(projectId: string): Promise<WorkspaceAsset[]> {
+    const ws = this.makeWorkspace(projectId)
+    const base = (p: string): string => p.split('/').pop() ?? p
+    const pdfs = (await ws.glob('**/*.pdf').catch(() => [] as string[]))
+      .map((p) => ({ path: p, kind: 'pdf' as const, name: base(p) }))
+    const docs = (await ws.glob('**/*.md').catch(() => [] as string[]))
+      .filter((p) => !/(^|\/)search-/.test(p)) // 排除 search-*.md 检索缓存
+      .map((p) => ({ path: p, kind: 'doc' as const, name: base(p) }))
+    return [...pdfs, ...docs]
+  }
+
+  /** 读一个文本资产(.md)。PDF 二进制走 HTTP /pdf,不经这里 */
+  async readAsset(projectId: string, path: string): Promise<string | null> {
+    try {
+      return await this.makeWorkspace(projectId).readFile(path)
+    } catch {
+      return null
+    }
+  }
+
+  /** 取资产二进制(PDF 原件),供 HTTP /pdf 给前端 pdf.js 渲染。路径经沙箱校验 */
+  async readAssetBytes(projectId: string, path: string): Promise<Uint8Array | null> {
+    try {
+      return await this.makeWorkspace(projectId).readBytes(path)
+    } catch {
+      return null
+    }
+  }
+
+  /** 用户上传的 PDF 存进工作区 papers/(原件),返回工作区相对路径 */
+  async saveUpload(projectId: string, name: string, bytes: Uint8Array): Promise<string> {
+    const safe = (name.split(/[/\\]/).pop() || 'upload').replace(/[^\w.\-]/g, '_')
+    const file = `papers/${/\.pdf$/i.test(safe) ? safe : `${safe}.pdf`}`
+    await this.makeWorkspace(projectId).writeBytes(file, bytes)
+    return file
   }
 
   subscribe(taskId: string, listener: Listener): () => void {

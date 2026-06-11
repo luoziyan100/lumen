@@ -8,6 +8,7 @@ import { TaskStore } from '../../src/storage/task-store.ts'
 import { AgentRuntime } from '../../src/runtime/agent-runtime.ts'
 import { ENV_TOOLS } from '../../src/tools/env/fs-tools.ts'
 import { buildRoles } from '../../src/agents/roles.ts'
+import { FsWorkspace } from '../../src/workspace/fs-workspace.ts'
 import { ScriptedModel, assistantToolCall, assistantReply, fixedTool } from '../helpers/scripted-model.ts'
 
 async function makeEnv(t: TestContext) {
@@ -187,4 +188,39 @@ test('continueTask:task 不存在返回 false', async (t) => {
     sessionDir: path.join(base, 'sessions'), workspacesDir: path.join(base, 'workspaces'), mainTools: [],
   })
   assert.equal(runtime.continueTask('nope', 'x'), false)
+})
+
+test('listAssets:只列 PDF 原件 + 生成 .md,过滤 txt 抽取物与 search 缓存', async (t) => {
+  const { base, store } = await makeEnv(t)
+  const runtime = new AgentRuntime({
+    store, model: new ScriptedModel([]),
+    sessionDir: path.join(base, 'sessions'), workspacesDir: path.join(base, 'workspaces'), mainTools: [],
+  })
+  const ws = new FsWorkspace({ root: path.join(base, 'workspaces', 'p') })
+  await ws.writeBytes('papers/clark.pdf', new Uint8Array([37, 80, 68, 70]))
+  await ws.writeFile('papers/clark.txt', '抽取中间物,应过滤')
+  await ws.writeFile('notes/analysis.md', '# 分析')
+  await ws.writeFile('notes/search-123.md', '检索缓存,应过滤')
+  await ws.writeFile('drafts/review.md', '# 综述')
+
+  const assets = await runtime.listAssets('p')
+  const paths = assets.map((a) => a.path).sort()
+  assert.ok(paths.includes('papers/clark.pdf'), '应含 PDF 原件')
+  assert.ok(paths.includes('notes/analysis.md') && paths.includes('drafts/review.md'), '应含生成 .md')
+  assert.ok(!paths.some((p) => p.endsWith('.txt')), 'txt 抽取物应过滤')
+  assert.ok(!paths.some((p) => p.includes('search-')), 'search 缓存应过滤')
+  assert.equal(assets.find((a) => a.path === 'papers/clark.pdf')?.kind, 'pdf')
+  assert.equal(assets.find((a) => a.path === 'notes/analysis.md')?.kind, 'doc')
+})
+
+test('readAsset:读 .md 内容;不存在返回 null', async (t) => {
+  const { base, store } = await makeEnv(t)
+  const runtime = new AgentRuntime({
+    store, model: new ScriptedModel([]),
+    sessionDir: path.join(base, 'sessions'), workspacesDir: path.join(base, 'workspaces'), mainTools: [],
+  })
+  const ws = new FsWorkspace({ root: path.join(base, 'workspaces', 'p') })
+  await ws.writeFile('drafts/review.md', '# 综述\n要点')
+  assert.match((await runtime.readAsset('p', 'drafts/review.md')) ?? '', /要点/)
+  assert.equal(await runtime.readAsset('p', 'drafts/missing.md'), null)
 })

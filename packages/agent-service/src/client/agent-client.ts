@@ -7,6 +7,7 @@
  */
 import type { Task, TaskEvent } from '../storage/task-store.ts'
 import type { ClientMessage, ServerMessage } from '../protocol/messages.ts'
+import type { WorkspaceAsset } from '../runtime/agent-runtime.ts'
 
 type EventHandler = (event: TaskEvent) => void
 
@@ -17,6 +18,8 @@ export class LumenClient {
   private readonly lastSeq = new Map<string, number>()
   private pendingCreated: ((taskId: string) => void) | null = null
   private pendingTasks: ((tasks: Task[]) => void) | null = null
+  private pendingAssets: ((assets: WorkspaceAsset[]) => void) | null = null
+  private pendingAsset: ((content: string) => void) | null = null
 
   constructor(url: string, options: { token?: string } = {}) {
     if (options.token) {
@@ -79,6 +82,20 @@ export class LumenClient {
     })
   }
 
+  listAssets(projectId: string): Promise<WorkspaceAsset[]> {
+    return new Promise((resolve) => {
+      this.pendingAssets = resolve
+      this.send({ type: 'list_assets', projectId })
+    })
+  }
+
+  readAsset(projectId: string, path: string): Promise<string> {
+    return new Promise((resolve) => {
+      this.pendingAsset = resolve
+      this.send({ type: 'read_asset', projectId, path })
+    })
+  }
+
   close(): void {
     this.ws?.close()
     this.ws = null
@@ -97,6 +114,14 @@ export class LumenClient {
       case 'tasks':
         this.pendingTasks?.(message.tasks)
         this.pendingTasks = null
+        break
+      case 'assets':
+        this.pendingAssets?.(message.assets)
+        this.pendingAssets = null
+        break
+      case 'asset':
+        this.pendingAsset?.(message.content)
+        this.pendingAsset = null
         break
       case 'event':
         this.lastSeq.set(message.event.task_id, message.event.seq)

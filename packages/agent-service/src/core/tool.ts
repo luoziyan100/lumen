@@ -42,6 +42,7 @@ export interface Workspace {
   readFile(path: string): Promise<string>
   readBytes(path: string): Promise<Uint8Array>
   writeFile(path: string, content: string): Promise<void>
+  writeBytes(path: string, bytes: Uint8Array): Promise<void>
   editFile(path: string, oldString: string, newString: string): Promise<void>
   listDir(path?: string): Promise<DirEntry[]>
   grep(pattern: string, options?: { path?: string; flags?: string }): Promise<GrepHit[]>

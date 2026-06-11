@@ -8,7 +8,7 @@
  * 所以凡传入 token 必须校验（?token= 查询参数；浏览器 WS 设不了自定义 header）。
  */
 import { WebSocketServer, type WebSocket } from 'ws'
-import type { IncomingMessage } from 'node:http'
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AgentRuntime } from '../runtime/agent-runtime.ts'
 import type { ClientMessage, ServerMessage } from './messages.ts'
 
@@ -22,14 +22,14 @@ export function startServer(
   options: { port?: number; host?: string; token?: string } = {},
 ): Promise<ServerHandle> {
   return new Promise((resolve) => {
-    const wss = new WebSocketServer({ port: options.port ?? 0, host: options.host ?? '127.0.0.1' }, () => {
-      const address = wss.address()
-      const port = typeof address === 'object' && address ? address.port : 0
-      resolve({
-        port,
-        close: () => new Promise<void>((done) => wss.close(() => done())),
+    // http server 同时承载:WS(对话/事件) + HTTP(/pdf 取 PDF 二进制、/upload 上传 PDF)
+    const httpServer = createServer((req, res) => {
+      handleHttp(runtime, options.token, req, res).catch(() => {
+        if (!res.headersSent) res.writeHead(500)
+        res.end('error')
       })
     })
+    const wss = new WebSocketServer({ server: httpServer })
     wss.on('connection', (ws, req) => {
       if (options.token && !isAuthorized(req, options.token)) {
         ws.close(4401, 'unauthorized')
@@ -37,12 +37,61 @@ export function startServer(
       }
       handleConnection(runtime, ws)
     })
+    httpServer.listen(options.port ?? 0, options.host ?? '127.0.0.1', () => {
+      const address = httpServer.address()
+      const port = typeof address === 'object' && address ? address.port : 0
+      resolve({
+        port,
+        close: () => new Promise<void>((done) => { wss.close(); httpServer.close(() => done()) }),
+      })
+    })
   })
 }
 
 function isAuthorized(req: IncomingMessage, token: string): boolean {
   const url = new URL(req.url ?? '/', 'ws://127.0.0.1')
   return url.searchParams.get('token') === token
+}
+
+function setCors(res: ServerResponse): void {
+  res.setHeader('access-control-allow-origin', '*') // 本地 dev:浏览器从 5180 跨端口取;有 token 兜底
+  res.setHeader('access-control-allow-methods', 'GET, POST, OPTIONS')
+  res.setHeader('access-control-allow-headers', 'content-type')
+}
+
+async function handleHttp(
+  runtime: AgentRuntime,
+  token: string | undefined,
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  const url = new URL(req.url ?? '/', 'http://localhost')
+  setCors(res)
+  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
+  if (token && url.searchParams.get('token') !== token) { res.writeHead(401); res.end('unauthorized'); return }
+  const project = url.searchParams.get('project') ?? 'default'
+
+  // 取 PDF 原件(给前端 pdf.js 渲染);路径经工作区沙箱校验
+  if (req.method === 'GET' && url.pathname === '/pdf') {
+    const bytes = await runtime.readAssetBytes(project, url.searchParams.get('path') ?? '')
+    if (!bytes) { res.writeHead(404); res.end('not found'); return }
+    res.writeHead(200, { 'content-type': 'application/pdf' })
+    res.end(Buffer.from(bytes))
+    return
+  }
+
+  // 用户上传 PDF → 存进工作区 papers/ 原件
+  if (req.method === 'POST' && url.pathname === '/upload') {
+    const chunks: Buffer[] = []
+    for await (const chunk of req) chunks.push(chunk as Buffer)
+    const saved = await runtime.saveUpload(project, url.searchParams.get('name') ?? 'upload.pdf', new Uint8Array(Buffer.concat(chunks)))
+    res.writeHead(200, { 'content-type': 'application/json' })
+    res.end(JSON.stringify({ path: saved }))
+    return
+  }
+
+  res.writeHead(404)
+  res.end('not found')
 }
 
 function handleConnection(runtime: AgentRuntime, ws: WebSocket): void {
@@ -93,6 +142,14 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket): void {
         break
       case 'list':
         send({ type: 'tasks', tasks: runtime.listTasks(message.projectId) })
+        break
+      case 'list_assets':
+        void runtime.listAssets(message.projectId).then((assets) => send({ type: 'assets', assets }))
+        break
+      case 'read_asset':
+        void runtime
+          .readAsset(message.projectId, message.path)
+          .then((content) => send({ type: 'asset', path: message.path, content: content ?? '' }))
         break
       default:
         send({ type: 'error', message: 'unknown message type' })
