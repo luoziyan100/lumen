@@ -84,6 +84,11 @@ export class AgentClient {
     this.send({ type: 'continue', taskId, userText })
   }
 
+  /** attach 已有 task:服务端回放历史事件 + 订阅新事件(刷新恢复用) */
+  subscribe(taskId: string): void {
+    this.send({ type: 'subscribe', taskId })
+  }
+
   cancel(taskId: string): void {
     this.send({ type: 'cancel', taskId })
   }

@@ -1,7 +1,10 @@
 /**
- * useAgent —— 对话状态。client 由 App 建并 connect,这里只订阅事件 + 发消息。
- * 事件流被归约成 ChatItem[]:assistant/user/error 是消息气泡;
- * 一轮里的 tool_call/tool_result(按 id 配对)聚合成一个可折叠「过程块」(§9)。
+ * useAgent —— 对话状态。client 由 App 建并 connect,这里订阅事件 + 发消息。
+ * 事件流归约成 ChatItem[]:user/assistant/error 是消息气泡;一轮的 tool_call/tool_result
+ * (按 id 配对)聚合成可折叠过程块(§9)。
+ *
+ * user 也走事件流(submit 后服务端回放 / continue 时 notify),不在前端乐观插入——
+ * 这样刷新后能从历史事件完整重建对话。taskId 存 localStorage,重连即 attach 回放。
  */
 import { useEffect, useRef, useState } from 'react'
 import type { AgentClient, TaskEvent } from './agent-client'
@@ -22,10 +25,11 @@ function safeParse(s: string): Record<string, unknown> {
   try { return JSON.parse(s) as Record<string, unknown> } catch { return {} }
 }
 
-export function useAgent(client: AgentClient, projectId: string) {
+export function useAgent(client: AgentClient, projectId: string, connected: boolean) {
   const [items, setItems] = useState<ChatItem[]>([])
   const [running, setRunning] = useState(false)
   const taskIdRef = useRef<string | null>(null)
+  const taskKey = `lumen:taskId:${projectId}`
 
   useEffect(() => {
     const offEvent = client.onEvent((event: TaskEvent) => {
@@ -39,24 +43,39 @@ export function useAgent(client: AgentClient, projectId: string) {
     return () => { offEvent(); offClose() }
   }, [client])
 
+  // 重连后:若上次留了 taskId,attach 回放历史,重建上次对话
+  useEffect(() => {
+    if (!connected || taskIdRef.current) return
+    const saved = localStorage.getItem(taskKey)
+    if (saved) { taskIdRef.current = saved; client.subscribe(saved) }
+  }, [client, connected, taskKey])
+
   async function send(text: string): Promise<void> {
-    setItems((prev) => [...prev, { kind: 'msg', id: `u-${Date.now()}`, role: 'user', content: text }])
     setRunning(true)
-    if (taskIdRef.current) client.continueTask(taskIdRef.current, text)
-    else taskIdRef.current = await client.submit(projectId, text)
+    if (taskIdRef.current) {
+      client.continueTask(taskIdRef.current, text)
+    } else {
+      const id = await client.submit(projectId, text)
+      taskIdRef.current = id
+      localStorage.setItem(taskKey, id)
+    }
   }
 
   function newConversation(): void {
     taskIdRef.current = null
+    localStorage.removeItem(taskKey)
     setItems([])
+    setRunning(false)
   }
 
   return { items, running, send, newConversation }
 }
 
-/** 纯函数归约:同一个 event 进来,prev → next。便于推理与测试。 */
+/** 纯函数归约:同一个 event 进来,prev → next。 */
 function reduce(prev: ChatItem[], event: TaskEvent, p: Record<string, unknown>): ChatItem[] {
   switch (event.kind) {
+    case 'user':
+      return [...prev, { kind: 'msg', id: event.id, role: 'user', content: String(p.content ?? '') }]
     case 'model_step': {
       const content = typeof p.content === 'string' ? p.content.trim() : ''
       return content ? [...prev, { kind: 'msg', id: event.id, role: 'assistant', content }] : prev

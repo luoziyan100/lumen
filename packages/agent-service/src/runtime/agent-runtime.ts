@@ -69,9 +69,16 @@ export class AgentRuntime {
     this.cfg = config
   }
 
+  /** 发一条 user 事件(进 DB + 实时 notify 已订阅的客户端)。submit/continue 共用,
+   *  保证多轮记忆与刷新重建看到的是同一条事件流。 */
+  private emitUser(taskId: string, content: string): void {
+    const stored = this.cfg.store.appendEvent(taskId, 'user', { content }, 'main')
+    this.notify(taskId, stored)
+  }
+
   submit(input: SubmitInput): string {
     const task = this.cfg.store.createTask(input.projectId, input.userText)
-    this.cfg.store.appendEvent(task.id, 'user', { content: input.userText }, 'main') // 首句进事件流,多轮重建用
+    this.emitUser(task.id, input.userText) // 首句进事件流,多轮重建 + 刷新恢复用
     this.startSession(task, input.userText)
     const controller = new AbortController()
     const promise = this.execute(task, this.buildInitialThread(task, input.userText), controller.signal)
@@ -99,7 +106,7 @@ export class AgentRuntime {
     const task = this.cfg.store.getTask(taskId)
     if (!task) return false
     if (this.running.has(taskId)) return false
-    this.cfg.store.appendEvent(taskId, 'user', { content: userText }, 'main')
+    this.emitUser(taskId, userText)
     appendSessionEntry(this.cfg.sessionDir, {
       type: 'user', task_id: taskId, timestamp: new Date().toISOString(), content: userText,
     })

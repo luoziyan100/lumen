@@ -25,7 +25,7 @@ export function App() {
     return () => { live = false; client.close() }
   }, [client])
 
-  const { items, running, send, newConversation } = useAgent(client, PROJECT)
+  const { items, running, send, newConversation } = useAgent(client, PROJECT, connected)
   const ws = useWorkspace(client, PROJECT, connected)
   const [drawer, setDrawer] = useState(false)
   const [input, setInput] = useState('')
