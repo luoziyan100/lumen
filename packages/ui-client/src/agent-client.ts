@@ -71,6 +71,10 @@ export class AgentClient {
     })
   }
 
+  continueTask(taskId: string, userText: string): void {
+    this.send({ type: 'continue', taskId, userText })
+  }
+
   cancel(taskId: string): void {
     this.send({ type: 'cancel', taskId })
   }

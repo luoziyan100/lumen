@@ -155,3 +155,36 @@ test('sweepInterrupted：服务重启后，遗留 running 的任务被标记为 
   // 再 sweep 一次应是幂等的（interrupted 不再是 running）
   assert.equal(runtime.sweepInterrupted(), 0)
 })
+
+test('多轮记忆:submit 后 continueTask,第二轮能看到第一轮完整对话', async (t) => {
+  const { base, store } = await makeEnv(t)
+  const model = new ScriptedModel([
+    assistantReply('第一轮回答:扩散模型逐步去噪'),
+    assistantReply('第二轮回答:相比 GAN 它训练更稳'),
+  ])
+  const runtime = new AgentRuntime({
+    store, model,
+    sessionDir: path.join(base, 'sessions'), workspacesDir: path.join(base, 'workspaces'), mainTools: [],
+  })
+  const taskId = runtime.submit({ projectId: 'p', userText: '扩散模型是什么' })
+  await runtime.waitFor(taskId)
+  assert.equal(store.getTask(taskId)?.status, 'done')
+
+  assert.equal(runtime.continueTask(taskId, '它和 GAN 比呢'), true)
+  await runtime.waitFor(taskId)
+
+  const secondCall = model.calls[1] // 第二轮(continue)喂给模型的线程
+  assert.ok(secondCall.some((m) => m.role === 'user' && m.content === '扩散模型是什么'), '应看到第一轮 user')
+  assert.ok(secondCall.some((m) => m.role === 'assistant' && m.content.includes('第一轮回答')), '应看到第一轮 assistant')
+  assert.ok(secondCall.some((m) => m.role === 'user' && m.content === '它和 GAN 比呢'), '应看到第二轮 user')
+  assert.equal(store.getTask(taskId)?.status, 'done')
+})
+
+test('continueTask:task 不存在返回 false', async (t) => {
+  const { base, store } = await makeEnv(t)
+  const runtime = new AgentRuntime({
+    store, model: new ScriptedModel([]),
+    sessionDir: path.join(base, 'sessions'), workspacesDir: path.join(base, 'workspaces'), mainTools: [],
+  })
+  assert.equal(runtime.continueTask('nope', 'x'), false)
+})

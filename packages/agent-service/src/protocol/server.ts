@@ -72,6 +72,12 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket): void {
         subscribe(taskId)
         break
       }
+      case 'continue': {
+        const ok = runtime.continueTask(message.taskId, message.userText)
+        if (ok) subscribe(message.taskId)
+        send({ type: ok ? 'ok' : 'error', ...(ok ? { taskId: message.taskId } : { message: 'continue failed: task 不存在或正在运行' }) } as ServerMessage)
+        break
+      }
       case 'subscribe':
         subscribe(message.taskId, message.afterSeq)
         break

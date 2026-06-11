@@ -14,6 +14,7 @@ export function useAgent(url: string, projectId: string, token?: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [running, setRunning] = useState(false)
   const clientRef = useRef<AgentClient | null>(null)
+  const taskIdRef = useRef<string | null>(null) // 当前对话 ID:首句后记下,后续轮续接它
 
   useEffect(() => {
     let active = true
@@ -65,7 +66,13 @@ export function useAgent(url: string, projectId: string, token?: string) {
   async function send(text: string): Promise<void> {
     push({ id: `u-${Date.now()}`, role: 'user', content: text })
     setRunning(true)
-    await clientRef.current?.submit(projectId, text)
+    const client = clientRef.current
+    if (!client) return
+    if (taskIdRef.current) {
+      client.continueTask(taskIdRef.current, text) // 续接同一对话(带全部历史)
+    } else {
+      taskIdRef.current = await client.submit(projectId, text) // 首句:开新对话
+    }
   }
 
   return { messages, running, send }

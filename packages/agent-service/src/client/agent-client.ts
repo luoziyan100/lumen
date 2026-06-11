@@ -56,6 +56,10 @@ export class LumenClient {
     })
   }
 
+  continueTask(taskId: string, userText: string): void {
+    this.send({ type: 'continue', taskId, userText })
+  }
+
   subscribe(taskId: string): void {
     this.send({ type: 'subscribe', taskId, afterSeq: this.lastSeq.get(taskId) })
   }

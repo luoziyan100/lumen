@@ -64,6 +64,7 @@ export class AgentRuntime {
 
   submit(input: SubmitInput): string {
     const task = this.cfg.store.createTask(input.projectId, input.userText)
+    this.cfg.store.appendEvent(task.id, 'user', { content: input.userText }, 'main') // 首句进事件流,多轮重建用
     this.startSession(task, input.userText)
     const controller = new AbortController()
     const promise = this.execute(task, this.buildInitialThread(task, input.userText), controller.signal)
@@ -80,6 +81,23 @@ export class AgentRuntime {
       systemPrompt: this.systemPrompt(),
       userText: task.goal,
     })
+    const controller = new AbortController()
+    const promise = this.execute(task, thread, controller.signal)
+    this.running.set(taskId, { controller, promise })
+    return true
+  }
+
+  /** 在已有对话(task)上追加一轮:存 user 事件 → 重建累积线程 → 续跑。多轮记忆的实现。 */
+  continueTask(taskId: string, userText: string): boolean {
+    const task = this.cfg.store.getTask(taskId)
+    if (!task) return false
+    if (this.running.has(taskId)) return false
+    this.cfg.store.appendEvent(taskId, 'user', { content: userText }, 'main')
+    appendSessionEntry(this.cfg.sessionDir, {
+      type: 'user', task_id: taskId, timestamp: new Date().toISOString(), content: userText,
+    })
+    const events = this.cfg.store.listEvents(taskId)
+    const thread = rebuildThread(events, { systemPrompt: this.systemPrompt(), userText: task.goal })
     const controller = new AbortController()
     const promise = this.execute(task, thread, controller.signal)
     this.running.set(taskId, { controller, promise })

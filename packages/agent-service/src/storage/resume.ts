@@ -54,12 +54,10 @@ function repairDanglingToolCalls(messages: Message[]): Message[] {
 }
 
 export function rebuildThread(events: TaskEvent[], options: RebuildOptions): Thread {
-  const messages: Message[] = [
-    { role: 'system', content: options.systemPrompt },
-    { role: 'user', content: options.userText },
-  ]
+  const messages: Message[] = [{ role: 'system', content: options.systemPrompt }]
 
   const ordered = [...events].sort((a, b) => a.seq - b.seq)
+  let sawUser = false
   for (const event of ordered) {
     if (!isMainEvent(event)) continue
     let payload: Record<string, unknown>
@@ -69,7 +67,10 @@ export function rebuildThread(events: TaskEvent[], options: RebuildOptions): Thr
       continue
     }
 
-    if (event.kind === 'model_step') {
+    if (event.kind === 'user') {
+      messages.push({ role: 'user', content: typeof payload.content === 'string' ? payload.content : '' })
+      sawUser = true
+    } else if (event.kind === 'model_step') {
       const toolCalls = payload.toolCalls as ToolCall[] | undefined
       messages.push({
         role: 'assistant',
@@ -84,6 +85,9 @@ export function rebuildThread(events: TaskEvent[], options: RebuildOptions): Thr
       })
     }
   }
+
+  // 兼容无 user 事件的旧 task:用 task.goal 作首句
+  if (!sawUser && options.userText) messages.splice(1, 0, { role: 'user', content: options.userText })
 
   return new Thread(repairDanglingToolCalls(messages))
 }

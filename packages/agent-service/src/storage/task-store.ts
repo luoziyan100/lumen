@@ -20,6 +20,7 @@ export interface Task {
 
 export type TaskEventKind =
   | 'status_change'
+  | 'user'
   | 'context_init'
   | 'model_step'
   | 'tool_call'

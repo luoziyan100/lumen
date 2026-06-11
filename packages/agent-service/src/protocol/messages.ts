@@ -7,6 +7,7 @@ import type { Task, TaskEvent } from '../storage/task-store.ts'
 
 export type ClientMessage =
   | { type: 'submit'; projectId: string; userText: string }
+  | { type: 'continue'; taskId: string; userText: string }
   | { type: 'subscribe'; taskId: string; afterSeq?: number }
   | { type: 'cancel'; taskId: string }
   | { type: 'resume'; taskId: string }
