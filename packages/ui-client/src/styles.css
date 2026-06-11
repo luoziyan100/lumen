@@ -73,7 +73,7 @@ body, #root { margin: 0; }
 .reader-back { border: none; background: none; color: var(--ink-soft); cursor: pointer; font: inherit; }
 .reader-title { font-family: var(--font-mono); font-size: var(--t-body-sm); color: var(--ink-soft); }
 .reader-body { flex: 1; overflow-y: auto; padding: var(--s-8); }
-.doc-view { max-width: var(--reader-max); margin: 0 auto; white-space: pre-wrap; color: var(--ink); }
+.doc-view { max-width: var(--reader-max); margin: 0 auto; }
 .reader-pdf-todo { color: var(--ink-mute); max-width: var(--reader-max); margin: 0 auto; }
 .reader-pdf-todo code { display: block; margin-top: var(--s-2); word-break: break-all; color: var(--ink-soft); }
 
@@ -102,3 +102,26 @@ body, #root { margin: 0; }
 .empty-mark { font-family: var(--font-serif); font-size: 32px; color: var(--ink-soft); letter-spacing: .04em; margin-bottom: var(--s-4); }
 .empty-tip { font-size: var(--t-body-lg); color: var(--ink-soft); line-height: 1.6; margin: 0 0 var(--s-3); }
 .empty-sub { font-size: var(--t-body-sm); line-height: 1.6; margin: 0; }
+
+/* ---- Markdown 输出渲染 ---- */
+.md-body { font-family: var(--font-serif); font-size: var(--t-body-lg); line-height: var(--lh-body-lg); color: var(--ink); white-space: normal; }
+.md-body > :first-child { margin-top: 0; }
+.md-body > :last-child { margin-bottom: 0; }
+.md-body h1, .md-body h2, .md-body h3, .md-body h4 { font-weight: var(--w-semi); line-height: 1.3; margin: 1.4em 0 0.5em; }
+.md-body h1 { font-size: 1.5em; }
+.md-body h2 { font-size: 1.3em; }
+.md-body h3 { font-size: 1.12em; }
+.md-body p { margin: 0.7em 0; }
+.md-body ul, .md-body ol { margin: 0.7em 0; padding-left: 1.5em; }
+.md-body li { margin: 0.3em 0; }
+.md-body a { color: var(--ember); text-decoration: none; border-bottom: 1px solid var(--ember-soft); }
+.md-body strong { font-weight: var(--w-semi); }
+.md-body code { font-family: var(--font-mono); font-size: 0.86em; background: var(--vellum); padding: 0.12em 0.4em; border-radius: var(--radius-sm); }
+.md-body pre { background: var(--paper-deep); border: 1px solid var(--sand); border-radius: var(--radius-md); padding: var(--s-4); overflow-x: auto; margin: 0.9em 0; }
+.md-body pre code { background: none; padding: 0; font-size: var(--t-body-sm); line-height: 1.55; }
+.md-body blockquote { margin: 0.9em 0; padding-left: var(--s-4); border-left: 3px solid var(--sand-deep); color: var(--ink-soft); }
+.md-body hr { border: none; border-top: 1px solid var(--sand); margin: 1.4em 0; }
+.md-body table { border-collapse: collapse; margin: 0.9em 0; font-size: var(--t-body-sm); display: block; overflow-x: auto; }
+.md-body th, .md-body td { border: 1px solid var(--sand); padding: 6px 10px; text-align: left; }
+.md-body th { background: var(--paper-deep); font-weight: var(--w-semi); }
+.md-body .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.4em 0; }

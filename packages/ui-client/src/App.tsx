@@ -9,6 +9,7 @@ import { useWorkspace } from './useWorkspace'
 import { WorkspaceDrawer } from './components/WorkspaceDrawer'
 import { ReaderPane } from './components/ReaderPane'
 import { ProcessRow } from './components/ProcessRow'
+import { Markdown } from './components/Markdown'
 
 const w = window as { __LUMEN_WS__?: string; __LUMEN_TOKEN__?: string }
 const SERVICE_URL = w.__LUMEN_WS__ ?? 'ws://localhost:8787'
@@ -72,7 +73,9 @@ export function App() {
           <div className="messages">
             {items.length === 0 && !running && <EmptyState />}
             {items.map((it) => it.kind === 'msg'
-              ? <div key={it.id} className={`bubble bubble-${it.role}`}>{it.content}</div>
+              ? (it.role === 'assistant'
+                  ? <div key={it.id} className="bubble bubble-assistant"><Markdown>{it.content}</Markdown></div>
+                  : <div key={it.id} className={`bubble bubble-${it.role}`}>{it.content}</div>)
               : <ProcessRow key={it.id} block={it} />)}
             {running && !lastRunning && <div className="bubble bubble-status">思考中…</div>}
           </div>
