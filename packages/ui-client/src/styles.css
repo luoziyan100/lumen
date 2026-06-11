@@ -76,3 +76,11 @@ body, #root { margin: 0; }
 .doc-view { max-width: var(--reader-max); margin: 0 auto; white-space: pre-wrap; color: var(--ink); }
 .reader-pdf-todo { color: var(--ink-mute); max-width: var(--reader-max); margin: 0 auto; }
 .reader-pdf-todo code { display: block; margin-top: var(--s-2); word-break: break-all; color: var(--ink-soft); }
+
+/* ---- PDF viewer (P2) ---- */
+.pdf-viewer { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.pdf-bar { display: flex; align-items: center; justify-content: center; gap: var(--s-3); padding: var(--s-2); border-bottom: 1px solid var(--sand); color: var(--ink-soft); }
+.pdf-nav { border: 1px solid var(--sand-deep); background: var(--paper); border-radius: var(--radius-sm); width: 28px; height: 24px; cursor: pointer; color: var(--ink-soft); }
+.pdf-nav:disabled { opacity: .35; cursor: default; }
+.pdf-stage { flex: 1; overflow: auto; display: flex; justify-content: center; padding: var(--s-6); background: var(--sand); }
+.pdf-canvas { max-width: 100%; height: -moz-fit-content; height: fit-content; box-shadow: var(--shadow-2); background: #fff; border-radius: var(--radius-sm); }
