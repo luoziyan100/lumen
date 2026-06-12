@@ -212,12 +212,17 @@ export class AgentRuntime {
   private systemPrompt(projectId?: string): string {
     const info = this.cfg.contextInfo?.() ?? { currentDate: new Date().toISOString().slice(0, 10), localPaperCount: 0 }
     const base = (this.cfg.buildSystemPrompt ?? defaultSystemPrompt)(info)
-    const digest = projectId ? this.workspaceDigest(projectId) : ''
-    return digest ? `${base}\n\n${digest}` : base
+    // 工作区"房间地图"已写进 persona L3(静态、稳定)。动态注入暂时关掉:
+    // 裸列文件名既占 context 又会随文件膨胀;以后可让 workspaceDigest 改成注入"非文件名"的信息
+    // (论文标题/摘要、数量统计等)再在此启用。projectId 先留着接口。
+    void projectId
+    // const digest = projectId ? this.workspaceDigest(projectId) : ''
+    // return digest ? `${base}\n\n${digest}` : base
+    return base
   }
 
-  /** 列本 project 工作区的文件清单,注入 systemPrompt——让模型知道有哪些 PDF/笔记可直接读;
-   *  否则用户说"那篇论文"模型不知指哪个、会误答"你没附上"。 */
+  /** [暂未启用,保留待改造] 原本列工作区文件清单注入 systemPrompt;现"房间地图"已进 persona L3。
+   *  以后改成注入"非文件名"信息(论文标题/摘要、数量统计等)而非裸列文件名,再到 systemPrompt 里启用。 */
   private workspaceDigest(projectId: string): string {
     const root = `${this.cfg.workspacesDir}/${projectId}`
     const pdfs: string[] = []
