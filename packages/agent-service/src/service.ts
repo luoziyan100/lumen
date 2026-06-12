@@ -6,9 +6,10 @@
  * 运行：ANTHROPIC_API_KEY=... node --experimental-strip-types src/service.ts
  */
 import { homedir } from 'node:os'
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from 'node:fs'
 import { randomBytes } from 'node:crypto'
 import * as path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { openDatabase } from './storage/db.ts'
 import { TaskStore } from './storage/task-store.ts'
 import { AgentRuntime } from './runtime/agent-runtime.ts'
@@ -104,8 +105,19 @@ export function createService(config: ServiceConfig = {}): Service {
   }
 }
 
+/** 启动前读 packages/agent-service/.env(若存在)注入 process.env;已设置的环境变量优先,不覆盖。 */
+function loadDotenv(): void {
+  const envPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.env')
+  if (!existsSync(envPath)) return
+  for (const line of readFileSync(envPath, 'utf8').split('\n')) {
+    const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/)
+    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].trim().replace(/^['"]|['"]$/g, '')
+  }
+}
+
 // 顶层启动（仅当作为入口运行）。Tauri sidecar / supervisor 经环境变量配置。
 if (import.meta.url === `file://${process.argv[1]}`) {
+  loadDotenv()
   const service = createService({
     home: process.env.LUMEN_HOME,
     port: process.env.LUMEN_PORT ? Number(process.env.LUMEN_PORT) : undefined,

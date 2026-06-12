@@ -4,3 +4,6 @@ node_modules/
 .DS_Store
 dist/
 target/
+
+# 本地密钥,勿入库
+packages/agent-service/.env
