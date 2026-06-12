@@ -15,6 +15,7 @@ import { appendSessionEntry, type SessionEntry } from '../storage/session-file.t
 import { rebuildThread } from '../storage/resume.ts'
 import { mergeBudget, type TaskBudget } from '../storage/budget.ts'
 import { FsWorkspace } from '../workspace/fs-workspace.ts'
+import { readdirSync } from 'node:fs'
 import { LUMEN_PERSONA } from '../agents/persona.ts'
 
 export interface RuntimeContextInfo {
@@ -92,7 +93,7 @@ export class AgentRuntime {
     if (this.running.has(taskId)) return true
     const events = this.cfg.store.listEvents(taskId)
     const thread = rebuildThread(events, {
-      systemPrompt: this.systemPrompt(),
+      systemPrompt: this.systemPrompt(task.project_id),
       userText: task.goal,
     })
     const controller = new AbortController()
@@ -111,7 +112,7 @@ export class AgentRuntime {
       type: 'user', task_id: taskId, timestamp: new Date().toISOString(), content: userText,
     })
     const events = this.cfg.store.listEvents(taskId)
-    const thread = rebuildThread(events, { systemPrompt: this.systemPrompt(), userText: task.goal })
+    const thread = rebuildThread(events, { systemPrompt: this.systemPrompt(task.project_id), userText: task.goal })
     const controller = new AbortController()
     const promise = this.execute(task, thread, controller.signal)
     this.running.set(taskId, { controller, promise })
@@ -208,14 +209,41 @@ export class AgentRuntime {
 
   // ---- internals ----
 
-  private systemPrompt(): string {
+  private systemPrompt(projectId?: string): string {
     const info = this.cfg.contextInfo?.() ?? { currentDate: new Date().toISOString().slice(0, 10), localPaperCount: 0 }
-    return (this.cfg.buildSystemPrompt ?? defaultSystemPrompt)(info)
+    const base = (this.cfg.buildSystemPrompt ?? defaultSystemPrompt)(info)
+    const digest = projectId ? this.workspaceDigest(projectId) : ''
+    return digest ? `${base}\n\n${digest}` : base
   }
 
-  private buildInitialThread(_task: Task, userText: string): Thread {
+  /** 列本 project 工作区的文件清单,注入 systemPrompt——让模型知道有哪些 PDF/笔记可直接读;
+   *  否则用户说"那篇论文"模型不知指哪个、会误答"你没附上"。 */
+  private workspaceDigest(projectId: string): string {
+    const root = `${this.cfg.workspacesDir}/${projectId}`
+    const pdfs: string[] = []
+    const docs: string[] = []
+    const scan = (dir: string, prefix: string): void => {
+      try {
+        for (const f of readdirSync(dir)) {
+          if (f.endsWith('.pdf')) pdfs.push(`${prefix}${f}`)
+          else if (f.endsWith('.md')) docs.push(`${prefix}${f}`)
+        }
+      } catch { /* 目录不存在,跳过 */ }
+    }
+    scan(`${root}/papers`, 'papers/')
+    scan(root, '')
+    scan(`${root}/notes`, 'notes/')
+    if (!pdfs.length && !docs.length) return ''
+    const lines = ['# 工作区文件（已在本项目里,可直接读取,不用让用户重新提供）']
+    if (pdfs.length) lines.push('论文 PDF（用 extract_pdf(source=路径) 读正文）:', ...pdfs.map((p) => `- ${p}`))
+    if (docs.length) lines.push('笔记/产物（用 read_file 读）:', ...docs.map((d) => `- ${d}`))
+    lines.push('用户说"这篇/那篇 X 论文"多半就指上面某个 PDF——据年份/作者匹配文件名,先 extract_pdf 读它再答,别说"你没附上"。')
+    return lines.join('\n')
+  }
+
+  private buildInitialThread(task: Task, userText: string): Thread {
     return new Thread([
-      { role: 'system', content: this.systemPrompt() },
+      { role: 'system', content: this.systemPrompt(task.project_id) },
       { role: 'user', content: userText },
     ])
   }

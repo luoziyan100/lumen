@@ -64,7 +64,7 @@ const done = new Promise<void>((resolve) => {
 })
 
 console.log(`Q: ${prompt}\n`)
-await client.submit('live', prompt)
+await client.submit(process.env.PROJ ?? 'live', prompt)
 
 const timeout = setTimeout(() => {
   console.log('\n⏱  超时（180s）未完成')
