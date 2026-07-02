@@ -7,7 +7,7 @@ import { Thread, type ForModelOptions } from '../core/thread.ts'
 import { runAgent } from '../core/loop.ts'
 import { createSpawnFn, spawnTool, type RoleDef } from '../core/spawn.ts'
 import type { ModelPort } from '../core/model-port.ts'
-import type { AgentEvent } from '../core/types.ts'
+import type { AgentEvent, ImageData } from '../core/types.ts'
 import type { Tool, ToolContext } from '../core/tool.ts'
 import type { Limits } from '../core/limits.ts'
 import { TaskStore, type Task, type TaskEvent } from '../storage/task-store.ts'
@@ -45,18 +45,19 @@ export const DEFAULT_CONTEXT_FOLD: ForModelOptions = { maxToolResultChars: 8000,
 export interface SubmitInput {
   projectId: string
   userText: string
+  images?: ImageData[] // 粘贴/上传进对话的图片,随 user 消息进模型
 }
 
-/** 侧栏要显示的"会话资产":论文 PDF 原件 / 模型生成的文档(.md) */
+/** 侧栏要显示的"会话资产":论文 PDF / 文档 / 图片 / 其它上传件 */
 export interface WorkspaceAsset {
   path: string
-  kind: 'pdf' | 'doc'
+  kind: 'pdf' | 'doc' | 'image' | 'file'
   name: string
 }
 
 type Listener = (event: TaskEvent) => void
 
-function defaultSystemPrompt(info: RuntimeContextInfo): string {
+export function defaultSystemPrompt(info: RuntimeContextInfo): string {
   // 人格(剧本)+ 运行时上下文。人格在 agents/persona.ts,改动需经 owner。
   return `${LUMEN_PERSONA}\n\n# 此刻\n今天是 ${info.currentDate}。本地论文库有 ${info.localPaperCount} 篇。`
 }
@@ -71,18 +72,18 @@ export class AgentRuntime {
   }
 
   /** 发一条 user 事件(进 DB + 实时 notify 已订阅的客户端)。submit/continue 共用,
-   *  保证多轮记忆与刷新重建看到的是同一条事件流。 */
-  private emitUser(taskId: string, content: string): void {
-    const stored = this.cfg.store.appendEvent(taskId, 'user', { content }, 'main')
+   *  保证多轮记忆与刷新重建看到的是同一条事件流。图片持久化在 payload 里,重建/恢复不丢图。 */
+  private emitUser(taskId: string, content: string, images?: ImageData[]): void {
+    const stored = this.cfg.store.appendEvent(taskId, 'user', { content, ...(images?.length ? { images } : {}) }, 'main')
     this.notify(taskId, stored)
   }
 
   submit(input: SubmitInput): string {
     const task = this.cfg.store.createTask(input.projectId, input.userText)
-    this.emitUser(task.id, input.userText) // 首句进事件流,多轮重建 + 刷新恢复用
+    this.emitUser(task.id, input.userText, input.images) // 首句进事件流,多轮重建 + 刷新恢复用
     this.startSession(task, input.userText)
     const controller = new AbortController()
-    const promise = this.execute(task, this.buildInitialThread(task, input.userText), controller.signal)
+    const promise = this.execute(task, this.buildInitialThread(task, input.userText, input.images), controller.signal)
     this.running.set(task.id, { controller, promise })
     return task.id
   }
@@ -103,11 +104,11 @@ export class AgentRuntime {
   }
 
   /** 在已有对话(task)上追加一轮:存 user 事件 → 重建累积线程 → 续跑。多轮记忆的实现。 */
-  continueTask(taskId: string, userText: string): boolean {
+  continueTask(taskId: string, userText: string, images?: ImageData[]): boolean {
     const task = this.cfg.store.getTask(taskId)
     if (!task) return false
     if (this.running.has(taskId)) return false
-    this.emitUser(taskId, userText)
+    this.emitUser(taskId, userText, images)
     appendSessionEntry(this.cfg.sessionDir, {
       type: 'user', task_id: taskId, timestamp: new Date().toISOString(), content: userText,
     })
@@ -135,16 +136,25 @@ export class AgentRuntime {
     return this.cfg.store.listEvents(taskId, afterSeq)
   }
 
-  /** 列本 project 工作区的"会话资产":论文 PDF 原件 + 生成的 .md(过滤 txt 抽取中间物与检索缓存) */
+  /** 列本 project 工作区的"会话资产":一次遍历按扩展名分类(大小写不敏感),过滤检索缓存 */
   async listAssets(projectId: string): Promise<WorkspaceAsset[]> {
     const ws = this.makeWorkspace(projectId)
     const base = (p: string): string => p.split('/').pop() ?? p
-    const pdfs = (await ws.glob('**/*.pdf').catch(() => [] as string[]))
-      .map((p) => ({ path: p, kind: 'pdf' as const, name: base(p) }))
-    const docs = (await ws.glob('**/*.md').catch(() => [] as string[]))
-      .filter((p) => !/(^|\/)search-/.test(p)) // 排除 search-*.md 检索缓存
-      .map((p) => ({ path: p, kind: 'doc' as const, name: base(p) }))
-    return [...pdfs, ...docs]
+    const all = await ws.glob('**/*').catch(() => [] as string[])
+
+    const TEXT_EXT = ['txt', 'tex', 'csv', 'json', 'html']
+    const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'webp', 'gif']
+    const assets: WorkspaceAsset[] = []
+    for (const p of all) {
+      const ext = (p.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? '').toLowerCase()
+      if (ext === 'pdf') assets.push({ path: p, kind: 'pdf', name: base(p) })
+      else if (ext === 'md' && !/(^|\/)search-/.test(p)) assets.push({ path: p, kind: 'doc', name: base(p) })
+      else if (TEXT_EXT.includes(ext) && p.startsWith('docs/')) assets.push({ path: p, kind: 'doc', name: base(p) })
+      else if (IMAGE_EXT.includes(ext)) assets.push({ path: p, kind: 'image', name: base(p) })
+      // 其它格式原样存进 uploads/(agent 暂不解析,先无损保存)
+      else if (p.startsWith('uploads/')) assets.push({ path: p, kind: 'file', name: base(p) })
+    }
+    return assets
   }
 
   /** 读一个文本资产(.md)。PDF 二进制走 HTTP /pdf,不经这里 */
@@ -165,10 +175,15 @@ export class AgentRuntime {
     }
   }
 
-  /** 用户上传的 PDF 存进工作区 papers/(原件),返回工作区相对路径 */
+  /** 用户上传文件按类型归位:PDF→papers/ 文本→docs/ 图片→images/ 其它→uploads/(无损保存,先存后判) */
   async saveUpload(projectId: string, name: string, bytes: Uint8Array): Promise<string> {
-    const safe = (name.split(/[/\\]/).pop() || 'upload').replace(/[^\w.\-]/g, '_')
-    const file = `papers/${/\.pdf$/i.test(safe) ? safe : `${safe}.pdf`}`
+    const safe = (name.split(/[/\\]/).pop() || 'upload').replace(/[^\w.\-一-鿿]/g, '_')
+    const ext = (safe.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? '').toLowerCase()
+    const dir = ext === 'pdf' ? 'papers'
+      : ['md', 'txt', 'tex', 'csv', 'json', 'html'].includes(ext) ? 'docs'
+        : ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext) ? 'images'
+          : 'uploads'
+    const file = `${dir}/${safe}`
     await this.makeWorkspace(projectId).writeBytes(file, bytes)
     return file
   }
@@ -246,10 +261,10 @@ export class AgentRuntime {
     return lines.join('\n')
   }
 
-  private buildInitialThread(task: Task, userText: string): Thread {
+  private buildInitialThread(task: Task, userText: string, images?: ImageData[]): Thread {
     return new Thread([
       { role: 'system', content: this.systemPrompt(task.project_id) },
-      { role: 'user', content: userText },
+      { role: 'user', content: userText, ...(images?.length ? { images } : {}) },
     ])
   }
 

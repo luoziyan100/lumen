@@ -11,11 +11,18 @@ export interface ToolCall {
   arguments: Record<string, unknown>
 }
 
+/** 多模态图片:粘贴/上传进对话,adapter 负责映射成各 provider 的图片块 */
+export interface ImageData {
+  mediaType: string // image/png 等
+  base64: string
+}
+
 export interface Message {
   role: Role
   content: string
   toolCalls?: ToolCall[] // 仅 assistant 轮
   toolCallId?: string // 仅 tool_result 轮
+  images?: ImageData[] // 仅 user 轮
 }
 
 export interface Usage {

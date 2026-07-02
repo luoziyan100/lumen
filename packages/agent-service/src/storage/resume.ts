@@ -12,7 +12,7 @@
  *    而且 provider（Anthropic/OpenAI）要求每个 tool_use 必有配对 tool_result，否则拒绝请求。
  */
 import { Thread } from '../core/thread.ts'
-import type { Message, ToolCall } from '../core/types.ts'
+import type { ImageData, Message, ToolCall } from '../core/types.ts'
 import type { TaskEvent } from './task-store.ts'
 
 export interface RebuildOptions {
@@ -68,7 +68,14 @@ export function rebuildThread(events: TaskEvent[], options: RebuildOptions): Thr
     }
 
     if (event.kind === 'user') {
-      messages.push({ role: 'user', content: typeof payload.content === 'string' ? payload.content : '' })
+      const images = Array.isArray(payload.images)
+        ? (payload.images as ImageData[]).filter((im) => im && typeof im.base64 === 'string' && typeof im.mediaType === 'string')
+        : []
+      messages.push({
+        role: 'user',
+        content: typeof payload.content === 'string' ? payload.content : '',
+        ...(images.length ? { images } : {}),
+      })
       sawUser = true
     } else if (event.kind === 'model_step') {
       const toolCalls = payload.toolCalls as ToolCall[] | undefined

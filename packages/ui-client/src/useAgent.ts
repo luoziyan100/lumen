@@ -7,9 +7,9 @@
  * 这样刷新后能从历史事件完整重建对话。taskId 存 localStorage,重连即 attach 回放。
  */
 import { useEffect, useRef, useState } from 'react'
-import type { AgentClient, TaskEvent } from './agent-client'
+import type { AgentClient, ImageData, TaskEvent } from './agent-client'
 
-export interface ChatMsg { kind: 'msg'; id: string; role: 'user' | 'assistant' | 'error'; content: string }
+export interface ChatMsg { kind: 'msg'; id: string; role: 'user' | 'assistant' | 'error'; content: string; images?: ImageData[] }
 export interface ProcStep { id: string; name: string; done: boolean; label: string }
 export interface ProcessItem { kind: 'process'; id: string; steps: ProcStep[]; running: boolean }
 export type ChatItem = ChatMsg | ProcessItem
@@ -28,11 +28,21 @@ function safeParse(s: string): Record<string, unknown> {
 export function useAgent(client: AgentClient, projectId: string, connected: boolean) {
   const [items, setItems] = useState<ChatItem[]>([])
   const [running, setRunning] = useState(false)
+  const [taskId, setTaskId] = useState<string | null>(null) // 给 UI 高亮当前会话
   const taskIdRef = useRef<string | null>(null)
   const taskKey = `lumen:taskId:${projectId}`
 
+  function switchTo(id: string | null): void {
+    taskIdRef.current = id
+    setTaskId(id)
+    if (id) localStorage.setItem(taskKey, id)
+    else localStorage.removeItem(taskKey)
+  }
+
   useEffect(() => {
     const offEvent = client.onEvent((event: TaskEvent) => {
+      // 只归约当前会话的事件——旧任务后台还在流式时不许串台
+      if (event.task_id !== taskIdRef.current) return
       setItems((prev) => reduce(prev, event, safeParse(event.payload_json)))
       if (event.kind === 'reply' || event.kind === 'error') setRunning(false)
     })
@@ -47,35 +57,50 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
   useEffect(() => {
     if (!connected || taskIdRef.current) return
     const saved = localStorage.getItem(taskKey)
-    if (saved) { taskIdRef.current = saved; client.subscribe(saved) }
+    if (saved) { switchTo(saved); client.subscribe(saved) }
   }, [client, connected, taskKey])
 
-  async function send(text: string): Promise<void> {
+  async function send(text: string, images?: ImageData[]): Promise<void> {
     setRunning(true)
     if (taskIdRef.current) {
-      client.continueTask(taskIdRef.current, text)
+      client.continueTask(taskIdRef.current, text, images)
     } else {
-      const id = await client.submit(projectId, text)
-      taskIdRef.current = id
-      localStorage.setItem(taskKey, id)
+      const id = await client.submit(projectId, text, images)
+      switchTo(id)
     }
   }
 
   function newConversation(): void {
-    taskIdRef.current = null
-    localStorage.removeItem(taskKey)
+    switchTo(null)
     setItems([])
     setRunning(false)
   }
 
-  return { items, running, send, newConversation }
+  /** 切到历史会话:清屏 → attach(服务端回放事件重建对话)。isRunning 来自任务列表的 status */
+  function selectConversation(id: string, isRunning = false): void {
+    if (id === taskIdRef.current) return
+    switchTo(id)
+    setItems([])
+    setRunning(isRunning)
+    client.subscribe(id)
+  }
+
+  /** 停止当前在跑的任务(发送按钮的暂停态) */
+  function stop(): void {
+    if (taskIdRef.current) client.cancel(taskIdRef.current)
+    setRunning(false)
+  }
+
+  return { items, running, send, stop, newConversation, selectConversation, taskId }
 }
 
 /** 纯函数归约:同一个 event 进来,prev → next。 */
 function reduce(prev: ChatItem[], event: TaskEvent, p: Record<string, unknown>): ChatItem[] {
   switch (event.kind) {
-    case 'user':
-      return [...prev, { kind: 'msg', id: event.id, role: 'user', content: String(p.content ?? '') }]
+    case 'user': {
+      const images = Array.isArray(p.images) ? (p.images as ImageData[]) : undefined
+      return [...prev, { kind: 'msg', id: event.id, role: 'user', content: String(p.content ?? ''), ...(images?.length ? { images } : {}) }]
+    }
     case 'model_step': {
       const content = typeof p.content === 'string' ? p.content.trim() : ''
       return content ? [...prev, { kind: 'msg', id: event.id, role: 'assistant', content }] : prev
@@ -98,6 +123,15 @@ function reduce(prev: ChatItem[], event: TaskEvent, p: Record<string, unknown>):
         : it)
     }
     case 'reply': {
+      const last = prev[prev.length - 1]
+      return last && last.kind === 'process' && last.running
+        ? [...prev.slice(0, -1), { ...last, running: false }]
+        : prev
+    }
+    case 'status_change': {
+      // 取消/失败等终态:把还在呼吸的过程块收尾,别留一个永远脉动的点
+      const to = String(p.to ?? '')
+      if (!['canceled', 'failed', 'done', 'interrupted'].includes(to)) return prev
       const last = prev[prev.length - 1]
       return last && last.kind === 'process' && last.running
         ? [...prev.slice(0, -1), { ...last, running: false }]

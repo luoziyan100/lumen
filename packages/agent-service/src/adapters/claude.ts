@@ -13,9 +13,10 @@ import { postJsonWithRetry, type RetryOptions } from './retry.ts'
 // ---- Anthropic Messages API 线格式 ----
 type ClaudeRole = 'user' | 'assistant'
 type ClaudeTextBlock = { type: 'text'; text: string }
+type ClaudeImageBlock = { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }
 type ClaudeToolUseBlock = { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
 type ClaudeToolResultBlock = { type: 'tool_result'; tool_use_id: string; content: string }
-type ClaudeContentBlock = ClaudeTextBlock | ClaudeToolUseBlock | ClaudeToolResultBlock
+type ClaudeContentBlock = ClaudeTextBlock | ClaudeImageBlock | ClaudeToolUseBlock | ClaudeToolResultBlock
 type ClaudeMessage = { role: ClaudeRole; content: string | ClaudeContentBlock[] }
 
 export interface ClaudeTool {
@@ -55,10 +56,13 @@ function appendToolResult(messages: ClaudeMessage[], block: ClaudeToolResultBloc
 }
 
 function contentForMessage(message: Message): string | ClaudeContentBlock[] {
-  if (!message.toolCalls?.length) return message.content
+  if (!message.toolCalls?.length && !message.images?.length) return message.content
   const blocks: ClaudeContentBlock[] = []
+  for (const image of message.images ?? []) {
+    blocks.push({ type: 'image', source: { type: 'base64', media_type: image.mediaType, data: image.base64 } })
+  }
   if (message.content.trim()) blocks.push({ type: 'text', text: message.content })
-  for (const toolCall of message.toolCalls) {
+  for (const toolCall of message.toolCalls ?? []) {
     blocks.push({ type: 'tool_use', id: toolCall.id, name: toolCall.name, input: toolCall.arguments })
   }
   return blocks.length ? blocks : message.content

@@ -14,10 +14,10 @@ import {
 import { noopCtx } from '../helpers/scripted-model.ts'
 
 function jsonResponse(body: unknown): HttpResponse {
-  return { status: 200, ok: true, text: async () => JSON.stringify(body), json: async () => body }
+  return { status: 200, ok: true, text: async () => JSON.stringify(body), json: async () => body, bytes: async () => new Uint8Array() }
 }
 function textResponse(text: string): HttpResponse {
-  return { status: 200, ok: true, text: async () => text, json: async () => ({}) }
+  return { status: 200, ok: true, text: async () => text, json: async () => ({}), bytes: async () => new Uint8Array() }
 }
 function stubHttp(handler: (url: string) => HttpResponse): HttpClient {
   return async (url) => handler(url)

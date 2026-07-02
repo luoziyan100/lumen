@@ -24,7 +24,8 @@ export function useWorkspace(client: AgentClient, projectId: string, connected: 
 
   async function openAsset(a: Asset): Promise<void> {
     if (a.kind === 'pdf') setOpen({ kind: 'pdf', path: a.path, name: a.name })
-    else setOpen({ kind: 'doc', path: a.path, name: a.name, content: await client.readAsset(projectId, a.path) })
+    else if (a.kind === 'doc') setOpen({ kind: 'doc', path: a.path, name: a.name, content: await client.readAsset(projectId, a.path) })
+    // image / file:v1 仅陈列,不进阅读器
   }
   function close(): void { setOpen(null) }
 

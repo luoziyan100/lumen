@@ -11,15 +11,22 @@ import { WebSocketServer, type WebSocket } from 'ws'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AgentRuntime } from '../runtime/agent-runtime.ts'
 import type { ClientMessage, ServerMessage } from './messages.ts'
+import type { PublicSettings, SettingsPatch } from '../storage/settings.ts'
 
 export interface ServerHandle {
   port: number
   close: () => Promise<void>
 }
 
+/** 设置读写口(由 service 注入;get 只返回掩码视图,明文 key 不出服务) */
+export interface SettingsApi {
+  get: () => PublicSettings
+  update: (patch: SettingsPatch) => PublicSettings
+}
+
 export function startServer(
   runtime: AgentRuntime,
-  options: { port?: number; host?: string; token?: string } = {},
+  options: { port?: number; host?: string; token?: string; settings?: SettingsApi } = {},
 ): Promise<ServerHandle> {
   return new Promise((resolve) => {
     // http server 同时承载:WS(对话/事件) + HTTP(/pdf 取 PDF 二进制、/upload 上传 PDF)
@@ -35,7 +42,7 @@ export function startServer(
         ws.close(4401, 'unauthorized')
         return
       }
-      handleConnection(runtime, ws)
+      handleConnection(runtime, ws, options.settings)
     })
     httpServer.listen(options.port ?? 0, options.host ?? '127.0.0.1', () => {
       const address = httpServer.address()
@@ -94,7 +101,7 @@ async function handleHttp(
   res.end('not found')
 }
 
-function handleConnection(runtime: AgentRuntime, ws: WebSocket): void {
+function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: SettingsApi): void {
   const unsubs = new Map<string, () => void>()
   const send = (message: ServerMessage): void => {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(message))
@@ -116,13 +123,13 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket): void {
     }
     switch (message.type) {
       case 'submit': {
-        const taskId = runtime.submit({ projectId: message.projectId, userText: message.userText })
+        const taskId = runtime.submit({ projectId: message.projectId, userText: message.userText, images: message.images })
         send({ type: 'task_created', taskId })
         subscribe(taskId)
         break
       }
       case 'continue': {
-        const ok = runtime.continueTask(message.taskId, message.userText)
+        const ok = runtime.continueTask(message.taskId, message.userText, message.images)
         if (ok) subscribe(message.taskId)
         send({ type: ok ? 'ok' : 'error', ...(ok ? { taskId: message.taskId } : { message: 'continue failed: task 不存在或正在运行' }) } as ServerMessage)
         break
@@ -150,6 +157,14 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket): void {
         void runtime
           .readAsset(message.projectId, message.path)
           .then((content) => send({ type: 'asset', path: message.path, content: content ?? '' }))
+        break
+      case 'get_settings':
+        if (settingsApi) send({ type: 'settings', settings: settingsApi.get() })
+        else send({ type: 'error', message: 'settings 不可用' })
+        break
+      case 'update_settings':
+        if (settingsApi) send({ type: 'settings', settings: settingsApi.update(message.settings) })
+        else send({ type: 'error', message: 'settings 不可用' })
         break
       default:
         send({ type: 'error', message: 'unknown message type' })

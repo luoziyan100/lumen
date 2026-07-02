@@ -18,8 +18,43 @@ export interface Task {
 }
 export interface Asset {
   path: string
-  kind: 'pdf' | 'doc'
+  kind: 'pdf' | 'doc' | 'image' | 'file'
   name: string
+}
+
+/** 聊天粘贴的图片,随消息进模型(多模态) */
+export interface ImageData {
+  mediaType: string
+  base64: string
+}
+
+/** 设置(服务端只回掩码,不回明文 key) */
+export interface PublicModelProfile {
+  id: string
+  name: string
+  provider: 'anthropic' | 'openai'
+  baseUrl: string
+  model: string
+  hasApiKey: boolean
+  apiKeyMasked: string
+}
+export interface PublicSettings {
+  profiles: PublicModelProfile[]
+  activeProfileId: string | null
+  userInstructions: string
+}
+export interface SettingsPatch {
+  userInstructions?: string
+  upsertProfile?: {
+    id?: string // 缺省=新建
+    name?: string
+    provider?: 'anthropic' | 'openai'
+    baseUrl?: string
+    apiKey?: string // 非空才替换
+    model?: string
+  }
+  deleteProfileId?: string
+  activeProfileId?: string
 }
 
 type ServerMessage =
@@ -28,6 +63,7 @@ type ServerMessage =
   | { type: 'tasks'; tasks: Task[] }
   | { type: 'assets'; assets: Asset[] }
   | { type: 'asset'; path: string; content: string }
+  | { type: 'settings'; settings: PublicSettings }
   | { type: 'ok'; taskId?: string }
   | { type: 'error'; message: string }
 
@@ -36,8 +72,10 @@ export class AgentClient {
   private readonly handlers = new Set<(e: TaskEvent) => void>()
   private readonly closeHandlers = new Set<(code: number, reason: string) => void>()
   private pendingCreated: ((id: string) => void) | null = null
+  private pendingTasks: ((tasks: Task[]) => void) | null = null
   private pendingAssets: ((assets: Asset[]) => void) | null = null
   private pendingAsset: ((content: string) => void) | null = null
+  private pendingSettings: ((settings: PublicSettings) => void) | null = null
   private readonly url: string
   private readonly httpBase: string
   private readonly token?: string
@@ -73,15 +111,15 @@ export class AgentClient {
     return () => this.handlers.delete(handler)
   }
 
-  submit(projectId: string, userText: string): Promise<string> {
+  submit(projectId: string, userText: string, images?: ImageData[]): Promise<string> {
     return new Promise((resolve) => {
       this.pendingCreated = resolve
-      this.send({ type: 'submit', projectId, userText })
+      this.send({ type: 'submit', projectId, userText, ...(images?.length ? { images } : {}) })
     })
   }
 
-  continueTask(taskId: string, userText: string): void {
-    this.send({ type: 'continue', taskId, userText })
+  continueTask(taskId: string, userText: string, images?: ImageData[]): void {
+    this.send({ type: 'continue', taskId, userText, ...(images?.length ? { images } : {}) })
   }
 
   /** attach 已有 task:服务端回放历史事件 + 订阅新事件(刷新恢复用) */
@@ -91,6 +129,29 @@ export class AgentClient {
 
   cancel(taskId: string): void {
     this.send({ type: 'cancel', taskId })
+  }
+
+  /** 会话历史 = 本项目的 task 列表(服务端按创建时间倒序) */
+  list(projectId: string): Promise<Task[]> {
+    return new Promise((resolve) => {
+      this.pendingTasks = resolve
+      this.send({ type: 'list', projectId })
+    })
+  }
+
+  // ---- 设置(WS) ----
+  getSettings(): Promise<PublicSettings> {
+    return new Promise((resolve) => {
+      this.pendingSettings = resolve
+      this.send({ type: 'get_settings' })
+    })
+  }
+
+  updateSettings(patch: SettingsPatch): Promise<PublicSettings> {
+    return new Promise((resolve) => {
+      this.pendingSettings = resolve
+      this.send({ type: 'update_settings', settings: patch })
+    })
   }
 
   // ---- 工作区资产(WS) ----
@@ -118,8 +179,8 @@ export class AgentClient {
     return u.toString()
   }
 
-  /** 上传 PDF,返回工作区相对路径 */
-  async uploadPdf(projectId: string, file: File): Promise<string> {
+  /** 上传任意文件(PDF/文档/图片…),服务端按类型归位工作区,返回相对路径 */
+  async uploadFile(projectId: string, file: File): Promise<string> {
     const u = new URL('/upload', this.httpBase)
     u.searchParams.set('project', projectId)
     u.searchParams.set('name', file.name)
@@ -146,6 +207,10 @@ export class AgentClient {
       case 'event':
         for (const handler of this.handlers) handler(message.event)
         break
+      case 'tasks':
+        this.pendingTasks?.(message.tasks)
+        this.pendingTasks = null
+        break
       case 'assets':
         this.pendingAssets?.(message.assets)
         this.pendingAssets = null
@@ -153,6 +218,10 @@ export class AgentClient {
       case 'asset':
         this.pendingAsset?.(message.content)
         this.pendingAsset = null
+        break
+      case 'settings':
+        this.pendingSettings?.(message.settings)
+        this.pendingSettings = null
         break
       default:
         break

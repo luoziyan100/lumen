@@ -7,37 +7,37 @@
 
 :root {
   /* Paper / surfaces */
-  --paper:        #FAF7F2;
-  --paper-deep:   #F6F1E8;
-  --vellum:       #F3EDE3;
-  --sand:         #E8DFD1;
-  --sand-deep:    #D9CEBB;
+  --paper:        rgba(248, 249, 242, 0.76);
+  --paper-deep:   rgba(235, 243, 233, 0.68);
+  --vellum:       rgba(218, 232, 216, 0.62);
+  --sand:         rgba(118, 150, 124, 0.18);
+  --sand-deep:    rgba(112, 154, 124, 0.36);
 
   /* Ink (text) */
-  --ink:          #2A241E;
-  --ink-soft:     #5A524A;
-  --ink-mute:     #8C8278;
-  --ink-faint:    #B5ABA0;
+  --ink:          #233028;
+  --ink-soft:     rgba(42, 56, 48, 0.78);
+  --ink-mute:     rgba(72, 88, 78, 0.56);
+  --ink-faint:    rgba(104, 122, 110, 0.36);
 
   /* Accents */
-  --ember:        #B85C3B;
-  --ember-soft:   #D68563;
-  --ember-tint:   #F4E3D9;
-  --moss:         #5F6B4A;
-  --moss-tint:    #E5E8DD;
-  --indigo:       #3A4A5E;
-  --indigo-tint:  #DDE3EB;
+  --ember:        #6FA080;
+  --ember-soft:   rgba(111, 160, 128, 0.62);
+  --ember-tint:   rgba(168, 204, 176, 0.28);
+  --moss:         #5E9C73;
+  --moss-tint:    rgba(168, 208, 178, 0.28);
+  --indigo:       #4E7562;
+  --indigo-tint:  rgba(184, 216, 192, 0.28);
 
   /* Semantic */
   --success:      var(--moss);
   --success-bg:   var(--moss-tint);
-  --warning:      #C68A2C;
-  --warning-bg:   #F5ECD7;
-  --danger:       #A33A2E;
-  --danger-bg:    #F1DCD7;
+  --warning:      #5E9C73;
+  --warning-bg:   rgba(168, 204, 176, 0.26);
+  --danger:       #4E7562;
+  --danger-bg:    rgba(168, 204, 176, 0.24);
 
-  --focus-ring:   rgba(184, 92, 59, 0.40);
-  --scrim:        rgba(42, 36, 30, 0.32);
+  --focus-ring:   rgba(111, 160, 128, 0.42);
+  --scrim:        rgba(34, 48, 40, 0.30);
 
   /* Typography */
   --font-sans: 'Inter Tight', 'LXGW WenKai', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -64,9 +64,9 @@
   --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px; --radius-full: 9999px;
 
   /* Shadows — restrained */
-  --shadow-1: 0 1px 0 rgba(42, 36, 30, 0.06);
-  --shadow-2: 0 2px 8px rgba(42, 36, 30, 0.06), 0 1px 2px rgba(42, 36, 30, 0.04);
-  --shadow-3: 0 12px 32px rgba(42, 36, 30, 0.10), 0 2px 8px rgba(42, 36, 30, 0.06);
+  --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.42);
+  --shadow-2: 0 10px 30px rgba(55, 84, 64, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.44);
+  --shadow-3: 0 22px 70px rgba(45, 72, 58, 0.18), 0 2px 12px rgba(45, 72, 58, 0.10);
 
   /* Motion */
   --dur-fast: 120ms; --dur-base: 180ms; --dur-slow: 280ms; --dur-reader: 400ms;
@@ -85,7 +85,7 @@
 html, body {
   font-family: var(--font-sans);
   color: var(--ink);
-  background: var(--paper);
+  background: #f4f6ed;
   font-size: var(--t-body);
   line-height: var(--lh-body);
   -webkit-font-smoothing: antialiased;
@@ -96,5 +96,5 @@ a { color: var(--indigo); text-decoration: none; }
 ::selection { background: var(--ember-tint); color: var(--ink); }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--sand-deep); border-radius: var(--radius-full); border: 2px solid var(--paper); }
+::-webkit-scrollbar-thumb { background: var(--sand-deep); border-radius: var(--radius-full); border: 2px solid rgba(247, 249, 241, 0.9); }
 ::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }

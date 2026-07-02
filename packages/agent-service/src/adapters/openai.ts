@@ -10,9 +10,12 @@ import type { Message, ToolCall, ToolSpec } from '../core/types.ts'
 import { postJsonWithRetry, type RetryOptions } from './retry.ts'
 
 type OAToolCall = { id: string; type: 'function'; function: { name: string; arguments: string } }
+type OAContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } }
 type OAMessage = {
   role: 'system' | 'user' | 'assistant' | 'tool'
-  content: string | null
+  content: string | null | OAContentPart[]
   tool_calls?: OAToolCall[]
   tool_call_id?: string
 }
@@ -105,6 +108,15 @@ export function buildOpenAIRequest(messages: Message[], tools: ToolSpec[], model
           function: { name: tc.name, arguments: JSON.stringify(tc.arguments ?? {}) },
         })),
       }
+    }
+    if (message.images?.length) {
+      // 带图消息:OpenAI 多模态 content parts(data URI)
+      const parts: OAContentPart[] = message.images.map((img) => ({
+        type: 'image_url',
+        image_url: { url: `data:${img.mediaType};base64,${img.base64}` },
+      }))
+      if (message.content.trim()) parts.push({ type: 'text', text: message.content })
+      return { role: message.role, content: parts }
     }
     return { role: message.role, content: message.content }
   })

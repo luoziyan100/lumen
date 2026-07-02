@@ -5,16 +5,20 @@
  */
 import type { Task, TaskEvent } from '../storage/task-store.ts'
 import type { WorkspaceAsset } from '../runtime/agent-runtime.ts'
+import type { ImageData } from '../core/types.ts'
+import type { PublicSettings, SettingsPatch } from '../storage/settings.ts'
 
 export type ClientMessage =
-  | { type: 'submit'; projectId: string; userText: string }
-  | { type: 'continue'; taskId: string; userText: string }
+  | { type: 'submit'; projectId: string; userText: string; images?: ImageData[] }
+  | { type: 'continue'; taskId: string; userText: string; images?: ImageData[] }
   | { type: 'subscribe'; taskId: string; afterSeq?: number }
   | { type: 'cancel'; taskId: string }
   | { type: 'resume'; taskId: string }
   | { type: 'list'; projectId?: string }
   | { type: 'list_assets'; projectId: string }
   | { type: 'read_asset'; projectId: string; path: string }
+  | { type: 'get_settings' }
+  | { type: 'update_settings'; settings: SettingsPatch }
 
 export type ServerMessage =
   | { type: 'task_created'; taskId: string }
@@ -22,5 +26,6 @@ export type ServerMessage =
   | { type: 'tasks'; tasks: Task[] }
   | { type: 'assets'; assets: WorkspaceAsset[] }
   | { type: 'asset'; path: string; content: string }
+  | { type: 'settings'; settings: PublicSettings }
   | { type: 'ok'; taskId?: string }
   | { type: 'error'; message: string }

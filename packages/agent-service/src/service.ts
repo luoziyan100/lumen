@@ -12,7 +12,8 @@ import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { openDatabase } from './storage/db.ts'
 import { TaskStore } from './storage/task-store.ts'
-import { AgentRuntime } from './runtime/agent-runtime.ts'
+import { SettingsStore } from './storage/settings.ts'
+import { AgentRuntime, defaultSystemPrompt } from './runtime/agent-runtime.ts'
 import { startServer, type ServerHandle } from './protocol/server.ts'
 import { ENV_TOOLS } from './tools/env/fs-tools.ts'
 import { createResearchTools, createUnpdfEngine, createTavilyWebSearch } from './tools/research/index.ts'
@@ -37,6 +38,7 @@ export interface ServiceConfig {
 export interface Service {
   runtime: AgentRuntime
   token: string
+  settings: SettingsStore
   start(): Promise<ServerHandle>
 }
 
@@ -55,16 +57,31 @@ export function createService(config: ServiceConfig = {}): Service {
   const db = openDatabase(path.join(home, 'lumen.sqlite'))
   const store = new TaskStore(db)
 
-  const apiKey = config.apiKey ?? process.env.LUMEN_API_KEY ?? process.env.ANTHROPIC_API_KEY
-  const provider = config.provider ?? (process.env.LUMEN_PROVIDER as 'anthropic' | 'openai' | undefined) ?? 'anthropic'
-  const baseUrl = config.baseUrl ?? process.env.LUMEN_BASE_URL
-  const modelId = config.model ?? process.env.LUMEN_MODEL ?? 'claude-opus-4-8'
-  const model: ModelPort = config.modelPort
-    ?? (apiKey
-      ? (provider === 'openai'
-        ? createOpenAIAdapter({ transport: createOpenAIFetchTransport({ apiKey, baseUrl: baseUrl ?? 'https://api.openai.com' }), model: modelId })
-        : createClaudeAdapter({ transport: createFetchTransport({ apiKey, baseUrl }), model: modelId }))
-      : errorModel('未配置 LLM API key（LUMEN_API_KEY / ANTHROPIC_API_KEY）；请配置后重试。'))
+  // 出厂默认 = 显式 config > env/.env;用户覆盖层在 ~/.lumen/settings.json(设置弹窗写入)
+  const settings = new SettingsStore(path.join(home, 'settings.json'), {
+    provider: config.provider ?? (process.env.LUMEN_PROVIDER as 'anthropic' | 'openai' | undefined) ?? 'anthropic',
+    baseUrl: config.baseUrl ?? process.env.LUMEN_BASE_URL,
+    apiKey: config.apiKey ?? process.env.LUMEN_API_KEY ?? process.env.ANTHROPIC_API_KEY,
+    model: config.model ?? process.env.LUMEN_MODEL ?? 'claude-opus-4-8',
+  })
+
+  function buildModel(): ModelPort {
+    const eff = settings.effective()
+    if (!eff.apiKey) return errorModel('未配置 LLM API key;请在「设置 → 模型」填入后重试。')
+    return eff.provider === 'openai'
+      ? createOpenAIAdapter({ transport: createOpenAIFetchTransport({ apiKey: eff.apiKey, baseUrl: eff.baseUrl ?? 'https://api.openai.com' }), model: eff.model })
+      : createClaudeAdapter({ transport: createFetchTransport({ apiKey: eff.apiKey, baseUrl: eff.baseUrl }), model: eff.model })
+  }
+
+  // 模型热切换:runtime 拿到的是代理,设置保存时替换 ref.current,下一次模型调用即生效。
+  // 测试注入 modelPort 时视为固定(不随设置切换)。
+  const modelRef = { current: config.modelPort ?? buildModel() }
+  const model: ModelPort = { chat: (messages, tools, signal) => modelRef.current.chat(messages, tools, signal) }
+  const applySettings = (patch: Parameters<SettingsStore['update']>[0]) => {
+    const pub = settings.update(patch)
+    if (!config.modelPort) modelRef.current = buildModel()
+    return pub
+  }
 
   const tavilyKey = process.env.TAVILY_API_KEY
   const research = createResearchTools({
@@ -82,6 +99,12 @@ export function createService(config: ServiceConfig = {}): Service {
     libraryRoot: config.libraryRoot,
     mainTools,
     roles,
+    // 人格(owner 主导,persona.ts)不动;用户自定义指令作为独立小节追加,实时读设置=保存即生效
+    buildSystemPrompt: (info) => {
+      const base = defaultSystemPrompt(info)
+      const extra = settings.effective().userInstructions.trim()
+      return extra ? `${base}\n\n# 用户自定义指令\n${extra}` : base
+    },
   })
 
   runtime.sweepInterrupted() // 上次进程死亡遗留的 'running' 任务 → interrupted（可 resume）
@@ -91,8 +114,14 @@ export function createService(config: ServiceConfig = {}): Service {
   return {
     runtime,
     token,
+    settings,
     async start() {
-      const handle = await startServer(runtime, { port: config.port, host: config.host ?? process.env.LUMEN_HOST, token })
+      const handle = await startServer(runtime, {
+        port: config.port,
+        host: config.host ?? process.env.LUMEN_HOST,
+        token,
+        settings: { get: () => settings.toPublic(), update: applySettings },
+      })
       const portfile = path.join(home, 'agent-service.json')
       rmSync(portfile, { force: true }) // 先删再写，确保 0600 生效（writeFileSync 的 mode 只在新建时应用）
       writeFileSync(
