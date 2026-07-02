@@ -1,5 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { deriveAuraState } from '../src/aura/deriveAuraState.ts'
 import { LUMEN_CELADON_AURA_MAP } from '../src/aura/lumenTheme.ts'
 import { getTimeGreeting } from '../src/greeting.ts'
@@ -115,4 +116,12 @@ test('workspace drawer is toggled from the titlebar icon, not an internal arrow'
   assert.equal(APP_TITLEBAR_WORKSPACE_TOGGLE.iconSize, 22)
   assert.equal(APP_TITLEBAR_WORKSPACE_TOGGLE.gapToLabel, 4)
   assert.equal(WORKSPACE_DRAWER_COPY.internalCollapseGlyph, '')
+})
+
+test('navigation icon controls share one visual size', async () => {
+  const css = await readFile(new URL('../src/styles.css', import.meta.url), 'utf8')
+  assert.match(css, /\.nav-icon-btn\s*{[^}]*width:\s*36px;[^}]*height:\s*36px;/s)
+  assert.match(css, /\.nav-icon-btn svg\s*{[^}]*width:\s*22px;[^}]*height:\s*22px;/s)
+  assert.match(css, /\.titlebar-actions\s+\.titlebar-icon-toggle\s*{[^}]*padding:\s*0;[^}]*width:\s*36px;[^}]*height:\s*36px;/s)
+  assert.match(css, /\.titlebar-icon-toggle svg\s*{[^}]*width:\s*22px;[^}]*height:\s*22px;/s)
 })

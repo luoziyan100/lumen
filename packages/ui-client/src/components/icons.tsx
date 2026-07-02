@@ -21,9 +21,9 @@ export function ChevronIcon({ open }: { open?: boolean }) {
   )
 }
 
-export function SearchIcon() {
+export function SearchIcon({ size = 15 }: { size?: number }) {
   return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
       <circle cx="7" cy="7" r="4.5" />
       <line x1="10.6" y1="10.6" x2="14" y2="14" />
     </svg>

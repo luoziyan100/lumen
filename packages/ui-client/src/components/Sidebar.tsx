@@ -4,6 +4,7 @@
  */
 import type { Task } from '../agent-client'
 import { PanelIcon, SearchIcon } from './icons'
+import { APP_NAV_ICON_BUTTON } from '../appCopy'
 
 interface SidebarProps {
   conversations: Task[]
@@ -18,8 +19,8 @@ export function Sidebar({ conversations, activeId, onNew, onSelect, onCollapse, 
   return (
     <aside className="sidebar">
       <div className="sb-top">
-        <button className="icon-btn" title="收起侧栏" aria-label="收起侧栏" onClick={onCollapse}><PanelIcon /></button>
-        <button className="icon-btn" title="搜索对话 (⌘K)" aria-label="搜索对话" onClick={onSearch}><SearchIcon /></button>
+        <button className="icon-btn nav-icon-btn" title="收起侧栏" aria-label="收起侧栏" onClick={onCollapse}><PanelIcon size={APP_NAV_ICON_BUTTON.iconSize} /></button>
+        <button className="icon-btn nav-icon-btn" title="搜索对话 (⌘K)" aria-label="搜索对话" onClick={onSearch}><SearchIcon size={APP_NAV_ICON_BUTTON.iconSize} /></button>
       </div>
       <button className="sb-new" onClick={onNew}>＋ 新对话</button>
       <div className="sb-head">会话</div>

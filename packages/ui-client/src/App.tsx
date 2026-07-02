@@ -18,7 +18,7 @@ import { LumenAura } from './aura/LumenAura'
 import { LUMEN_CELADON_AURA_MAP } from './aura/lumenTheme'
 import { useAuraState } from './aura/useAuraState'
 import { getTimeGreeting } from './greeting'
-import { APP_BRAND_COPY, APP_TITLEBAR_ACTIONS, APP_TITLEBAR_WORKSPACE_TOGGLE } from './appCopy'
+import { APP_BRAND_COPY, APP_NAV_ICON_BUTTON, APP_TITLEBAR_ACTIONS, APP_TITLEBAR_WORKSPACE_TOGGLE } from './appCopy'
 
 const w = window as { __LUMEN_WS__?: string; __LUMEN_TOKEN__?: string }
 const SERVICE_URL = w.__LUMEN_WS__ ?? 'ws://localhost:8787'
@@ -137,11 +137,11 @@ export function App() {
         <div className="tb-left">
           {!sbOpen && (
             <>
-              <button className="icon-btn" title="展开侧栏" aria-label="展开侧栏" onClick={() => toggleSidebar(true)}>
-                <PanelIcon />
+              <button className="icon-btn nav-icon-btn" title="展开侧栏" aria-label="展开侧栏" onClick={() => toggleSidebar(true)}>
+                <PanelIcon size={APP_NAV_ICON_BUTTON.iconSize} />
               </button>
-              <button className="icon-btn" title="搜索对话 (⌘K)" aria-label="搜索对话" onClick={() => setSearchOpen(true)}>
-                <SearchIcon />
+              <button className="icon-btn nav-icon-btn" title="搜索对话 (⌘K)" aria-label="搜索对话" onClick={() => setSearchOpen(true)}>
+                <SearchIcon size={APP_NAV_ICON_BUTTON.iconSize} />
               </button>
             </>
           )}

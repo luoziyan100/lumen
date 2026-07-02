@@ -97,10 +97,12 @@ body, #root { margin: 0; }
   align-items: center;
   gap: 4px;
 }
-.titlebar-icon-toggle {
+.titlebar-actions .titlebar-icon-toggle {
+  padding: 0;
   width: 36px;
   height: 36px;
-  padding: 0;
+}
+.titlebar-icon-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -323,6 +325,19 @@ body, #root { margin: 0; }
 }
 .icon-btn:hover { background: var(--sand); }
 .icon-btn:disabled { opacity: .4; cursor: default; }
+.nav-icon-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.nav-icon-btn svg {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
 .send-btn {
   width: 34px; height: 34px; border: none; border-radius: var(--radius-full);
   background: var(--ink); color: var(--paper); font-size: 15px; line-height: 1;

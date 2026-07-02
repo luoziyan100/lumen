@@ -18,6 +18,11 @@ export const APP_TITLEBAR_WORKSPACE_TOGGLE = {
   gapToLabel: 4,
 } as const
 
+export const APP_NAV_ICON_BUTTON = {
+  buttonSize: 36,
+  iconSize: 22,
+} as const
+
 export const WORKSPACE_DRAWER_COPY = {
   title: '工作区',
   countUnit: '项',
