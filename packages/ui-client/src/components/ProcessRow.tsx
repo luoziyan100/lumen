@@ -1,5 +1,7 @@
-/** 过程块:一轮里的 tool_call/tool_result 聚合成一行,默认折叠,点开看每步(§9)。 */
+/** 过程块:一轮里的 tool_call/tool_result 聚合成一行,默认折叠,点开看每步(§9)。
+ *  折叠行为走 Kumo Collapsible(高度动画见 styles.css 的 .collapse-panel)。 */
 import { useState } from 'react'
+import { Collapsible } from '@cloudflare/kumo/components/collapsible'
 import type { ProcessItem } from '../useAgent'
 
 export function ProcessRow({ block }: { block: ProcessItem }) {
@@ -8,13 +10,13 @@ export function ProcessRow({ block }: { block: ProcessItem }) {
     ? (block.steps[block.steps.length - 1]?.label ?? '研究中…')
     : `研究过程 · ${block.steps.length} 步`
   return (
-    <div className={`proc ${block.running ? 'proc-running' : ''}`}>
-      <button className="proc-head" onClick={() => setOpen((v) => !v)}>
+    <Collapsible.Root className={`proc ${block.running ? 'proc-running' : ''}`} open={open} onOpenChange={setOpen}>
+      <Collapsible.Trigger className="proc-head">
         <span className="proc-dot" />
         <span className="proc-label">{head}</span>
         <span className="proc-toggle">{open ? '收起' : `${block.steps.length} 步 ›`}</span>
-      </button>
-      {open && (
+      </Collapsible.Trigger>
+      <Collapsible.Panel className="collapse-panel">
         <ul className="proc-steps">
           {block.steps.map((s) => (
             <li key={s.id} className="proc-step">
@@ -23,7 +25,7 @@ export function ProcessRow({ block }: { block: ProcessItem }) {
             </li>
           ))}
         </ul>
-      )}
-    </div>
+      </Collapsible.Panel>
+    </Collapsible.Root>
   )
 }

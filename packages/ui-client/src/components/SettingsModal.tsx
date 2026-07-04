@@ -5,6 +5,8 @@
  */
 import { useEffect, useState, type FormEvent } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
+import { Dialog } from '@cloudflare/kumo/components/dialog'
+import { Select } from '@cloudflare/kumo/components/select'
 import type { AgentClient, PublicSettings, PublicModelProfile } from '../agent-client'
 import { SYSTEM_PROMPT_COPY } from '../settingsCopy'
 
@@ -29,14 +31,6 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
       setInstructions(s.userInstructions)
     })
   }, [client])
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent): void {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
 
   function flash(text: string): void {
     setSaved(text)
@@ -89,8 +83,8 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
   const isActive = (id: string): boolean => settings?.activeProfileId === id
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="settings-modal" role="dialog" aria-label="设置" onClick={(e) => e.stopPropagation()}>
+    <Dialog.Root open onOpenChange={(o: boolean) => { if (!o) onClose() }}>
+      <Dialog className="settings-modal p-0" aria-label="设置">
         <nav className="settings-nav">
           <div className="settings-nav-title">设置</div>
           <button className={`settings-nav-item ${pane === 'model' ? 'is-active' : ''}`} onClick={() => { setPane('model'); setView('list') }}>模型</button>
@@ -140,13 +134,17 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
                 <span className="set-label">名称</span>
                 <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="DeepSeek / Claude 官方 / GPT …" />
               </label>
-              <label className="set-row">
+              <div className="set-row">
                 <span className="set-label">接口协议</span>
-                <select value={form.provider} onChange={(e) => setForm({ ...form, provider: e.target.value as 'anthropic' | 'openai' })}>
-                  <option value="anthropic">Anthropic(官方 Claude API)</option>
-                  <option value="openai">OpenAI 兼容(DeepSeek / 代理等)</option>
-                </select>
-              </label>
+                <Select
+                  aria-label="接口协议"
+                  size="sm"
+                  className="min-w-0 flex-1"
+                  value={form.provider}
+                  onValueChange={(v) => setForm({ ...form, provider: (v ?? 'openai') as 'anthropic' | 'openai' })}
+                  items={{ anthropic: 'Anthropic(官方 Claude API)', openai: 'OpenAI 兼容(DeepSeek / 代理等)' }}
+                />
+              </div>
               <label className="set-row">
                 <span className="set-label">Base URL</span>
                 <input value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} placeholder={form.provider === 'openai' ? 'https://api.deepseek.com' : 'https://api.anthropic.com'} />
@@ -197,7 +195,7 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
             </form>
           )}
         </div>
-      </div>
-    </div>
+      </Dialog>
+    </Dialog.Root>
   )
 }

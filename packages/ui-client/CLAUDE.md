@@ -25,7 +25,9 @@
 - 颜色/阴影/圆角/字体只用 token;正文对比度 ≥ 4.5:1,元数据 ≥ 3:1。
 - 三层纵深:氛围(边缘)→ 纸面(正文所坐)→ 卡片(输入卡/弹窗)。**文字永远不直接压在动效上**;空态是唯一的全屏氛围(封面)。
 - 青绿只做品牌与确认;链接黛蓝、错误赭红、警示琥珀。
-- **控件一律来自 @cloudflare/kumo**(无头核 Base UI;首批已落地:设置弹窗 保存/删除/添加按钮),禁止再手搓按钮/弹层/下拉。
+- **控件一律来自 @cloudflare/kumo**(无头核 Base UI),禁止再手搓按钮/弹层/下拉。已落地:
+  Button / Dialog(设置)/ Select / Tooltip(全部图标钮)/ Toasty+toast(上传失败)/ CommandPalette(⌘K 会话搜索)/ Collapsible(过程行+抽屉卡片)。
   皮肤经 `theme-celadon.css`(挂 `<html data-theme="celadon">`);改 tokens.css 语义色时同步它,升级 kumo 后跑 `npm run check:theme`。
 - `pdfjs-dist` 锁 4.10.38(v5 在 Tauri WebKit 下 ESM 不工作)。
-- 待办(勿顺手乱做,单独立 brief):composer 多行 + 运行中禁用;字体本地打包(去 CDN);aura 闲置降耗。
+- 待办(勿顺手乱做,单独立 brief):composer 多行 + 运行中禁用(可用 Kumo InputArea);字体本地打包(去 CDN);
+  aura 闲置降耗;Collapsible 高度动画(webfont 竞态会量高过期,待字体本地化后按 --collapsible-panel-height 方案补)。

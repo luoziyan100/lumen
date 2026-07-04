@@ -3,6 +3,8 @@
  * client 在此建并 connect,传给 useAgent(对话)/ useWorkspace(资产)。
  */
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent } from 'react'
+import { Toasty, useKumoToastManager } from '@cloudflare/kumo/components/toast'
+import { Tooltip, TooltipProvider } from '@cloudflare/kumo/components/tooltip'
 import { AgentClient, type ImageData, type Task } from './agent-client'
 import { useAgent } from './useAgent'
 import { useWorkspace } from './useWorkspace'
@@ -26,6 +28,17 @@ const SERVICE_TOKEN = w.__LUMEN_TOKEN__ ?? new URLSearchParams(window.location.s
 const PROJECT = 'default'
 
 export function App() {
+  return (
+    <Toasty>
+      <TooltipProvider>
+        <AppInner />
+      </TooltipProvider>
+    </Toasty>
+  )
+}
+
+function AppInner() {
+  const toast = useKumoToastManager()
   const client = useMemo(() => new AgentClient(SERVICE_URL, SERVICE_TOKEN), [])
   const [connected, setConnected] = useState(false)
   useEffect(() => {
@@ -117,7 +130,13 @@ export function App() {
       for (const file of files) await client.uploadFile(PROJECT, file)
       ws.refresh()
       setDrawer(true) // 上传后展开工作区,让用户看到刚加入的文件
-    } catch { /* 失败先静默,后续接 toast */ }
+    } catch (err) {
+      toast.add({
+        variant: 'error',
+        title: '上传失败',
+        description: err instanceof Error ? err.message : '请检查 agent 服务连接后重试',
+      })
+    }
     setUploading(false)
   }
 
@@ -138,12 +157,16 @@ export function App() {
         <div className="tb-left">
           {!sbOpen && (
             <>
-              <button className="icon-btn nav-icon-btn" title="展开侧栏" aria-label="展开侧栏" onClick={() => toggleSidebar(true)}>
-                <PanelIcon size={APP_NAV_ICON_BUTTON.iconSize} />
-              </button>
-              <button className="icon-btn nav-icon-btn" title="搜索对话 (⌘K)" aria-label="搜索对话" onClick={() => setSearchOpen(true)}>
-                <SearchIcon size={APP_NAV_ICON_BUTTON.iconSize} />
-              </button>
+              <Tooltip content="展开侧栏" render={
+                <button className="icon-btn nav-icon-btn" aria-label="展开侧栏" onClick={() => toggleSidebar(true)}>
+                  <PanelIcon size={APP_NAV_ICON_BUTTON.iconSize} />
+                </button>
+              } />
+              <Tooltip content="搜索对话 ⌘K" render={
+                <button className="icon-btn nav-icon-btn" aria-label="搜索对话" onClick={() => setSearchOpen(true)}>
+                  <SearchIcon size={APP_NAV_ICON_BUTTON.iconSize} />
+                </button>
+              } />
             </>
           )}
           <span className="brand">{APP_BRAND_COPY.name}</span>
@@ -216,18 +239,19 @@ export function App() {
               placeholder="问点什么,或粘贴图片、让它去研究…"
             />
             <div className="composer-bar">
-              <button
-                type="button"
-                className="icon-btn"
-                title={uploading ? '上传中…' : '添加文件'}
-                aria-label="添加文件"
-                disabled={uploading}
-                onClick={() => fileRef.current?.click()}
-              >＋</button>
+              <Tooltip content={uploading ? '上传中…' : '添加文件'} render={
+                <button
+                  type="button"
+                  className="icon-btn"
+                  aria-label="添加文件"
+                  disabled={uploading}
+                  onClick={() => fileRef.current?.click()}
+                >＋</button>
+              } />
               <span className="composer-spacer" />
               {running
-                ? <button type="button" className="send-btn send-btn-stop" title="停止" aria-label="停止" onClick={stop}><span className="stop-square" /></button>
-                : <button type="submit" className="send-btn" title="发送" aria-label="发送" disabled={!input.trim() && attachments.length === 0}>↑</button>}
+                ? <Tooltip content="停止" render={<button type="button" className="send-btn send-btn-stop" aria-label="停止" onClick={stop}><span className="stop-square" /></button>} />
+                : <Tooltip content="发送" render={<button type="submit" className="send-btn" aria-label="发送" disabled={!input.trim() && attachments.length === 0}>↑</button>} />}
             </div>
             <input
               ref={fileRef}
@@ -244,7 +268,7 @@ export function App() {
         {drawer && !showReader && <WorkspaceDrawer assets={ws.assets} onOpen={ws.openAsset} />}
       </div>
 
-      {searchOpen && <SearchModal conversations={convs} onSelect={pickConversation} onClose={() => setSearchOpen(false)} />}
+      <SearchModal open={searchOpen} onOpenChange={setSearchOpen} conversations={convs} onSelect={pickConversation} />
       {settingsOpen && <SettingsModal client={client} onClose={() => setSettingsOpen(false)} />}
     </div>
   )

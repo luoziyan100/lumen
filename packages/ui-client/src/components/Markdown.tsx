@@ -6,7 +6,7 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import rehypeHighlight from 'rehype-highlight'
 import 'katex/dist/katex.min.css'
-import 'highlight.js/styles/github.css'
+import './hljs-celadon.css'
 
 const REMARK = [remarkGfm, remarkMath]
 const REHYPE = [rehypeKatex, rehypeHighlight]

@@ -1,0 +1,14 @@
+/* highlight.js 主题(青瓷):代码高亮消费 tokens.css 的 --code-* 语法色板,
+   替换原 GitHub 主题——代码块与整体设计一个体系。 */
+.hljs { color: var(--ink); background: transparent; }
+.hljs-comment, .hljs-quote { color: var(--ink-faint); font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-doctag { color: var(--code-keyword); font-weight: 600; }
+.hljs-string, .hljs-regexp, .hljs-addition { color: var(--code-string); }
+.hljs-number, .hljs-literal, .hljs-symbol, .hljs-bullet { color: var(--code-number); }
+.hljs-title, .hljs-section, .hljs-name { color: var(--code-title); }
+.hljs-title.class_, .hljs-type, .hljs-built_in { color: var(--code-type); }
+.hljs-attr, .hljs-attribute, .hljs-variable, .hljs-template-variable, .hljs-property { color: var(--code-attr); }
+.hljs-meta, .hljs-params { color: var(--ink-soft); }
+.hljs-deletion { color: var(--danger); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }

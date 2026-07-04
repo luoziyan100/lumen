@@ -53,6 +53,14 @@
   --focus-ring:   rgba(47, 107, 78, 0.28);
   --scrim:        rgba(30, 44, 36, 0.32);
 
+  /* ---- 代码语法色板(hljs 主题消费;与语义五色同族,禁在别处使用) ---- */
+  --code-keyword: var(--ember);
+  --code-string:  #8A5638;
+  --code-number:  var(--warning);
+  --code-title:   var(--indigo);
+  --code-type:    #337065;
+  --code-attr:    #4A6B58;
+
   /* ---- 字体 ---- */
   --font-sans: 'Inter Tight', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --font-serif: 'Source Serif 4', 'LXGW WenKai', 'Kaiti SC', 'STKaiti', 'Kaiti', Georgia, serif;

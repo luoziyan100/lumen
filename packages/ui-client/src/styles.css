@@ -110,42 +110,19 @@ body, #root { margin: 0; }
   padding: var(--s-3) var(--s-3) 0;
 }
 .icon-btn-on { background: var(--sand); color: var(--ink); }
-/* ---- 会话搜索弹窗(⌘K) ---- */
-.modal-overlay {
-  position: fixed; inset: 0; z-index: 50;
-  background: var(--scrim);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  display: flex; align-items: flex-start; justify-content: center;
-  padding-top: 14vh;
-}
-.search-modal {
-  width: min(560px, calc(100vw - 2 * var(--s-6)));
-  max-height: 60vh; display: flex; flex-direction: column;
-  background: var(--card); border: 1px solid var(--sand);
-  border-radius: var(--radius-lg); box-shadow: var(--shadow-3);
-  overflow: hidden;
-}
-.search-modal-head {
-  display: flex; align-items: center; gap: var(--s-3);
-  padding: var(--s-4) var(--s-5); border-bottom: 1px solid var(--sand);
-}
-.search-modal-icon { color: var(--ink-mute); display: inline-flex; }
-.search-modal-head input {
-  flex: 1; min-width: 0; border: none; background: none;
-  font: inherit; font-size: var(--t-body-lg); color: var(--ink);
-}
-.search-modal-head input:focus { outline: none; }
-.search-modal-close { border: none; background: none; color: var(--ink-mute); font-size: 18px; cursor: pointer; padding: 2px 6px; }
-.search-modal-list { overflow-y: auto; padding: var(--s-2); display: flex; flex-direction: column; gap: 2px; }
+/* 会话搜索(⌘K)已迁移 Kumo CommandPalette;设置弹窗外壳已迁移 Kumo Dialog */
+
+/* Kumo Collapsible 面板:暂不做高度动画——展开高度在 webfont 加载竞态下会量得过期
+   导致内容被裁切;等字体本地打包(待办)后再按 --collapsible-panel-height 方案补 180ms 滑动 */
 
 /* ---- 设置弹窗:左导航 + 右配置 ---- */
+/* 设置弹窗:表面与定位(fixed+translate 居中)由 Kumo Dialog 提供,这里只管布局尺寸。
+   注意:本文件未分层,同元素上不要写会盖过 Kumo utility 的属性(position 等);
+   .settings-close 的 absolute 依赖面板 transform 形成的包含块,无需 position:relative */
 .settings-modal {
   width: min(760px, calc(100vw - 2 * var(--s-6)));
   height: min(520px, calc(100vh - 2 * var(--s-8)));
-  display: flex; overflow: hidden; position: relative;
-  background: var(--card); border: 1px solid var(--sand);
-  border-radius: var(--radius-lg); box-shadow: var(--shadow-3);
+  display: flex; overflow: hidden;
 }
 .settings-nav {
   flex: 0 0 168px; background: var(--paper-deep); border-right: 1px solid var(--sand);
@@ -181,12 +158,12 @@ body, #root { margin: 0; }
 .settings-h { margin: 0 0 var(--s-4); font-size: var(--t-display-sm); font-weight: var(--w-semi); }
 .set-row { display: flex; align-items: center; gap: var(--s-4); margin-bottom: var(--s-4); }
 .set-label { flex: 0 0 84px; color: var(--ink-soft); font-size: var(--t-body-sm); }
-.set-row input, .set-row select {
+.set-row input {
   flex: 1; min-width: 0; padding: 8px 12px;
   border: 1px solid var(--sand-deep); border-radius: var(--radius-md);
   font: inherit; font-size: var(--t-body-sm); background: var(--paper); color: var(--ink);
 }
-.set-row input:focus, .set-row select:focus { outline: none; border-color: var(--ember-soft); }
+.set-row input:focus { outline: none; border-color: var(--ember-soft); }
 .set-hint { color: var(--ink-mute); font-size: var(--t-body-sm); line-height: 1.6; margin: 0 0 var(--s-4); }
 .set-textarea {
   width: 100%; resize: vertical; padding: 10px 12px;

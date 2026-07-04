@@ -1,8 +1,9 @@
 /**
- * 工作区抽屉:Cowork 式独立卡片——论文 / 产物 / 图片 / 文件 各一张,单独折叠,状态记忆。
- * PDF 与文档可点开阅读器;图片与其它文件先陈列。
+ * 工作区抽屉:Cowork 式独立卡片——资料 / 产物 各一张,单独折叠,状态记忆。
+ * PDF 与文档可点开阅读器;图片与其它文件先陈列。折叠走 Kumo Collapsible。
  */
 import { useState } from 'react'
+import { Collapsible } from '@cloudflare/kumo/components/collapsible'
 import type { Asset } from '../agent-client'
 import { WORKSPACE_DRAWER_COPY } from '../appCopy'
 import { ChevronIcon } from './icons'
@@ -17,20 +18,18 @@ function Card({ label, items, onOpen }: {
   const [open, setOpen] = useState(() => localStorage.getItem(storageKey) !== '0')
   if (!items.length) return null
 
-  function toggle(): void {
-    const next = !open
-    setOpen(next)
-    localStorage.setItem(storageKey, next ? '1' : '0')
-  }
-
   return (
-    <section className="ws-card">
-      <button className="ws-card-head" onClick={toggle} aria-expanded={open}>
+    <Collapsible.Root
+      className="ws-card"
+      open={open}
+      onOpenChange={(next: boolean) => { setOpen(next); localStorage.setItem(storageKey, next ? '1' : '0') }}
+    >
+      <Collapsible.Trigger className="ws-card-head">
         <span className="ws-card-title">{label}</span>
         <span className="ws-group-n">{items.length}</span>
         <ChevronIcon open={open} />
-      </button>
-      {open && (
+      </Collapsible.Trigger>
+      <Collapsible.Panel className="collapse-panel">
         <div className="ws-card-body">
           {items.map((a) => {
             const inner = (
@@ -46,8 +45,8 @@ function Card({ label, items, onOpen }: {
               : <div key={a.path} className="ws-item ws-item-static">{inner}</div>
           })}
         </div>
-      )}
-    </section>
+      </Collapsible.Panel>
+    </Collapsible.Root>
   )
 }
 

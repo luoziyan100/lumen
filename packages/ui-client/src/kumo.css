@@ -6,10 +6,14 @@
  * class,不依赖 preflight。若未来全量迁移 Kumo,可换回 @import "tailwindcss"。
  *
  * @source 指向仓库根 node_modules(npm workspaces 依赖被提升到根)。
+ * 相对基准在不同工具链下(按 CSS 文件 / 按项目根)不一致,故多级兜底,未命中的 glob 无害。
  */
 @layer theme, base, components, utilities;
 
 @source "../../../node_modules/@cloudflare/kumo/dist/**/*.js";
+@source "../../node_modules/@cloudflare/kumo/dist/**/*.js";
+@source "../node_modules/@cloudflare/kumo/dist/**/*.js";
+@source "node_modules/@cloudflare/kumo/dist/**/*.js";
 
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);

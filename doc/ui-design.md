@@ -75,6 +75,7 @@ Lumen 不是 chatbot。和 chatbot 最大的区别:**它产出文件**。
 - **圆角**:sm 4 / md 8 / lg 12 / full 9999,不超 16。
 - **阴影**:4 档 `--shadow-0..3`(none / 发丝浮起 / 卡片 / 弹窗),墨绿灰低透明。**无 inner shadow、无彩色荧光、无 text-shadow。**
 - **动效**:安静、短促、线性偏缓。fast 120ms / base 180ms / slow 280ms。禁 spring bounce、overshoot、3D。Hover 染 `--sand`,不用 scale。aura 常驻但被纸面遮护;闲置降耗是已立项待办。
+- **控件层**:一律来自 @cloudflare/kumo(无头核 Base UI,皮肤 = theme-celadon 映射本设计系统),禁止手搓按钮/弹层/下拉;自绘仅限业务组件与排版。
 - **文案**:简体中文,精确优先于热情。不用 emoji,不用 AI 营销话术。界面词汇用用户语言(「资料 / 产物」,不是 Workfolder/Output)。
 
 ---
