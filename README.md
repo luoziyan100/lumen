@@ -2,6 +2,7 @@
 
 独立研究者的论文研究工具，clean-room 重建。架构：**无头 Node agent 服务 + Tauri 薄客户端**。
 设计宪法见 [`doc/agent-core-architecture.md`](doc/agent-core-architecture.md)。
+工程地图与分形文档规范见 [`CLAUDE.md`](CLAUDE.md)（根 → 包 → 目录 → 文件头，四层）。
 
 旧实现在同级 `../old_lumen`，作参考与资产来源，不是代码基线。
 
@@ -13,11 +14,13 @@ packages/
   ui-client/       # Tauri 薄客户端（UI，连 WS）—— Web 客户端可跑，原生外壳待落地
 doc/
   agent-core-architecture.md   # 架构宪法
+  ui-design.md                 # UI 宪法（设计系统 = 青瓷 v2）
+briefs/            # 自包含工作说明（active/archive）
 ```
 
 ## 不可破不变式
 
-agent = 一条只增不减线程上的循环；**每个 tool_call 的结果必回灌进同一条线程，模型必须看见自己行为的后果**。
+agent = 一条只增不减线程上的循环；**每个 tool_call 的结果必回灌进同一条线程,模型必须看见自己行为的后果**。
 sub-agent = runAgent 的递归调用（同一内核两处复用）。验收禁止用注入假循环的测试绕过真实路径。
 
 ## 连接服务
