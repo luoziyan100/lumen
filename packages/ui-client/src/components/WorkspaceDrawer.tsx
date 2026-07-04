@@ -67,9 +67,9 @@ export function WorkspaceDrawer({ assets, onOpen }: {
       {assets.length === 0
         ? <p className="ws-empty">还没有资产。让 Lumen 去研究,或上传文件。</p>
         : <>
-            {/* 按来源分组:Workfolder=你放进来的(不限类型) / Output=Lumen 产出的 */}
-            <Card label="Workfolder" items={assets.filter((a) => UPLOAD_DIR.test(a.path))} onOpen={onOpen} />
-            <Card label="Output" items={assets.filter((a) => !UPLOAD_DIR.test(a.path))} onOpen={onOpen} />
+            {/* 按来源分组:资料=你放进来的(不限类型) / 产物=Lumen 写出来的 */}
+            <Card label="资料" items={assets.filter((a) => UPLOAD_DIR.test(a.path))} onOpen={onOpen} />
+            <Card label="产物" items={assets.filter((a) => !UPLOAD_DIR.test(a.path))} onOpen={onOpen} />
           </>}
     </aside>
   )

@@ -125,6 +125,7 @@ export function App() {
   const lastRunning = lastItem?.kind === 'process' && lastItem.running
   const showReader = ws.open != null
   const auraState = useAuraState({ connected, running, items })
+  const isEmpty = items.length === 0 && !running
 
   return (
     <div className="app" data-aura-state={auraState}>
@@ -148,35 +149,19 @@ export function App() {
           <span className="brand">{APP_BRAND_COPY.name}</span>
         </div>
         <nav className="titlebar-actions">
-          <span className="titlebar-workspace-cluster">
-            <button
-              type="button"
-              className="titlebar-icon-toggle"
-              onClick={() => setDrawer((v) => !v)}
-              aria-label={drawer ? '收起工作区' : '展开工作区'}
-              aria-expanded={drawer}
-              aria-controls={APP_TITLEBAR_WORKSPACE_TOGGLE.controls}
-              title={drawer ? '收起工作区' : '展开工作区'}
-            >
-              <PanelIcon size={APP_TITLEBAR_WORKSPACE_TOGGLE.iconSize} />
-            </button>
-            {APP_TITLEBAR_ACTIONS.map((action) => {
-              if (action.id !== 'workspace') return null
-              return (
-                <button
-                  key={action.id}
-                  className={drawer ? 'tb-on' : ''}
-                  onClick={() => setDrawer(true)}
-                >
-                  {action.label}
-                </button>
-              )
-            })}
-          </span>
-          {APP_TITLEBAR_ACTIONS.map((action) => {
-            if (action.id === 'workspace') return null
-            return <button key={action.id} className={settingsOpen ? 'tb-on' : ''} onClick={() => setSettingsOpen(true)}>{action.label}</button>
-          })}
+          {APP_TITLEBAR_ACTIONS.map((action) => (action.id === 'workspace'
+            ? (
+              <button
+                key={action.id}
+                className={drawer ? 'tb-on' : ''}
+                onClick={() => setDrawer((v) => !v)}
+                aria-expanded={drawer}
+                aria-controls={APP_TITLEBAR_WORKSPACE_TOGGLE.controls}
+              >
+                {action.label}
+              </button>
+            )
+            : <button key={action.id} className={settingsOpen ? 'tb-on' : ''} onClick={() => setSettingsOpen(true)}>{action.label}</button>))}
         </nav>
       </header>
 
@@ -192,8 +177,8 @@ export function App() {
           />
         )}
         <main className={`chat ${showReader ? 'chat-with-reader' : ''}`}>
-          <div className="messages">
-            {items.length === 0 && !running && <EmptyState />}
+          <div className={`messages ${isEmpty ? 'messages-empty' : ''}`}>
+            {isEmpty && <EmptyState />}
             {items.map((it) => it.kind === 'msg'
               ? (it.role === 'assistant'
                   ? <div key={it.id} className="bubble bubble-assistant"><Markdown>{it.content}</Markdown></div>
