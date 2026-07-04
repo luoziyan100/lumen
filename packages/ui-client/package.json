@@ -10,10 +10,14 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "check:theme": "node scripts/check-theme-celadon.mjs"
   },
   "dependencies": {
+    "@cloudflare/kumo": "^2.6.0",
     "@paper-design/shaders-react": "^0.0.76",
+    "@phosphor-icons/react": "^2.1.10",
+    "@tailwindcss/vite": "^4.3.2",
     "katex": "^0.17.0",
     "pdfjs-dist": "^4.10.38",
     "react": "^19.2.0",
@@ -22,7 +26,8 @@
     "rehype-highlight": "^7.0.2",
     "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
-    "remark-math": "^6.0.0"
+    "remark-math": "^6.0.0",
+    "tailwindcss": "^4.3.2"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",

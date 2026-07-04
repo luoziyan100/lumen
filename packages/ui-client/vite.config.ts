@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import * as path from 'node:path'
@@ -28,7 +29,7 @@ function injectLumenToken(): Plugin {
 
 // Tauri 期望固定 dev 端口
 export default defineConfig({
-  plugins: [react(), injectLumenToken()],
+  plugins: [react(), tailwindcss(), injectLumenToken()],
   clearScreen: false,
   server: { port: 5180, strictPort: false },
 })

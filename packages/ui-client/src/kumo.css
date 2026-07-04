@@ -1,0 +1,17 @@
+/**
+ * Kumo 控件层样式入口(Tailwind v4 + @cloudflare/kumo + 青瓷主题)。
+ *
+ * 刻意不引 Tailwind 的 preflight(重置样式):Lumen 既有界面(styles.css/md 排版)
+ * 依赖浏览器默认样式,preflight 会全局清掉列表符号/标题字号等。Kumo 组件自带完整
+ * class,不依赖 preflight。若未来全量迁移 Kumo,可换回 @import "tailwindcss"。
+ *
+ * @source 指向仓库根 node_modules(npm workspaces 依赖被提升到根)。
+ */
+@layer theme, base, components, utilities;
+
+@source "../../../node_modules/@cloudflare/kumo/dist/**/*.js";
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "@cloudflare/kumo/styles/tailwind";
+@import "./theme-celadon.css";

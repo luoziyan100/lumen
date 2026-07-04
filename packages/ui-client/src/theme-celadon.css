@@ -1,0 +1,88 @@
+/**
+ * Kumo 青瓷主题(celadon)——Lumen 控件层皮肤。
+ *
+ * 派生纪律:本文件是 tokens.css(设计系统唯一真源)在 Kumo 变量合同上的映射,
+ * 值的取舍与 doc/ui-design.md §3 对齐;改 tokens.css 的语义色时同步此处。
+ * 变量合同以 @cloudflare/kumo 的 theme-kumo.css 为准,
+ * 覆盖完整性由 scripts/check-theme-celadon.mjs 校验(升级 kumo 后必跑)。
+ *
+ * 挂载方式:index.html 的 <html data-theme="celadon">(官方多主题机制,同 fedramp)。
+ * 所有值为 light-dark() 双值:暗色方案为青瓷夜版,当前产品固定浅色,暗值备将来。
+ */
+
+@layer base {
+  [data-theme="celadon"] {
+    /* ---- 表面(对应 tokens.css 的 canvas/纸面/卡片三级) ---- */
+    --color-kumo-canvas:   light-dark(#F2F5EC, #161C18);
+    --color-kumo-base:     light-dark(#F9FBF4, #1D2620);
+    --color-kumo-elevated: light-dark(#FDFEFB, #232E27);
+    --color-kumo-recessed: light-dark(#ECF1E6, #121815);
+    --color-kumo-contrast: light-dark(#22302A, #EDF3EC);
+    --color-kumo-control:  light-dark(#FDFEFB, #1B241E);
+
+    /* ---- 填充与交互染色(hover/选中,均为青瓷灰阶) ---- */
+    --color-kumo-fill:       light-dark(#E7EEE4, #2B362F);
+    --color-kumo-fill-hover: light-dark(#DEE8DA, #34413A);
+    --color-kumo-tint:       light-dark(#EDF3EA, #26322B);
+    --color-kumo-interact:   light-dark(#E3ECDF, #2F3C35);
+
+    /* ---- 线与焦点 ---- */
+    --color-kumo-hairline: light-dark(rgba(92, 124, 102, 0.22), rgba(154, 186, 164, 0.16));
+    --color-kumo-line:     light-dark(rgba(92, 124, 102, 0.34), rgba(154, 186, 164, 0.26));
+    --color-kumo-focus:    light-dark(rgba(47, 107, 78, 0.45), rgba(127, 181, 152, 0.50));
+
+    /* ---- 品牌(深青瓷,= tokens.css --ember) ---- */
+    --color-kumo-brand:       light-dark(#2F6B4E, #7FB598);
+    --color-kumo-brand-hover: light-dark(#285E44, #8FC2A6);
+
+    /* ---- 语义(与 tokens.css 语义五色同源:赭红/琥珀/青绿/黛蓝) ---- */
+    --color-kumo-danger:       light-dark(#A8452F, #E08A72);
+    --color-kumo-danger-tint:  light-dark(#F6E7E1, #3D231C);
+    --color-kumo-warning:      light-dark(#8A6420, #D4A94F);
+    --color-kumo-warning-tint: light-dark(#F5EED9, #3A2F17);
+    --color-kumo-success:      light-dark(#3F7D57, #8FBF9F);
+    --color-kumo-success-tint: light-dark(#E6F0E6, #1F3326);
+    --color-kumo-info:         light-dark(#3A5E70, #8FB8CE);
+    --color-kumo-info-tint:    light-dark(#E3ECF1, #1E2E36);
+
+    /* ---- 遮罩与阴影(墨绿灰,低透明;对应 tokens.css 阴影纪律) ---- */
+    --color-kumo-overlay:     light-dark(rgba(30, 44, 36, 0.32), rgba(0, 0, 0, 0.50));
+    --color-kumo-shadow-drop: light-dark(rgba(31, 45, 38, 0.10), rgba(0, 0, 0, 0.45));
+    --color-kumo-shadow-edge: light-dark(rgba(31, 45, 38, 0.06), rgba(0, 0, 0, 0.55));
+    --color-kumo-tip-shadow:  light-dark(rgba(31, 45, 38, 0.18), rgba(0, 0, 0, 0.50));
+    --color-kumo-tip-stroke:  light-dark(rgba(92, 124, 102, 0.30), rgba(154, 186, 164, 0.24));
+
+    /* ---- 横幅 ---- */
+    --color-kumo-banner-info:    light-dark(#E3ECF1, #20303A);
+    --color-kumo-banner-warning: light-dark(#F5EED9, #3A2F17);
+
+    /* ---- 徽章(青瓷协调的柔和底) ---- */
+    --color-kumo-badge-blue:     light-dark(#DFE9EF, #223440);
+    --color-kumo-badge-green:    light-dark(#E2EFE4, #21382A);
+    --color-kumo-badge-red:      light-dark(#F4E2DC, #3D231C);
+    --color-kumo-badge-orange:   light-dark(#F2ECD7, #3A2F17);
+    --color-kumo-badge-purple:   light-dark(#E9E4F0, #2E2838);
+    --color-kumo-badge-teal:     light-dark(#DDEDE9, #1F3733);
+    --color-kumo-badge-neutral:  light-dark(#E8EEE6, #2A342C);
+    --color-kumo-badge-inverted: light-dark(#22302A, #F2F5EC);
+
+    /* ---- 文字(对应 tokens.css 墨色族;对比度红线见 ui-design.md §3) ---- */
+    --text-color-kumo-default:     light-dark(#22302A, #E9EFE9);
+    --text-color-kumo-strong:      light-dark(#182420, #F7FAF6);
+    --text-color-kumo-subtle:      light-dark(#566A5E, #A7B8AC);
+    --text-color-kumo-placeholder: light-dark(#75887B, #7E9186);
+    --text-color-kumo-inactive:    light-dark(#A9B8AD, #57675C);
+    --text-color-kumo-inverse:     light-dark(#F7FAF4, #182420);
+    --text-color-kumo-brand:       light-dark(#2F6B4E, #8FC2A6);
+    --text-color-kumo-link:        light-dark(#3A5E70, #9CC3D8);
+    --text-color-kumo-info:        light-dark(#3A5E70, #9CC3D8);
+    --text-color-kumo-success:     light-dark(#35714D, #A2CCB1);
+    --text-color-kumo-warning:     light-dark(#7D5A1B, #DDB868);
+    --text-color-kumo-danger:      light-dark(#9C4029, #E89880);
+
+    --text-color-kumo-badge-inverted:       light-dark(#F7FAF4, #182420);
+    --text-color-kumo-badge-neutral-subtle: light-dark(#566A5E, #A7B8AC);
+    --text-color-kumo-badge-orange-subtle:  light-dark(#7D5A1B, #DDB868);
+    --text-color-kumo-badge-teal-subtle:    light-dark(#2E5F56, #9CC8BF);
+  }
+}

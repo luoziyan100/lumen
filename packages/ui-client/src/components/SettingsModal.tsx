@@ -4,6 +4,7 @@
  * key 纪律:输入留空 = 保持;服务端只回掩码。保存/启用即热生效。
  */
 import { useEffect, useState, type FormEvent } from 'react'
+import { Button } from '@cloudflare/kumo/components/button'
 import type { AgentClient, PublicSettings, PublicModelProfile } from '../agent-client'
 import { SYSTEM_PROMPT_COPY } from '../settingsCopy'
 
@@ -104,7 +105,7 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
             <>
               <div className="mp-head">
                 <h2 className="settings-h">模型</h2>
-                <button type="button" className="mp-add" onClick={() => openEditor(null)}>＋ 添加模型</button>
+                <Button type="button" variant="outline" size="sm" onClick={() => openEditor(null)}>＋ 添加模型</Button>
               </div>
               <div className="mpc-list">
                 {settings.profiles.map((p) => (
@@ -162,9 +163,9 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
               <div className="settings-foot">
                 {saved && <span className="set-saved">{saved}</span>}
                 {selId && (settings.profiles.length > 1) && (
-                  <button type="button" className="mp-delete" onClick={() => removeProfile(selId)}>删除</button>
+                  <Button type="button" variant="secondary-destructive" size="sm" onClick={() => removeProfile(selId)}>删除</Button>
                 )}
-                <button type="submit" className="set-save">保存</button>
+                <Button type="submit" variant="primary" size="sm">保存</Button>
               </div>
             </form>
           )}
@@ -191,7 +192,7 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
               />
               <div className="settings-foot">
                 {saved && <span className="set-saved">{saved}</span>}
-                <button type="submit" className="set-save">保存</button>
+                <Button type="submit" variant="primary" size="sm">保存</Button>
               </div>
             </form>
           )}
