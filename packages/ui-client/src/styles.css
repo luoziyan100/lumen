@@ -243,7 +243,8 @@ body, #root { margin: 0; }
 .sb-avatar {
   flex: none; width: 32px; height: 32px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, #8FC2A6, #2F6B4E); color: #F7FAF4;
+  background: var(--vellum); color: var(--ember);
+  border: 1px solid var(--sand-deep);
 }
 .sb-account-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
 .sb-account-name { font-size: var(--t-body-sm); font-weight: var(--w-medium); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
