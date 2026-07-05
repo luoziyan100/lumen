@@ -231,6 +231,26 @@ body, #root { margin: 0; }
 .sb-item-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sb-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ember); flex: none; animation: proc-pulse 1.2s ease-in-out infinite; }
 
+/* ---- 侧栏左下角账户区(= 设置入口,账号功能未做前) ---- */
+.sb-foot { flex: none; border-top: 1px solid var(--sand); padding: var(--s-2); }
+.sb-account {
+  display: flex; align-items: center; gap: var(--s-3); width: 100%;
+  padding: var(--s-2); border: none; border-radius: var(--radius-md);
+  background: none; color: var(--ink); font: inherit; cursor: pointer; text-align: left;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.sb-account:hover { background: var(--sand); }
+.sb-avatar {
+  flex: none; width: 32px; height: 32px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #8FC2A6, #2F6B4E); color: #F7FAF4;
+}
+.sb-account-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.sb-account-name { font-size: var(--t-body-sm); font-weight: var(--w-medium); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-account-hint { font-size: var(--t-caption); color: var(--ink-mute); }
+.sb-account-gear { flex: none; color: var(--ink-mute); display: inline-flex; }
+.sb-account:hover .sb-account-gear { color: var(--ink-soft); }
+
 /* ---- Chat ---- */
 .chat { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .chat-with-reader { flex: 0 0 46%; border-right: 1px solid var(--sand); }

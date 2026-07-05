@@ -6,6 +6,8 @@
 import { useRef, useState } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import type { Task } from '../agent-client'
+import { AccountIcon, GearIcon } from './icons'
+import { SIDEBAR_ACCOUNT_COPY } from '../appCopy'
 
 const SB_MIN = 220
 const SB_MAX = 420
@@ -21,9 +23,10 @@ interface SidebarProps {
   activeId: string | null
   onNew: () => void
   onSelect: (task: Task) => void
+  onSettings: () => void
 }
 
-export function Sidebar({ conversations, activeId, onNew, onSelect }: SidebarProps) {
+export function Sidebar({ conversations, activeId, onNew, onSelect, onSettings }: SidebarProps) {
   const [width, setWidth] = useState(() => {
     const saved = Number(localStorage.getItem(SB_WIDTH_KEY))
     return Number.isFinite(saved) && saved >= SB_MIN && saved <= SB_MAX ? saved : SB_DEFAULT
@@ -79,6 +82,17 @@ export function Sidebar({ conversations, activeId, onNew, onSelect }: SidebarPro
           </button>
         ))}
       </nav>
+      {/* 左下角账户区:账号功能未做前即设置入口(将来扩成账户菜单) */}
+      <div className="sb-foot">
+        <button className="sb-account" onClick={onSettings} title="设置">
+          <span className="sb-avatar"><AccountIcon size={18} /></span>
+          <span className="sb-account-text">
+            <span className="sb-account-name">{SIDEBAR_ACCOUNT_COPY.name}</span>
+            <span className="sb-account-hint">{SIDEBAR_ACCOUNT_COPY.hint}</span>
+          </span>
+          <span className="sb-account-gear"><GearIcon size={16} /></span>
+        </button>
+      </div>
       <div
         className="sb-resize"
         role="separator"

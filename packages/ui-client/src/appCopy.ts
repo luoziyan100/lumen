@@ -5,8 +5,13 @@ export const APP_BRAND_COPY = {
 
 export const APP_TITLEBAR_ACTIONS = [
   { id: 'workspace', label: '工作区' },
-  { id: 'settings', label: '设置' },
 ] as const
+
+/** 侧栏左下角账户区(账号功能未做前 = 设置入口;将来扩成账户菜单) */
+export const SIDEBAR_ACCOUNT_COPY = {
+  name: '本地账户',
+  hint: '设置',
+} as const
 
 export const APP_TITLEBAR_WORKSPACE_TOGGLE = {
   id: 'workspace-toggle',

@@ -185,20 +185,16 @@ function AppInner() {
           } />
         </div>
         <nav className="titlebar-actions">
-          {APP_TITLEBAR_ACTIONS.map((action) => (action.id === 'workspace'
-            ? (
-              <Button
-                key={action.id}
-                variant={drawer ? 'secondary' : 'ghost'}
-                size="sm"
-                onClick={() => setDrawer((v) => !v)}
-                aria-expanded={drawer}
-                aria-controls={APP_TITLEBAR_WORKSPACE_TOGGLE.controls}
-              >
-                {action.label}
-              </Button>
-            )
-            : <Button key={action.id} variant={settingsOpen ? 'secondary' : 'ghost'} size="sm" onClick={() => setSettingsOpen(true)}>{action.label}</Button>))}
+          {/* 设置已移到侧栏左下角账户区;标题栏只留工作区 */}
+          <Button
+            variant={drawer ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => setDrawer((v) => !v)}
+            aria-expanded={drawer}
+            aria-controls={APP_TITLEBAR_WORKSPACE_TOGGLE.controls}
+          >
+            {APP_TITLEBAR_ACTIONS[0].label}
+          </Button>
         </nav>
       </header>
 
@@ -209,6 +205,7 @@ function AppInner() {
             activeId={taskId}
             onNew={() => { newConversation(); ws.close() }}
             onSelect={pickConversation}
+            onSettings={() => setSettingsOpen(true)}
           />
         )}
         <main className={`chat ${showReader ? 'chat-with-reader' : ''} ${isEmpty ? 'chat-empty' : ''}`}>
