@@ -13,6 +13,7 @@ use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::Mutex;
 use std::time::Duration;
+use tauri::webview::PageLoadEvent;
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 struct Sidecar(Mutex<Option<Child>>);
@@ -61,9 +62,26 @@ fn spawn_service() -> std::io::Result<Child> {
         .spawn()
 }
 
+fn conn_script() -> Option<String> {
+    let (port, token) = portfile_alive()?;
+    Some(format!(
+        "window.__LUMEN_WS__='ws://127.0.0.1:{port}';window.__LUMEN_TOKEN__={};",
+        serde_json::to_string(&token).unwrap()
+    ))
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(Sidecar(Mutex::new(None)))
+        // 每次页面加载(含 Cmd+R reload)都现读 portfile 重新注入——服务重启换 token 后,
+        // 刷新即可拿到新连接;启动时的 initialization_script 只作首帧兜底快照
+        .on_page_load(|webview, payload| {
+            if matches!(payload.event(), PageLoadEvent::Started) {
+                if let Some(script) = conn_script() {
+                    let _ = webview.eval(&script);
+                }
+            }
+        })
         .setup(|app| {
             if portfile_alive().is_none() {
                 match spawn_service() {
@@ -83,10 +101,8 @@ fn main() {
                 std::thread::sleep(Duration::from_millis(250));
             }
             let script = match &conn {
-                Some((port, token)) => format!(
-                    "window.__LUMEN_WS__='ws://127.0.0.1:{port}';window.__LUMEN_TOKEN__={};",
-                    serde_json::to_string(token).unwrap()
-                ),
+                Some(_) => conn_script()
+                    .unwrap_or_else(|| String::from("/* portfile 读取失败:前端将提示连不上 */")),
                 None => String::from("/* portfile 未就绪:前端将提示连不上 */"),
             };
             WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
