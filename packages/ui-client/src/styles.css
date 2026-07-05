@@ -93,12 +93,25 @@ body, #root { margin: 0; }
 
 /* ---- 左侧栏:新对话 + 会话历史 ---- */
 .sidebar {
+  position: relative;
   flex: 0 0 var(--sidebar-w); min-width: 0;
   display: flex; flex-direction: column;
   border-right: 1px solid var(--sand); background: var(--paper);
   backdrop-filter: blur(14px) saturate(1.05);
   -webkit-backdrop-filter: blur(14px) saturate(1.05);
 }
+/* 右缘拖拽把手:7px 命中区,悬停/拖动时中缝浮现 2px 提示线 */
+.sb-resize {
+  position: absolute; top: 0; right: -4px; width: 8px; height: 100%;
+  cursor: col-resize; z-index: var(--z-sticky);
+  touch-action: none;
+}
+.sb-resize::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px;
+  background: transparent;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.sb-resize:hover::after, .sb-resize:active::after { background: var(--ember-soft); }
 /* 侧栏顶部图标行已并入标题栏 tb-left(位置恒定,不随侧栏开合漂移) */
 /* 会话搜索(⌘K)已迁移 Kumo CommandPalette;设置弹窗外壳已迁移 Kumo Dialog */
 
