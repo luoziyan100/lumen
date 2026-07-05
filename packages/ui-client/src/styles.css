@@ -241,16 +241,17 @@ body, #root { margin: 0; }
 .messages {
   flex: 1; overflow-y: auto; padding: var(--s-6) var(--s-8);
   display: flex; flex-direction: column; gap: var(--s-4);
-  max-width: var(--chat-max); width: 100%; margin: 0 auto;
+  max-width: var(--chat-max); width: 100%; margin: var(--s-2) auto;
   background: var(--paper-solid);
-  border-left: 1px solid var(--sand);
-  border-right: 1px solid var(--sand);
+  border: 1px solid var(--sand);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
 }
 /* 空态 = 封面:纸面隐去,氛围全屏;开始对话后纸面层才铺开 */
 .messages-empty {
   background: none;
-  border-left-color: transparent;
-  border-right-color: transparent;
+  border-color: transparent;
+  box-shadow: none;
 }
 .bubble { max-width: 92%; white-space: pre-wrap; line-height: var(--lh-body-lg); }
 .bubble-user { align-self: flex-end; background: var(--vellum); padding: 10px 14px; border-radius: var(--radius-lg); box-shadow: var(--shadow-1); }
@@ -318,10 +319,14 @@ body, #root { margin: 0; }
 .msg-image { max-width: 220px; max-height: 160px; border-radius: var(--radius-sm); display: block; }
 
 /* ---- Workspace drawer ---- */
+/* 工作区抽屉 = 浮卡(与左侧栏对称) */
 .ws-drawer {
   flex: 0 0 var(--sidebar-w);
+  margin: var(--s-2);
   background: var(--paper-deep);
-  border-left: 1px solid var(--sand);
+  border: 1px solid var(--sand);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
   padding: var(--s-5);
   overflow-y: auto;
   backdrop-filter: blur(14px) saturate(1.05);
@@ -362,11 +367,16 @@ body, #root { margin: 0; }
 .ws-item-static:hover { background: none; }
 
 /* ---- Reader ---- */
+/* 阅读器分屏 = 浮卡 */
 .reader {
   flex: 1;
+  margin: var(--s-2);
   display: flex;
   flex-direction: column;
   background: var(--paper-solid);
+  border: 1px solid var(--sand);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-2);
   overflow: hidden;
 }
 .reader-head { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-5); border-bottom: 1px solid var(--sand); }
