@@ -1,7 +1,7 @@
 /**
  * [INPUT]: core 的 Message / ToolSpec / ModelPort / ModelResponse
  * [OUTPUT]: buildOpenAIRequest / parseOpenAIResponse / createOpenAIFetchTransport / createOpenAIAdapter + 录制重放
- * [POS]: ModelPort 的 OpenAI-Chat-Completions 实现（兼容 xuedingtoken 等第三方代理）
+ * [POS]: ModelPort 的 OpenAI-Chat-Completions 实现（兼容第三方代理）
  *
  * 同 claude.ts：请求构造与响应解析是纯函数，网络是可注入 transport，录制-重放走真实解析路径。
  */
@@ -149,7 +149,7 @@ export function parseOpenAIResponse(body: OpenAIResponseBody): ModelResponse {
 
 export interface OpenAIFetchTransportOptions {
   apiKey: string
-  baseUrl: string // 如 https://xuedingtoken.com
+  baseUrl: string // OpenAI-compatible base URL
   path?: string // 默认 /v1/chat/completions
   retry?: RetryOptions
 }

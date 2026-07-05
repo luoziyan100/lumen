@@ -27,7 +27,7 @@ export interface ServiceConfig {
   port?: number
   apiKey?: string
   model?: string
-  provider?: 'anthropic' | 'openai' // openai = OpenAI-Chat 兼容（如 xuedingtoken）
+  provider?: 'anthropic' | 'openai' // openai = OpenAI-Chat 兼容接口
   baseUrl?: string
   host?: string // WS 监听地址；'::' = 双栈（同时收 127.0.0.1 / ::1 / localhost）
   libraryRoot?: string

@@ -3,7 +3,7 @@
  * 不进 npm test（要网络 + key + 花钱）。录制轨迹写进 tests/replay/fixtures/openai-live.json。
  *
  * 运行：
- *   XK=sk-... BASE=https://xuedingtoken.com MODEL=claude-sonnet-4-6 \
+ *   XK=sk-... BASE=https://example.com MODEL=claude-sonnet-4-6 \
  *   node --experimental-strip-types scripts/live-e2e.ts
  */
 import { mkdtempSync, writeFileSync } from 'node:fs'
@@ -27,7 +27,11 @@ if (!apiKey) {
   console.error('缺少 XK 环境变量（API key）')
   process.exit(1)
 }
-const baseUrl = process.env.BASE ?? 'https://xuedingtoken.com'
+const baseUrl = process.env.BASE
+if (!baseUrl) {
+  console.error('缺少 BASE 环境变量（OpenAI-compatible base URL）')
+  process.exit(1)
+}
 const model = process.env.MODEL ?? 'claude-opus-4-8' // 当前代理最稳的可用 Claude；sonnet 常 accounts-exhausted
 
 const recorded: OpenAIResponseBody[] = []

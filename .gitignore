@@ -7,3 +7,6 @@ target/
 
 # 本地密钥,勿入库
 packages/agent-service/.env
+
+# 本地工作文件(截图等),不入库
+tmp/

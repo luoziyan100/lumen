@@ -42,7 +42,7 @@ P4 目标:**验证剧本是否真扭转了行为,而非自我感觉良好。**
 ## 复现(供他人/别的 AI 复测)
 
 ```bash
-# 旧模型(脚本默认 glm-5,走 xuedingtoken):
+# 旧模型(脚本默认 glm-5,走 OpenAI-compatible 代理):
 XK=<key> node --experimental-strip-types packages/agent-service/scripts/persona-eval.ts
 # 换模型再跑:
 XK=<key> MODEL=claude-opus-4-8 node --experimental-strip-types packages/agent-service/scripts/persona-eval.ts

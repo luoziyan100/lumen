@@ -3,7 +3,7 @@
  * 与旧那次对照:喂相同的论文正文(约前 20K 字符),所以输出差异只来自 prompt / 模型。
  *
  * 用法(用 ! 前缀跑,key 不落盘):
- *   旧模型:  XK=<key> PROVIDER=openai BASE=https://xuedingtoken.com MODEL=glm-5 \
+ *   旧模型:  XK=<key> PROVIDER=openai BASE=https://example.com MODEL=glm-5 \
  *             node --experimental-strip-types <此文件绝对路径>
  *   新模型:  把 MODEL= 换成你切换的那个,再跑一次
  *   (走 Anthropic 原生:PROVIDER=anthropic MODEL=claude-opus-4-8,key 用 ANTHROPIC_API_KEY 或 XK)
@@ -39,7 +39,11 @@ const userMsg = paper
 const apiKey = process.env.XK ?? process.env.LUMEN_API_KEY ?? process.env.ANTHROPIC_API_KEY
 if (!apiKey) { console.error('缺 key:用 XK=<key> 传入'); process.exit(1) }
 const provider = process.env.PROVIDER ?? 'openai'
-const baseUrl = process.env.BASE ?? 'https://xuedingtoken.com'
+const baseUrl = process.env.BASE
+if (!baseUrl) {
+  console.error('缺少 BASE 环境变量（OpenAI-compatible base URL）')
+  process.exit(1)
+}
 const modelId = process.env.MODEL ?? 'glm-5'
 const maxTokens = Number(process.env.MAXTOK ?? 8192)
 
