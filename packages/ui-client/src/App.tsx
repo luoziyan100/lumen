@@ -87,6 +87,17 @@ function AppInner() {
     return () => { live = false }
   }, [client, connected, taskId, running])
 
+  // 开屏即欢迎页;仅当上次的会话此刻仍在后台运行时,自动接回它的现场(一次性判断)
+  const restoreTried = useRef(false)
+  useEffect(() => {
+    if (restoreTried.current || !connected || convs.length === 0) return
+    restoreTried.current = true
+    if (taskId) return
+    const saved = localStorage.getItem(`lumen:taskId:${PROJECT}`)
+    const last = saved ? convs.find((t) => t.id === saved) : undefined
+    if (last?.status === 'running') selectConversation(last.id, true)
+  }, [connected, convs, taskId, selectConversation])
+
   // 粘贴进对话的图片(随消息发给模型,多模态)
   const [attachments, setAttachments] = useState<ImageData[]>([])
   const MAX_IMAGES = 4

@@ -10,7 +10,7 @@
 |---|---|
 | `App.tsx` | 布局与装配:标题栏 / 侧栏 / 对话 / 抽屉 / 阅读器 / 弹窗;空态 = 封面(氛围全屏,问候+输入卡居中偏上) |
 | `agent-client.ts` | 浏览器侧 WS 客户端(⚠ 协议类型手工内联,改协议三处对齐,见 agent-service/src/protocol/CLAUDE.md) |
-| `useAgent.ts` | 事件流 → ChatItem 归约(消息 / 可折叠过程块) |
+| `useAgent.ts` | 事件流 → ChatItem 归约(消息 / 可折叠过程块);记录最近 taskId 但不自动恢复(开屏即欢迎页,仅运行中任务由 App 接回) |
 | `useWorkspace.ts` | 工作区资产列表 + 打开的资产(驱动阅读器) |
 | `tokens.css` | **设计系统唯一真源**(青瓷 v2):表面三级 / 语义五色 / 阴影 0–3 / 字体分工;头注释即规范 |
 | `styles.css` | 形态 A 布局与组件样式;只消费 token,禁硬编码颜色 |
@@ -32,4 +32,5 @@
   皮肤经 `theme-celadon.css`(挂 `<html data-theme="celadon">`);改 tokens.css 语义色时同步它,升级 kumo 后跑 `npm run check:theme`。
 - `pdfjs-dist` 锁 4.10.38(v5 在 Tauri WebKit 下 ESM 不工作)。
 - 待办(勿顺手乱做,单独立 brief):composer 多行 + 运行中禁用(可用 Kumo InputArea);字体本地打包(去 CDN);
-  aura 闲置降耗;Collapsible 高度动画(webfont 竞态会量高过期,待字体本地化后按 --collapsible-panel-height 方案补)。
+  aura 闲置降耗;Collapsible 高度动画(webfont 竞态会量高过期,待字体本地化后按 --collapsible-panel-height 方案补);
+  aura 在 WKWebView(Tauri)的 blocked 态渲染成铅笔线条感,与 Chrome 不一致,待校准 shader 参数或按引擎降级。

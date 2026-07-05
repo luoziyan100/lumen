@@ -53,12 +53,8 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
     return () => { offEvent(); offClose() }
   }, [client])
 
-  // 重连后:若上次留了 taskId,attach 回放历史,重建上次对话
-  useEffect(() => {
-    if (!connected || taskIdRef.current) return
-    const saved = localStorage.getItem(taskKey)
-    if (saved) { switchTo(saved); client.subscribe(saved) }
-  }, [client, connected, taskKey])
+  // 进入即欢迎页(owner 拍板 2026-07-05):启动/刷新不再无条件恢复上次会话。
+  // localStorage 仍记录最近 taskId,但只由 App 在「该任务仍在运行」时调 selectConversation 接回。
 
   async function send(text: string, images?: ImageData[]): Promise<void> {
     setRunning(true)
