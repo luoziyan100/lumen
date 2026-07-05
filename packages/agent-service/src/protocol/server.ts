@@ -80,7 +80,7 @@ async function handleHttp(
 
   // 取 PDF 原件(给前端 pdf.js 渲染);路径经工作区沙箱校验
   if (req.method === 'GET' && url.pathname === '/pdf') {
-    const bytes = await runtime.readAssetBytes(project, url.searchParams.get('path') ?? '')
+    const bytes = await runtime.readAssetBytes(project, url.searchParams.get('path') ?? '', url.searchParams.get('task') ?? undefined)
     if (!bytes) { res.writeHead(404); res.end('not found'); return }
     res.writeHead(200, { 'content-type': 'application/pdf' })
     res.end(Buffer.from(bytes))
@@ -91,7 +91,7 @@ async function handleHttp(
   if (req.method === 'POST' && url.pathname === '/upload') {
     const chunks: Buffer[] = []
     for await (const chunk of req) chunks.push(chunk as Buffer)
-    const saved = await runtime.saveUpload(project, url.searchParams.get('name') ?? 'upload.pdf', new Uint8Array(Buffer.concat(chunks)))
+    const saved = await runtime.saveUpload(project, url.searchParams.get('name') ?? 'upload.pdf', new Uint8Array(Buffer.concat(chunks)), url.searchParams.get('task') ?? undefined)
     res.writeHead(200, { 'content-type': 'application/json' })
     res.end(JSON.stringify({ path: saved }))
     return
@@ -151,11 +151,11 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
         send({ type: 'tasks', tasks: runtime.listTasks(message.projectId) })
         break
       case 'list_assets':
-        void runtime.listAssets(message.projectId).then((assets) => send({ type: 'assets', assets }))
+        void runtime.listAssets(message.projectId, message.taskId).then((assets) => send({ type: 'assets', assets }))
         break
       case 'read_asset':
         void runtime
-          .readAsset(message.projectId, message.path)
+          .readAsset(message.projectId, message.path, message.taskId)
           .then((content) => send({ type: 'asset', path: message.path, content: content ?? '' }))
         break
       case 'get_settings':

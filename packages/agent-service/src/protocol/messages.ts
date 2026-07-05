@@ -15,8 +15,8 @@ export type ClientMessage =
   | { type: 'cancel'; taskId: string }
   | { type: 'resume'; taskId: string }
   | { type: 'list'; projectId?: string }
-  | { type: 'list_assets'; projectId: string }
-  | { type: 'read_asset'; projectId: string; path: string }
+  | { type: 'list_assets'; projectId: string; taskId?: string }
+  | { type: 'read_asset'; projectId: string; path: string; taskId?: string }
   | { type: 'get_settings' }
   | { type: 'update_settings'; settings: SettingsPatch }
 

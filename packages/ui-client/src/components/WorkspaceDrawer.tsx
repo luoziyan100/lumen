@@ -64,7 +64,7 @@ export function WorkspaceDrawer({ assets, onOpen }: {
         </span>
       </header>
       {assets.length === 0
-        ? <p className="ws-empty">还没有资产。让 Lumen 去研究,或上传文件。</p>
+        ? <p className="ws-empty">本会话还没有文件。让 Lumen 去研究,或上传给它。</p>
         : <>
             {/* 按来源分组:资料=你放进来的(不限类型) / 产物=Lumen 写出来的 */}
             <Card label="资料" items={assets.filter((a) => UPLOAD_DIR.test(a.path))} onOpen={onOpen} />

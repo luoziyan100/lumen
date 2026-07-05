@@ -136,11 +136,13 @@ export class AgentRuntime {
     return this.cfg.store.listEvents(taskId, afterSeq)
   }
 
-  /** 列本 project 工作区的"会话资产":一次遍历按扩展名分类(大小写不敏感),过滤检索缓存 */
-  async listAssets(projectId: string): Promise<WorkspaceAsset[]> {
-    const ws = this.makeWorkspace(projectId)
+  /** 列工作区"会话资产":带 taskId 列该会话独立目录;一次遍历按扩展名分类(大小写不敏感),过滤检索缓存 */
+  async listAssets(projectId: string, taskId?: string): Promise<WorkspaceAsset[]> {
+    const ws = this.makeWorkspace(projectId, taskId)
     const base = (p: string): string => p.split('/').pop() ?? p
-    const all = await ws.glob('**/*').catch(() => [] as string[])
+    const raw = await ws.glob('**/*').catch(() => [] as string[])
+    // 项目根视图不混入各会话的独立目录(会话内相对路径不带 sessions/ 前缀,此过滤对会话视图无影响)
+    const all = raw.filter((p) => !p.startsWith('sessions/'))
 
     const TEXT_EXT = ['txt', 'tex', 'csv', 'json', 'html']
     const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'webp', 'gif']
@@ -158,25 +160,25 @@ export class AgentRuntime {
   }
 
   /** 读一个文本资产(.md)。PDF 二进制走 HTTP /pdf,不经这里 */
-  async readAsset(projectId: string, path: string): Promise<string | null> {
+  async readAsset(projectId: string, path: string, taskId?: string): Promise<string | null> {
     try {
-      return await this.makeWorkspace(projectId).readFile(path)
+      return await this.makeWorkspace(projectId, taskId).readFile(path)
     } catch {
       return null
     }
   }
 
   /** 取资产二进制(PDF 原件),供 HTTP /pdf 给前端 pdf.js 渲染。路径经沙箱校验 */
-  async readAssetBytes(projectId: string, path: string): Promise<Uint8Array | null> {
+  async readAssetBytes(projectId: string, path: string, taskId?: string): Promise<Uint8Array | null> {
     try {
-      return await this.makeWorkspace(projectId).readBytes(path)
+      return await this.makeWorkspace(projectId, taskId).readBytes(path)
     } catch {
       return null
     }
   }
 
   /** 用户上传文件按类型归位:PDF→papers/ 文本→docs/ 图片→images/ 其它→uploads/(无损保存,先存后判) */
-  async saveUpload(projectId: string, name: string, bytes: Uint8Array): Promise<string> {
+  async saveUpload(projectId: string, name: string, bytes: Uint8Array, taskId?: string): Promise<string> {
     const safe = (name.split(/[/\\]/).pop() || 'upload').replace(/[^\w.\-一-鿿]/g, '_')
     const ext = (safe.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? '').toLowerCase()
     const dir = ext === 'pdf' ? 'papers'
@@ -184,7 +186,7 @@ export class AgentRuntime {
         : ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext) ? 'images'
           : 'uploads'
     const file = `${dir}/${safe}`
-    await this.makeWorkspace(projectId).writeBytes(file, bytes)
+    await this.makeWorkspace(projectId, taskId).writeBytes(file, bytes)
     return file
   }
 
@@ -276,11 +278,12 @@ export class AgentRuntime {
     appendSessionEntry(this.cfg.sessionDir, { type: 'user', task_id: task.id, timestamp: ts, content: userText })
   }
 
-  private makeWorkspace(projectId: string): FsWorkspace {
-    return new FsWorkspace({
-      root: `${this.cfg.workspacesDir}/${projectId}`,
-      libraryRoot: this.cfg.libraryRoot,
-    })
+  /** 工作区定根:带 taskId = 会话独立目录(owner 拍板 2026-07-05);不带 = 项目根(兼容旧语义/旧数据) */
+  private makeWorkspace(projectId: string, taskId?: string): FsWorkspace {
+    const root = taskId
+      ? `${this.cfg.workspacesDir}/${projectId}/sessions/${taskId}`
+      : `${this.cfg.workspacesDir}/${projectId}`
+    return new FsWorkspace({ root, libraryRoot: this.cfg.libraryRoot })
   }
 
   private makeEmit(taskId: string): (event: AgentEvent) => void {
@@ -300,7 +303,7 @@ export class AgentRuntime {
     const emit = this.makeEmit(task.id)
     const budget = mergeBudget(this.cfg.budget)
     const limits: Limits = { maxSteps: budget.maxSteps, maxDepth: this.cfg.maxDepth ?? 3, maxSeconds: budget.maxSeconds }
-    const workspace = this.makeWorkspace(task.project_id)
+    const workspace = this.makeWorkspace(task.project_id, task.id)
     const spawn = createSpawnFn({
       model: this.cfg.model,
       roles: this.cfg.roles ?? {},

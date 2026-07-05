@@ -49,7 +49,7 @@ function AppInner() {
   }, [client])
 
   const { items, running, send, stop, newConversation, selectConversation, taskId } = useAgent(client, PROJECT, connected)
-  const ws = useWorkspace(client, PROJECT, connected)
+  const ws = useWorkspace(client, PROJECT, taskId, connected)
   const [drawer, setDrawer] = useState(false)
   const [input, setInput] = useState('')
   // 侧栏收起/展开(记住选择)
@@ -137,9 +137,13 @@ function AppInner() {
     const files = Array.from(e.target.files ?? [])
     e.target.value = '' // 允许重选同名文件
     if (!files.length) return
+    if (!taskId) {
+      toast.add({ variant: 'info', title: '先开始对话', description: '发出第一条消息后,文件会归入当前会话的工作区。' })
+      return
+    }
     setUploading(true)
     try {
-      for (const file of files) await client.uploadFile(PROJECT, file)
+      for (const file of files) await client.uploadFile(PROJECT, file, taskId)
       ws.refresh()
       setDrawer(true) // 上传后展开工作区,让用户看到刚加入的文件
     } catch (err) {
@@ -273,7 +277,7 @@ function AppInner() {
           </form>
         </main>
 
-        {showReader && ws.open && <ReaderPane open={ws.open} pdfUrl={(p) => client.pdfUrl(PROJECT, p)} onClose={ws.close} />}
+        {showReader && ws.open && <ReaderPane open={ws.open} pdfUrl={(p) => client.pdfUrl(PROJECT, p, taskId ?? undefined)} onClose={ws.close} />}
         {drawer && !showReader && <WorkspaceDrawer assets={ws.assets} onOpen={ws.openAsset} />}
       </div>
 

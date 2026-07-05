@@ -82,17 +82,17 @@ export class LumenClient {
     })
   }
 
-  listAssets(projectId: string): Promise<WorkspaceAsset[]> {
+  listAssets(projectId: string, taskId?: string): Promise<WorkspaceAsset[]> {
     return new Promise((resolve) => {
       this.pendingAssets = resolve
-      this.send({ type: 'list_assets', projectId })
+      this.send({ type: 'list_assets', projectId, taskId })
     })
   }
 
-  readAsset(projectId: string, path: string): Promise<string> {
+  readAsset(projectId: string, path: string, taskId?: string): Promise<string> {
     return new Promise((resolve) => {
       this.pendingAsset = resolve
-      this.send({ type: 'read_asset', projectId, path })
+      this.send({ type: 'read_asset', projectId, path, taskId })
     })
   }
 

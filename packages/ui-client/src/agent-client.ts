@@ -155,35 +155,37 @@ export class AgentClient {
   }
 
   // ---- 工作区资产(WS) ----
-  listAssets(projectId: string): Promise<Asset[]> {
+  listAssets(projectId: string, taskId?: string): Promise<Asset[]> {
     return new Promise((resolve) => {
       this.pendingAssets = resolve
-      this.send({ type: 'list_assets', projectId })
+      this.send({ type: 'list_assets', projectId, taskId })
     })
   }
 
-  readAsset(projectId: string, path: string): Promise<string> {
+  readAsset(projectId: string, path: string, taskId?: string): Promise<string> {
     return new Promise((resolve) => {
       this.pendingAsset = resolve
-      this.send({ type: 'read_asset', projectId, path })
+      this.send({ type: 'read_asset', projectId, path, taskId })
     })
   }
 
   // ---- PDF(HTTP) ----
   /** PDF 原件 URL,给 pdf.js 直接 fetch(带 token) */
-  pdfUrl(projectId: string, path: string): string {
+  pdfUrl(projectId: string, path: string, taskId?: string): string {
     const u = new URL('/pdf', this.httpBase)
     u.searchParams.set('project', projectId)
     u.searchParams.set('path', path)
+    if (taskId) u.searchParams.set('task', taskId)
     if (this.token) u.searchParams.set('token', this.token)
     return u.toString()
   }
 
   /** 上传任意文件(PDF/文档/图片…),服务端按类型归位工作区,返回相对路径 */
-  async uploadFile(projectId: string, file: File): Promise<string> {
+  async uploadFile(projectId: string, file: File, taskId?: string): Promise<string> {
     const u = new URL('/upload', this.httpBase)
     u.searchParams.set('project', projectId)
     u.searchParams.set('name', file.name)
+    if (taskId) u.searchParams.set('task', taskId)
     if (this.token) u.searchParams.set('token', this.token)
     const res = await fetch(u.toString(), { method: 'POST', body: file })
     return ((await res.json()) as { path: string }).path

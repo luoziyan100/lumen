@@ -41,7 +41,7 @@ test('runtime：submit → 跑完 → 任务 done，事件落库', async (t) => 
   assert.equal(store.getTask(taskId)?.status, 'done')
   const kinds = store.listEvents(taskId).map((e) => e.kind)
   assert.ok(kinds.includes('model_step') && kinds.includes('tool_result') && kinds.includes('reply'))
-  const written = await readFile(path.join(base, 'workspaces', 'p', 'notes', 'n.md'), 'utf8')
+  const written = await readFile(path.join(base, 'workspaces', 'p', 'sessions', taskId, 'notes', 'n.md'), 'utf8')
   assert.equal(written, '结论 A')
 })
 
@@ -72,7 +72,7 @@ test('runtime + roles：主 agent spawn searcher worker（受限工具），work
   assert.equal(store.getTask(taskId)?.status, 'done')
   const kinds = store.listEvents(taskId).map((e) => e.kind)
   assert.ok(kinds.includes('spawn'), '应记录 spawn 事件')
-  const written = await readFile(path.join(base, 'workspaces', 'p', 'notes', 'found.md'), 'utf8')
+  const written = await readFile(path.join(base, 'workspaces', 'p', 'sessions', taskId, 'notes', 'found.md'), 'utf8')
   assert.equal(written, '命中 3 篇')
   // 主 agent 第二次调用只看到 worker 压缩回报，看不到 worker 内部 write_file 细节
   const mainSecond = mainModel.calls[1].find((m) => m.role === 'tool_result' && m.toolCallId === 's')
