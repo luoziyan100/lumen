@@ -11,10 +11,13 @@ Lumen 的需求/调研 brief。每个 brief 是一份自包含的工作说明，
 
 active brief 实施完成后，默认 `mv` 到 `archive/` 并在此 README 标注结果，不必等额外提醒。
 
+## 已归档(近期)
+
+- run-code-sandbox.md — run_code 工具与本地沙箱,已实施(L1 进程纪律 + macOS Seatbelt allow-default精准deny);见 archive/。
+
 ## 当前 active
 
 - [projects.md](active/projects.md) — 项目(Projects)功能:多会话共享工作区,独立功能不混入单会话体验(定稿待排期;记忆开关与来源标注解耦另行排期)。
-- [run-code-sandbox.md](active/run-code-sandbox.md) — 通用 agent 线的 run_code 工具与本地沙箱方案（定稿待拍板：L1 进程纪律 + L2 Seatbelt，执行环境复用打包 node）。
 
 人格工程工作线（P0–P5）：
 

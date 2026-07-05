@@ -16,6 +16,7 @@ import { SettingsStore } from './storage/settings.ts'
 import { AgentRuntime, defaultSystemPrompt } from './runtime/agent-runtime.ts'
 import { startServer, type ServerHandle } from './protocol/server.ts'
 import { ENV_TOOLS } from './tools/env/fs-tools.ts'
+import { runCodeTool } from './tools/env/run-code.ts'
 import { createResearchTools, createUnpdfEngine, createTavilyWebSearch } from './tools/research/index.ts'
 import { buildRoles } from './agents/roles.ts'
 import { createClaudeAdapter, createFetchTransport } from './adapters/claude.ts'
@@ -88,7 +89,8 @@ export function createService(config: ServiceConfig = {}): Service {
     pdfEngine: createUnpdfEngine(),
     webSearch: tavilyKey ? createTavilyWebSearch({ apiKey: tavilyKey }) : undefined,
   })
-  const mainTools = [...ENV_TOOLS, ...research]
+  // run_code:owner 拍板 2026-07-05 进默认工具集(L1 进程纪律 + macOS Seatbelt,见 tools/env/sandbox.ts)
+  const mainTools = [...ENV_TOOLS, runCodeTool, ...research]
   const roles = buildRoles(mainTools)
 
   const runtime = new AgentRuntime({

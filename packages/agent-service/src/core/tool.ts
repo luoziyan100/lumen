@@ -47,6 +47,8 @@ export interface Workspace {
   listDir(path?: string): Promise<DirEntry[]>
   grep(pattern: string, options?: { path?: string; flags?: string }): Promise<GrepHit[]>
   glob(pattern: string): Promise<string[]>
+  /** 解析虚拟路径为宿主绝对路径(过同一套逃逸校验)。需要真实路径的工具(如 run_code 的 cwd/脚本)用;可选实现 */
+  resolvePath?(path: string, opts?: { write?: boolean }): Promise<string>
 }
 
 export interface ToolContext {

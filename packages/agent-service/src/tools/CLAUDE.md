@@ -8,6 +8,9 @@
 
 - `fs-tools.ts` — ENV_TOOLS:read_file / write_file / edit_file / list_dir / grep / glob
   「文件系统即上下文」:agent 把正文写成文件,回头 grep / 分段重读,不逼模型凭截断摘要作答。
+- `run-code.ts` — runCodeTool:在当前会话工作区跑 node/python(cwd 锁工作区/60s 超时/输出上限/命令进事件流)。
+- `sandbox.ts` — Seatbelt profile(macOS):allow-default + 精准 deny(网络全禁/写限工作区/读封敏感目录);
+  非 macOS 退化为仅 L1 进程纪律。**改 profile 必跑 tests/workspace/run-code.test.ts 的三条逃逸验收。**
 
 ## research/ — L2 研究桥接(把外部世界灌进工作区)
 

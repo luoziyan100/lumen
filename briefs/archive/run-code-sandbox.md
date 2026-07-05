@@ -1,6 +1,6 @@
 # Brief:run_code 工具与本地沙箱(通用 agent 线)
 
-> 状态:方案已定稿,待 owner 拍板排期 · 2026-07-05
+> 状态:已实施并归档 · 2026-07-05(commit 见 git log;实现 tools/env/run-code.ts + sandbox.ts)
 > 触发:产品拍板「主形态 = 桌面本地应用」+「通用 agent」方向后,owner 提问:
 > 让模型跑代码任务,是否需要沙箱、是否要给它一个 node/执行环境。
 

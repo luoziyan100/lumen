@@ -18,6 +18,7 @@ const VERB: Record<string, string> = {
   search_papers: '检索文献', openalex_search: '检索文献', web_search: '网页搜索',
   extract_pdf: '读取 PDF', fetch_url: '抓取网页', read_url: '抓取网页',
   write_file: '写入文件', read_file: '读取文件', list_files: '浏览工作区', grep: '检索内文',
+  run_code: '运行代码',
 }
 const verb = (name: string): string => VERB[name] ?? name
 
