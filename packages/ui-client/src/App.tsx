@@ -167,7 +167,8 @@ function AppInner() {
 
       <header className="titlebar">
         <div className="tb-left">
-          {/* 折叠/搜索恒驻标题栏(位置不随侧栏开合漂移),只换文案 */}
+          {/* 品牌名占最左锚位;折叠/搜索恒驻其右(位置不随侧栏开合漂移,只换文案) */}
+          <span className="brand">{APP_BRAND_COPY.name}</span>
           <Tooltip content={sbOpen ? '收起侧栏' : '展开侧栏'} render={
             <button className="icon-btn nav-icon-btn" aria-label={sbOpen ? '收起侧栏' : '展开侧栏'} onClick={() => toggleSidebar(!sbOpen)}>
               <PanelIcon size={APP_NAV_ICON_BUTTON.iconSize} />
@@ -178,7 +179,6 @@ function AppInner() {
               <SearchIcon size={APP_NAV_ICON_BUTTON.iconSize} />
             </button>
           } />
-          <span className="brand">{APP_BRAND_COPY.name}</span>
         </div>
         <nav className="titlebar-actions">
           {APP_TITLEBAR_ACTIONS.map((action) => (action.id === 'workspace'
