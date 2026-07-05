@@ -92,11 +92,17 @@ body, #root { margin: 0; }
 .body { flex: 1; display: flex; overflow: hidden; }
 
 /* ---- 左侧栏:新对话 + 会话历史 ---- */
+/* 会话侧栏 = 浮卡:四周留缝让青瓷背景透出,圆角 + 卡片阴影,与「三层纵深」一致。
+   不用 overflow:hidden(会裁掉右缘拖拽把手);圆角靠 border/背景裁,内部列表有 padding 不顶角。 */
 .sidebar {
   position: relative;
   flex: 0 0 var(--sidebar-w); min-width: 0;
+  margin: var(--s-2);
   display: flex; flex-direction: column;
-  border-right: 1px solid var(--sand); background: var(--paper);
+  border: 1px solid var(--sand);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-2);
   backdrop-filter: blur(14px) saturate(1.05);
   -webkit-backdrop-filter: blur(14px) saturate(1.05);
 }
