@@ -99,11 +99,7 @@ body, #root { margin: 0; }
   backdrop-filter: blur(14px) saturate(1.05);
   -webkit-backdrop-filter: blur(14px) saturate(1.05);
 }
-.sb-top {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: var(--s-3) var(--s-3) 0;
-}
-.icon-btn-on { background: var(--sand); color: var(--ink); }
+/* 侧栏顶部图标行已并入标题栏 tb-left(位置恒定,不随侧栏开合漂移) */
 /* 会话搜索(⌘K)已迁移 Kumo CommandPalette;设置弹窗外壳已迁移 Kumo Dialog */
 
 /* Kumo Collapsible 面板:暂不做高度动画——展开高度在 webfont 加载竞态下会量得过期

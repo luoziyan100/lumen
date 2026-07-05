@@ -12,7 +12,7 @@ import { useWorkspace } from './useWorkspace'
 import { Sidebar } from './components/Sidebar'
 import { SearchModal } from './components/SearchModal'
 import { SettingsModal } from './components/SettingsModal'
-import { PanelIcon, SearchIcon } from './components/icons'
+import { PanelIcon, PlusIcon, SearchIcon, SendIcon } from './components/icons'
 import { WorkspaceDrawer } from './components/WorkspaceDrawer'
 import { ReaderPane } from './components/ReaderPane'
 import { ProcessRow } from './components/ProcessRow'
@@ -167,20 +167,17 @@ function AppInner() {
 
       <header className="titlebar">
         <div className="tb-left">
-          {!sbOpen && (
-            <>
-              <Tooltip content="展开侧栏" render={
-                <button className="icon-btn nav-icon-btn" aria-label="展开侧栏" onClick={() => toggleSidebar(true)}>
-                  <PanelIcon size={APP_NAV_ICON_BUTTON.iconSize} />
-                </button>
-              } />
-              <Tooltip content="搜索对话 ⌘K" render={
-                <button className="icon-btn nav-icon-btn" aria-label="搜索对话" onClick={() => setSearchOpen(true)}>
-                  <SearchIcon size={APP_NAV_ICON_BUTTON.iconSize} />
-                </button>
-              } />
-            </>
-          )}
+          {/* 折叠/搜索恒驻标题栏(位置不随侧栏开合漂移),只换文案 */}
+          <Tooltip content={sbOpen ? '收起侧栏' : '展开侧栏'} render={
+            <button className="icon-btn nav-icon-btn" aria-label={sbOpen ? '收起侧栏' : '展开侧栏'} onClick={() => toggleSidebar(!sbOpen)}>
+              <PanelIcon size={APP_NAV_ICON_BUTTON.iconSize} />
+            </button>
+          } />
+          <Tooltip content="搜索对话 ⌘K" render={
+            <button className="icon-btn nav-icon-btn" aria-label="搜索对话" onClick={() => setSearchOpen(true)}>
+              <SearchIcon size={APP_NAV_ICON_BUTTON.iconSize} />
+            </button>
+          } />
           <span className="brand">{APP_BRAND_COPY.name}</span>
         </div>
         <nav className="titlebar-actions">
@@ -208,8 +205,6 @@ function AppInner() {
             activeId={taskId}
             onNew={() => { newConversation(); ws.close() }}
             onSelect={pickConversation}
-            onCollapse={() => toggleSidebar(false)}
-            onSearch={() => setSearchOpen(true)}
           />
         )}
         <main className={`chat ${showReader ? 'chat-with-reader' : ''} ${isEmpty ? 'chat-empty' : ''}`}>
@@ -260,12 +255,12 @@ function AppInner() {
                   aria-label="添加文件"
                   disabled={uploading}
                   onClick={() => fileRef.current?.click()}
-                >＋</Button>
+                ><PlusIcon /></Button>
               } />
               <span className="composer-spacer" />
               {running
                 ? <Tooltip content="停止" render={<Button type="button" variant="destructive" shape="circle" aria-label="停止" onClick={stop}><span className="stop-square" /></Button>} />
-                : <Tooltip content="发送" render={<Button type="submit" variant="primary" shape="circle" aria-label="发送" disabled={!input.trim() && attachments.length === 0}>↑</Button>} />}
+                : <Tooltip content="发送" render={<Button type="submit" variant="primary" shape="circle" aria-label="发送" disabled={!input.trim() && attachments.length === 0}><SendIcon /></Button>} />}
             </div>
             <input
               ref={fileRef}

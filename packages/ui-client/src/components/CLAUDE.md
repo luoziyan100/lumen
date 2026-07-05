@@ -4,7 +4,7 @@
 
 ## 成员
 
-- `Sidebar.tsx` — 左侧栏:收起/搜索(Kumo Tooltip)+ 新对话 + 会话历史列表
+- `Sidebar.tsx` — 左侧栏:新对话(Kumo Button)+ 会话历史列表;收起/搜索钮恒驻标题栏,不在侧栏内
 - `SearchModal.tsx` — 会话搜索(⌘K):Kumo CommandPalette,内部过滤,↑↓/↵ 键盘导航
 - `SettingsModal.tsx` — 设置:外壳 Kumo Dialog(居中/焦点圈/Esc),接口协议 Kumo Select,保存/删除/添加 Kumo Button;模型 profile 两级导航 + 系统提示词;key 只回掩码
 - `WorkspaceDrawer.tsx` — 工作区抽屉:「资料 / 产物」分组卡片(Kumo Collapsible),PDF/MD 可点开阅读器
@@ -13,7 +13,7 @@
 - `ProcessRow.tsx` — 可折叠过程块(Kumo Collapsible):折叠一行摘要,展开逐步
 - `Markdown.tsx` — assistant 回复与 .md 文档的渲染:GFM + KaTeX + 代码高亮
 - `hljs-celadon.css` — highlight.js 青瓷主题:消费 tokens.css 的 --code-* 语法色板
-- `icons.tsx` — 内联 SVG 图标(stroke=currentColor;设计系统:不用 emoji)
+- `icons.tsx` — **图标唯一入口**:re-export @phosphor-icons/react(Kumo 同源家族)并统一缺省尺寸;组件不得绕过它直接 import phosphor;不用 emoji
 
 ## 规则
 
