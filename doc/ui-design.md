@@ -75,7 +75,9 @@ Lumen 不是 chatbot。和 chatbot 最大的区别:**它产出文件**。
 - **圆角**:sm 4 / md 8 / lg 12 / full 9999,不超 16。
 - **阴影**:4 档 `--shadow-0..3`(none / 发丝浮起 / 卡片 / 弹窗),墨绿灰低透明。**无 inner shadow、无彩色荧光、无 text-shadow。**
 - **动效**:安静、短促、线性偏缓。fast 120ms / base 180ms / slow 280ms。禁 spring bounce、overshoot、3D。Hover 染 `--sand`,不用 scale。aura 常驻但被纸面遮护;闲置降耗是已立项待办。
-- **控件层**:一律来自 @cloudflare/kumo(无头核 Base UI,皮肤 = theme-celadon 映射本设计系统),禁止手搓按钮/弹层/下拉;自绘仅限业务组件与排版。
+- **控件层**:一律来自 @cloudflare/kumo(无头核 Base UI,皮肤 = theme-celadon 映射本设计系统),禁止手搓按钮/弹层/下拉。
+- **控件形制(统一节奏,2026-07-05)**:所有可点控件走 Kumo 形制——高度 sm 26 / base 36,圆角与描边随 Kumo,hover 染 tint,焦点环 focus-ring。**自绘白名单**(仅此四类,超出即打回):列表项(会话/文件条目)、消息气泡、过程行、图标导航钮(.nav-icon-btn)。「像一个个拼上去」的病根就是控件各定形制——新增控件先问 Kumo 有没有,再问白名单。
+- **开屏 = 封面(补充)**:问候与输入卡整体**居中偏上**(通行的 agent 开屏形态);开始对话后输入卡落回底部、纸面层铺开。
 - **文案**:简体中文,精确优先于热情。不用 emoji,不用 AI 营销话术。界面词汇用用户语言(「资料 / 产物」,不是 Workfolder/Output)。
 
 ---

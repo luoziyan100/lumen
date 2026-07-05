@@ -3,6 +3,7 @@
  * client 在此建并 connect,传给 useAgent(对话)/ useWorkspace(资产)。
  */
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent } from 'react'
+import { Button } from '@cloudflare/kumo/components/button'
 import { Toasty, useKumoToastManager } from '@cloudflare/kumo/components/toast'
 import { Tooltip, TooltipProvider } from '@cloudflare/kumo/components/tooltip'
 import { AgentClient, type ImageData, type Task } from './agent-client'
@@ -174,17 +175,18 @@ function AppInner() {
         <nav className="titlebar-actions">
           {APP_TITLEBAR_ACTIONS.map((action) => (action.id === 'workspace'
             ? (
-              <button
+              <Button
                 key={action.id}
-                className={drawer ? 'tb-on' : ''}
+                variant={drawer ? 'secondary' : 'ghost'}
+                size="sm"
                 onClick={() => setDrawer((v) => !v)}
                 aria-expanded={drawer}
                 aria-controls={APP_TITLEBAR_WORKSPACE_TOGGLE.controls}
               >
                 {action.label}
-              </button>
+              </Button>
             )
-            : <button key={action.id} className={settingsOpen ? 'tb-on' : ''} onClick={() => setSettingsOpen(true)}>{action.label}</button>))}
+            : <Button key={action.id} variant={settingsOpen ? 'secondary' : 'ghost'} size="sm" onClick={() => setSettingsOpen(true)}>{action.label}</Button>))}
         </nav>
       </header>
 
@@ -199,7 +201,7 @@ function AppInner() {
             onSearch={() => setSearchOpen(true)}
           />
         )}
-        <main className={`chat ${showReader ? 'chat-with-reader' : ''}`}>
+        <main className={`chat ${showReader ? 'chat-with-reader' : ''} ${isEmpty ? 'chat-empty' : ''}`}>
           <div className={`messages ${isEmpty ? 'messages-empty' : ''}`}>
             {isEmpty && <EmptyState />}
             {items.map((it) => it.kind === 'msg'
@@ -240,18 +242,19 @@ function AppInner() {
             />
             <div className="composer-bar">
               <Tooltip content={uploading ? '上传中…' : '添加文件'} render={
-                <button
+                <Button
                   type="button"
-                  className="icon-btn"
+                  variant="ghost"
+                  shape="square"
                   aria-label="添加文件"
                   disabled={uploading}
                   onClick={() => fileRef.current?.click()}
-                >＋</button>
+                >＋</Button>
               } />
               <span className="composer-spacer" />
               {running
-                ? <Tooltip content="停止" render={<button type="button" className="send-btn send-btn-stop" aria-label="停止" onClick={stop}><span className="stop-square" /></button>} />
-                : <Tooltip content="发送" render={<button type="submit" className="send-btn" aria-label="发送" disabled={!input.trim() && attachments.length === 0}>↑</button>} />}
+                ? <Tooltip content="停止" render={<Button type="button" variant="destructive" shape="circle" aria-label="停止" onClick={stop}><span className="stop-square" /></Button>} />
+                : <Tooltip content="发送" render={<Button type="submit" variant="primary" shape="circle" aria-label="发送" disabled={!input.trim() && attachments.length === 0}>↑</Button>} />}
             </div>
             <input
               ref={fileRef}

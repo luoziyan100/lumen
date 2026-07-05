@@ -85,14 +85,8 @@ body, #root { margin: 0; }
 .tb-left { display: flex; align-items: center; gap: var(--s-2); }
 .brand { font-weight: var(--w-semi); }
 .brand-sub { color: var(--ink-mute); font-weight: var(--w-regular); }
-.titlebar-actions { display: flex; align-items: center; gap: var(--s-4); }
-.titlebar-actions button {
-  padding: 6px 12px; border: 1px solid transparent; border-radius: var(--radius-md);
-  background: none; color: var(--ink-soft); font: inherit; cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out);
-}
-.titlebar-actions button:hover { background: var(--sand); }
-.titlebar-actions button.tb-on { border-color: var(--sand-deep); color: var(--ink); }
+/* 标题栏动作钮已迁移 Kumo Button(ghost/secondary),不再自绘 */
+.titlebar-actions { display: flex; align-items: center; gap: var(--s-2); }
 
 /* ---- Body split ---- */
 .body { flex: 1; display: flex; overflow: hidden; }
@@ -206,13 +200,7 @@ body, #root { margin: 0; }
 .mp-edit-title { flex: 1; }
 .set-saved { color: var(--moss); font-size: var(--t-body-sm); }
 
-.sb-new {
-  margin: var(--s-2) var(--s-4) var(--s-2); padding: 8px 12px;
-  border: 1px solid var(--sand-deep); border-radius: var(--radius-md);
-  background: none; color: var(--ink-soft); font: inherit; cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out);
-}
-.sb-new:hover { background: var(--sand); }
+/* 「新对话」已迁移 Kumo Button(outline) */
 .sb-head { padding: var(--s-3) var(--s-5) var(--s-2); color: var(--ink-mute); font-size: var(--t-body-sm); }
 .sb-list { flex: 1; overflow-y: auto; padding: 0 var(--s-2) var(--s-4); display: flex; flex-direction: column; gap: 2px; }
 .sb-empty { color: var(--ink-mute); font-size: var(--t-body-sm); line-height: 1.6; padding: var(--s-2) var(--s-3); }
@@ -231,6 +219,9 @@ body, #root { margin: 0; }
 /* ---- Chat ---- */
 .chat { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .chat-with-reader { flex: 0 0 46%; border-right: 1px solid var(--sand); }
+/* 空态(封面):问候 + 输入卡整体居中偏上;开始对话后输入卡落回底部 */
+.chat-empty { justify-content: center; padding-bottom: 12vh; }
+.chat-empty .messages { flex: 0 0 auto; overflow: visible; }
 /* 纸面层:正文永远坐在安静的纸上,氛围从两侧衬出纵深 */
 .messages {
   flex: 1; overflow-y: auto; padding: var(--s-6) var(--s-8);
@@ -294,14 +285,7 @@ body, #root { margin: 0; }
   height: 22px;
   flex: none;
 }
-.send-btn {
-  width: 34px; height: 34px; border: none; border-radius: var(--radius-full);
-  background: var(--ink); color: var(--paper); font-size: 15px; line-height: 1;
-  display: inline-flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: opacity var(--dur-fast) var(--ease-out);
-}
-.send-btn:disabled { opacity: .35; cursor: default; }
-.send-btn-stop { background: var(--danger); }
+/* 发送/停止已迁移 Kumo Button(primary/destructive 圆钮) */
 .stop-square { width: 12px; height: 12px; background: #FBFDF8; border-radius: 2.5px; }
 
 /* 待发送图片 chips(粘贴进来的,卡内) */
