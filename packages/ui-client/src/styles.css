@@ -339,19 +339,33 @@ body, #root { margin: 0; }
 .msg-image { max-width: 220px; max-height: 160px; border-radius: var(--radius-sm); display: block; }
 
 /* ---- Workspace drawer ---- */
-/* 工作区抽屉 = 浮卡(与左侧栏对称) */
+/* 工作区抽屉 = 浮卡(与左侧栏对称,左缘可拖拽调宽) */
 .ws-drawer {
-  flex: 0 0 var(--sidebar-w);
+  position: relative;
+  flex: 0 0 var(--sidebar-w); min-width: 0;
   margin: var(--s-2);
+  display: flex; flex-direction: column;
   background: var(--paper-deep);
   border: 1px solid var(--sand);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-2);
-  padding: var(--s-5);
-  overflow-y: auto;
   backdrop-filter: blur(14px) saturate(1.05);
   -webkit-backdrop-filter: blur(14px) saturate(1.05);
 }
+/* header 固定,内容区滚动(把手在 ws-drawer 上,不被内容滚动裁掉) */
+.ws-drawer .ws-head { padding: var(--s-5) var(--s-5) 0; }
+.ws-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--s-5); }
+/* 左缘拖拽把手(镜像 sb-resize) */
+.ws-resize {
+  position: absolute; top: 0; left: -4px; width: 8px; height: 100%;
+  cursor: col-resize; z-index: var(--z-sticky); touch-action: none;
+}
+.ws-resize::after {
+  content: ''; position: absolute; top: 0; bottom: 0; right: 3px; width: 2px;
+  background: transparent;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.ws-resize:hover::after, .ws-resize:active::after { background: var(--ember-soft); }
 .ws-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--s-5); }
 .ws-title { font-weight: var(--w-semi); font-size: var(--t-display-sm); }
 .ws-count { color: var(--ink-mute); font-weight: var(--w-regular); font-size: var(--t-body-sm); margin-left: var(--s-1); }

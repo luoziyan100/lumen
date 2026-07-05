@@ -3,20 +3,11 @@
  * 收起/搜索钮恒驻标题栏(App 的 tb-left),不在侧栏内——位置不随开合漂移。
  * 右缘把手可拖拽调宽(220–420px,记忆宽度,双击复位);一键收起仍走标题栏折叠钮。
  */
-import { useRef, useState } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import type { Task } from '../agent-client'
 import { AccountIcon, GearIcon } from './icons'
 import { SIDEBAR_ACCOUNT_COPY } from '../appCopy'
-
-const SB_MIN = 220
-const SB_MAX = 420
-const SB_DEFAULT = 300
-const SB_WIDTH_KEY = 'lumen:sbWidth'
-
-function clampWidth(w: number): number {
-  return Math.min(SB_MAX, Math.max(SB_MIN, Math.round(w)))
-}
+import { useResizable } from '../useResizable'
 
 interface SidebarProps {
   conversations: Task[]
@@ -27,40 +18,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ conversations, activeId, onNew, onSelect, onSettings }: SidebarProps) {
-  const [width, setWidth] = useState(() => {
-    const saved = Number(localStorage.getItem(SB_WIDTH_KEY))
-    return Number.isFinite(saved) && saved >= SB_MIN && saved <= SB_MAX ? saved : SB_DEFAULT
-  })
-  // 实时宽度走 ref:松手事件可能先于最后一次 setState 的重渲染到达,闭包里的 width 会过期
-  const widthRef = useRef(width)
-  const drag = useRef<{ startX: number; startW: number } | null>(null)
-
-  function onHandleDown(e: React.PointerEvent<HTMLDivElement>): void {
-    e.preventDefault()
-    drag.current = { startX: e.clientX, startW: widthRef.current }
-    e.currentTarget.setPointerCapture(e.pointerId)
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-  }
-  function onHandleMove(e: React.PointerEvent<HTMLDivElement>): void {
-    if (!drag.current) return
-    const w = clampWidth(drag.current.startW + (e.clientX - drag.current.startX))
-    widthRef.current = w
-    setWidth(w)
-  }
-  function onHandleUp(e: React.PointerEvent<HTMLDivElement>): void {
-    if (!drag.current) return
-    drag.current = null
-    e.currentTarget.releasePointerCapture(e.pointerId)
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-    localStorage.setItem(SB_WIDTH_KEY, String(widthRef.current))
-  }
-  function onHandleReset(): void {
-    widthRef.current = SB_DEFAULT
-    setWidth(SB_DEFAULT)
-    localStorage.setItem(SB_WIDTH_KEY, String(SB_DEFAULT))
-  }
+  const { width, handleProps } = useResizable({ edge: 'right', min: 220, max: 420, fallback: 300, storageKey: 'lumen:sbWidth' })
 
   return (
     <aside className="sidebar" style={{ '--sidebar-w': `${width}px` } as React.CSSProperties}>
@@ -99,10 +57,7 @@ export function Sidebar({ conversations, activeId, onNew, onSelect, onSettings }
         aria-orientation="vertical"
         aria-label="调整侧栏宽度(双击复位)"
         title="拖拽调宽 · 双击复位"
-        onPointerDown={onHandleDown}
-        onPointerMove={onHandleMove}
-        onPointerUp={onHandleUp}
-        onDoubleClick={onHandleReset}
+        {...handleProps}
       />
     </aside>
   )

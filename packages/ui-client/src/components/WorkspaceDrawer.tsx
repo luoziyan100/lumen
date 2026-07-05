@@ -7,6 +7,7 @@ import { Collapsible } from '@cloudflare/kumo/components/collapsible'
 import type { Asset } from '../agent-client'
 import { WORKSPACE_DRAWER_COPY } from '../appCopy'
 import { ChevronIcon } from './icons'
+import { useResizable } from '../useResizable'
 
 const TAG_CLASS: Record<Asset['kind'], string> = { pdf: 'pdf', doc: 'md', image: 'img', file: 'file' }
 const TAG_TEXT: Record<Asset['kind'], string> = { pdf: 'PDF', doc: 'MD', image: 'IMG', file: 'FILE' }
@@ -56,20 +57,33 @@ const UPLOAD_DIR = /^(papers|docs|images|uploads)\//
 export function WorkspaceDrawer({ assets, onOpen }: {
   assets: Asset[]; onOpen: (a: Asset) => void
 }) {
+  // 与左侧栏对称:左缘把手拖拽调宽(向左拖变宽),记忆宽度,双击复位
+  const { width, handleProps } = useResizable({ edge: 'left', min: 220, max: 420, fallback: 300, storageKey: 'lumen:wsWidth' })
+
   return (
-    <aside className="ws-drawer" id="workspace-drawer">
+    <aside className="ws-drawer" id="workspace-drawer" style={{ '--sidebar-w': `${width}px` } as React.CSSProperties}>
+      <div
+        className="ws-resize"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="调整工作区宽度(双击复位)"
+        title="拖拽调宽 · 双击复位"
+        {...handleProps}
+      />
       <header className="ws-head">
         <span className="ws-title">
           {WORKSPACE_DRAWER_COPY.title} <span className="ws-count">{assets.length} {WORKSPACE_DRAWER_COPY.countUnit}</span>
         </span>
       </header>
-      {assets.length === 0
-        ? <p className="ws-empty">本会话还没有文件。让 Lumen 去研究,或上传给它。</p>
-        : <>
-            {/* 按来源分组:资料=你放进来的(不限类型) / 产物=Lumen 写出来的 */}
-            <Card label="资料" items={assets.filter((a) => UPLOAD_DIR.test(a.path))} onOpen={onOpen} />
-            <Card label="产物" items={assets.filter((a) => !UPLOAD_DIR.test(a.path))} onOpen={onOpen} />
-          </>}
+      <div className="ws-body">
+        {assets.length === 0
+          ? <p className="ws-empty">本会话还没有文件。让 Lumen 去研究,或上传给它。</p>
+          : <>
+              {/* 按来源分组:资料=你放进来的(不限类型) / 产物=Lumen 写出来的 */}
+              <Card label="资料" items={assets.filter((a) => UPLOAD_DIR.test(a.path))} onOpen={onOpen} />
+              <Card label="产物" items={assets.filter((a) => !UPLOAD_DIR.test(a.path))} onOpen={onOpen} />
+            </>}
+      </div>
     </aside>
   )
 }
