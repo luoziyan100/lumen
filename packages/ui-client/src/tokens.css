@@ -1,14 +1,14 @@
 /* ==========================================================================
-   Lumen Design System — 青瓷 Celadon v2
+   Lumen Design System — 暖纸 Warm Paper v3(2026-07-06 重构,参照 Cowork 原型)
    --------------------------------------------------------------------------
-   基调:白瓷面 + 青瓷氛围。三层纵深(立体感来自层级,不来自重阴影):
-     1. 氛围层  aura 动效,只在页面边缘可见,永不垫在正文底下
-     2. 纸面层  --paper-solid 阅读面(对话/文档),接近不透明,安静
-     3. 卡片层  --card 输入卡/弹窗/文件卡,白瓷面 + 发丝线 + 浅投影
+   基调:暖中性纸底 + 青瓷绿唯一强调。纵深来自材质与发丝线,不来自动效:
+     1. 画布层  --canvas 纯色暖纸(去掉 aura 动效,静态、稳)
+     2. 纸面层  --paper-solid 阅读面(对话/文档),暖白,安静
+     3. 卡片层  --card 纯白输入卡/弹窗/文件卡 + 发丝线 + 气泡阴影
    颜色纪律:
-     - 青绿只做「品牌与确认」;链接用黛蓝,警示用琥珀,错误用赭红
+     - surface 一律暖中性;青瓷绿(--ember)只做「唯一强调」(品牌/确认/主按钮/勾选)
+     - 链接用黛蓝,警示用琥珀,错误用赭红;除本文件外禁止硬编码颜色
      - 正文类文字对比度 ≥ 4.5:1,元数据 ≥ 3:1(按 WCAG 2.1,底=纸面层)
-     - 除本文件外禁止硬编码颜色
    字体分工:UI = Inter Tight + 思源黑体;长文正文 = Source Serif 4 + 霞鹜文楷;
              元数据/代码 = JetBrains Mono
    ========================================================================== */
@@ -18,20 +18,20 @@
 
 :root {
   /* ---- 表面(自下而上:画布 → 纸面 → 卡片)---- */
-  --canvas:       #F2F5EC;                       /* 窗口画布,aura 之上的兜底色 */
-  --paper:        rgba(250, 252, 247, 0.92);     /* 半透面板(侧栏/标题栏用,带毛玻璃) */
-  --paper-solid:  rgba(250, 252, 247, 0.96);     /* 阅读纸面:对话列/文档正文的底 */
-  --paper-deep:   rgba(242, 246, 238, 0.94);     /* 次级面板(抽屉/代码块底) */
-  --vellum:       rgba(226, 237, 226, 0.95);     /* 用户气泡/选中态 */
-  --card:         rgba(253, 254, 251, 0.97);     /* 卡片面:输入卡/弹窗/文件卡 */
-  --sand:         rgba(110, 144, 118, 0.14);     /* hover 染色/分隔底 */
-  --sand-deep:    rgba(92, 124, 102, 0.34);      /* 发丝线/描边 */
+  --canvas:       #FDFCF9;                        /* 窗口画布:暖纸底(纯色,去 aura) */
+  --paper:        rgba(247, 246, 242, 0.86);      /* 半透面板(侧栏/标题栏,毛玻璃)= 暖灰 #F7F6F2 */
+  --paper-solid:  rgba(255, 254, 251, 0.98);      /* 阅读纸面:对话列/文档正文的底(暖白) */
+  --paper-deep:   rgba(244, 242, 236, 0.96);      /* 次级面板(抽屉/代码块底) */
+  --vellum:       rgba(238, 234, 226, 0.92);      /* 用户气泡/选中态(暖中性,非绿) */
+  --card:         #FFFFFF;                         /* 卡片面:输入卡/弹窗/文件卡(纯白) */
+  --sand:         rgba(66, 56, 42, 0.08);          /* hover 染色 + 淡边(暖) */
+  --sand-deep:    rgba(66, 56, 42, 0.17);          /* 发丝线/描边(暖) */
 
   /* ---- 墨色(文字)---- */
-  --ink:          #22302A;                       /* 正文 ≈ 13.3:1 */
-  --ink-soft:     rgba(34, 48, 40, 0.82);        /* 次正文 ≈ 7.6:1 */
-  --ink-mute:     rgba(44, 62, 52, 0.64);        /* 元数据/占位 ≈ 3.9:1 */
-  --ink-faint:    rgba(60, 82, 70, 0.40);        /* 禁用 */
+  --ink:          #211F1C;                       /* 正文:暖近黑 ≈ 14:1 */
+  --ink-soft:     rgba(33, 31, 28, 0.82);        /* 次正文 */
+  --ink-mute:     rgba(33, 31, 28, 0.56);        /* 元数据/占位 ≈ 3.4:1 */
+  --ink-faint:    rgba(33, 31, 28, 0.34);        /* 禁用 */
 
   /* ---- 强调与语义(青绿=品牌/确认;其余各司其职)---- */
   --ember:        #2F6B4E;                       /* 主强调:深青瓷 ≈ 6.1:1 */
@@ -87,9 +87,9 @@
 
   /* ---- 阴影四档(墨绿灰、低透明;无 inset、无荧光)---- */
   --shadow-0: none;
-  --shadow-1: 0 1px 2px rgba(31, 45, 38, 0.06);                               /* 发丝浮起 */
-  --shadow-2: 0 2px 4px rgba(31, 45, 38, 0.04), 0 12px 28px rgba(31, 45, 38, 0.09);  /* 卡片/输入卡 */
-  --shadow-3: 0 4px 10px rgba(31, 45, 38, 0.06), 0 28px 60px rgba(31, 45, 38, 0.16); /* 弹窗 */
+  --shadow-1: 0 1px 2px rgba(40, 34, 26, 0.06);                               /* 发丝浮起 */
+  --shadow-2: 0 1px 3px rgba(40, 34, 26, 0.05), 0 8px 22px rgba(40, 34, 26, 0.09);  /* 卡片/输入卡:气泡般 */
+  --shadow-3: 0 4px 10px rgba(40, 34, 26, 0.07), 0 24px 56px rgba(40, 34, 26, 0.16); /* 弹窗 */
 
   /* ---- 动效 ---- */
   --dur-fast: 120ms; --dur-base: 180ms; --dur-slow: 280ms; --dur-reader: 400ms;
@@ -119,5 +119,5 @@ a { color: var(--indigo); text-decoration: none; }
 ::selection { background: rgba(47, 107, 78, 0.18); color: var(--ink); }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--sand-deep); border-radius: var(--radius-full); border: 2px solid rgba(250, 252, 247, 0.9); }
+::-webkit-scrollbar-thumb { background: var(--sand-deep); border-radius: var(--radius-full); border: 2px solid rgba(247, 246, 242, 0.9); }
 ::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }

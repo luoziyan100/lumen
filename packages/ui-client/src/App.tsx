@@ -12,14 +12,11 @@ import { useWorkspace } from './useWorkspace'
 import { Sidebar } from './components/Sidebar'
 import { SearchModal } from './components/SearchModal'
 import { SettingsModal } from './components/SettingsModal'
-import { PanelIcon, PlusIcon, SearchIcon, SendIcon } from './components/icons'
+import { CloseIcon, PanelIcon, PlusIcon, SendIcon } from './components/icons'
 import { WorkspaceDrawer } from './components/WorkspaceDrawer'
 import { ReaderPane } from './components/ReaderPane'
 import { ProcessRow } from './components/ProcessRow'
 import { Markdown } from './components/Markdown'
-import { LumenAura } from './aura/LumenAura'
-import { LUMEN_CELADON_AURA_MAP } from './aura/lumenTheme'
-import { useAuraState } from './aura/useAuraState'
 import { getTimeGreeting } from './greeting'
 import { APP_BRAND_COPY, APP_NAV_ICON_BUTTON, APP_TITLEBAR_ACTIONS, APP_TITLEBAR_WORKSPACE_TOGGLE } from './appCopy'
 
@@ -86,6 +83,19 @@ function AppInner() {
     client.list(PROJECT).then((tasks) => { if (live) setConvs(tasks) })
     return () => { live = false }
   }, [client, connected, taskId, running])
+
+  // 当前激活模型:输入卡底部显示;改过设置(关弹窗)后刷新
+  const [modelLabel, setModelLabel] = useState('')
+  useEffect(() => {
+    if (!connected) return
+    let live = true
+    client.getSettings().then((s) => {
+      if (!live) return
+      const active = s.profiles.find((p) => p.id === s.activeProfileId)
+      setModelLabel(active ? (active.name || active.model) : '')
+    }).catch(() => {})
+    return () => { live = false }
+  }, [client, connected, settingsOpen])
 
   // 开屏即欢迎页;仅当上次的会话此刻仍在后台运行时,自动接回它的现场(一次性判断)
   const restoreTried = useRef(false)
@@ -159,16 +169,10 @@ function AppInner() {
   const lastItem = items[items.length - 1]
   const lastRunning = lastItem?.kind === 'process' && lastItem.running
   const showReader = ws.open != null
-  const auraState = useAuraState({ connected, running, items })
   const isEmpty = items.length === 0 && !running
 
   return (
-    <div className="app" data-aura-state={auraState}>
-      <div className="aura-backdrop" aria-hidden="true">
-        <LumenAura state={auraState} map={LUMEN_CELADON_AURA_MAP} />
-        <div className="aura-veil" />
-      </div>
-
+    <div className="app">
       <header className="titlebar">
         <div className="tb-left">
           {/* 品牌名占最左锚位;折叠/搜索恒驻其右(位置不随侧栏开合漂移,只换文案) */}
@@ -176,11 +180,6 @@ function AppInner() {
           <Tooltip content={sbOpen ? '收起侧栏' : '展开侧栏'} render={
             <button className="icon-btn nav-icon-btn" aria-label={sbOpen ? '收起侧栏' : '展开侧栏'} onClick={() => toggleSidebar(!sbOpen)}>
               <PanelIcon size={APP_NAV_ICON_BUTTON.iconSize} />
-            </button>
-          } />
-          <Tooltip content="搜索对话 ⌘K" render={
-            <button className="icon-btn nav-icon-btn" aria-label="搜索对话" onClick={() => setSearchOpen(true)}>
-              <SearchIcon size={APP_NAV_ICON_BUTTON.iconSize} />
             </button>
           } />
         </div>
@@ -204,6 +203,7 @@ function AppInner() {
             conversations={convs}
             activeId={taskId}
             onNew={() => { newConversation(); ws.close() }}
+            onSearch={() => setSearchOpen(true)}
             onSelect={pickConversation}
             onSettings={() => setSettingsOpen(true)}
           />
@@ -235,7 +235,7 @@ function AppInner() {
                 {attachments.map((im, i) => (
                   <span key={i} className="attach-chip">
                     <img src={`data:${im.mediaType};base64,${im.base64}`} alt="待发送图片" />
-                    <button type="button" aria-label="移除图片" onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}>×</button>
+                    <button type="button" aria-label="移除图片" onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}><CloseIcon size={12} /></button>
                   </span>
                 ))}
               </div>
@@ -262,6 +262,13 @@ function AppInner() {
               {running
                 ? <Tooltip content="停止" render={<Button type="button" variant="destructive" shape="circle" aria-label="停止" onClick={stop}><span className="stop-square" /></Button>} />
                 : <Tooltip content="发送" render={<Button type="submit" variant="primary" shape="circle" aria-label="发送" disabled={!input.trim() && attachments.length === 0}><SendIcon /></Button>} />}
+            </div>
+            <div className="composer-div" />
+            <div className="composer-foot">
+              <span className="composer-spacer" />
+              <button type="button" className="composer-model" onClick={() => setSettingsOpen(true)} title="模型设置">
+                <span className="composer-model-dot" />{modelLabel || '选择模型'}
+              </button>
             </div>
             <input
               ref={fileRef}
