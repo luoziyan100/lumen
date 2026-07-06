@@ -1,7 +1,8 @@
 /**
- * 右侧工具轨(持久):只放有真实数据的卡(owner 定「只做有真实数据的卡」)——
- *   进度(运行中的过程步骤) · 工作目录(本会话产物 ws.assets) · 连接器(Lumen 真实工具)。
- * 不列未实现的能力(如联网检索/抓取尚不存在,不摆占位)。PDF/文档点开走阅读器(替换本轨)。
+ * 右侧工具轨(持久):只放有真实数据的卡(owner 定)——
+ *   进度(运行中的过程步骤) · 工作目录(本会话产物 ws.assets)。
+ * 连接器/上下文等尚不具备的能力一律不摆(owner 定「没有的功能不放」)。
+ * PDF/文档点开走阅读器(替换本轨)。
  */
 import type { Asset } from '../agent-client'
 import type { ChatItem, ProcessItem } from '../useAgent'
@@ -9,12 +10,6 @@ import type { ChatItem, ProcessItem } from '../useAgent'
 const TAG_CLASS: Record<Asset['kind'], string> = { pdf: 'pdf', doc: 'md', image: 'img', file: 'file' }
 const TAG_TEXT: Record<Asset['kind'], string> = { pdf: 'PDF', doc: 'MD', image: 'IMG', file: 'FILE' }
 const UPLOAD_DIR = /^(papers|docs|images|uploads)\//
-
-// 当前真实存在的工具族(见 agent-service/src/tools);未实现的不列
-const CONNECTORS = [
-  { name: '工作区文件系统', hint: '读写 · 检索会话工作区' },
-  { name: '代码沙箱', hint: 'run_code · Seatbelt 限权' },
-]
 
 function AssetGroup({ label, items, onOpen }: { label: string; items: Asset[]; onOpen: (a: Asset) => void }) {
   if (!items.length) return null
@@ -67,19 +62,6 @@ export function UtilityRail({ assets, onOpen, items, running }: {
               <AssetGroup label="资料" items={assets.filter((a) => UPLOAD_DIR.test(a.path))} onOpen={onOpen} />
               <AssetGroup label="产物" items={assets.filter((a) => !UPLOAD_DIR.test(a.path))} onOpen={onOpen} />
             </>}
-      </section>
-
-      <section className="rail-card">
-        <h3 className="rail-h">连接器</h3>
-        {CONNECTORS.map((c) => (
-          <div key={c.name} className="rail-conn">
-            <span className="rail-conn-dot" />
-            <span className="rail-conn-text">
-              <span className="rail-conn-name">{c.name}</span>
-              <span className="rail-conn-hint">{c.hint}</span>
-            </span>
-          </div>
-        ))}
       </section>
     </aside>
   )

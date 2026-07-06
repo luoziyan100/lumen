@@ -387,11 +387,6 @@ body, #root { margin: 0; }
 .rail-group:last-child { margin-bottom: 0; }
 .rail-group-head { display: flex; align-items: center; gap: var(--s-2); color: var(--ink-mute); font-size: var(--t-caption); font-weight: var(--w-medium); letter-spacing: .04em; padding: var(--s-1); }
 .rail-group-n { color: var(--ink-faint); }
-.rail-conn { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-1); }
-.rail-conn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ember); flex: none; box-shadow: 0 0 0 3px var(--ember-tint); }
-.rail-conn-text { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
-.rail-conn-name { font-size: var(--t-body-sm); font-weight: var(--w-medium); color: var(--ink); }
-.rail-conn-hint { font-size: var(--t-caption); color: var(--ink-mute); }
 
 /* ---- Reader ---- */
 /* 阅读器分屏 = 浮卡 */
