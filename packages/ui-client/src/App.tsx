@@ -96,7 +96,9 @@ function AppInner() {
   const refreshModel = useCallback(() => {
     client.getSettings().then((s) => {
       const active = s.profiles.find((p) => p.id === s.activeProfileId)
-      setModelLabel(active ? (active.name || active.model) : '')
+      // 芯片显「模型 ID」(如 deepseek-v4-pro / claude-opus-4-8),而非 profile 显示名(如「模型 2」);
+      // 模型 ID 未填时才退回显示名(owner 定 2026-07-06)
+      setModelLabel(active ? (active.model || active.name) : '')
     }).catch(() => {})
   }, [client])
   useEffect(() => { if (connected) refreshModel() }, [connected, refreshModel])
