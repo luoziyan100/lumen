@@ -21,6 +21,28 @@ export function ChatIcon({ size = ICON_MD }: { size?: number }) {
   return <ChatCircle size={size} />
 }
 
+/* 以下两枚为 owner 指定的具体图标(非 phosphor 库内),经此单点收口:
+   PdfIcon = 书本(替代工作区里 PDF 文字标);FoldersIcon = 文件夹,hover 微动(CSS 驱动,不引 framer)。 */
+
+/** 工作区 PDF 文件标记:owner 指定书本图标(填充款) */
+export function PdfIcon({ size = ICON_SM }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+      <path d="M232,48H160a40,40,0,0,0-32,16A40,40,0,0,0,96,48H24a8,8,0,0,0-8,8V200a8,8,0,0,0,8,8H96a24,24,0,0,1,24,24,8,8,0,0,0,16,0,24,24,0,0,1,24-24h72a8,8,0,0,0,8-8V56A8,8,0,0,0,232,48ZM96,192H32V64H96a24,24,0,0,1,24,24V200A39.81,39.81,0,0,0,96,192Zm128,0H160a39.81,39.81,0,0,0-24,8V88a24,24,0,0,1,24-24h64Z" />
+    </svg>
+  )
+}
+
+/** 工作目录文件夹:hover 时前后层微动(CSS 见 styles.css .folders-*;不引 framer-motion) */
+export function FoldersIcon({ size = ICON_MD }: { size?: number }) {
+  return (
+    <svg className="folders-ic" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path className="folders-back" d="M2 8v11a2 2 0 0 0 2 2h14" />
+      <path className="folders-front" d="M20 17a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.9a2 2 0 0 1-1.69-.9l-.81-1.2a2 2 0 0 0-1.67-.9H8a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2Z" />
+    </svg>
+  )
+}
+
 export function PlusIcon({ size = ICON_MD }: { size?: number }) {
   return <Plus size={size} />
 }

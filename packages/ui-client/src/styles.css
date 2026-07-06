@@ -387,6 +387,13 @@ body, #root { margin: 0; }
 .rail-group:last-child { margin-bottom: 0; }
 .rail-group-head { display: flex; align-items: center; gap: var(--s-2); color: var(--ink-mute); font-size: var(--t-caption); font-weight: var(--w-medium); letter-spacing: .04em; padding: var(--s-1); }
 .rail-group-n { color: var(--ink-faint); }
+/* 工作目录文件夹图标:hover 卡片时前后层微动(owner 定;CSS 驱动,不引 framer) */
+.rail-h .folders-ic { flex: none; color: var(--ember); }
+.folders-front, .folders-back { transition: transform var(--dur-slow) var(--ease-out), opacity var(--dur-slow) var(--ease-out); }
+.rail-card:hover .folders-back { transform: translate(2px, -2px) scale(.92); opacity: 0; }
+.rail-card:hover .folders-front { transform: translate(-2px, 2px); }
+/* PDF 文件用书本图标替代文字标(owner 定) */
+.ws-tag-icon { flex: none; display: inline-flex; align-items: center; color: var(--ember); }
 
 /* ---- Reader ---- */
 /* 阅读器分屏 = 浮卡 */

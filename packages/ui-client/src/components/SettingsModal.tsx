@@ -9,6 +9,7 @@ import { Dialog } from '@cloudflare/kumo/components/dialog'
 import { Select } from '@cloudflare/kumo/components/select'
 import type { AgentClient, PublicSettings, PublicModelProfile } from '../agent-client'
 import { SYSTEM_PROMPT_COPY } from '../settingsCopy'
+import { BackIcon, CloseIcon, PlusIcon } from './icons'
 
 type Pane = 'model' | 'prompt'
 type ModelView = 'list' | 'edit'
@@ -92,14 +93,17 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
         </nav>
 
         <div className="settings-body">
-          <button type="button" className="settings-close" aria-label="关闭" onClick={onClose}>×</button>
+          <button type="button" className="settings-close" aria-label="关闭" onClick={onClose}><CloseIcon size={18} /></button>
+
+          {/* 设置未就绪时给出加载态,绝不留空白(此前并发 getSettings 覆盖过 pending 导致白屏) */}
+          {pane === 'model' && !settings && <p className="set-hint">加载中…</p>}
 
           {/* ---- 模型:第一屏 供应商卡片列表 ---- */}
           {pane === 'model' && settings && view === 'list' && (
             <>
               <div className="mp-head">
                 <h2 className="settings-h">模型</h2>
-                <Button type="button" variant="outline" size="sm" onClick={() => openEditor(null)}>＋ 添加模型</Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => openEditor(null)}><PlusIcon size={16} />添加模型</Button>
               </div>
               <div className="mpc-list">
                 {settings.profiles.map((p) => (
@@ -123,7 +127,7 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
           {pane === 'model' && settings && view === 'edit' && (
             <form className="mp-editor" onSubmit={saveProfile}>
               <div className="mp-head">
-                <button type="button" className="mp-back" onClick={() => setView('list')}>← 返回</button>
+                <button type="button" className="mp-back" onClick={() => setView('list')}><BackIcon size={16} />返回</button>
                 <h2 className="settings-h mp-edit-title">{selId ? (selected?.name || '编辑配置') : '新建模型配置'}</h2>
                 {selId && !isActive(selId) && (
                   <button type="button" className="mp-enable" onClick={() => activate(selId)}>启用</button>

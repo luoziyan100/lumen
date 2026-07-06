@@ -2,7 +2,7 @@
  * Lumen 形态 A:对话主屏 + 可收工作区抽屉 + PDF/文件右侧分屏(阅读器)。
  * client 在此建并 connect,传给 useAgent(对话)/ useWorkspace(资产)。
  */
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import { Toasty, useKumoToastManager } from '@cloudflare/kumo/components/toast'
 import { Tooltip, TooltipProvider } from '@cloudflare/kumo/components/tooltip'
@@ -89,18 +89,17 @@ function AppInner() {
     return () => { live = false }
   }, [client, connected, taskId, running])
 
-  // 当前激活模型:输入卡底部显示;改过设置(关弹窗)后刷新
+  // 当前激活模型:输入卡底部显示。getSettings 走共享 pendingSettings 解析器,
+  // 不能和设置弹窗的 getSettings 并发(会互相覆盖 → 弹窗那次永远 pending,模型页变空白)。
+  // 所以:连上时取一次;弹窗关闭后(它的 getSettings 早已 resolve)再刷新一次。
   const [modelLabel, setModelLabel] = useState('')
-  useEffect(() => {
-    if (!connected) return
-    let live = true
+  const refreshModel = useCallback(() => {
     client.getSettings().then((s) => {
-      if (!live) return
       const active = s.profiles.find((p) => p.id === s.activeProfileId)
       setModelLabel(active ? (active.name || active.model) : '')
     }).catch(() => {})
-    return () => { live = false }
-  }, [client, connected, settingsOpen])
+  }, [client])
+  useEffect(() => { if (connected) refreshModel() }, [connected, refreshModel])
 
   // 开屏即欢迎页;仅当上次的会话此刻仍在后台运行时,自动接回它的现场(一次性判断)
   const restoreTried = useRef(false)
@@ -291,7 +290,7 @@ function AppInner() {
       </div>
 
       <SearchModal open={searchOpen} onOpenChange={setSearchOpen} conversations={convs} onSelect={pickConversation} />
-      {settingsOpen && <SettingsModal client={client} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsModal client={client} onClose={() => { setSettingsOpen(false); refreshModel() }} />}
     </div>
   )
 }

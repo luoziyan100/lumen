@@ -6,6 +6,7 @@
  */
 import type { Asset } from '../agent-client'
 import type { ChatItem, ProcessItem } from '../useAgent'
+import { FoldersIcon, PdfIcon, ICON_SM, ICON_MD } from './icons'
 
 const TAG_CLASS: Record<Asset['kind'], string> = { pdf: 'pdf', doc: 'md', image: 'img', file: 'file' }
 const TAG_TEXT: Record<Asset['kind'], string> = { pdf: 'PDF', doc: 'MD', image: 'IMG', file: 'FILE' }
@@ -19,7 +20,9 @@ function AssetGroup({ label, items, onOpen }: { label: string; items: Asset[]; o
       {items.map((a) => {
         const inner = (
           <>
-            <span className={`ws-tag ws-tag-${TAG_CLASS[a.kind]}`}>{TAG_TEXT[a.kind]}</span>
+            {a.kind === 'pdf'
+              ? <span className="ws-tag-icon" title="PDF"><PdfIcon size={ICON_SM} /></span>
+              : <span className={`ws-tag ws-tag-${TAG_CLASS[a.kind]}`}>{TAG_TEXT[a.kind]}</span>}
             <span className="ws-name">{a.name}</span>
           </>
         )
@@ -55,7 +58,7 @@ export function UtilityRail({ assets, onOpen, items, running }: {
       )}
 
       <section className="rail-card">
-        <h3 className="rail-h">工作目录<span className="rail-count">{assets.length}</span></h3>
+        <h3 className="rail-h"><FoldersIcon size={ICON_MD} />工作目录<span className="rail-count">{assets.length}</span></h3>
         {assets.length === 0
           ? <p className="rail-empty">本会话的产物会出现在这里——让 Lumen 去研究,或上传给它。</p>
           : <>

@@ -27,7 +27,6 @@ export function Sidebar({ conversations, activeId, onNew, onSearch, onSelect, on
         <button className="sb-navrow" onClick={onNew}><span className="sb-navrow-ic"><ChatIcon size={ICON_MD} /></span>新对话</button>
         <button className="sb-navrow" onClick={onSearch}><span className="sb-navrow-ic"><SearchIcon size={ICON_MD} /></span>搜索</button>
       </nav>
-      <div className="sb-head">会话</div>
       <nav className="sb-list">
         {conversations.length === 0 && <div className="sb-empty">还没有会话。问点什么开始吧。</div>}
         {conversations.map((task) => (
