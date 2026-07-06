@@ -1,4 +1,6 @@
-/** PDF 竖向连续滚动渲染。pdf.js 锁 4.10.38(v5 在 WebKit/Tauri 下 ESM 加载不工作)。 */
+/** PDF 竖向连续滚动渲染。pdf.js 锁 4.10.38(v5 在 WebKit/Tauri 下 ESM 加载不工作)。
+ *  必须配 cMapUrl + standardFontDataUrl(资产从 pdfjs-dist 复制到 public/pdfjs/):否则内嵌 CJK/
+ *  标准字体(如中文译本的 FandolSong)渲染为空白——poppler 能渲、pdf.js 不配就渲不出(2026-07-06 踩过)。 */
 import { useEffect, useRef, useState } from 'react'
 import * as pdfjs from 'pdfjs-dist'
 import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -6,12 +8,16 @@ import type { PDFDocumentProxy } from 'pdfjs-dist'
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerSrc
 
+// 打包(Tauri)与 dev 都从站点根取:public/pdfjs/* → /pdfjs/*
+const CMAP_URL = '/pdfjs/cmaps/'
+const STD_FONTS_URL = '/pdfjs/standard_fonts/'
+
 export function PdfViewer({ url }: { url: string }) {
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null)
   useEffect(() => {
     let cancelled = false
     setDoc(null)
-    const task = pdfjs.getDocument(url)
+    const task = pdfjs.getDocument({ url, cMapUrl: CMAP_URL, cMapPacked: true, standardFontDataUrl: STD_FONTS_URL })
     task.promise.then((d) => { if (!cancelled) setDoc(d) }).catch(() => {})
     return () => { cancelled = true; void task.destroy() }
   }, [url])
