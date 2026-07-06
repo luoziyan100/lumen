@@ -7,7 +7,6 @@
  */
 import { homedir } from 'node:os'
 import { mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from 'node:fs'
-import { randomBytes } from 'node:crypto'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { openDatabase } from './storage/db.ts'
@@ -111,7 +110,9 @@ export function createService(config: ServiceConfig = {}): Service {
 
   runtime.sweepInterrupted() // 上次进程死亡遗留的 'running' 任务 → interrupted（可 resume）
 
-  const token = config.token ?? randomBytes(32).toString('hex')
+  // 默认不做 token 校验(本地单用户;等同旧工作态):浏览器 WS 传 ?token= 会被服务端 4401 拒(已知 bug 待修,
+  // 原始 socket 同 token 却通过——差异在浏览器请求头/URL,待查)。设环境变量 LUMEN_TOKEN 即恢复校验。
+  const token = config.token ?? process.env.LUMEN_TOKEN ?? ''
 
   return {
     runtime,
