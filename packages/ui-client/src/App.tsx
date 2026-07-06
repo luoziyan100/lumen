@@ -13,7 +13,7 @@ import { Sidebar } from './components/Sidebar'
 import { SearchModal } from './components/SearchModal'
 import { SettingsModal } from './components/SettingsModal'
 import { CloseIcon, PanelIcon, PlusIcon, SendIcon } from './components/icons'
-import { WorkspaceDrawer } from './components/WorkspaceDrawer'
+import { UtilityRail } from './components/UtilityRail'
 import { ReaderPane } from './components/ReaderPane'
 import { ProcessRow } from './components/ProcessRow'
 import { Markdown } from './components/Markdown'
@@ -47,13 +47,18 @@ function AppInner() {
 
   const { items, running, send, stop, newConversation, selectConversation, taskId } = useAgent(client, PROJECT, connected)
   const ws = useWorkspace(client, PROJECT, taskId, connected)
-  const [drawer, setDrawer] = useState(false)
+  // 右侧工具轨:持久默认展开(记忆开合);标题栏「工作区」钮切换
+  const [drawer, setDrawer] = useState(() => localStorage.getItem('lumen:railOpen') !== '0')
   const [input, setInput] = useState('')
   // 侧栏收起/展开(记住选择)
   const [sbOpen, setSbOpen] = useState(() => localStorage.getItem('lumen:sbOpen') !== '0')
   function toggleSidebar(next: boolean): void {
     setSbOpen(next)
     localStorage.setItem('lumen:sbOpen', next ? '1' : '0')
+  }
+  function toggleRail(next: boolean): void {
+    setDrawer(next)
+    localStorage.setItem('lumen:railOpen', next ? '1' : '0')
   }
 
   // 会话搜索弹窗(侧栏🔍 / ⌘K)+ 设置弹窗
@@ -155,7 +160,7 @@ function AppInner() {
     try {
       for (const file of files) await client.uploadFile(PROJECT, file, taskId)
       ws.refresh()
-      setDrawer(true) // 上传后展开工作区,让用户看到刚加入的文件
+      toggleRail(true) // 上传后展开工作区轨,让用户看到刚加入的文件
     } catch (err) {
       toast.add({
         variant: 'error',
@@ -188,7 +193,7 @@ function AppInner() {
           <Button
             variant={drawer ? 'secondary' : 'ghost'}
             size="sm"
-            onClick={() => setDrawer((v) => !v)}
+            onClick={() => toggleRail(!drawer)}
             aria-expanded={drawer}
             aria-controls={APP_TITLEBAR_WORKSPACE_TOGGLE.controls}
           >
@@ -282,7 +287,7 @@ function AppInner() {
         </main>
 
         {showReader && ws.open && <ReaderPane open={ws.open} pdfUrl={(p) => client.pdfUrl(PROJECT, p, taskId ?? undefined)} onClose={ws.close} />}
-        {drawer && !showReader && <WorkspaceDrawer assets={ws.assets} onOpen={ws.openAsset} />}
+        {drawer && !showReader && <UtilityRail assets={ws.assets} onOpen={ws.openAsset} items={items} running={running} />}
       </div>
 
       <SearchModal open={searchOpen} onOpenChange={setSearchOpen} conversations={convs} onSelect={pickConversation} />

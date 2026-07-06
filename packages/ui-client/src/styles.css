@@ -364,6 +364,35 @@ body, #root { margin: 0; }
 .ws-item-static { cursor: default; }
 .ws-item-static:hover { background: none; }
 
+/* ---- 右侧工具轨(持久;卡片浮在暖纸画布上,替代原 toggle 抽屉)---- */
+.rail {
+  flex: 0 0 320px; min-width: 0;
+  margin: var(--s-2);
+  display: flex; flex-direction: column; gap: var(--s-3);
+  overflow-y: auto;
+}
+.rail-card {
+  background: var(--card); border: 1px solid var(--sand);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-1);
+  padding: var(--s-4);
+}
+.rail-h {
+  display: flex; align-items: center; gap: var(--s-2);
+  margin: 0 0 var(--s-2); font-size: var(--t-body); font-weight: var(--w-semi); color: var(--ink);
+}
+.rail-count { margin-left: auto; color: var(--ink-mute); font-weight: var(--w-regular); font-size: var(--t-body-sm); }
+.rail-empty { color: var(--ink-mute); font-size: var(--t-body-sm); line-height: 1.6; margin: 0; }
+.rail-steps { list-style: none; padding: 0; margin: 0; }
+.rail-group { margin-bottom: var(--s-2); }
+.rail-group:last-child { margin-bottom: 0; }
+.rail-group-head { display: flex; align-items: center; gap: var(--s-2); color: var(--ink-mute); font-size: var(--t-caption); font-weight: var(--w-medium); letter-spacing: .04em; padding: var(--s-1); }
+.rail-group-n { color: var(--ink-faint); }
+.rail-conn { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) var(--s-1); }
+.rail-conn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ember); flex: none; box-shadow: 0 0 0 3px var(--ember-tint); }
+.rail-conn-text { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
+.rail-conn-name { font-size: var(--t-body-sm); font-weight: var(--w-medium); color: var(--ink); }
+.rail-conn-hint { font-size: var(--t-caption); color: var(--ink-mute); }
+
 /* ---- Reader ---- */
 /* 阅读器分屏 = 浮卡 */
 .reader {
