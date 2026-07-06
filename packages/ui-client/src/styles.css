@@ -381,7 +381,10 @@ body, #root { margin: 0; }
   margin: 0 0 var(--s-2); font-size: var(--t-body); font-weight: var(--w-semi); color: var(--ink);
 }
 .rail-count { margin-left: auto; color: var(--ink-mute); font-weight: var(--w-regular); font-size: var(--t-body-sm); }
-.rail-empty { color: var(--ink-mute); font-size: var(--t-body-sm); line-height: 1.6; margin: 0; }
+/* 工作目录标题=收放开关(点文件夹标题收放下面文件) */
+.rail-toggle { width: 100%; padding: 0; border: none; background: none; font: inherit; color: inherit; cursor: pointer; }
+.rail-toggle > svg:last-of-type { color: var(--ink-mute); flex: none; }
+.rail-dir-body { margin-top: var(--s-3); }
 .rail-steps { list-style: none; padding: 0; margin: 0; }
 .rail-group { margin-bottom: var(--s-2); }
 .rail-group:last-child { margin-bottom: 0; }

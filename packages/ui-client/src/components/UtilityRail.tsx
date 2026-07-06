@@ -4,9 +4,10 @@
  * 连接器/上下文等尚不具备的能力一律不摆(owner 定「没有的功能不放」)。
  * PDF/文档点开走阅读器(替换本轨)。
  */
+import { useState } from 'react'
 import type { Asset } from '../agent-client'
 import type { ChatItem, ProcessItem } from '../useAgent'
-import { FoldersIcon, PdfIcon, ICON_SM, ICON_MD } from './icons'
+import { ChevronIcon, FoldersIcon, PdfIcon, ICON_SM, ICON_MD } from './icons'
 
 const TAG_CLASS: Record<Asset['kind'], string> = { pdf: 'pdf', doc: 'md', image: 'img', file: 'file' }
 const TAG_TEXT: Record<Asset['kind'], string> = { pdf: 'PDF', doc: 'MD', image: 'IMG', file: 'FILE' }
@@ -40,6 +41,7 @@ export function UtilityRail({ assets, onOpen, items, running }: {
   const proc: ProcessItem | undefined = running
     ? [...items].reverse().find((it): it is ProcessItem => it.kind === 'process' && it.running)
     : undefined
+  const [dirOpen, setDirOpen] = useState(true) // 工作目录默认展开;点标题收放
 
   return (
     <aside className="rail" aria-label="工具轨">
@@ -58,13 +60,18 @@ export function UtilityRail({ assets, onOpen, items, running }: {
       )}
 
       <section className="rail-card">
-        <h3 className="rail-h"><FoldersIcon size={ICON_MD} />工作目录<span className="rail-count">{assets.length}</span></h3>
-        {assets.length === 0
-          ? <p className="rail-empty">本会话的产物会出现在这里——让 Lumen 去研究,或上传给它。</p>
-          : <>
-              <AssetGroup label="资料" items={assets.filter((a) => UPLOAD_DIR.test(a.path))} onOpen={onOpen} />
-              <AssetGroup label="产物" items={assets.filter((a) => !UPLOAD_DIR.test(a.path))} onOpen={onOpen} />
-            </>}
+        <button type="button" className="rail-h rail-toggle" onClick={() => setDirOpen((v) => !v)} aria-expanded={dirOpen}>
+          <FoldersIcon size={ICON_MD} />
+          <span>工作目录</span>
+          <span className="rail-count">{assets.length}</span>
+          <ChevronIcon open={dirOpen} />
+        </button>
+        {dirOpen && assets.length > 0 && (
+          <div className="rail-dir-body">
+            <AssetGroup label="资料" items={assets.filter((a) => UPLOAD_DIR.test(a.path))} onOpen={onOpen} />
+            <AssetGroup label="产物" items={assets.filter((a) => !UPLOAD_DIR.test(a.path))} onOpen={onOpen} />
+          </div>
+        )}
       </section>
     </aside>
   )
