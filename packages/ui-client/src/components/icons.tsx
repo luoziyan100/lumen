@@ -12,6 +12,11 @@ export function PanelIcon({ size = ICON_LG }: { size?: number }) {
   return <SidebarSimple size={size} />
 }
 
+/** 工作区(右轨)收起/展开:右侧面板图标(SidebarSimple 水平镜像,与左侧栏折叠钮对称) */
+export function RailIcon({ size = ICON_LG }: { size?: number }) {
+  return <SidebarSimple size={size} style={{ transform: 'scaleX(-1)' }} />
+}
+
 export function SearchIcon({ size = ICON_LG }: { size?: number }) {
   return <MagnifyingGlass size={size} />
 }

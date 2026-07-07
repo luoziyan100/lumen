@@ -12,13 +12,13 @@ import { useWorkspace } from './useWorkspace'
 import { Sidebar } from './components/Sidebar'
 import { SearchModal } from './components/SearchModal'
 import { SettingsModal } from './components/SettingsModal'
-import { CloseIcon, PanelIcon, PlusIcon, SendIcon } from './components/icons'
+import { CloseIcon, PanelIcon, PlusIcon, RailIcon, SendIcon } from './components/icons'
 import { UtilityRail } from './components/UtilityRail'
 import { ReaderPane } from './components/ReaderPane'
 import { ProcessRow } from './components/ProcessRow'
 import { Markdown } from './components/Markdown'
 import { getTimeGreeting } from './greeting'
-import { APP_BRAND_COPY, APP_NAV_ICON_BUTTON, APP_TITLEBAR_ACTIONS, APP_TITLEBAR_WORKSPACE_TOGGLE } from './appCopy'
+import { APP_BRAND_COPY, APP_NAV_ICON_BUTTON, APP_TITLEBAR_WORKSPACE_TOGGLE } from './appCopy'
 
 const w = window as { __LUMEN_WS__?: string; __LUMEN_TOKEN__?: string }
 const SERVICE_URL = w.__LUMEN_WS__ ?? 'ws://localhost:8787'
@@ -190,16 +190,18 @@ function AppInner() {
           } />
         </div>
         <nav className="titlebar-actions">
-          {/* 设置已移到侧栏左下角账户区;标题栏只留工作区 */}
-          <Button
-            variant={drawer ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => toggleRail(!drawer)}
-            aria-expanded={drawer}
-            aria-controls={APP_TITLEBAR_WORKSPACE_TOGGLE.controls}
-          >
-            {APP_TITLEBAR_ACTIONS[0].label}
-          </Button>
+          {/* 工作区(右轨)收起/展开:图标钮,与左侧栏折叠钮对称;文字"工作区"改图标(owner 定) */}
+          <Tooltip content={drawer ? '收起工作区' : '展开工作区'} render={
+            <button
+              className="icon-btn nav-icon-btn"
+              aria-label={drawer ? '收起工作区' : '展开工作区'}
+              aria-expanded={drawer}
+              aria-controls={APP_TITLEBAR_WORKSPACE_TOGGLE.controls}
+              onClick={() => toggleRail(!drawer)}
+            >
+              <RailIcon size={APP_NAV_ICON_BUTTON.iconSize} />
+            </button>
+          } />
         </nav>
       </header>
 
