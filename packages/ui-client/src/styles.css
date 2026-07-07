@@ -250,6 +250,8 @@ body, #root { margin: 0; }
 .composer-input {
   border: none; background: none; font: inherit; color: var(--ink);
   padding: var(--s-1) var(--s-1) 0; width: 100%;
+  box-sizing: border-box; display: block; resize: none;
+  max-height: 168px; overflow-y: auto; line-height: 1.5;
 }
 .composer-input:focus { outline: none; }
 .composer-bar { display: flex; align-items: center; gap: var(--s-2); }

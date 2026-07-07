@@ -2,7 +2,7 @@
  * Lumen 形态 A:对话主屏 + 可收工作区抽屉 + PDF/文件右侧分屏(阅读器)。
  * client 在此建并 connect,传给 useAgent(对话)/ useWorkspace(资产)。
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import { Toasty, useKumoToastManager } from '@cloudflare/kumo/components/toast'
 import { Tooltip, TooltipProvider } from '@cloudflare/kumo/components/tooltip'
@@ -50,6 +50,14 @@ function AppInner() {
   // 右侧工具轨:持久默认展开(记忆开合);标题栏「工作区」钮切换
   const [drawer, setDrawer] = useState(() => localStorage.getItem('lumen:railOpen') !== '0')
   const [input, setInput] = useState('')
+  const taRef = useRef<HTMLTextAreaElement>(null)
+  // 输入框随内容自增高(单行起,约 6 行后内部滚动)
+  useLayoutEffect(() => {
+    const ta = taRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    ta.style.height = `${Math.min(ta.scrollHeight, 168)}px`
+  }, [input])
   // 侧栏收起/展开(记住选择)
   const [sbOpen, setSbOpen] = useState(() => localStorage.getItem('lumen:sbOpen') !== '0')
   function toggleSidebar(next: boolean): void {
@@ -119,7 +127,7 @@ function AppInner() {
   const MAX_IMAGES = 4
   const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
-  function onPaste(e: ClipboardEvent<HTMLInputElement>): void {
+  function onPaste(e: ClipboardEvent<HTMLTextAreaElement>): void {
     const files = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith('image/'))
     if (!files.length) return
     e.preventDefault() // 阻止把二进制粘成乱码文本
@@ -137,14 +145,24 @@ function AppInner() {
     }
   }
 
-  async function onSubmit(e: FormEvent): Promise<void> {
-    e.preventDefault()
+  async function submit(): Promise<void> {
     const t = input.trim()
     if ((!t && attachments.length === 0) || running) return
     const images = attachments
     setInput('')
     setAttachments([])
     await send(t || '(见图)', images.length ? images : undefined)
+  }
+  async function onSubmit(e: FormEvent): Promise<void> {
+    e.preventDefault()
+    await submit()
+  }
+  // Enter 发送;Shift+Enter 换行;输入法组字中的 Enter(isComposing)不发送(中文必须)
+  function onComposerKey(e: ReactKeyboardEvent<HTMLTextAreaElement>): void {
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault()
+      void submit()
+    }
   }
 
   const fileRef = useRef<HTMLInputElement>(null)
@@ -248,12 +266,15 @@ function AppInner() {
                 ))}
               </div>
             )}
-            <input
+            <textarea
+              ref={taRef}
               className="composer-input"
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onComposerKey}
               onPaste={onPaste}
               placeholder="问点什么,或粘贴图片、让它去研究…"
+              rows={1}
             />
             <div className="composer-bar">
               <Tooltip content={uploading ? '上传中…' : '添加文件'} render={
