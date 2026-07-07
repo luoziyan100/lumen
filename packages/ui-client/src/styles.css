@@ -412,7 +412,7 @@ body, #root { margin: 0; }
   overflow: hidden;
 }
 .reader-head { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-5); border-bottom: 1px solid var(--sand); }
-.reader-back { border: none; background: none; color: var(--ink-soft); cursor: pointer; font: inherit; }
+.reader-back { margin-left: calc(var(--s-2) * -1); } /* 返回=图标钮(icon-btn),此处只做左侧光学对齐 */
 .reader-title { font-family: var(--font-mono); font-size: var(--t-body-sm); color: var(--ink-soft); }
 .reader-body { flex: 1; overflow-y: auto; padding: var(--s-8); }
 .doc-view { max-width: var(--reader-max); margin: 0 auto; }
