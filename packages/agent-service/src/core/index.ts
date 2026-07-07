@@ -18,3 +18,4 @@ export type {
 export { type Limits, DEFAULT_LIMITS } from './limits.ts'
 export { runAgent, type RunAgentInput, type RunAgentResult, type RunStatus } from './loop.ts'
 export { createSpawnFn, spawnTool, type RoleDef, type SpawnRuntime } from './spawn.ts'
+export { withGuard, DEFAULT_TOOL_TIMEOUT_MS, type GuardOptions, type ToolTelemetry } from './guard.ts'

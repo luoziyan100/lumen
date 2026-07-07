@@ -21,6 +21,7 @@ import { buildRoles } from './agents/roles.ts'
 import { createClaudeAdapter, createFetchTransport } from './adapters/claude.ts'
 import { createOpenAIAdapter, createOpenAIFetchTransport } from './adapters/openai.ts'
 import type { ModelPort } from './core/model-port.ts'
+import { withGuard } from './core/guard.ts'
 
 export interface ServiceConfig {
   home?: string
@@ -89,7 +90,7 @@ export function createService(config: ServiceConfig = {}): Service {
     webSearch: tavilyKey ? createTavilyWebSearch({ apiKey: tavilyKey }) : undefined,
   })
   // run_code:owner 拍板 2026-07-05 进默认工具集(L1 进程纪律 + macOS Seatbelt,见 tools/env/sandbox.ts)
-  const mainTools = [...ENV_TOOLS, runCodeTool, ...research]
+  const mainTools = [...ENV_TOOLS, runCodeTool, ...research].map((t) => withGuard(t))
   const roles = buildRoles(mainTools)
 
   const runtime = new AgentRuntime({
