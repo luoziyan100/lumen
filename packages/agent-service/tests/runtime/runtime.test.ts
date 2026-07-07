@@ -202,6 +202,7 @@ test('listAssets:只列 PDF 原件 + 生成 .md,过滤 txt 抽取物与 search �
   await ws.writeFile('notes/analysis.md', '# 分析')
   await ws.writeFile('notes/search-123.md', '检索缓存,应过滤')
   await ws.writeFile('drafts/review.md', '# 综述')
+  await ws.writeFile('reports/out.html', '<h1>x</h1>')
 
   const assets = await runtime.listAssets('p')
   const paths = assets.map((a) => a.path).sort()
@@ -211,6 +212,7 @@ test('listAssets:只列 PDF 原件 + 生成 .md,过滤 txt 抽取物与 search �
   assert.ok(!paths.some((p) => p.includes('search-')), 'search 缓存应过滤')
   assert.equal(assets.find((a) => a.path === 'papers/clark.pdf')?.kind, 'pdf')
   assert.equal(assets.find((a) => a.path === 'notes/analysis.md')?.kind, 'doc')
+  assert.equal(assets.find((a) => a.path === 'reports/out.html')?.kind, 'html', '.html 归类为 html(可右栏渲染)')
 })
 
 test('readAsset:读 .md 内容;不存在返回 null', async (t) => {

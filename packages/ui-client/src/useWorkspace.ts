@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { AgentClient, Asset } from './agent-client'
 
-export type OpenAsset = { kind: 'pdf' | 'doc'; path: string; name: string; content?: string }
+export type OpenAsset = { kind: 'pdf' | 'doc' | 'html'; path: string; name: string; content?: string }
 
 export function useWorkspace(client: AgentClient, projectId: string, taskId: string | null, connected: boolean) {
   const [assets, setAssets] = useState<Asset[]>([])
@@ -27,6 +27,7 @@ export function useWorkspace(client: AgentClient, projectId: string, taskId: str
   async function openAsset(a: Asset): Promise<void> {
     if (a.kind === 'pdf') setOpen({ kind: 'pdf', path: a.path, name: a.name })
     else if (a.kind === 'doc') setOpen({ kind: 'doc', path: a.path, name: a.name, content: await client.readAsset(projectId, a.path, taskId ?? undefined) })
+    else if (a.kind === 'html') setOpen({ kind: 'html', path: a.path, name: a.name, content: await client.readAsset(projectId, a.path, taskId ?? undefined) })
     // image / file:v1 仅陈列,不进阅读器
   }
   function close(): void { setOpen(null) }

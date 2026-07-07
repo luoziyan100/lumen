@@ -2,15 +2,16 @@
  * 右侧工具轨(持久):只放有真实数据的卡(owner 定)——
  *   进度(运行中的过程步骤) · 工作目录(本会话产物 ws.assets)。
  * 连接器/上下文等尚不具备的能力一律不摆(owner 定「没有的功能不放」)。
- * PDF/文档点开走阅读器(替换本轨)。
+ * PDF / HTML / 文档点开走阅读器(替换本轨)。
  */
 import { useState } from 'react'
 import type { Asset } from '../agent-client'
 import type { ChatItem, ProcessItem } from '../useAgent'
 import { ChevronIcon, FoldersIcon, PdfIcon, ICON_SM, ICON_MD } from './icons'
 
-const TAG_CLASS: Record<Asset['kind'], string> = { pdf: 'pdf', doc: 'md', image: 'img', file: 'file' }
-const TAG_TEXT: Record<Asset['kind'], string> = { pdf: 'PDF', doc: 'MD', image: 'IMG', file: 'FILE' }
+const TAG_CLASS: Record<Asset['kind'], string> = { pdf: 'pdf', doc: 'md', html: 'html', image: 'img', file: 'file' }
+const TAG_TEXT: Record<Asset['kind'], string> = { pdf: 'PDF', doc: 'MD', html: 'HTML', image: 'IMG', file: 'FILE' }
+const OPENABLE: Asset['kind'][] = ['pdf', 'doc', 'html']
 const UPLOAD_DIR = /^(papers|docs|images|uploads)\//
 
 function AssetGroup({ label, items, onOpen }: { label: string; items: Asset[]; onOpen: (a: Asset) => void }) {
@@ -27,7 +28,7 @@ function AssetGroup({ label, items, onOpen }: { label: string; items: Asset[]; o
             <span className="ws-name">{a.name}</span>
           </>
         )
-        return a.kind === 'pdf' || a.kind === 'doc'
+        return OPENABLE.includes(a.kind)
           ? <button key={a.path} className="ws-item" onClick={() => onOpen(a)}>{inner}</button>
           : <div key={a.path} className="ws-item ws-item-static">{inner}</div>
       })}

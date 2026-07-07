@@ -18,7 +18,7 @@ export interface Task {
 }
 export interface Asset {
   path: string
-  kind: 'pdf' | 'doc' | 'image' | 'file'
+  kind: 'pdf' | 'doc' | 'html' | 'image' | 'file'
   name: string
 }
 

@@ -51,7 +51,7 @@ export interface SubmitInput {
 /** 侧栏要显示的"会话资产":论文 PDF / 文档 / 图片 / 其它上传件 */
 export interface WorkspaceAsset {
   path: string
-  kind: 'pdf' | 'doc' | 'image' | 'file'
+  kind: 'pdf' | 'doc' | 'html' | 'image' | 'file'
   name: string
 }
 
@@ -144,13 +144,14 @@ export class AgentRuntime {
     // 项目根视图不混入各会话的独立目录(会话内相对路径不带 sessions/ 前缀,此过滤对会话视图无影响)
     const all = raw.filter((p) => !p.startsWith('sessions/'))
 
-    const TEXT_EXT = ['txt', 'tex', 'csv', 'json', 'html']
+    const TEXT_EXT = ['txt', 'tex', 'csv', 'json']
     const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'webp', 'gif']
     const assets: WorkspaceAsset[] = []
     for (const p of all) {
       const ext = (p.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? '').toLowerCase()
       if (ext === 'pdf') assets.push({ path: p, kind: 'pdf', name: base(p) })
       else if (ext === 'md' && !/(^|\/)search-/.test(p)) assets.push({ path: p, kind: 'doc', name: base(p) })
+      else if (ext === 'html' || ext === 'htm') assets.push({ path: p, kind: 'html', name: base(p) })
       else if (TEXT_EXT.includes(ext) && p.startsWith('docs/')) assets.push({ path: p, kind: 'doc', name: base(p) })
       else if (IMAGE_EXT.includes(ext)) assets.push({ path: p, kind: 'image', name: base(p) })
       // 其它格式原样存进 uploads/(agent 暂不解析,先无损保存)
