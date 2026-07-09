@@ -88,6 +88,11 @@ export class AgentRuntime {
     return task.id
   }
 
+  /** 草稿会话:只建档(status=queued)不开跑。新对话先上传文件用;首条消息由 continueTask 续上。 */
+  createDraft(projectId: string, goal: string): string {
+    return this.cfg.store.createTask(projectId, goal).id
+  }
+
   async resume(taskId: string): Promise<boolean> {
     const task = this.cfg.store.getTask(taskId)
     if (!task) return false

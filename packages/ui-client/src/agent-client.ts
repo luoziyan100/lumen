@@ -118,6 +118,14 @@ export class AgentClient {
     })
   }
 
+  /** 草稿会话:只建档不开跑。新对话先上传文件 → 文件立刻归入会话工作区 */
+  createTask(projectId: string, goal?: string): Promise<string> {
+    return new Promise((resolve) => {
+      this.pendingCreated = resolve
+      this.send({ type: 'create_task', projectId, ...(goal ? { goal } : {}) })
+    })
+  }
+
   continueTask(taskId: string, userText: string, images?: ImageData[]): void {
     this.send({ type: 'continue', taskId, userText, ...(images?.length ? { images } : {}) })
   }

@@ -128,6 +128,13 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
         subscribe(taskId)
         break
       }
+      case 'create_task': {
+        // 草稿会话:只建档不开跑。新对话先上传文件 → 文件立刻归入会话工作区;首条消息走 continue
+        const taskId = runtime.createDraft(message.projectId, message.goal || '新对话')
+        send({ type: 'task_created', taskId })
+        subscribe(taskId)
+        break
+      }
       case 'continue': {
         const ok = runtime.continueTask(message.taskId, message.userText, message.images)
         if (ok) subscribe(message.taskId)

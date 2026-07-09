@@ -11,9 +11,10 @@ export function useWorkspace(client: AgentClient, projectId: string, taskId: str
   const [assets, setAssets] = useState<Asset[]>([])
   const [open, setOpen] = useState<OpenAsset | null>(null)
 
-  const refresh = useCallback(() => {
-    if (!taskId) { setAssets([]); return }
-    client.listAssets(projectId, taskId).then(setAssets).catch(() => {})
+  /** tid 覆写:刚建的草稿会话上传完立刻刷——state 里的 taskId 此时可能还没切过去 */
+  const refresh = useCallback((tid: string | null = taskId) => {
+    if (!tid) { setAssets([]); return }
+    client.listAssets(projectId, tid).then(setAssets).catch(() => {})
   }, [client, projectId, taskId])
 
   useEffect(() => {

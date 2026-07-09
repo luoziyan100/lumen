@@ -11,6 +11,7 @@ import type { PublicSettings, SettingsPatch } from '../storage/settings.ts'
 export type ClientMessage =
   | { type: 'submit'; projectId: string; userText: string; images?: ImageData[] }
   | { type: 'continue'; taskId: string; userText: string; images?: ImageData[] }
+  | { type: 'create_task'; projectId: string; goal?: string }
   | { type: 'subscribe'; taskId: string; afterSeq?: number }
   | { type: 'cancel'; taskId: string }
   | { type: 'resume'; taskId: string }

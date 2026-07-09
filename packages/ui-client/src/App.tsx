@@ -171,14 +171,16 @@ function AppInner() {
     const files = Array.from(e.target.files ?? [])
     e.target.value = '' // 允许重选同名文件
     if (!files.length) return
-    if (!taskId) {
-      toast.add({ variant: 'info', title: '先开始对话', description: '发出第一条消息后,文件会归入当前会话的工作区。' })
-      return
-    }
     setUploading(true)
     try {
-      for (const file of files) await client.uploadFile(PROJECT, file, taskId)
-      ws.refresh()
+      // 新对话还没会话:先建草稿会话(不开跑),文件立刻归入它的工作区;首条消息走 continue(2026-07-09)
+      let id = taskId
+      if (!id) {
+        id = await client.createTask(PROJECT, files[0].name)
+        selectConversation(id)
+      }
+      for (const file of files) await client.uploadFile(PROJECT, file, id)
+      ws.refresh(id)
       toggleRail(true) // 上传后展开工作区轨,让用户看到刚加入的文件
     } catch (err) {
       toast.add({
