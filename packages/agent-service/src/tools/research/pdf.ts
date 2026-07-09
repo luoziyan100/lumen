@@ -26,7 +26,7 @@ export function createPdfTools(deps: { engine?: PdfTextEngine; http?: HttpClient
   const extractPdf: Tool = {
     spec: {
       name: 'extract_pdf',
-      description: '抽取 PDF 正文文本。source 可为 library/ 或工作区下的路径，或开放 PDF 的 http(s) URL。可写入工作区。',
+      description: '抽取 PDF 正文文本。source 可为 library/ 或工作区下的路径，或开放 PDF 的 http(s) URL。save_as 会把全文存进工作区 cache/(中间产物,供 grep/read_file 分段读,不对用户陈列)。',
       parameters: {
         type: 'object',
         properties: { source: { type: 'string' }, save_as: { type: 'string' } },
@@ -59,7 +59,8 @@ export function createPdfTools(deps: { engine?: PdfTextEngine; http?: HttpClient
         if (!text.trim()) return { llmContent: '(抽取到空文本，可能是扫描版/图片型 PDF)' }
         let saved: string | undefined
         if (args.save_as && ctx.workspace) {
-          saved = String(args.save_as)
+          // 提取文本是给模型分段读的中间产物:一律归 cache/(listAssets 不陈列),拍平成 basename 防嵌套
+          saved = `cache/${String(args.save_as).split(/[/\\]/).pop() || 'extract.md'}`
           await ctx.workspace.writeFile(saved, text).catch(() => { saved = undefined })
         }
         if (text.length <= MAX_CHARS) return { llmContent: text, data: { chars: text.length, savedAs: saved, pdfAsset } }

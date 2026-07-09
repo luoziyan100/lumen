@@ -146,8 +146,9 @@ export class AgentRuntime {
     const ws = this.makeWorkspace(projectId, taskId)
     const base = (p: string): string => p.split('/').pop() ?? p
     const raw = await ws.glob('**/*').catch(() => [] as string[])
-    // 项目根视图不混入各会话的独立目录(会话内相对路径不带 sessions/ 前缀,此过滤对会话视图无影响)
-    const all = raw.filter((p) => !p.startsWith('sessions/'))
+    // 项目根视图不混入各会话的独立目录(会话内相对路径不带 sessions/ 前缀,此过滤对会话视图无影响);
+    // cache/ = 模型的中间产物(extract_pdf 提取文本等),只给模型读,不对用户陈列
+    const all = raw.filter((p) => !p.startsWith('sessions/') && !p.startsWith('cache/'))
 
     const TEXT_EXT = ['txt', 'tex', 'csv', 'json']
     const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'webp', 'gif']

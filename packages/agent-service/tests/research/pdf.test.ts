@@ -26,8 +26,9 @@ test('extract_pdf 工具：经工作区沙箱读本地 PDF + 真实引擎抽取'
   const result = await extractPdf.run({ source: 'doc.pdf', save_as: 'notes/doc.txt' }, noopCtx({ workspace: ws }))
 
   assert.match(result.llmContent, /Sandbox PDF body here/)
-  // save_as 写回工作区
-  assert.match(await ws.readFile('notes/doc.txt'), /Sandbox PDF body here/)
+  // save_as 一律归 cache/(中间产物不进工作目录),目录被拍平成 basename
+  assert.equal((result.data as { savedAs?: string } | undefined)?.savedAs, 'cache/doc.txt')
+  assert.match(await ws.readFile('cache/doc.txt'), /Sandbox PDF body here/)
 })
 
 test('extract_pdf 工具：本地源经沙箱，越界路径被拒', async (t: TestContext) => {
