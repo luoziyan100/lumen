@@ -1,6 +1,8 @@
 /* 形态 A 布局与组件样式;颜色/字体/间距 token 见 tokens.css */
 * { box-sizing: border-box; }
 body, #root { margin: 0; }
+/* 桌面壳:页面本身永不滚动——portal/测量元素把 body 撑高时,整窗会被滚轮顶出视口卡住(Tauri/WebKit 实测) */
+html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .app {
   position: relative;
   isolation: isolate;
@@ -484,6 +486,9 @@ body, #root { margin: 0; }
 .textLayer span.markedContent { top: 0; height: 0; }
 .textLayer ::selection { background: rgba(47, 107, 78, 0.25); color: transparent; }
 .textLayer br::selection { background: transparent; }
+/* pdf.js 渲染时往 body 追加的字体测量画布:官方 pdf_viewer.css 用这条藏掉;精简移植漏拷会给 body
+   多出一个行盒(约 21px),整页可滚 → 上面那条壳级锁滚是保险,这条是根治 */
+.hiddenCanvasElement { position: absolute; top: 0; left: 0; width: 0; height: 0; display: none; }
 
 /* HTML artifact:沙箱 iframe 填满阅读器 */
 .html-body { padding: 0; }
