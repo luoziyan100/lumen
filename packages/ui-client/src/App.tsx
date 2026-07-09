@@ -12,7 +12,7 @@ import { useWorkspace } from './useWorkspace'
 import { Sidebar } from './components/Sidebar'
 import { SearchModal } from './components/SearchModal'
 import { SettingsModal } from './components/SettingsModal'
-import { CloseIcon, PanelIcon, PlusIcon, RailIcon, SendIcon } from './components/icons'
+import { CloseIcon, PanelIcon, PdfIcon, PlusIcon, RailIcon, SendIcon } from './components/icons'
 import { UtilityRail } from './components/UtilityRail'
 import { ReaderPane } from './components/ReaderPane'
 import { ProcessRow } from './components/ProcessRow'
@@ -147,11 +147,37 @@ function AppInner() {
 
   async function submit(): Promise<void> {
     const t = input.trim()
-    if ((!t && attachments.length === 0) || running) return
+    if ((!t && attachments.length === 0 && pendingFiles.length === 0) || running || uploading) return
     const images = attachments
+    const files = pendingFiles
+    const text = t || (files.length ? `(上传了 ${files.length} 个文件)` : '(见图)')
+    // 带文件:先确保会话在(草稿,标题=第一句话而非文件名),文件入工作区后再开跑——模型第一轮就看得到
+    if (files.length) {
+      setUploading(true)
+      try {
+        let id = taskId
+        if (!id) {
+          id = await client.createTask(PROJECT, text)
+          selectConversation(id)
+        }
+        for (const file of files) await client.uploadFile(PROJECT, file, id)
+        ws.refresh(id)
+        toggleRail(true) // 展开工作区轨,让用户看到刚入库的文件
+      } catch (err) {
+        toast.add({
+          variant: 'error',
+          title: '上传失败',
+          description: err instanceof Error ? err.message : '文件还在暂存区,可重试或移除',
+        })
+        setUploading(false)
+        return // 输入与文件都保留,便于重试
+      }
+      setUploading(false)
+    }
     setInput('')
     setAttachments([])
-    await send(t || '(见图)', images.length ? images : undefined)
+    setPendingFiles([])
+    await send(text, images.length ? images : undefined)
   }
   async function onSubmit(e: FormEvent): Promise<void> {
     e.preventDefault()
@@ -167,29 +193,12 @@ function AppInner() {
 
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
-  async function onPickFiles(e: ChangeEvent<HTMLInputElement>): Promise<void> {
+  // 选中的文件先暂存在输入卡(像图片一样可 ❌ 反悔),发送时才建会话、入工作区(2026-07-09 客户定)
+  const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  function onPickFiles(e: ChangeEvent<HTMLInputElement>): void {
     const files = Array.from(e.target.files ?? [])
     e.target.value = '' // 允许重选同名文件
-    if (!files.length) return
-    setUploading(true)
-    try {
-      // 新对话还没会话:先建草稿会话(不开跑),文件立刻归入它的工作区;首条消息走 continue(2026-07-09)
-      let id = taskId
-      if (!id) {
-        id = await client.createTask(PROJECT, files[0].name)
-        selectConversation(id)
-      }
-      for (const file of files) await client.uploadFile(PROJECT, file, id)
-      ws.refresh(id)
-      toggleRail(true) // 上传后展开工作区轨,让用户看到刚加入的文件
-    } catch (err) {
-      toast.add({
-        variant: 'error',
-        title: '上传失败',
-        description: err instanceof Error ? err.message : '请检查 agent 服务连接后重试',
-      })
-    }
-    setUploading(false)
+    if (files.length) setPendingFiles((prev) => [...prev, ...files])
   }
 
   const lastItem = items[items.length - 1]
@@ -268,6 +277,17 @@ function AppInner() {
                 ))}
               </div>
             )}
+            {pendingFiles.length > 0 && (
+              <div className="file-row">
+                {pendingFiles.map((f, i) => (
+                  <span key={`${f.name}-${i}`} className="file-chip" title={f.name}>
+                    <PdfIcon size={14} />
+                    <span className="file-chip-name">{f.name}</span>
+                    <button type="button" aria-label="移除文件" onClick={() => setPendingFiles((prev) => prev.filter((_, j) => j !== i))}><CloseIcon size={12} /></button>
+                  </span>
+                ))}
+              </div>
+            )}
             <textarea
               ref={taRef}
               className="composer-input"
@@ -292,7 +312,7 @@ function AppInner() {
               <span className="composer-spacer" />
               {running
                 ? <Tooltip content="停止" render={<Button type="button" variant="destructive" shape="circle" aria-label="停止" onClick={stop}><span className="stop-square" /></Button>} />
-                : <Tooltip content="发送" render={<Button type="submit" variant="primary" shape="circle" aria-label="发送" disabled={!input.trim() && attachments.length === 0}><SendIcon /></Button>} />}
+                : <Tooltip content="发送" render={<Button type="submit" variant="primary" shape="circle" aria-label="发送" disabled={(!input.trim() && attachments.length === 0 && pendingFiles.length === 0) || uploading}><SendIcon /></Button>} />}
             </div>
             <div className="composer-div" />
             <div className="composer-foot">
