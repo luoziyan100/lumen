@@ -12,7 +12,8 @@ const ENTRY = path.resolve(import.meta.dirname, '..', '..', 'src', 'service.ts')
 test('进程生命周期：service 作为独立子进程启动 → 写 portfile → 可连接 → 可停止', async (t: TestContext) => {
   const home = await mkdtemp(path.join(tmpdir(), 'lumen-sup-'))
   // 不给 ANTHROPIC_API_KEY：服务仍应起来并绑端口（model 只在 submit 时才需要）
-  const proc = await spawnService({ home, entry: ENTRY, env: { ANTHROPIC_API_KEY: '' } })
+  // LUMEN_TOKEN 显式传入：服务默认已 token-less（de6d276），本测试验证的是带 token 的完整链路（同 a1b8239）
+  const proc = await spawnService({ home, entry: ENTRY, env: { ANTHROPIC_API_KEY: '', LUMEN_TOKEN: 't-sup' } })
   t.after(async () => {
     proc.stop()
     await rm(home, { recursive: true, force: true })
