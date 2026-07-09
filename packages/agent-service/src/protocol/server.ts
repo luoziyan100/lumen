@@ -107,10 +107,11 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(message))
   }
 
-  const subscribe = (taskId: string, afterSeq?: number): void => {
-    if (unsubs.has(taskId)) return
-    for (const event of runtime.listEvents(taskId, afterSeq)) send({ type: 'event', event })
-    unsubs.set(taskId, runtime.subscribe(taskId, (event) => send({ type: 'event', event })))
+  // 回放与订阅解耦:UI 每次点进会话都清屏、靠回放重建,回放不能因"已订阅"跳过
+  // (曾致看过的会话再点回去一片空白);监听器仍按连接去重,新事件不会推两遍。
+  const subscribe = (taskId: string, afterSeq?: number, replay = true): void => {
+    if (replay) for (const event of runtime.listEvents(taskId, afterSeq)) send({ type: 'event', event })
+    if (!unsubs.has(taskId)) unsubs.set(taskId, runtime.subscribe(taskId, (event) => send({ type: 'event', event })))
   }
 
   ws.on('message', (raw: unknown) => {
@@ -137,7 +138,7 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
       }
       case 'continue': {
         const ok = runtime.continueTask(message.taskId, message.userText, message.images)
-        if (ok) subscribe(message.taskId)
+        if (ok) subscribe(message.taskId, undefined, false) // 续聊不回放:客户端没清屏,回放会把记录翻倍
         send({ type: ok ? 'ok' : 'error', ...(ok ? { taskId: message.taskId } : { message: 'continue failed: task 不存在或正在运行' }) } as ServerMessage)
         break
       }

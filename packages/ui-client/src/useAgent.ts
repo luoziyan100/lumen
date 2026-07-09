@@ -31,10 +31,12 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
   const [running, setRunning] = useState(false)
   const [taskId, setTaskId] = useState<string | null>(null) // 给 UI 高亮当前会话
   const taskIdRef = useRef<string | null>(null)
+  const seenEventIds = useRef<Set<string>>(new Set()) // 已归约过的事件 id:回放与实时交错时保证幂等
   const taskKey = `lumen:taskId:${projectId}`
 
   function switchTo(id: string | null): void {
     taskIdRef.current = id
+    seenEventIds.current = new Set()
     setTaskId(id)
     if (id) localStorage.setItem(taskKey, id)
     else localStorage.removeItem(taskKey)
@@ -44,6 +46,8 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
     const offEvent = client.onEvent((event: TaskEvent) => {
       // 只归约当前会话的事件——旧任务后台还在流式时不许串台
       if (event.task_id !== taskIdRef.current) return
+      if (seenEventIds.current.has(event.id)) return // 重复送达(如运行中再次 attach 的回放)只算一次
+      seenEventIds.current.add(event.id)
       setItems((prev) => reduce(prev, event, safeParse(event.payload_json)))
       if (event.kind === 'reply' || event.kind === 'error') setRunning(false)
     })
