@@ -4,10 +4,11 @@
  * 连接器/上下文等尚不具备的能力一律不摆(owner 定「没有的功能不放」)。
  * PDF / HTML / 文档点开走阅读器(替换本轨)。
  */
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import type { Asset } from '../agent-client'
 import type { ChatItem, ProcessItem } from '../useAgent'
 import { ChevronIcon, FoldersIcon, PdfIcon, ICON_SM, ICON_MD } from './icons'
+import { useResizable } from '../useResizable'
 
 const TAG_CLASS: Record<Asset['kind'], string> = { pdf: 'pdf', doc: 'md', html: 'html', image: 'img', file: 'file' }
 const TAG_TEXT: Record<Asset['kind'], string> = { pdf: 'PDF', doc: 'MD', html: 'HTML', image: 'IMG', file: 'FILE' }
@@ -43,9 +44,11 @@ export function UtilityRail({ assets, onOpen, items, running }: {
     ? [...items].reverse().find((it): it is ProcessItem => it.kind === 'process' && it.running)
     : undefined
   const [dirOpen, setDirOpen] = useState(true) // 工作目录默认展开;点标题收放
+  const { width, handleProps } = useResizable({ edge: 'left', min: 260, max: 480, fallback: 320, storageKey: 'lumen:railWidth' })
 
   return (
-    <aside className="rail" aria-label="工具轨">
+    <aside className="rail" aria-label="工具轨" style={{ '--rail-w': `${width}px` } as CSSProperties}>
+      <div className="rail-resize" role="separator" aria-orientation="vertical" aria-label="调整工作目录宽度(双击复位)" title="拖拽调宽 · 双击复位" {...handleProps} />
       {proc && (
         <section className="rail-card">
           <h3 className="rail-h">进度</h3>
