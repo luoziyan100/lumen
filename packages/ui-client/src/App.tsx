@@ -12,7 +12,7 @@ import { useWorkspace } from './useWorkspace'
 import { Sidebar } from './components/Sidebar'
 import { SearchModal } from './components/SearchModal'
 import { SettingsModal } from './components/SettingsModal'
-import { CloseIcon, PanelIcon, PdfIcon, PlusIcon, RailIcon, SendIcon } from './components/icons'
+import { CheckIcon, CloseIcon, CopyIcon, PanelIcon, PdfIcon, PlusIcon, RailIcon, SendIcon } from './components/icons'
 import { UtilityRail } from './components/UtilityRail'
 import { ReaderPane } from './components/ReaderPane'
 import { ProcessRow } from './components/ProcessRow'
@@ -121,6 +121,26 @@ function AppInner() {
     const last = saved ? convs.find((t) => t.id === saved) : undefined
     if (last?.status === 'running') selectConversation(last.id, true)
   }, [connected, convs, taskId, selectConversation])
+
+  // 悬停复制:平时隐身,悬到消息上才浮现;点击复制该条原文(assistant=原始 markdown)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+  async function copyMsg(id: string, text: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      // WKWebView / 权限受限兜底:隐藏 textarea + execCommand
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.opacity = '0'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      ta.remove()
+    }
+    setCopiedId(id)
+    window.setTimeout(() => setCopiedId((cur) => (cur === id ? null : cur)), 1400)
+  }
 
   // 粘贴进对话的图片(随消息发给模型,多模态)
   const [attachments, setAttachments] = useState<ImageData[]>([])
@@ -250,7 +270,14 @@ function AppInner() {
             {isEmpty && <EmptyState />}
             {items.map((it) => it.kind === 'msg'
               ? (it.role === 'assistant'
-                  ? <div key={it.id} className="bubble bubble-assistant"><Markdown>{it.content}</Markdown></div>
+                  ? (
+                    <div key={it.id} className="bubble bubble-assistant">
+                      <Markdown>{it.content}</Markdown>
+                      <button type="button" className={`msg-copy${copiedId === it.id ? ' is-copied' : ''}`} aria-label="复制这条回答" title="复制" onClick={() => void copyMsg(it.id, it.content)}>
+                        {copiedId === it.id ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
+                      </button>
+                    </div>
+                  )
                   : (
                     <div key={it.id} className={`bubble bubble-${it.role}`}>
                       {it.images?.length ? (
@@ -261,11 +288,22 @@ function AppInner() {
                         </div>
                       ) : null}
                       {it.content}
+                      {it.role === 'user' && (
+                        <button type="button" className={`msg-copy${copiedId === it.id ? ' is-copied' : ''}`} aria-label="复制这条输入" title="复制" onClick={() => void copyMsg(it.id, it.content)}>
+                          {copiedId === it.id ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
+                        </button>
+                      )}
                     </div>
                   ))
               : <ProcessRow key={it.id} block={it} />)}
             {running && !lastRunning && <div className="bubble bubble-status">思考中…</div>}
           </div>
+          <div className="composer-stack">
+            <div className="composer-back">
+              <button type="button" className="composer-model" onClick={() => setSettingsOpen(true)} title="模型设置">
+                <span className="composer-model-dot" />{modelLabel || '选择模型'}
+              </button>
+            </div>
           <form className="composer-card" onSubmit={onSubmit}>
             {attachments.length > 0 && (
               <div className="attach-row">
@@ -314,13 +352,6 @@ function AppInner() {
                 ? <Tooltip content="停止" render={<Button type="button" variant="destructive" shape="circle" aria-label="停止" onClick={stop}><span className="stop-square" /></Button>} />
                 : <Tooltip content="发送" render={<Button type="submit" variant="primary" shape="circle" aria-label="发送" disabled={(!input.trim() && attachments.length === 0 && pendingFiles.length === 0) || uploading}><SendIcon /></Button>} />}
             </div>
-            <div className="composer-div" />
-            <div className="composer-foot">
-              <span className="composer-spacer" />
-              <button type="button" className="composer-model" onClick={() => setSettingsOpen(true)} title="模型设置">
-                <span className="composer-model-dot" />{modelLabel || '选择模型'}
-              </button>
-            </div>
             <input
               ref={fileRef}
               type="file"
@@ -330,6 +361,7 @@ function AppInner() {
               onChange={onPickFiles}
             />
           </form>
+          </div>
         </main>
 
         {showReader && ws.open && <ReaderPane open={ws.open} pdfUrl={(p) => client.pdfUrl(PROJECT, p, taskId ?? undefined)} onClose={ws.close} />}

@@ -207,26 +207,18 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .sb-account:hover .sb-account-gear { color: var(--ink-soft); }
 
 /* ---- Chat ---- */
-.chat { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.chat { position: relative; flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .chat-with-reader { flex: 0 0 46%; border-right: 1px solid var(--sand); }
 /* 空态(封面):问候 + 输入卡整体居中偏上;开始对话后输入卡落回底部 */
 .chat-empty { justify-content: center; padding-bottom: 12vh; }
-.chat-empty .messages { flex: 0 0 auto; overflow: visible; }
-/* 纸面层:正文永远坐在安静的纸上,氛围从两侧衬出纵深 */
+.chat-empty .messages { flex: 0 0 auto; overflow: visible; padding: var(--s-6) var(--s-8); }
+/* 全幅呈现:输出直接坐在画布上,不再有独立"纸面卡"这层(2026-07-10 客户拍板);
+   内容列仍限宽居中(左右内边距算出),滚动条贴屏缘;底部大留白给悬浮输入卡让位 */
 .messages {
-  flex: 1; overflow-y: auto; padding: var(--s-6) var(--s-8);
+  flex: 1; overflow-y: auto;
+  padding: var(--s-6) calc((100% - min(var(--chat-max), 100% - 2 * var(--s-8))) / 2) 200px;
   display: flex; flex-direction: column; gap: var(--s-4);
-  max-width: var(--chat-max); width: 100%; margin: var(--s-2) auto;
-  background: var(--paper-solid);
-  border: 1px solid var(--sand);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-2);
-}
-/* 空态 = 封面:纸面隐去,氛围全屏;开始对话后纸面层才铺开 */
-.messages-empty {
-  background: none;
-  border-color: transparent;
-  box-shadow: none;
+  width: 100%;
 }
 .bubble { max-width: 92%; white-space: pre-wrap; line-height: var(--lh-body-lg); }
 .bubble-user { align-self: flex-end; background: var(--vellum); padding: 10px 14px; border-radius: var(--radius-lg); box-shadow: var(--shadow-1); }
@@ -238,11 +230,36 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 }
 .bubble-status { align-self: flex-start; color: var(--ink-mute); font-size: var(--t-body-sm); }
 
+/* 悬停复制:平时隐身,悬到该条消息才浮现;点击后短暂变 √(青瓷) */
+.bubble { position: relative; }
+.msg-copy {
+  position: absolute; bottom: 0; right: 0; width: 26px; height: 26px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--sand); border-radius: var(--radius-md);
+  background: var(--paper-solid); color: var(--ink-mute); cursor: pointer; padding: 0;
+  opacity: 0; transition: opacity var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.bubble:hover .msg-copy, .msg-copy:focus-visible { opacity: 1; }
+.msg-copy:hover { color: var(--ink); background: var(--card); }
+.msg-copy.is-copied { color: var(--ember); opacity: 1; }
+/* 用户气泡:钮浮在气泡左外侧空档,垂直居中 */
+.bubble-user .msg-copy { top: 50%; right: calc(100% + var(--s-2)); transform: translateY(-50%); }
+
 /* ---- Composer:一体化输入卡片(附件/输入/操作都在卡内) ---- */
+/* 堆叠:外壳持宽居中;前=输入卡,后=模型卡(从底部探出) */
+/* 悬浮:会话态输入卡浮在输出文字上(2026-07-10);空态(封面)走文档流居中 */
+.composer-stack { position: absolute; z-index: 6; bottom: calc(34px + var(--s-3)); left: 0; right: 0; max-width: var(--chat-max); width: calc(100% - 2 * var(--s-6)); margin: 0 auto; }
+.chat-empty .composer-stack { position: relative; bottom: auto; z-index: auto; margin: var(--s-3) auto var(--s-10); }
+.composer-back {
+  position: absolute; z-index: 0; left: -8px; right: -8px; top: 16px; bottom: -34px;
+  display: flex; align-items: flex-end; justify-content: center; padding: 0 var(--s-4) 5px;
+  border: 1px solid var(--sand-deep); border-radius: var(--radius-lg);
+  background: var(--paper-deep); box-shadow: none;
+}
 .composer-card {
+  position: relative; z-index: 1;
   display: flex; flex-direction: column; gap: var(--s-2);
-  max-width: var(--chat-max); width: calc(100% - 2 * var(--s-6));
-  margin: var(--s-3) auto var(--s-5); padding: var(--s-3) var(--s-4);
+  padding: var(--s-3) var(--s-4);
   border: 1px solid var(--sand-deep); border-radius: var(--radius-lg);
   background: var(--card);
   transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
@@ -253,7 +270,7 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   border: none; background: none; font: inherit; color: var(--ink);
   padding: var(--s-1) var(--s-1) 0; width: 100%;
   box-sizing: border-box; display: block; resize: none;
-  max-height: 168px; overflow-y: auto; line-height: 1.5;
+  max-height: 168px; overflow-y: auto; line-height: 1.5; min-height: 52px;
 }
 .composer-input:focus { outline: none; }
 .composer-bar { display: flex; align-items: center; gap: var(--s-2); }
