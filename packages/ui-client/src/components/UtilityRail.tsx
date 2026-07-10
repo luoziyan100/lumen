@@ -7,11 +7,9 @@
 import { useState, type CSSProperties } from 'react'
 import type { Asset } from '../agent-client'
 import type { ChatItem, ProcessItem } from '../useAgent'
-import { ChevronIcon, FoldersIcon, PdfIcon, ICON_SM, ICON_MD } from './icons'
+import { ChevronIcon, FileTypeIcon, FoldersIcon, ICON_MD } from './icons'
 import { useResizable } from '../useResizable'
 
-const TAG_CLASS: Record<Asset['kind'], string> = { pdf: 'pdf', doc: 'md', html: 'html', image: 'img', file: 'file' }
-const TAG_TEXT: Record<Asset['kind'], string> = { pdf: 'PDF', doc: 'MD', html: 'HTML', image: 'IMG', file: 'FILE' }
 const OPENABLE: Asset['kind'][] = ['pdf', 'doc', 'html']
 const UPLOAD_DIR = /^(papers|docs|images|uploads)\//
 
@@ -23,9 +21,7 @@ function AssetGroup({ label, items, onOpen }: { label: string; items: Asset[]; o
       {items.map((a) => {
         const inner = (
           <>
-            {a.kind === 'pdf'
-              ? <span className="ws-tag-icon" title="PDF"><PdfIcon size={ICON_SM} /></span>
-              : <span className={`ws-tag ws-tag-${TAG_CLASS[a.kind]}`}>{TAG_TEXT[a.kind]}</span>}
+            <span className="ws-file-icon"><FileTypeIcon name={a.name} size={ICON_MD} /></span>
             <span className="ws-name">{a.name}</span>
           </>
         )

@@ -367,8 +367,8 @@ function AppInner() {
               } />
               <span className="composer-spacer" />
               {running
-                ? <Tooltip content="停止" render={<Button type="button" variant="destructive" shape="circle" aria-label="停止" onClick={stop}><span className="stop-square" /></Button>} />
-                : <Tooltip content="发送" render={<Button type="submit" variant="primary" shape="circle" aria-label="发送" disabled={(!input.trim() && attachments.length === 0 && pendingFiles.length === 0) || uploading}><SendIcon /></Button>} />}
+                ? <Tooltip content="停止" render={<button type="button" className="composer-btn composer-btn-stop" aria-label="停止" onClick={stop}><span className="stop-square" /></button>} />
+                : <Tooltip content="发送" render={<button type="submit" className="composer-btn composer-btn-send" aria-label="发送" disabled={(!input.trim() && attachments.length === 0 && pendingFiles.length === 0) || uploading}><SendIcon /></button>} />}
             </div>
             <div className="composer-div" />
             <div className="composer-foot">

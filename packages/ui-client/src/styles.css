@@ -320,8 +320,60 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   height: 22px;
   flex: none;
 }
-/* 发送/停止已迁移 Kumo Button(primary/destructive 圆钮) */
-.stop-square { width: 12px; height: 12px; background: var(--card); border-radius: 2.5px; }
+/* 发送/停止圆钮:苹果风——微渐变 + 外投影 + 内高光/内阴影,悬停微抬、按压回弹(owner 定 2026-07-10) */
+.composer-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; flex: none; padding: 0;
+  border: none; border-radius: 50%; cursor: pointer; color: #fff;
+  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out), filter var(--dur-fast) var(--ease-out);
+}
+.composer-btn:disabled { cursor: default; }
+.composer-btn-send {
+  background: linear-gradient(180deg, #a3cdb6 0%, #88bd9d 52%, #79b28f 100%);
+  box-shadow:
+    0 1px 1.5px rgba(66, 56, 42, .12),
+    0 4px 10px -3px rgba(47, 107, 78, .30),
+    inset 0 1px 0 rgba(255, 255, 255, .36),
+    inset 0 -1.5px 2px rgba(0, 0, 0, .13);
+}
+.composer-btn-send:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow:
+    0 2px 3px rgba(66, 56, 42, .18),
+    0 9px 20px -4px rgba(47, 107, 78, .52),
+    inset 0 1px 0 rgba(255, 255, 255, .34),
+    inset 0 -1.5px 2px rgba(0, 0, 0, .20);
+}
+.composer-btn-send:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow:
+    0 1px 2px rgba(66, 56, 42, .22),
+    inset 0 2px 5px rgba(0, 0, 0, .30),
+    inset 0 1px 0 rgba(255, 255, 255, .12);
+}
+.composer-btn-send:disabled {
+  background: linear-gradient(180deg, #c3d2c9, #b2c4ba);
+  color: rgba(255, 255, 255, .85);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), inset 0 -1px 2px rgba(0, 0, 0, .08);
+}
+.composer-btn-stop {
+  background: linear-gradient(180deg, #ecb3a1 0%, #dc9c83 52%, #cd8a71 100%);
+  box-shadow:
+    0 1px 1.5px rgba(66, 56, 42, .12),
+    0 4px 10px -3px rgba(168, 69, 47, .30),
+    inset 0 1px 0 rgba(255, 255, 255, .34),
+    inset 0 -1.5px 2px rgba(0, 0, 0, .15);
+}
+.composer-btn-stop:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 2px 3px rgba(66, 56, 42, .18),
+    0 9px 20px -4px rgba(168, 69, 47, .52),
+    inset 0 1px 0 rgba(255, 255, 255, .32),
+    inset 0 -1.5px 2px rgba(0, 0, 0, .22);
+}
+.composer-btn-stop:active { transform: translateY(0); box-shadow: 0 1px 2px rgba(66, 56, 42, .22), inset 0 2px 5px rgba(0, 0, 0, .32); }
+.stop-square { width: 11px; height: 11px; background: #fff; border-radius: 2.5px; }
 
 /* 待发送图片 chips(粘贴进来的,卡内) */
 .attach-row { display: flex; gap: var(--s-2); flex-wrap: wrap; padding: var(--s-1) var(--s-1) 0; }
@@ -449,6 +501,9 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .rail-card:hover .folders-front { transform: translate(-2px, 2px); }
 /* PDF 文件用书本图标替代文字标(owner 定) */
 .ws-tag-icon { flex: none; display: inline-flex; align-items: center; color: var(--ember); }
+/* 工作目录文件图标(替代文字小框):柔和墨色,统一一档 */
+.ws-file-icon { flex: none; display: inline-flex; align-items: center; color: var(--ink-soft); }
+.ws-item:hover .ws-file-icon { color: var(--ink); }
 
 /* ---- Reader ---- */
 /* 阅读器分屏 = 浮卡 */

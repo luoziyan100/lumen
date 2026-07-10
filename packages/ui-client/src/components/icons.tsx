@@ -1,7 +1,7 @@
 /** 图标唯一入口:一律 @phosphor-icons/react(Kumo 同源家族),经此单点 re-export。
  *  规范见 doc/ui-design.md「§3.1 图标规范」:三档尺寸 + weight 全站统一 regular;
  *  禁手写 SVG / 字符凑图标(← › × ＋) / emoji / 绕过本文件直接 import phosphor。 */
-import { ArrowUp, CaretLeft, CaretRight, ChatCircle, Check, Copy, Gear, MagnifyingGlass, Plus, SidebarSimple, User, X } from '@phosphor-icons/react'
+import { ArrowUp, CaretLeft, CaretRight, ChatCircle, Check, Copy, File, FileCode, FileCsv, FileDoc, FileHtml, FileImage, FilePdf, FilePpt, FileText, FileZip, Gear, MagnifyingGlass, Plus, SidebarSimple, User, X } from '@phosphor-icons/react'
 
 // 尺寸三档:行内(列表/标签内) / 按钮内 / 导航按钮
 export const ICON_SM = 16
@@ -76,6 +76,24 @@ export function ChevronIcon({ open }: { open?: boolean }) {
       style={{ transform: open ? 'rotate(90deg)' : undefined, transition: 'transform var(--dur-fast) var(--ease-out)' }}
     />
   )
+}
+
+/** 文件类型图标:按扩展名给工作目录列表配图标(替代文字小框,owner 定 2026-07-10)。
+ *  全站 weight 统一 regular;未识别的类型退回通用 File。 */
+export function FileTypeIcon({ name, size = ICON_MD }: { name: string; size?: number }) {
+  const ext = (name.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? '').toLowerCase()
+  switch (ext) {
+    case 'pdf': return <FilePdf size={size} />
+    case 'md': case 'txt': case 'tex': case 'epub': return <FileText size={size} />
+    case 'html': case 'htm': return <FileHtml size={size} />
+    case 'csv': return <FileCsv size={size} />
+    case 'json': return <FileCode size={size} />
+    case 'png': case 'jpg': case 'jpeg': case 'webp': case 'gif': return <FileImage size={size} />
+    case 'docx': case 'doc': return <FileDoc size={size} />
+    case 'pptx': case 'ppt': return <FilePpt size={size} />
+    case 'zip': return <FileZip size={size} />
+    default: return <File size={size} />
+  }
 }
 
 /** 账户头像:User regular(轮廓款,owner 定;全站 weight 统一 regular,无例外) */
