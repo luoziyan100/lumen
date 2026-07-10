@@ -321,12 +321,6 @@ function AppInner() {
             })}
             {running && !lastRunning && <div className="bubble bubble-status">思考中…</div>}
           </div>
-          <div className="composer-stack">
-            <div className="composer-back">
-              <button type="button" className="composer-model" onClick={() => setSettingsOpen(true)} title="模型设置">
-                <span className="composer-model-dot" />{modelLabel || '选择模型'}
-              </button>
-            </div>
           <form className="composer-card" onSubmit={onSubmit}>
             {attachments.length > 0 && (
               <div className="attach-row">
@@ -375,6 +369,13 @@ function AppInner() {
                 ? <Tooltip content="停止" render={<Button type="button" variant="destructive" shape="circle" aria-label="停止" onClick={stop}><span className="stop-square" /></Button>} />
                 : <Tooltip content="发送" render={<Button type="submit" variant="primary" shape="circle" aria-label="发送" disabled={(!input.trim() && attachments.length === 0 && pendingFiles.length === 0) || uploading}><SendIcon /></Button>} />}
             </div>
+            <div className="composer-div" />
+            <div className="composer-foot">
+              <span className="composer-spacer" />
+              <button type="button" className="composer-model" onClick={() => setSettingsOpen(true)} title="模型设置">
+                <span className="composer-model-dot" />{modelLabel || '选择模型'}
+              </button>
+            </div>
             <input
               ref={fileRef}
               type="file"
@@ -384,7 +385,6 @@ function AppInner() {
               onChange={onPickFiles}
             />
           </form>
-          </div>
         </main>
 
         {showReader && ws.open && <ReaderPane open={ws.open} pdfUrl={(p) => client.pdfUrl(PROJECT, p, taskId ?? undefined)} onClose={ws.close} />}

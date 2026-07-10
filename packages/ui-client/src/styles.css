@@ -245,29 +245,22 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .msg-group-assistant { align-self: stretch; max-width: 92%; align-items: flex-start; }
 .msg-group > .bubble { max-width: none; align-self: stretch; }
 .msg-actions { display: flex; align-items: center; height: 22px; margin-top: 2px; }
+/* 幽灵钮:无边无底,悬停浅沙底(owner 定 2026-07-10) */
 .msg-copy {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 24px; height: 24px; border: 1px solid var(--sand); border-radius: var(--radius-md);
-  background: var(--paper-solid); color: var(--ink-mute); cursor: pointer; padding: 0;
-  opacity: 0; transition: opacity var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  width: 24px; height: 24px; border: none; border-radius: var(--radius-md);
+  background: none; color: var(--ink-mute); cursor: pointer; padding: 0;
+  opacity: 0; transition: opacity var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 .msg-group:hover .msg-copy, .msg-copy:focus-visible { opacity: 1; }
-.msg-copy:hover { color: var(--ink); background: var(--card); }
+.msg-copy:hover { color: var(--ink); background: var(--sand); }
 .msg-copy.is-copied { color: var(--ember); opacity: 1; }
 
-/* ---- Composer:一体化输入卡片(附件/输入/操作都在卡内) ---- */
-/* 堆叠:外壳持宽居中;前=输入卡,后=模型卡(从底部探出) */
-.composer-stack { position: relative; max-width: var(--chat-max); width: calc(100% - 2 * var(--s-6)); margin: var(--s-3) auto var(--s-10); }
-.composer-back {
-  position: absolute; z-index: 0; left: -8px; right: -8px; top: 16px; bottom: -34px;
-  display: flex; align-items: flex-end; justify-content: center; padding: 0 var(--s-4) 5px;
-  border: 1px solid var(--sand-deep); border-radius: var(--radius-lg);
-  background: var(--paper-deep); box-shadow: none;
-}
+/* ---- Composer:一体化输入卡片(附件/输入/操作都在卡内;2026-07-10 owner 定:退回此原样) ---- */
 .composer-card {
-  position: relative; z-index: 1;
   display: flex; flex-direction: column; gap: var(--s-2);
-  padding: var(--s-3) var(--s-4);
+  max-width: var(--chat-max); width: calc(100% - 2 * var(--s-6));
+  margin: var(--s-3) auto var(--s-5); padding: var(--s-3) var(--s-4);
   border: 1px solid var(--sand-deep); border-radius: var(--radius-lg);
   background: var(--card);
   transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
@@ -278,7 +271,7 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   border: none; background: none; font: inherit; color: var(--ink);
   padding: var(--s-1) var(--s-1) 0; width: 100%;
   box-sizing: border-box; display: block; resize: none;
-  max-height: 168px; overflow-y: auto; line-height: 1.5; min-height: 52px;
+  max-height: 168px; overflow-y: auto; line-height: 1.5;
 }
 .composer-input:focus { outline: none; }
 .composer-bar { display: flex; align-items: center; gap: var(--s-2); }
