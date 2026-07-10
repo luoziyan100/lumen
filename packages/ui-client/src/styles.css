@@ -240,19 +240,23 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 
 /* 悬停复制(2026-07-10 owner 定):只配给用户输入 + 每轮的最终输出;
    钮在消息"下方"的动作行里(回答=左下,输入=右下),平时隐身,悬停浮现 */
-.msg-group { display: flex; flex-direction: column; }
+.msg-group { position: relative; display: flex; flex-direction: column; }
 .msg-group-user { align-self: flex-end; max-width: 92%; align-items: flex-end; }
 .msg-group-assistant { align-self: stretch; max-width: 92%; align-items: flex-start; }
 .msg-group > .bubble { max-width: none; align-self: stretch; }
-.msg-actions { display: flex; align-items: center; height: 22px; margin-top: 2px; }
+/* 纯悬停(owner 定 2026-07-10):动作行绝对定位在消息正下方,不占常驻高度——
+   不悬停=零 footprint、消息间距一致;平时 pointer-events:none 不遮挡下一条 */
+.msg-actions { position: absolute; top: 100%; display: flex; align-items: center; height: 24px; padding-top: 2px; pointer-events: none; }
+.msg-group-assistant > .msg-actions { left: 0; }
+.msg-group-user > .msg-actions { right: 0; }
 /* 幽灵钮:无边无底,悬停浅沙底(owner 定 2026-07-10) */
 .msg-copy {
   display: inline-flex; align-items: center; justify-content: center;
   width: 24px; height: 24px; border: none; border-radius: var(--radius-md);
   background: none; color: var(--ink-mute); cursor: pointer; padding: 0;
-  opacity: 0; transition: opacity var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+  opacity: 0; pointer-events: none; transition: opacity var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
-.msg-group:hover .msg-copy, .msg-copy:focus-visible { opacity: 1; }
+.msg-group:hover .msg-copy, .msg-copy:hover, .msg-copy:focus-visible { opacity: 1; pointer-events: auto; }
 .msg-copy:hover { color: var(--ink); background: var(--sand); }
 .msg-copy.is-copied { color: var(--ember); opacity: 1; }
 
