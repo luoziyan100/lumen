@@ -221,6 +221,25 @@ function AppInner() {
     if (files.length) setPendingFiles((prev) => [...prev, ...files])
   }
 
+  // 每轮只给"最终输出"配复制:该 assistant 消息之后、到下一条 user 之前再无 assistant;
+  // 正在流式的一轮先不配(收尾后才出现)
+  const finalAssistantIds = useMemo(() => {
+    const ids = new Set<string>()
+    let candidate: string | null = null
+    for (const it of items) {
+      if (it.kind !== 'msg') continue
+      if (it.role === 'assistant') candidate = it.id
+      else if (it.role === 'user') { if (candidate) ids.add(candidate); candidate = null }
+    }
+    if (candidate && !running) ids.add(candidate)
+    return ids
+  }, [items, running])
+  const copyBtn = (id: string, text: string, label: string) => (
+    <button type="button" className={`msg-copy${copiedId === id ? ' is-copied' : ''}`} aria-label={label} title="复制" onClick={() => void copyMsg(id, text)}>
+      {copiedId === id ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
+    </button>
+  )
+
   const lastItem = items[items.length - 1]
   const lastRunning = lastItem?.kind === 'process' && lastItem.running
   const showReader = ws.open != null
@@ -268,18 +287,23 @@ function AppInner() {
         <main className={`chat ${showReader ? 'chat-with-reader' : ''} ${isEmpty ? 'chat-empty' : ''}`}>
           <div className={`messages ${isEmpty ? 'messages-empty' : ''}`}>
             {isEmpty && <EmptyState />}
-            {items.map((it) => it.kind === 'msg'
-              ? (it.role === 'assistant'
-                  ? (
-                    <div key={it.id} className="bubble bubble-assistant">
-                      <Markdown>{it.content}</Markdown>
-                      <button type="button" className={`msg-copy${copiedId === it.id ? ' is-copied' : ''}`} aria-label="复制这条回答" title="复制" onClick={() => void copyMsg(it.id, it.content)}>
-                        {copiedId === it.id ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
-                      </button>
-                    </div>
-                  )
-                  : (
-                    <div key={it.id} className={`bubble bubble-${it.role}`}>
+            {items.map((it) => {
+              if (it.kind !== 'msg') return <ProcessRow key={it.id} block={it} />
+              if (it.role === 'assistant') {
+                if (!finalAssistantIds.has(it.id)) {
+                  return <div key={it.id} className="bubble bubble-assistant"><Markdown>{it.content}</Markdown></div>
+                }
+                return (
+                  <div key={it.id} className="msg-group msg-group-assistant">
+                    <div className="bubble bubble-assistant"><Markdown>{it.content}</Markdown></div>
+                    <div className="msg-actions">{copyBtn(it.id, it.content, '复制这条回答')}</div>
+                  </div>
+                )
+              }
+              if (it.role === 'user') {
+                return (
+                  <div key={it.id} className="msg-group msg-group-user">
+                    <div className="bubble bubble-user">
                       {it.images?.length ? (
                         <div className="msg-images">
                           {it.images.map((im, i) => (
@@ -288,14 +312,13 @@ function AppInner() {
                         </div>
                       ) : null}
                       {it.content}
-                      {it.role === 'user' && (
-                        <button type="button" className={`msg-copy${copiedId === it.id ? ' is-copied' : ''}`} aria-label="复制这条输入" title="复制" onClick={() => void copyMsg(it.id, it.content)}>
-                          {copiedId === it.id ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
-                        </button>
-                      )}
                     </div>
-                  ))
-              : <ProcessRow key={it.id} block={it} />)}
+                    <div className="msg-actions">{copyBtn(it.id, it.content, '复制这条输入')}</div>
+                  </div>
+                )
+              }
+              return <div key={it.id} className={`bubble bubble-${it.role}`}>{it.content}</div>
+            })}
             {running && !lastRunning && <div className="bubble bubble-status">思考中…</div>}
           </div>
           <div className="composer-stack">
