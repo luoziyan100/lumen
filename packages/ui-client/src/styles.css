@@ -207,27 +207,22 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .sb-account:hover .sb-account-gear { color: var(--ink-soft); }
 
 /* ---- Chat ---- */
-.chat { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.chat { position: relative; flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .chat-with-reader { flex: 0 0 46%; border-right: 1px solid var(--sand); }
+/* 中间栏与两侧的弱分隔线:偏透明、不抢眼,只给区域一个界(owner 定 2026-07-10) */
+.chat:not(.chat-empty) { border-left: 1px solid var(--sand); border-right: 1px solid var(--sand); }
 /* 空态(封面):问候 + 输入卡整体居中偏上;开始对话后输入卡落回底部 */
 .chat-empty { justify-content: center; padding-bottom: 12vh; }
-.chat-empty .messages { flex: 0 0 auto; overflow: visible; }
-/* 纸面层:正文永远坐在安静的纸上,氛围从两侧衬出纵深(2026-07-10 owner 定:保留此形态) */
+.chat-empty .messages { flex: 0 0 auto; overflow: visible; padding: var(--s-6) var(--s-8); }
+/* 全幅(2026-07-10 owner 定):对话铺满中间栏,不再是卡片;正文仍限宽居中(内边距算出),
+   底部大留白给浮动输入卡让位。空态封面把底衬收回(见 .chat-empty .messages) */
 .messages {
-  flex: 1; overflow-y: auto; padding: var(--s-6) var(--s-8);
+  flex: 1; overflow-y: auto;
+  padding: var(--s-6) calc((100% - min(var(--chat-max), 100% - 2 * var(--s-8))) / 2) 190px;
   display: flex; flex-direction: column; gap: var(--s-4);
-  max-width: var(--chat-max); width: 100%; margin: var(--s-2) auto;
-  background: var(--paper-solid);
-  border: 1px solid var(--sand);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-2);
+  width: 100%;
 }
-/* 空态 = 封面:纸面隐去,氛围全屏;开始对话后纸面层才铺开 */
-.messages-empty {
-  background: none;
-  border-color: transparent;
-  box-shadow: none;
-}
+.chat-empty .messages-empty { padding-bottom: var(--s-6); }
 .bubble { max-width: 92%; white-space: pre-wrap; line-height: var(--lh-body-lg); }
 .bubble-user { align-self: flex-end; background: var(--vellum); padding: 10px 14px; border-radius: var(--radius-lg); box-shadow: var(--shadow-1); }
 .bubble-assistant { align-self: stretch; font-family: var(--font-serif); font-size: var(--t-body-lg); }
@@ -260,16 +255,18 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .msg-copy:hover { color: var(--ink); background: var(--sand); }
 .msg-copy.is-copied { color: var(--ember); opacity: 1; }
 
-/* ---- Composer:一体化输入卡片(附件/输入/操作都在卡内;2026-07-10 owner 定:退回此原样) ---- */
+/* ---- Composer:一体化输入卡片;会话态浮在全幅对话上方,空态封面回文档流(2026-07-10 owner 定) ---- */
 .composer-card {
+  position: absolute; z-index: 6; bottom: var(--s-5); left: 0; right: 0;
   display: flex; flex-direction: column; gap: var(--s-2);
-  max-width: var(--chat-max); width: calc(100% - 2 * var(--s-6));
-  margin: var(--s-3) auto var(--s-5); padding: var(--s-3) var(--s-4);
+  max-width: var(--chat-max); width: calc(100% - 2 * var(--s-6)); margin: 0 auto;
+  padding: var(--s-3) var(--s-4);
   border: 1px solid var(--sand-deep); border-radius: var(--radius-lg);
   background: var(--card);
   transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
-  box-shadow: var(--shadow-2);
+  box-shadow: 0 8px 28px -10px rgba(66, 56, 42, .28), var(--shadow-2);
 }
+.chat-empty .composer-card { position: relative; z-index: auto; bottom: auto; margin: var(--s-3) auto var(--s-10); box-shadow: var(--shadow-2); }
 .composer-card:focus-within { border-color: var(--ember-soft); box-shadow: 0 0 0 3px var(--focus-ring), var(--shadow-2); }
 .composer-input {
   border: none; background: none; font: inherit; color: var(--ink);

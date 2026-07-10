@@ -47,8 +47,8 @@ function AppInner() {
 
   const { items, running, send, stop, newConversation, selectConversation, taskId } = useAgent(client, PROJECT, connected)
   const ws = useWorkspace(client, PROJECT, taskId, connected)
-  // 右侧工具轨:持久默认展开(记忆开合);标题栏「工作区」钮切换
-  const [drawer, setDrawer] = useState(() => localStorage.getItem('lumen:railOpen') !== '0')
+  // 工作目录:默认收起;当前会话有产物(上传文件/模型写出报告)才自动展开——纯问答保持收起(owner 定 2026-07-10)
+  const [drawer, setDrawer] = useState(false)
   const [input, setInput] = useState('')
   const taRef = useRef<HTMLTextAreaElement>(null)
   // 输入框随内容自增高(单行起,约 6 行后内部滚动)
@@ -65,9 +65,10 @@ function AppInner() {
     localStorage.setItem('lumen:sbOpen', next ? '1' : '0')
   }
   function toggleRail(next: boolean): void {
-    setDrawer(next)
-    localStorage.setItem('lumen:railOpen', next ? '1' : '0')
+    setDrawer(next) // 手动开合(标题栏钮/上传即时反馈);默认收起与自动展开由产物驱动
   }
+  // 产物驱动:当前会话有产物→展开工作目录,纯问答(无产物)→收起;手动开合保持到下次产物变化/切会话
+  useEffect(() => { setDrawer(ws.assets.length > 0) }, [ws.assets.length, taskId])
 
   // 会话搜索弹窗(侧栏🔍 / ⌘K)+ 设置弹窗
   const [searchOpen, setSearchOpen] = useState(false)
