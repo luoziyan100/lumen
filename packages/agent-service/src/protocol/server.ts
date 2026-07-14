@@ -10,8 +10,9 @@
 import { WebSocketServer, type WebSocket } from 'ws'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AgentRuntime } from '../runtime/agent-runtime.ts'
-import type { ClientMessage, ServerMessage } from './messages.ts'
+import type { ClientMessage, ServerMessage, ConnModelConfig } from './messages.ts'
 import type { PublicSettings, SettingsPatch } from '../storage/settings.ts'
+import type { ModelPort } from '../core/model-port.ts'
 
 export interface ServerHandle {
   port: number
@@ -26,7 +27,7 @@ export interface SettingsApi {
 
 export function startServer(
   runtime: AgentRuntime,
-  options: { port?: number; host?: string; token?: string; settings?: SettingsApi; maxUploadBytes?: number } = {},
+  options: { port?: number; host?: string; token?: string; settings?: SettingsApi; maxUploadBytes?: number; demo?: boolean; buildModel?: (cfg: ConnModelConfig) => ModelPort } = {},
 ): Promise<ServerHandle> {
   return new Promise((resolve) => {
     // http server 同时承载:WS(对话/事件) + HTTP(/pdf 取 PDF 二进制、/upload 上传 PDF)
@@ -43,7 +44,7 @@ export function startServer(
         ws.close(4401, 'unauthorized')
         return
       }
-      handleConnection(runtime, ws, options.settings)
+      handleConnection(runtime, ws, options.settings, options.demo ?? false, options.buildModel)
     })
     httpServer.listen(options.port ?? 0, options.host ?? '127.0.0.1', () => {
       const address = httpServer.address()
@@ -108,11 +109,14 @@ async function handleHttp(
   res.end('not found')
 }
 
-function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: SettingsApi): void {
+function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: SettingsApi, demo = false, buildModel?: (cfg: ConnModelConfig) => ModelPort): void {
   const unsubs = new Map<string, () => void>()
   const send = (message: ServerMessage): void => {
     if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(message))
   }
+  // demo:该连接自带的 model(浏览器随 set_model 送来的 key 构建),只在连接内存、断开即弃、绝不落盘
+  let connModel: ModelPort | undefined
+  send({ type: 'hello', demo })
 
   // 回放与订阅解耦:UI 每次点进会话都清屏、靠回放重建,回放不能因"已订阅"跳过
   // (曾致看过的会话再点回去一片空白);监听器仍按连接去重,新事件不会推两遍。
@@ -130,8 +134,12 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
       return
     }
     switch (message.type) {
+      case 'set_model':
+        if (demo && buildModel) { connModel = buildModel(message.config); send({ type: 'ok' }) }
+        else send({ type: 'error', message: 'set_model 仅 demo 模式可用' })
+        break
       case 'submit': {
-        const taskId = runtime.submit({ projectId: message.projectId, userText: message.userText, images: message.images })
+        const taskId = runtime.submit({ projectId: message.projectId, userText: message.userText, images: message.images }, connModel)
         send({ type: 'task_created', taskId })
         subscribe(taskId)
         break
@@ -144,7 +152,7 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
         break
       }
       case 'continue': {
-        const ok = runtime.continueTask(message.taskId, message.userText, message.images)
+        const ok = runtime.continueTask(message.taskId, message.userText, message.images, connModel)
         if (ok) subscribe(message.taskId, undefined, false) // 续聊不回放:客户端没清屏,回放会把记录翻倍
         send({ type: ok ? 'ok' : 'error', ...(ok ? { taskId: message.taskId } : { message: 'continue failed: task 不存在或正在运行' }) } as ServerMessage)
         break
@@ -157,7 +165,7 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
         send({ type: 'ok', taskId: message.taskId })
         break
       case 'resume':
-        void runtime.resume(message.taskId).then((ok) => {
+        void runtime.resume(message.taskId, connModel).then((ok) => {
           if (ok) subscribe(message.taskId)
           send({ type: 'ok', taskId: message.taskId })
         })

@@ -99,12 +99,12 @@ export class AgentRuntime {
     this.notify(taskId, stored)
   }
 
-  submit(input: SubmitInput): string {
+  submit(input: SubmitInput, model?: ModelPort): string {
     const task = this.cfg.store.createTask(input.projectId, input.userText)
     this.emitUser(task.id, input.userText, input.images) // 首句进事件流,多轮重建 + 刷新恢复用
     this.startSession(task, input.userText)
     const controller = new AbortController()
-    const promise = this.execute(task, this.buildInitialThread(task, input.userText, input.images), controller.signal)
+    const promise = this.execute(task, this.buildInitialThread(task, input.userText, input.images), controller.signal, model)
     this.running.set(task.id, { controller, promise })
     return task.id
   }
@@ -114,7 +114,7 @@ export class AgentRuntime {
     return this.cfg.store.createTask(projectId, goal).id
   }
 
-  async resume(taskId: string): Promise<boolean> {
+  async resume(taskId: string, model?: ModelPort): Promise<boolean> {
     const task = this.cfg.store.getTask(taskId)
     if (!task) return false
     if (this.running.has(taskId)) return true
@@ -125,13 +125,13 @@ export class AgentRuntime {
       userText: task.goal,
     })
     const controller = new AbortController()
-    const promise = this.execute(task, thread, controller.signal)
+    const promise = this.execute(task, thread, controller.signal, model)
     this.running.set(taskId, { controller, promise })
     return true
   }
 
   /** 在已有对话(task)上追加一轮:存 user 事件 → 重建累积线程 → 续跑。多轮记忆的实现。 */
-  continueTask(taskId: string, userText: string, images?: ImageData[]): boolean {
+  continueTask(taskId: string, userText: string, images?: ImageData[], model?: ModelPort): boolean {
     const task = this.cfg.store.getTask(taskId)
     if (!task) return false
     if (this.running.has(taskId)) return false
@@ -143,7 +143,7 @@ export class AgentRuntime {
     const compacted = this.maybeCompact(task, events) // 回合前水位检查(方案 B)
     const thread = rebuildThread(compacted ?? events, { systemPrompt: this.systemPrompt(task.project_id), userText: task.goal })
     const controller = new AbortController()
-    const promise = this.execute(task, thread, controller.signal)
+    const promise = this.execute(task, thread, controller.signal, model)
     this.running.set(taskId, { controller, promise })
     return true
   }
@@ -338,14 +338,15 @@ export class AgentRuntime {
     for (const listener of this.listeners.get(taskId) ?? []) listener(event)
   }
 
-  private async execute(task: Task, thread: Thread, signal: AbortSignal): Promise<void> {
+  private async execute(task: Task, thread: Thread, signal: AbortSignal, modelOverride?: ModelPort): Promise<void> {
+    const model = modelOverride ?? this.cfg.model // demo:连接携带的 key 构建的 model;本地:全局 model
     const startedAt = Date.now()
     const emit = this.makeEmit(task.id)
     const budget = mergeBudget(this.cfg.budget)
     const limits: Limits = { maxSteps: budget.maxSteps, maxDepth: this.cfg.maxDepth ?? 3, maxSeconds: budget.maxSeconds }
     const workspace = this.makeWorkspace(task.project_id, task.id)
     const spawn = createSpawnFn({
-      model: this.cfg.model,
+      model,
       roles: this.cfg.roles ?? {},
       maxDepth: limits.maxDepth,
     })
@@ -356,7 +357,7 @@ export class AgentRuntime {
       spawn,
       emit,
       workspace,
-      deps: { model: this.cfg.model },
+      deps: { model },
     }
     const memoryTools = createMemoryTools(this.memoryDir(task.project_id)) // 跨会话记忆:仅主 agent,worker 不带
     const mains = [...this.cfg.mainTools, ...memoryTools]
@@ -370,7 +371,7 @@ export class AgentRuntime {
       this.cfg.store.updateTaskStatus(task.id, 'running')
       this.notifyStatus(task.id)
       let result = await runAgent({
-        thread, model: this.cfg.model, tools, limits, ctx, signal,
+        thread, model, tools, limits, ctx, signal,
         forModelOptions: this.cfg.contextFold ?? DEFAULT_CONTEXT_FOLD,
       })
       // 软着陆(方案 B):超窗错误 → 确定性压缩后原地重试一次。已完成的 tool_result 都在事件流里,进度不丢
@@ -380,7 +381,7 @@ export class AgentRuntime {
         if (compacted) {
           const rebuilt = rebuildThread(compacted, { systemPrompt: this.systemPrompt(task.project_id), userText: task.goal })
           result = await runAgent({
-            thread: rebuilt, model: this.cfg.model, tools, limits, ctx, signal,
+            thread: rebuilt, model, tools, limits, ctx, signal,
             forModelOptions: this.cfg.contextFold ?? DEFAULT_CONTEXT_FOLD,
           })
         }

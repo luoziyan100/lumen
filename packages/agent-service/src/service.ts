@@ -37,6 +37,7 @@ export interface ServiceConfig {
   token?: string // 不填则每次启动生成随机 token；客户端从 portfile 读
   demo?: boolean // demo 模式(或 LUMEN_DEMO=1):公网多访客,剔除 run_code(云上无沙箱=RCE)
   maxUploadBytes?: number // /upload 单次上限;默认 25MB
+  buildModel?: (cfg: { provider: 'anthropic' | 'openai'; model: string; apiKey: string; baseUrl?: string }) => ModelPort // demo 连接级 model 工厂(测试注入)
 }
 
 export interface Service {
@@ -60,6 +61,7 @@ export function createService(config: ServiceConfig = {}): Service {
 
   const db = openDatabase(path.join(home, 'lumen.sqlite'))
   const store = new TaskStore(db)
+  const demo = config.demo ?? process.env.LUMEN_DEMO === '1'
 
   // 出厂默认 = 显式 config > env/.env;用户覆盖层在 ~/.lumen/settings.json(设置弹窗写入)
   const settings = new SettingsStore(path.join(home, 'settings.json'), {
@@ -69,17 +71,24 @@ export function createService(config: ServiceConfig = {}): Service {
     model: config.model ?? process.env.LUMEN_MODEL ?? 'claude-opus-4-8',
   })
 
+  // 从一份模型配置构建 ModelPort(demo 连接级 key、本地 settings 共用同一条路径)
+  function buildFromConfig(cfg: { provider: 'anthropic' | 'openai'; model: string; apiKey: string; baseUrl?: string }): ModelPort {
+    if (!cfg.apiKey) return errorModel('未提供 API key。')
+    return cfg.provider === 'openai'
+      ? createOpenAIAdapter({ transport: createOpenAIFetchTransport({ apiKey: cfg.apiKey, baseUrl: cfg.baseUrl ?? 'https://api.openai.com' }), model: cfg.model })
+      : createClaudeAdapter({ transport: createFetchTransport({ apiKey: cfg.apiKey, baseUrl: cfg.baseUrl }), model: cfg.model })
+  }
+  const connModelFactory = config.buildModel ?? buildFromConfig
   function buildModel(): ModelPort {
     const eff = settings.effective()
     if (!eff.apiKey) return errorModel('未配置 LLM API key;请在「设置 → 模型」填入后重试。')
-    return eff.provider === 'openai'
-      ? createOpenAIAdapter({ transport: createOpenAIFetchTransport({ apiKey: eff.apiKey, baseUrl: eff.baseUrl ?? 'https://api.openai.com' }), model: eff.model })
-      : createClaudeAdapter({ transport: createFetchTransport({ apiKey: eff.apiKey, baseUrl: eff.baseUrl }), model: eff.model })
+    return buildFromConfig({ provider: eff.provider, model: eff.model, apiKey: eff.apiKey, baseUrl: eff.baseUrl })
   }
 
   // 模型热切换:runtime 拿到的是代理,设置保存时替换 ref.current,下一次模型调用即生效。
   // 测试注入 modelPort 时视为固定(不随设置切换)。
-  const modelRef = { current: config.modelPort ?? buildModel() }
+  // demo 模式:全局无 key(每连接自带);本地:全局 buildModel。测试可注入 modelPort。
+  const modelRef = { current: config.modelPort ?? (demo ? errorModel('demo 模式:请在右下角「设置」填入你自己的 API key。') : buildModel()) }
   const model: ModelPort = { chat: (messages, tools, signal) => modelRef.current.chat(messages, tools, signal) }
   const applySettings = (patch: Parameters<SettingsStore['update']>[0]) => {
     const pub = settings.update(patch)
@@ -94,7 +103,6 @@ export function createService(config: ServiceConfig = {}): Service {
   })
   // run_code:owner 拍板 2026-07-05 进默认工具集(L1 进程纪律 + macOS Seatbelt,见 tools/env/sandbox.ts)
   // demo 模式:剔除 run_code —— 云端 Linux 无 macOS Seatbelt,公网开放=远程任意代码执行(2026-07-15 审计 must-fix)
-  const demo = config.demo ?? process.env.LUMEN_DEMO === '1'
   const mainTools = (demo ? [...ENV_TOOLS, ...research] : [...ENV_TOOLS, runCodeTool, ...research]).map((t) => withGuard(t))
   const roles = buildRoles(mainTools)
 
@@ -137,6 +145,8 @@ export function createService(config: ServiceConfig = {}): Service {
         host: config.host ?? process.env.LUMEN_HOST,
         token,
         maxUploadBytes: config.maxUploadBytes ?? (process.env.LUMEN_MAX_UPLOAD ? Number(process.env.LUMEN_MAX_UPLOAD) : undefined),
+        demo,
+        buildModel: demo ? connModelFactory : undefined,
         settings: { get: () => settings.toPublic(), update: applySettings },
       })
       const portfile = path.join(home, 'agent-service.json')
