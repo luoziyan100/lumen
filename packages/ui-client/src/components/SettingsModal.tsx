@@ -83,6 +83,9 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
   const selected = settings?.profiles.find((p) => p.id === selId)
   const isActive = (id: string): boolean => settings?.activeProfileId === id
 
+  // demo 模式(公网,自带 Key):走独立简化组件,key 只存浏览器、不落服务端(hooks 已全部执行,顺序稳定)
+  if (client.demo) return <DemoModelSettings client={client} onClose={onClose} />
+
   return (
     <Dialog.Root open onOpenChange={(o: boolean) => { if (!o) onClose() }}>
       <Dialog className="settings-modal p-0" aria-label="设置">
@@ -198,6 +201,57 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
               </div>
             </form>
           )}
+        </div>
+      </Dialog>
+    </Dialog.Root>
+  )
+}
+
+const DEMO_MODEL_KEY = 'lumen:demoModel'
+
+/** demo 模式设置:自带 Key,只存本浏览器 localStorage,随请求直连模型厂商,本站服务器不保存 */
+function DemoModelSettings({ client, onClose }: { client: AgentClient; onClose: () => void }) {
+  const [form, setForm] = useState(() => {
+    const base = { provider: 'openai' as 'anthropic' | 'openai', baseUrl: '', apiKey: '', model: '' }
+    try { return { ...base, ...(JSON.parse(localStorage.getItem(DEMO_MODEL_KEY) || '{}') as Partial<typeof base>) } }
+    catch { return base }
+  })
+  const [saved, setSaved] = useState('')
+
+  function save(e: FormEvent): void {
+    e.preventDefault()
+    const cfg = { provider: form.provider, model: form.model.trim(), apiKey: form.apiKey.trim(), baseUrl: form.baseUrl.trim() || undefined }
+    localStorage.setItem(DEMO_MODEL_KEY, JSON.stringify(cfg))
+    client.setModel(cfg) // 立即生效于当前连接
+    setSaved('已保存并启用')
+    setTimeout(() => setSaved(''), 1800)
+  }
+
+  return (
+    <Dialog.Root open onOpenChange={(o: boolean) => { if (!o) onClose() }}>
+      <Dialog className="settings-modal p-0" aria-label="设置">
+        <div className="settings-body">
+          <button type="button" className="settings-close" aria-label="关闭" onClick={onClose}><CloseIcon size={18} /></button>
+          <form className="mp-editor" onSubmit={save}>
+            <h2 className="settings-h">模型 · 自带 Key</h2>
+            <p className="set-hint">你的 API Key 只保存在<strong>你自己的浏览器</strong>里,聊天时随请求直连模型厂商——本站服务器不保存、不经手你的 Key。</p>
+            <div className="set-row">
+              <span className="set-label">接口协议</span>
+              <Select aria-label="接口协议" size="sm" className="min-w-0 flex-1" value={form.provider}
+                onValueChange={(v) => setForm({ ...form, provider: (v ?? 'openai') as 'anthropic' | 'openai' })}
+                items={{ anthropic: 'Anthropic(官方 Claude)', openai: 'OpenAI 兼容(DeepSeek / 代理)' }} />
+            </div>
+            <label className="set-row"><span className="set-label">Base URL</span>
+              <input value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} placeholder={form.provider === 'openai' ? 'https://api.deepseek.com' : 'https://api.anthropic.com'} /></label>
+            <label className="set-row"><span className="set-label">API Key</span>
+              <input type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} placeholder="粘贴你自己的 API Key" autoComplete="off" /></label>
+            <label className="set-row"><span className="set-label">模型 ID</span>
+              <input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} placeholder="deepseek-chat / claude-sonnet-4-6 …" /></label>
+            <div className="settings-foot">
+              {saved && <span className="set-saved">{saved}</span>}
+              <Button type="submit" variant="primary" size="sm">保存并启用</Button>
+            </div>
+          </form>
         </div>
       </Dialog>
     </Dialog.Root>

@@ -22,6 +22,14 @@ export interface Asset {
   name: string
 }
 
+/** demo 模式:浏览器随连接带入的模型配置(含用户自己的 key),后端只在连接内存持有、不落盘 */
+export interface ConnModelConfig {
+  provider: 'anthropic' | 'openai'
+  model: string
+  apiKey: string
+  baseUrl?: string
+}
+
 /** 聊天粘贴的图片,随消息进模型(多模态) */
 export interface ImageData {
   mediaType: string
@@ -58,6 +66,7 @@ export interface SettingsPatch {
 }
 
 type ServerMessage =
+  | { type: 'hello'; demo: boolean }
   | { type: 'task_created'; taskId: string }
   | { type: 'event'; event: TaskEvent }
   | { type: 'tasks'; tasks: Task[] }
@@ -79,6 +88,9 @@ export class AgentClient {
   private readonly url: string
   private readonly httpBase: string
   private readonly token?: string
+  /** 服务端是否 demo 模式(公网多访客,key 走浏览器);连接后由 hello 事件置位 */
+  demo = false
+  private readonly helloHandlers = new Set<(demo: boolean) => void>()
 
   constructor(url: string, token?: string) {
     this.token = token
@@ -199,6 +211,16 @@ export class AgentClient {
     return ((await res.json()) as { path: string }).path
   }
 
+  /** demo:把本连接的模型配置(含用户自己的 key)发给后端,只在连接内存生效、不落盘 */
+  setModel(config: ConnModelConfig): void {
+    this.send({ type: 'set_model', config })
+  }
+
+  onHello(handler: (demo: boolean) => void): () => void {
+    this.helloHandlers.add(handler)
+    return () => this.helloHandlers.delete(handler)
+  }
+
   close(): void {
     this.ws?.close()
     this.ws = null
@@ -210,6 +232,17 @@ export class AgentClient {
 
   private onMessage(message: ServerMessage): void {
     switch (message.type) {
+      case 'hello':
+        this.demo = message.demo
+        // demo:连接/重连建立后,若浏览器存过自己的 key,自动注入本连接(后端不落盘)
+        if (message.demo) {
+          try {
+            const raw = localStorage.getItem('lumen:demoModel')
+            if (raw) this.setModel(JSON.parse(raw) as ConnModelConfig)
+          } catch { /* localStorage 不可用或损坏,忽略 */ }
+        }
+        for (const h of this.helloHandlers) h(message.demo)
+        break
       case 'task_created':
         this.pendingCreated?.(message.taskId)
         this.pendingCreated = null
