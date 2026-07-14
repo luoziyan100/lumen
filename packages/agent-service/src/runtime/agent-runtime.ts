@@ -18,6 +18,7 @@ import { mergeBudget, type TaskBudget } from '../storage/budget.ts'
 import { FsWorkspace } from '../workspace/fs-workspace.ts'
 import { readdirSync } from 'node:fs'
 import { LUMEN_PERSONA } from '../agents/persona.ts'
+import { createMemoryTools, readMemoryIndex } from '../tools/env/memory-tools.ts'
 
 export interface RuntimeContextInfo {
   currentDate: string
@@ -250,10 +251,18 @@ export class AgentRuntime {
     // 工作区"房间地图"已写进 persona L3(静态、稳定)。动态注入暂时关掉:
     // 裸列文件名既占 context 又会随文件膨胀;以后可让 workspaceDigest 改成注入"非文件名"的信息
     // (论文标题/摘要、数量统计等)再在此启用。projectId 先留着接口。
-    void projectId
-    // const digest = projectId ? this.workspaceDigest(projectId) : ''
-    // return digest ? `${base}\n\n${digest}` : base
-    return base
+    // 跨会话记忆(CC 范式,owner 拍板 2026-07-15):索引常驻开局,正文按需 read_memory
+    const memory = projectId ? readMemoryIndex(this.memoryDir(projectId)) : ''
+    if (!memory) return base
+    return base + '\n\n# 跨会话记忆(索引)\n' +
+      '以下是你此前为本项目记下的长期记忆,一行一条。需要正文用 read_memory(文件名);' +
+      '遇到值得长期记住的事实(用户偏好/纠正/项目约定,而非对话内容本身)用 write_memory 记录并同步更新 MEMORY.md。' +
+      '记忆对用户完全可见。\n' + memory
+  }
+
+  /** 项目级记忆目录(跨会话):workspaces/<project>/memory */
+  private memoryDir(projectId: string): string {
+    return this.cfg.workspacesDir + '/' + projectId + '/memory'
   }
 
   /** [暂未启用,保留待改造] 原本列工作区文件清单注入 systemPrompt;现"房间地图"已进 persona L3。
@@ -336,7 +345,9 @@ export class AgentRuntime {
       workspace,
       deps: { model: this.cfg.model },
     }
-    const baseTools = this.cfg.roles && Object.keys(this.cfg.roles).length ? [...this.cfg.mainTools, spawnTool] : this.cfg.mainTools
+    const memoryTools = createMemoryTools(this.memoryDir(task.project_id)) // 跨会话记忆:仅主 agent,worker 不带
+    const mains = [...this.cfg.mainTools, ...memoryTools]
+    const baseTools = this.cfg.roles && Object.keys(this.cfg.roles).length ? [...mains, spawnTool] : mains
     // 大结果落盘(方案 B):启用预算时,超限工具输出全文进会话 cache/tool-results/,上下文只留预览+路径
     const tools = this.cfg.contextBudget?.window
       ? baseTools.map((t) => withResultPersist(t, workspace, this.cfg.contextBudget?.persistToolResultChars))
