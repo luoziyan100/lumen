@@ -12,11 +12,11 @@ import type { Tool, ToolContext, ToolResult } from '../core/tool.ts'
 
 // ---- 窗口解析 ----
 
-/** 保守默认:DeepSeek 官方称 1M 但社区实测 API 截 200K,取小;未知模型 128K。profile.contextWindow 可覆盖 */
+/** 默认窗口:DeepSeek 1M 为 2026-07-14 真机实测(官方 API 400 报文自称 1048565);未知模型 128K 保守。profile.contextWindow 可覆盖 */
 const WINDOW_PATTERNS: Array<[RegExp, number]> = [
   [/fable|opus-4-8|sonnet-5/i, 1_000_000],
   [/claude|haiku|opus|sonnet/i, 200_000],
-  [/deepseek/i, 200_000],
+  [/deepseek/i, 1_000_000],
   [/kimi|moonshot|glm|qwen/i, 128_000],
 ]
 
@@ -45,9 +45,15 @@ function parse(e: TaskEvent): Record<string, unknown> {
   }
 }
 
+/** 每张图按 ~1200 token(2400 字符当量)保守计入 —— 视觉 token 占位,真实值由下一轮 usage 锚点自动校正 */
+const IMAGE_CHAR_EQUIV = 2_400
+
 function contentChars(e: TaskEvent): number {
   const p = parse(e)
-  if (e.kind === 'user' || e.kind === 'model_step') return String(p.content ?? '').length
+  if (e.kind === 'user' || e.kind === 'model_step') {
+    const images = Array.isArray(p.images) ? p.images.length : 0
+    return String(p.content ?? '').length + images * IMAGE_CHAR_EQUIV
+  }
   if (e.kind === 'tool_result') return String(p.llmContent ?? '').length
   return 0
 }
@@ -172,7 +178,7 @@ export function buildCompactionPreamble(p: CompactionPayload): string {
   const users = p.verbatimUsers.length ? p.verbatimUsers.map((u, i) => `${i + 1}. ${u}`).join('\n') : '(无)'
   return [
     '[上下文检查点 · 系统自动整理]',
-    '为控制上下文体积,更早的过程细节(模型步骤与工具输出)已从当前视图归档;完整记录仍在本地事件库,研究产物都在工作区文件里,可用 read_file / list_dir 随时查看。',
+    '为控制上下文体积,更早的过程细节(模型步骤与工具输出)已从当前视图归档。归档不等于丢失:研究产物与超大工具输出都是工作区里的真实文件,可用 read_file / list_dir 直接读取;对话原始记录在应用的事件库里 —— 你没有读取它的工具,不要尝试去找,用户界面可完整回看。',
     '以下信息为逐字保留,不是摘要:',
     '',
     '## 工作区文件',

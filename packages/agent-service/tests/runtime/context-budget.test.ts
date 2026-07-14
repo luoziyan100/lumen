@@ -20,7 +20,7 @@ function ev(kind: string, payload: Record<string, unknown>, agentRole: string | 
 }
 
 test('resolveContextWindow:已知模型保守值 / 未知 128K / 覆盖优先', () => {
-  assert.equal(resolveContextWindow('deepseek-v4-pro'), 200_000)
+  assert.equal(resolveContextWindow('deepseek-v4-pro'), 1_000_000) // 2026-07-14 真机实测
   assert.equal(resolveContextWindow('claude-opus-4-8'), 1_000_000)
   assert.equal(resolveContextWindow('claude-haiku-4-5'), 200_000)
   assert.equal(resolveContextWindow('mystery-model-9000'), 128_000)
@@ -120,4 +120,13 @@ test('buildCompactionPreamble:清单与用户原话逐字在场', () => {
   assert.ok(text.includes('1. 问 A'))
   assert.ok(text.includes('2. 问 B'))
   assert.ok(text.includes('不是摘要'))
+})
+
+test('水位把图片计为固定 token 当量(每张 2400 字符)', () => {
+  seq = 0
+  const events = [
+    ev('user', { content: '看图', images: [{ base64: 'x', mediaType: 'image/png' }, { base64: 'y', mediaType: 'image/png' }] }),
+  ]
+  const wm = estimateWatermark(events, 0)
+  assert.equal(wm.estimatedTotal, Math.ceil((2 + 2 * 2400) / 2))
 })
