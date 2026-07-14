@@ -237,7 +237,7 @@ export class AgentClient {
         // demo:连接/重连建立后,若浏览器存过自己的 key,自动注入本连接(后端不落盘)
         if (message.demo) {
           try {
-            const raw = localStorage.getItem('lumen:demoModel')
+            const raw = sessionStorage.getItem('lumen:demoModel') // 本次会话内持有,关标签页即清
             if (raw) this.setModel(JSON.parse(raw) as ConnModelConfig)
           } catch { /* localStorage 不可用或损坏,忽略 */ }
         }
