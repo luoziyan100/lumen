@@ -14,3 +14,7 @@ tmp/
 # 内部过程文档,不入公开仓
 briefs/
 .claude/
+doc/CLAUDE.md
+doc/repo-diagnosis-*.md
+doc/ui-design.md
+doc/ui-frontend-plan.md
