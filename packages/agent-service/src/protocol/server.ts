@@ -26,17 +26,18 @@ export interface SettingsApi {
 
 export function startServer(
   runtime: AgentRuntime,
-  options: { port?: number; host?: string; token?: string; settings?: SettingsApi } = {},
+  options: { port?: number; host?: string; token?: string; settings?: SettingsApi; maxUploadBytes?: number } = {},
 ): Promise<ServerHandle> {
   return new Promise((resolve) => {
     // http server 同时承载:WS(对话/事件) + HTTP(/pdf 取 PDF 二进制、/upload 上传 PDF)
     const httpServer = createServer((req, res) => {
-      handleHttp(runtime, options.token, req, res).catch(() => {
+      handleHttp(runtime, options.token, req, res, maxUpload).catch(() => {
         if (!res.headersSent) res.writeHead(500)
         res.end('error')
       })
     })
-    const wss = new WebSocketServer({ server: httpServer })
+    const maxUpload = options.maxUploadBytes ?? 25 * 1024 * 1024
+    const wss = new WebSocketServer({ server: httpServer, maxPayload: 32 * 1024 * 1024 }) // 单帧上限,防超大 WS 消息打爆内存
     wss.on('connection', (ws, req) => {
       if (options.token && !isAuthorized(req, options.token)) {
         ws.close(4401, 'unauthorized')
@@ -71,6 +72,7 @@ async function handleHttp(
   token: string | undefined,
   req: IncomingMessage,
   res: ServerResponse,
+  maxUploadBytes = 25 * 1024 * 1024,
 ): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://localhost')
   setCors(res)
@@ -90,7 +92,12 @@ async function handleHttp(
   // 用户上传 PDF → 存进工作区 papers/ 原件
   if (req.method === 'POST' && url.pathname === '/upload') {
     const chunks: Buffer[] = []
-    for await (const chunk of req) chunks.push(chunk as Buffer)
+    let total = 0
+    for await (const chunk of req) {
+      total += (chunk as Buffer).length
+      if (total > maxUploadBytes) { res.writeHead(413); res.end('upload too large'); req.destroy(); return } // 公网防塞爆磁盘/内存
+      chunks.push(chunk as Buffer)
+    }
     const saved = await runtime.saveUpload(project, url.searchParams.get('name') ?? 'upload.pdf', new Uint8Array(Buffer.concat(chunks)), url.searchParams.get('task') ?? undefined)
     res.writeHead(200, { 'content-type': 'application/json' })
     res.end(JSON.stringify({ path: saved }))

@@ -35,6 +35,8 @@ export interface ServiceConfig {
   libraryRoot?: string
   modelPort?: ModelPort // 测试可直接注入
   token?: string // 不填则每次启动生成随机 token；客户端从 portfile 读
+  demo?: boolean // demo 模式(或 LUMEN_DEMO=1):公网多访客,剔除 run_code(云上无沙箱=RCE)
+  maxUploadBytes?: number // /upload 单次上限;默认 25MB
 }
 
 export interface Service {
@@ -91,7 +93,9 @@ export function createService(config: ServiceConfig = {}): Service {
     webSearch: tavilyKey ? createTavilyWebSearch({ apiKey: tavilyKey }) : undefined,
   })
   // run_code:owner 拍板 2026-07-05 进默认工具集(L1 进程纪律 + macOS Seatbelt,见 tools/env/sandbox.ts)
-  const mainTools = [...ENV_TOOLS, runCodeTool, ...research].map((t) => withGuard(t))
+  // demo 模式:剔除 run_code —— 云端 Linux 无 macOS Seatbelt,公网开放=远程任意代码执行(2026-07-15 审计 must-fix)
+  const demo = config.demo ?? process.env.LUMEN_DEMO === '1'
+  const mainTools = (demo ? [...ENV_TOOLS, ...research] : [...ENV_TOOLS, runCodeTool, ...research]).map((t) => withGuard(t))
   const roles = buildRoles(mainTools)
 
   const runtime = new AgentRuntime({
@@ -132,6 +136,7 @@ export function createService(config: ServiceConfig = {}): Service {
         port: config.port,
         host: config.host ?? process.env.LUMEN_HOST,
         token,
+        maxUploadBytes: config.maxUploadBytes ?? (process.env.LUMEN_MAX_UPLOAD ? Number(process.env.LUMEN_MAX_UPLOAD) : undefined),
         settings: { get: () => settings.toPublic(), update: applySettings },
       })
       const portfile = path.join(home, 'agent-service.json')

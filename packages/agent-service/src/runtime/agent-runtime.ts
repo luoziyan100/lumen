@@ -72,6 +72,17 @@ export function defaultSystemPrompt(info: RuntimeContextInfo): string {
   return `${LUMEN_PERSONA}\n\n# 此刻\n今天是 ${info.currentDate}。本地论文库有 ${info.localPaperCount} 篇。`
 }
 
+/**
+ * 工作区标识消毒:projectId/taskId 是客户端可控字符串,直接拼路径会被 ../ 穿越到工作区外
+ * (2026-07-15 公网 demo 审计 must-fix)。只留字母/数字/_/-,截断 64;空则回退 'default'。
+ * 合法标识('default'、'task-<uuid>')全是许可字符 → 逐字不变,本地行为零影响。
+ */
+export function sanitizeWorkspaceId(id: string): string {
+  const clean = (id ?? '').replace(/[^\w-]/g, '_').slice(0, 64)
+  return clean || 'default'
+}
+
+
 export class AgentRuntime {
   private readonly cfg: AgentRuntimeConfig
   private readonly listeners = new Map<string, Set<Listener>>()
@@ -262,7 +273,7 @@ export class AgentRuntime {
 
   /** 项目级记忆目录(跨会话):workspaces/<project>/memory */
   private memoryDir(projectId: string): string {
-    return this.cfg.workspacesDir + '/' + projectId + '/memory'
+    return this.cfg.workspacesDir + '/' + sanitizeWorkspaceId(projectId) + '/memory'
   }
 
   /** [暂未启用,保留待改造] 原本列工作区文件清单注入 systemPrompt;现"房间地图"已进 persona L3。
@@ -307,9 +318,11 @@ export class AgentRuntime {
 
   /** 工作区定根:带 taskId = 会话独立目录(owner 拍板 2026-07-05);不带 = 项目根(兼容旧语义/旧数据) */
   private makeWorkspace(projectId: string, taskId?: string): FsWorkspace {
-    const root = taskId
-      ? `${this.cfg.workspacesDir}/${projectId}/sessions/${taskId}`
-      : `${this.cfg.workspacesDir}/${projectId}`
+    const pid = sanitizeWorkspaceId(projectId)
+    const tid = taskId ? sanitizeWorkspaceId(taskId) : undefined
+    const root = tid
+      ? `${this.cfg.workspacesDir}/${pid}/sessions/${tid}`
+      : `${this.cfg.workspacesDir}/${pid}`
     return new FsWorkspace({ root, libraryRoot: this.cfg.libraryRoot })
   }
 
