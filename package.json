@@ -7,6 +7,7 @@
     "packages/ui-client"
   ],
   "scripts": {
-    "test": "npm test --workspace @lumen/agent-service"
+    "test": "npm test --workspace @lumen/agent-service",
+    "dev": "npm run dev --workspace @lumen/agent-service & npm run dev --workspace @lumen/ui-client & wait"
   }
 }

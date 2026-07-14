@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --experimental-strip-types --test tests/*/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/*/*.test.ts",
+    "dev": "LUMEN_PORT=8787 node --experimental-strip-types src/service.ts"
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0",

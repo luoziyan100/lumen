@@ -8,7 +8,7 @@ import { createService } from '../../src/service.ts'
 import type { ServerMessage } from '../../src/protocol/messages.ts'
 import { ScriptedModel, assistantReply } from '../helpers/scripted-model.ts'
 
-const DEFAULTS = { provider: 'openai' as const, baseUrl: 'https://xueding.example', apiKey: 'sk-env-key-1234567890', model: 'glm-5' }
+const DEFAULTS = { provider: 'openai' as const, baseUrl: 'https://relay.example', apiKey: 'sk-env-key-1234567890', model: 'glm-5' }
 
 async function tmp(t: TestContext): Promise<string> {
   const base = await mkdtemp(path.join(tmpdir(), 'lumen-set-'))

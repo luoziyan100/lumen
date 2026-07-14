@@ -1,36 +1,60 @@
+<div align="center">
+
+<img src="doc/hero.png" alt="Lumen" width="820">
+
 # Lumen
 
-独立研究者的论文研究工具，clean-room 重建。架构：**无头 Node agent 服务 + Tauri 薄客户端**。
-设计宪法见 [`doc/agent-core-architecture.md`](doc/agent-core-architecture.md)。
-工程地图与分形文档规范见 [`CLAUDE.md`](CLAUDE.md)（根 → 包 → 目录 → 文件头，四层）。
+**独立研究者的 AI 研究工作台** — 喂给它论文,它读完把报告写进你的工作区。
 
-旧实现在同级 `../old_lumen`，作参考与资产来源，不是代码基线。
+_A local-first AI research companion: feed it papers, get structured reports in a real workspace._
 
-## 结构
+</div>
+
+## 它做什么
+
+- **研读文献**:上传 PDF,Lumen 提取、精读,在对话里和你讨论
+- **产出报告**:解读、综述这类交付物直接写成工作区里的真实文件,不是埋在聊天记录里
+- **三栏工作台**:会话列表 / 对话 / 工作区+阅读器,读与写互不打架
+- **模型可插拔**:DeepSeek、Claude 或任意 OpenAI 兼容端点,界面里即可切换
+- **本地优先**:数据(SQLite)和所有文件都在你自己的电脑上
+
+## 快速开始(需 Node ≥ 22.6)
+
+```bash
+git clone https://github.com/luoziyan100/lumen.git
+cd lumen
+npm install
+npm run dev        # 后端服务 + Web 界面一起启动
+```
+
+浏览器打开 **http://localhost:5173**,点左下角「设置」填入你的模型 API Key(支持 DeepSeek / Anthropic / OpenAI 兼容中转),开始研究。
+
+> 也可以把 `packages/agent-service/.env.example` 复制为 `.env`,用环境变量配置。
+
+## macOS 桌面版
+
+Tauri 原生壳已可本地构建:`npm run tauri:build --workspace @lumen/ui-client`。
+**可直接下载的自包含 .app(内置运行时 + 签名公证)在路上**,见路线图。
+
+## 架构
 
 ```
 packages/
-  agent-service/   # 无头 agent 大脑：内核 + 工具 + 存储 + WS 服务（Node）
-  ui-client/       # Tauri 薄客户端（UI，连 WS）—— Web 客户端可跑，原生外壳待落地
-doc/
-  agent-core-architecture.md   # 架构宪法
-  ui-design.md                 # UI 宪法（设计系统 = 青瓷 v2）
-briefs/            # 自包含工作说明（active/archive）
+  agent-service/   # 无头 agent 服务:内核循环 + 研究工具 + SQLite 存储 + WebSocket(Node)
+  ui-client/       # 薄客户端:React + Vite;Tauri 原生壳(macOS)
 ```
 
-## 不可破不变式
+内核只有一条铁律:**agent 是一条只增不减的消息线程上的循环,每个工具调用的结果必须回灌同一条线程**——模型永远看得见自己行为的后果。详见[架构文档](doc/agent-core-architecture.md)。
 
-agent = 一条只增不减线程上的循环；**每个 tool_call 的结果必回灌进同一条线程,模型必须看见自己行为的后果**。
-sub-agent = runAgent 的递归调用（同一内核两处复用）。验收禁止用注入假循环的测试绕过真实路径。
+## 路线图
 
-## 连接服务
+- [x] agent 内核 / 工具 / 存储 / WS 协议
+- [x] PDF 研读与报告产物
+- [x] 会话恢复、上传暂存、工作区阅读器
+- [ ] 上下文水位与超窗软着陆
+- [ ] 自包含 macOS .app(内置运行时 + 公证),下载即用
+- [ ] 更多研究工具(文献检索、引文管理)
 
-agent-service 启动后把 `{port, token, pid}` 写进 `~/.lumen/agent-service.json`（权限 0600）。
-**所有 WS 连接必须带 `?token=`**（浏览器对 `ws://127.0.0.1` 没有跨源限制，token 是唯一的门）。
-`scripts/ask.ts` 与 `LumenClient` 会自动从 portfile 读；浏览器 dev 用页面 URL `?token=` 传入。
+## License
 
-## 跑测试
-
-```bash
-cd packages/agent-service && npm install && npm test
-```
+[MIT](LICENSE)
