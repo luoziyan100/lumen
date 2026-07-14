@@ -45,7 +45,7 @@ function AppInner() {
     return () => { live = false; client.close() }
   }, [client])
 
-  const { items, running, send, stop, newConversation, selectConversation, taskId } = useAgent(client, PROJECT, connected)
+  const { items, running, send, stop, newConversation, selectConversation, taskId, ctxUsage } = useAgent(client, PROJECT, connected)
   const ws = useWorkspace(client, PROJECT, taskId, connected)
   // 工作目录:默认收起;当前会话有产物(上传文件/模型写出报告)才自动展开——纯问答保持收起(owner 定 2026-07-10)
   const [drawer, setDrawer] = useState(false)
@@ -289,6 +289,9 @@ function AppInner() {
           <div className={`messages ${isEmpty ? 'messages-empty' : ''}`}>
             {isEmpty && <EmptyState />}
             {items.map((it) => {
+              if (it.kind === 'compaction') {
+                return <div key={it.id} className="ctx-divider"><span>已整理更早的上下文 · 细节在工作区与历史记录</span></div>
+              }
               if (it.kind !== 'msg') return <ProcessRow key={it.id} block={it} />
               if (it.role === 'assistant') {
                 if (!finalAssistantIds.has(it.id)) {
@@ -372,6 +375,9 @@ function AppInner() {
             </div>
             <div className="composer-div" />
             <div className="composer-foot">
+              {typeof ctxUsage === 'number' && ctxUsage >= 0.6 && (
+                <span className={ctxUsage >= 0.85 ? 'ctx-meter ctx-meter-high' : 'ctx-meter'} title="当前会话的上下文占用">上下文 {Math.round(ctxUsage * 100)}%</span>
+              )}
               <span className="composer-spacer" />
               <button type="button" className="composer-model" onClick={() => setSettingsOpen(true)} title="模型设置">
                 <span className="composer-model-dot" />{modelLabel || '选择模型'}

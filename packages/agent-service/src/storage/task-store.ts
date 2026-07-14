@@ -29,6 +29,8 @@ export type TaskEventKind =
   | 'reply'
   | 'error'
   | 'budget_extension'
+  | 'compaction'
+  | 'context_usage'
 
 export interface TaskEvent {
   id: string

@@ -14,6 +14,7 @@
 import { Thread } from '../core/thread.ts'
 import type { ImageData, Message, ToolCall } from '../core/types.ts'
 import type { TaskEvent } from './task-store.ts'
+import { buildCompactionPreamble, type CompactionPayload } from './context-budget.ts'
 
 export interface RebuildOptions {
   systemPrompt: string
@@ -57,9 +58,25 @@ export function rebuildThread(events: TaskEvent[], options: RebuildOptions): Thr
   const messages: Message[] = [{ role: 'system', content: options.systemPrompt }]
 
   const ordered = [...events].sort((a, b) => a.seq - b.seq)
+
+  // 确定性压缩检查点(方案 B):有 compaction 事件时,更早的事件换成自包含检查点消息,
+  // 其后事件照常重放。事件库只增不减 —— 压缩只发生在"给模型的视图"这一层。
+  let replayFromSeq = -1
+  for (let i = ordered.length - 1; i >= 0; i--) {
+    const e = ordered[i]
+    if (e.kind !== 'compaction' || !isMainEvent(e)) continue
+    try {
+      const p = JSON.parse(e.payload_json) as CompactionPayload
+      messages.push({ role: 'user', content: buildCompactionPreamble(p) })
+      replayFromSeq = p.cutFromSeq
+    } catch { /* 损坏的压缩事件视同不存在 */ }
+    break
+  }
+
   let sawUser = false
   for (const event of ordered) {
     if (!isMainEvent(event)) continue
+    if (replayFromSeq >= 0 && event.seq < replayFromSeq) continue
     let payload: Record<string, unknown>
     try {
       payload = JSON.parse(event.payload_json) as Record<string, unknown>

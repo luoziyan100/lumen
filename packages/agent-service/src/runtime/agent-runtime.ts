@@ -13,6 +13,7 @@ import type { Limits } from '../core/limits.ts'
 import { TaskStore, type Task, type TaskEvent } from '../storage/task-store.ts'
 import { appendSessionEntry, type SessionEntry } from '../storage/session-file.ts'
 import { rebuildThread } from '../storage/resume.ts'
+import { DEFAULT_COMPACTION, estimateWatermark, isContextOverflowError, planCompaction, withResultPersist, type CompactionPayload } from '../storage/context-budget.ts'
 import { mergeBudget, type TaskBudget } from '../storage/budget.ts'
 import { FsWorkspace } from '../workspace/fs-workspace.ts'
 import { readdirSync } from 'node:fs'
@@ -37,6 +38,14 @@ export interface AgentRuntimeConfig {
   contextInfo?: () => RuntimeContextInfo
   /** 上下文折叠；不传用 DEFAULT_CONTEXT_FOLD。显式传 {} 可关闭（测试用） */
   contextFold?: ForModelOptions
+  /** 上下文预算(方案 B,owner 拍板 2026-07-14):不传或无 window = 整套水位/压缩/落盘不启用,行为与旧版一致 */
+  contextBudget?: {
+    window?: () => number
+    triggerRatio?: number
+    keepRecentTokens?: number
+    userVerbatimTokens?: number
+    persistToolResultChars?: number
+  }
 }
 
 /** 长任务不撑爆上下文的泄压阀：老 tool_result 超 8000 字符折叠，最近 6 条豁免 */
@@ -98,7 +107,8 @@ export class AgentRuntime {
     if (!task) return false
     if (this.running.has(taskId)) return true
     const events = this.cfg.store.listEvents(taskId)
-    const thread = rebuildThread(events, {
+    const compacted = this.maybeCompact(task, events) // 回合前水位检查(方案 B)
+    const thread = rebuildThread(compacted ?? events, {
       systemPrompt: this.systemPrompt(task.project_id),
       userText: task.goal,
     })
@@ -118,7 +128,8 @@ export class AgentRuntime {
       type: 'user', task_id: taskId, timestamp: new Date().toISOString(), content: userText,
     })
     const events = this.cfg.store.listEvents(taskId)
-    const thread = rebuildThread(events, { systemPrompt: this.systemPrompt(task.project_id), userText: task.goal })
+    const compacted = this.maybeCompact(task, events) // 回合前水位检查(方案 B)
+    const thread = rebuildThread(compacted ?? events, { systemPrompt: this.systemPrompt(task.project_id), userText: task.goal })
     const controller = new AbortController()
     const promise = this.execute(task, thread, controller.signal)
     this.running.set(taskId, { controller, promise })
@@ -325,15 +336,34 @@ export class AgentRuntime {
       workspace,
       deps: { model: this.cfg.model },
     }
-    const tools = this.cfg.roles && Object.keys(this.cfg.roles).length ? [...this.cfg.mainTools, spawnTool] : this.cfg.mainTools
+    const baseTools = this.cfg.roles && Object.keys(this.cfg.roles).length ? [...this.cfg.mainTools, spawnTool] : this.cfg.mainTools
+    // 大结果落盘(方案 B):启用预算时,超限工具输出全文进会话 cache/tool-results/,上下文只留预览+路径
+    const tools = this.cfg.contextBudget?.window
+      ? baseTools.map((t) => withResultPersist(t, workspace, this.cfg.contextBudget?.persistToolResultChars))
+      : baseTools
 
     try {
       this.cfg.store.updateTaskStatus(task.id, 'running')
       this.notifyStatus(task.id)
-      const result = await runAgent({
+      let result = await runAgent({
         thread, model: this.cfg.model, tools, limits, ctx, signal,
         forModelOptions: this.cfg.contextFold ?? DEFAULT_CONTEXT_FOLD,
       })
+      // 软着陆(方案 B):超窗错误 → 确定性压缩后原地重试一次。已完成的 tool_result 都在事件流里,进度不丢
+      if (result.status === 'error' && this.cfg.contextBudget?.window && isContextOverflowError(result.reply)) {
+        const events = this.cfg.store.listEvents(task.id)
+        const compacted = this.appendCompaction(task, events, estimateWatermark(events).estimatedTotal)
+        if (compacted) {
+          const rebuilt = rebuildThread(compacted, { systemPrompt: this.systemPrompt(task.project_id), userText: task.goal })
+          result = await runAgent({
+            thread: rebuilt, model: this.cfg.model, tools, limits, ctx, signal,
+            forModelOptions: this.cfg.contextFold ?? DEFAULT_CONTEXT_FOLD,
+          })
+        }
+        if (result.status === 'error' && isContextOverflowError(result.reply)) {
+          result = { ...result, reply: '会话上下文已满:自动整理后仍超出模型窗口。请开新对话继续(工作区文件都在),或在设置中换更大窗口的模型。' }
+        }
+      }
       // exhausted ≠ done：预算耗尽是"可续跑的中断"，不能伪装成完成（reply 是空的）
       const status = result.status === 'done' ? 'done'
         : result.status === 'aborted' ? 'canceled'
@@ -343,6 +373,7 @@ export class AgentRuntime {
         : result.status === 'exhausted' ? '预算耗尽（步数或墙钟）；resume 可续跑' : null
       this.cfg.store.updateTaskStatus(task.id, status, lastError)
       this.notifyStatus(task.id)
+      this.emitContextUsage(task.id) // 水位事件(方案 B):UI 仪表用
       this.endSession(task.id, status, Date.now() - startedAt)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
@@ -353,6 +384,71 @@ export class AgentRuntime {
     } finally {
       this.running.delete(task.id)
     }
+  }
+
+  /** 回合前水位检查:超阈值 → 追加确定性压缩事件并返回最新事件列表;否则 null(沿用原 events) */
+  private maybeCompact(task: Task, events: TaskEvent[]): TaskEvent[] | null {
+    const window = this.cfg.contextBudget?.window?.() ?? 0
+    if (!window) return null
+    const ratio = this.cfg.contextBudget?.triggerRatio ?? 0.85
+    const wm = estimateWatermark(events, this.systemPrompt(task.project_id).length)
+    if (wm.estimatedTotal < window * ratio) return null
+    return this.appendCompaction(task, events, wm.estimatedTotal)
+  }
+
+  /** 落一条 compaction 事件(切点+清单+用户原话,全部确定性生成、零模型参与) */
+  private appendCompaction(task: Task, events: TaskEvent[], estTokensBefore: number): TaskEvent[] | null {
+    const plan = planCompaction(events, {
+      keepRecentTokens: this.cfg.contextBudget?.keepRecentTokens ?? DEFAULT_COMPACTION.keepRecentTokens,
+      userVerbatimTokens: this.cfg.contextBudget?.userVerbatimTokens ?? DEFAULT_COMPACTION.userVerbatimTokens,
+    })
+    if (!plan) return null
+    const payload: CompactionPayload = {
+      cutFromSeq: plan.cutFromSeq,
+      manifest: this.workspaceManifest(task.project_id, task.id),
+      verbatimUsers: plan.verbatimUsers,
+      archivedEvents: plan.archivedEvents,
+      estTokensBefore,
+    }
+    const stored = this.cfg.store.appendEvent(task.id, 'compaction', payload, 'main')
+    this.notify(task.id, stored)
+    return this.cfg.store.listEvents(task.id)
+  }
+
+  /** 工作区清单(代码生成):会话目录 + 项目根的文件相对路径,上限 60 行 */
+  private workspaceManifest(projectId: string, taskId: string): string {
+    const lines: string[] = []
+    const scan = (root: string, prefix: string): void => {
+      if (lines.length >= 60) return
+      try {
+        for (const f of readdirSync(root, { withFileTypes: true })) {
+          if (lines.length >= 60) return
+          if (f.name.startsWith('.')) continue
+          if (f.isDirectory()) {
+            if (!['cache', 'sessions', 'node_modules'].includes(f.name)) scan(root + '/' + f.name, prefix + f.name + '/')
+          } else {
+            lines.push('- ' + prefix + f.name)
+          }
+        }
+      } catch { /* 目录不存在,跳过 */ }
+    }
+    scan(this.cfg.workspacesDir + '/' + projectId + '/sessions/' + taskId, '')
+    scan(this.cfg.workspacesDir + '/' + projectId, '')
+    return lines.join('\n')
+  }
+
+  /** 每回合结束落一条水位事件(真实 promptTokens 锚点 + 估算/窗口/比例) */
+  private emitContextUsage(taskId: string): void {
+    const window = this.cfg.contextBudget?.window?.()
+    if (!window) return
+    const wm = estimateWatermark(this.cfg.store.listEvents(taskId))
+    const stored = this.cfg.store.appendEvent(taskId, 'context_usage', {
+      promptTokens: wm.promptTokens,
+      estimatedTotal: wm.estimatedTotal,
+      window,
+      ratio: Math.min(1, wm.estimatedTotal / window),
+    }, 'main')
+    this.notify(taskId, stored)
   }
 
   private notifyStatus(taskId: string): void {

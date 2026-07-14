@@ -22,6 +22,7 @@ import { createClaudeAdapter, createFetchTransport } from './adapters/claude.ts'
 import { createOpenAIAdapter, createOpenAIFetchTransport } from './adapters/openai.ts'
 import type { ModelPort } from './core/model-port.ts'
 import { withGuard } from './core/guard.ts'
+import { resolveContextWindow } from './storage/context-budget.ts'
 
 export interface ServiceConfig {
   home?: string
@@ -106,6 +107,13 @@ export function createService(config: ServiceConfig = {}): Service {
       const base = defaultSystemPrompt(info)
       const extra = settings.effective().userInstructions.trim()
       return extra ? `${base}\n\n# 用户自定义指令\n${extra}` : base
+    },
+    // 方案 B 上下文预算:窗口随激活 profile 热切换;profile.contextWindow 可覆盖模型名推断
+    contextBudget: {
+      window: () => {
+        const eff = settings.effective()
+        return resolveContextWindow(eff.model, eff.contextWindow)
+      },
     },
   })
 

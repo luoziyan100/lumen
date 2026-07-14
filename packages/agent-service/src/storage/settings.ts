@@ -20,6 +20,8 @@ export interface ModelProfile {
   baseUrl?: string
   apiKey?: string
   model: string
+  /** 上下文窗口(token);缺省按模型名保守推断(见 context-budget.ts) */
+  contextWindow?: number
 }
 
 interface SettingsData {
@@ -42,6 +44,7 @@ export interface PublicModelProfile {
   provider: Provider
   baseUrl: string
   model: string
+  contextWindow?: number
   hasApiKey: boolean
   apiKeyMasked: string // 掩码或「继承 .env」,永不含明文
 }
@@ -59,6 +62,7 @@ export interface ProfileUpsert {
   baseUrl?: string
   apiKey?: string // 非空才替换
   model?: string
+  contextWindow?: number // >0 设置;0 或负数清除(回到按模型名推断)
 }
 
 export interface SettingsPatch {
@@ -145,14 +149,14 @@ export class SettingsStore {
   }
 
   /** 生效配置(启用的 profile) */
-  effective(): { provider: Provider; baseUrl?: string; apiKey?: string; model: string; userInstructions: string; profileName: string } {
+  effective(): { provider: Provider; baseUrl?: string; apiKey?: string; model: string; contextWindow?: number; userInstructions: string; profileName: string } {
     const p = this.active()
     const userInstructions = this.data.userInstructions ?? ''
     if (!p) {
       return { provider: this.defaults.provider, baseUrl: this.defaults.baseUrl, apiKey: this.defaults.apiKey, model: this.defaults.model, userInstructions, profileName: '默认' }
     }
     const r = this.resolved(p)
-    return { provider: p.provider, baseUrl: r.baseUrl, apiKey: r.apiKey, model: p.model || this.defaults.model, userInstructions, profileName: p.name }
+    return { provider: p.provider, baseUrl: r.baseUrl, apiKey: r.apiKey, model: p.model || this.defaults.model, contextWindow: p.contextWindow, userInstructions, profileName: p.name }
   }
 
   toPublic(): PublicSettings {
@@ -165,6 +169,7 @@ export class SettingsStore {
           provider: p.provider,
           baseUrl: p.baseUrl ?? (p.id === DEFAULT_PROFILE_ID ? this.defaults.baseUrl ?? '' : ''),
           model: p.model,
+          ...(p.contextWindow ? { contextWindow: p.contextWindow } : {}),
           hasApiKey: Boolean(r.apiKey),
           apiKeyMasked: p.apiKey ? mask(p.apiKey) : (r.apiKey ? '继承 .env' : ''),
         }
@@ -186,6 +191,7 @@ export class SettingsStore {
         if (typeof u.baseUrl === 'string') existing.baseUrl = u.baseUrl.trim() || undefined
         if (typeof u.model === 'string' && u.model.trim()) existing.model = u.model.trim()
         if (typeof u.apiKey === 'string' && u.apiKey.trim()) existing.apiKey = u.apiKey.trim()
+        if (typeof u.contextWindow === 'number') existing.contextWindow = u.contextWindow > 0 ? u.contextWindow : undefined
       } else {
         const profile: ModelProfile = {
           id: u.id ?? `mp-${randomUUID().slice(0, 8)}`,
@@ -194,6 +200,7 @@ export class SettingsStore {
           baseUrl: u.baseUrl?.trim() || undefined,
           apiKey: u.apiKey?.trim() || undefined,
           model: u.model?.trim() || this.defaults.model,
+          contextWindow: typeof u.contextWindow === 'number' && u.contextWindow > 0 ? u.contextWindow : undefined,
         }
         this.data.profiles.push(profile)
         if (!this.data.activeProfileId) this.data.activeProfileId = profile.id

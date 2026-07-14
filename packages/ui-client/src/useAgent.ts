@@ -12,7 +12,8 @@ import type { AgentClient, ImageData, TaskEvent } from './agent-client'
 export interface ChatMsg { kind: 'msg'; id: string; role: 'user' | 'assistant' | 'error'; content: string; images?: ImageData[] }
 export interface ProcStep { id: string; name: string; done: boolean; label: string }
 export interface ProcessItem { kind: 'process'; id: string; steps: ProcStep[]; running: boolean }
-export type ChatItem = ChatMsg | ProcessItem
+export interface CompactionMark { kind: 'compaction'; id: string }
+export type ChatItem = ChatMsg | ProcessItem | CompactionMark
 
 const VERB: Record<string, string> = {
   search_papers: '检索文献', openalex_search: '检索文献', web_search: '网页搜索',
@@ -30,6 +31,7 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
   const [items, setItems] = useState<ChatItem[]>([])
   const [running, setRunning] = useState(false)
   const [taskId, setTaskId] = useState<string | null>(null) // 给 UI 高亮当前会话
+  const [ctxUsage, setCtxUsage] = useState<number | null>(null) // 上下文水位 0-1(context_usage 事件)
   const taskIdRef = useRef<string | null>(null)
   const seenEventIds = useRef<Set<string>>(new Set()) // 已归约过的事件 id:回放与实时交错时保证幂等
   const taskKey = `lumen:taskId:${projectId}`
@@ -37,6 +39,7 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
   function switchTo(id: string | null): void {
     taskIdRef.current = id
     seenEventIds.current = new Set()
+    setCtxUsage(null)
     setTaskId(id)
     if (id) localStorage.setItem(taskKey, id)
     else localStorage.removeItem(taskKey)
@@ -49,6 +52,10 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
       if (seenEventIds.current.has(event.id)) return // 重复送达(如运行中再次 attach 的回放)只算一次
       seenEventIds.current.add(event.id)
       setItems((prev) => reduce(prev, event, safeParse(event.payload_json)))
+      if (event.kind === 'context_usage') {
+        const r = safeParse(event.payload_json).ratio
+        if (typeof r === 'number') setCtxUsage(r)
+      }
       if (event.kind === 'reply' || event.kind === 'error') setRunning(false)
     })
     const offClose = client.onClose((code) => {
@@ -92,7 +99,7 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
     setRunning(false)
   }
 
-  return { items, running, send, stop, newConversation, selectConversation, taskId }
+  return { items, running, send, stop, newConversation, selectConversation, taskId, ctxUsage }
 }
 
 /** 纯函数归约:同一个 event 进来,prev → next。 */
@@ -138,6 +145,9 @@ function reduce(prev: ChatItem[], event: TaskEvent, p: Record<string, unknown>):
         ? [...prev.slice(0, -1), { ...last, running: false }]
         : prev
     }
+    case 'compaction':
+      // 确定性压缩标记(方案 B):旧细节归档,给一条弱分隔线
+      return [...prev, { kind: 'compaction', id: event.id }]
     case 'error':
       return [...prev, { kind: 'msg', id: event.id, role: 'error', content: String(p.error ?? '出错了') }]
     default:
