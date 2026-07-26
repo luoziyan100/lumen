@@ -18,23 +18,48 @@ _A local-first AI research companion: feed it papers, get structured reports in 
 - **模型可插拔**:DeepSeek、Claude 或任意 OpenAI 兼容端点,界面里即可切换
 - **本地优先**:数据(SQLite)和所有文件都在你自己的电脑上
 
-## 快速开始(需 Node ≥ 22.6)
+## 快速开始
+
+当前以 **Web 开发模式** 运行:需要本机先装好 Node,再 clone 启动。自包含 DMG(下载即用)仍在路上。
+
+### 1. 准备 Node 环境
+
+需要 **Node.js ≥ 22.6**(自带 npm)。终端执行 `node -v` 确认版本。
+
+macOS 推荐用官方安装包或包管理器任选其一:
+
+```bash
+# 方式 A: Homebrew
+brew install node@22
+
+# 方式 B: nvm(便于多版本共存)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+# 重开终端后:
+nvm install 22
+nvm use 22
+```
+
+Windows / Linux 可从 [nodejs.org](https://nodejs.org/) 安装 LTS(选 22.x 及以上)。
+
+### 2. 安装并启动
 
 ```bash
 git clone https://github.com/luoziyan100/lumen.git
 cd lumen
 npm install
-npm run dev        # 后端服务 + Web 界面一起启动
+npm run dev        # 同时启动 agent-service + Web 界面
 ```
 
-浏览器打开 **http://localhost:5173**,点左下角「设置」填入你的模型 API Key(支持 DeepSeek / Anthropic / OpenAI 兼容中转),开始研究。
+### 3. 打开并配置模型
 
-> 也可以把 `packages/agent-service/.env.example` 复制为 `.env`,用环境变量配置。
+浏览器打开 **http://localhost:5180**,点左下角「设置」,填入你的模型 API Key(支持 DeepSeek / Anthropic / OpenAI 兼容中转),即可开始研究。
+
+> 也可以把 `packages/agent-service/.env.example` 复制为 `.env`,用环境变量预填 Key / 端口等。
 
 ## macOS 桌面版
 
-Tauri 原生壳已可本地构建:`npm run tauri:build --workspace @lumen/ui-client`。
-**可直接下载的自包含 .app(内置运行时 + 签名公证)在路上**,见路线图。
+Tauri 原生壳已可本地构建:`npm run tauri:build --workspace @lumen/ui-client`(仍需本机 Node 与仓库路径,不是给陌生人用的安装包)。
+**可直接下载的自包含 .app / .dmg(内置运行时 + 签名公证)在路上**,见路线图。
 
 ## 架构
 
