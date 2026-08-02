@@ -11,7 +11,7 @@
 - `parseShowWidget.ts` — 围栏分段解析与 partial JSON 提取
 - `height.ts` — `nextWidgetHeight`:流式 ratchet、终态可收缩
 - `WidgetFrame.tsx` — 单 iframe 生命周期、debounce update、finalize;宿主栏宽变化 ping 重测
-- `AssistantContent.tsx` — 文本 Markdown + widget 交错;气泡入口
+- `AssistantContent.tsx` — 文本 Markdown(含 mermaid)+ widget 交错;气泡入口
 
 测试:`tests/widget-parse.test.ts`(解析 + sanitize)。
 

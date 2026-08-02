@@ -8,7 +8,8 @@
 ## 成员
 
 - `agent-runtime.ts` — 任务生命周期:submit/continue/cancel;listProjects/createProject;listAssets(shared+session);
-  makeWorkspace 挂载 sharedRoot;事件写 task_events 并推订阅者;resume 只回放 main 线程
+  makeWorkspace 挂载 sharedRoot;事件写 task_events 并推订阅者;resume 只回放 main 线程;
+  可选 imageBridge:DeepSeek 等 chat 前去图插桩,look_at_image 读同一 ImageStore
 
 ## 规则
 

@@ -363,9 +363,9 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 
 /* ---- Chat ---- */
 .chat { position: relative; flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.chat-with-reader { flex: 1 1 0; min-width: 300px; border-right: 1px solid var(--sand); }
-/* 中间栏与两侧的弱分隔线:偏透明、不抢眼,只给区域一个界(owner 定 2026-07-10) */
-.chat:not(.chat-empty) { border-left: 1px solid var(--sand); border-right: 1px solid var(--sand); }
+.chat-with-reader { flex: 1 1 0; min-width: 300px; }
+/* 中间栏不再画左右分隔线——左右已是浮卡自带描边;再画 = 双线(owner 2026-08-02)。
+   调宽靠 sb-resize / rail-resize 命中区,仅悬停/拖动时浮现青瓷提示线。 */
 /* 空态(封面):问候 + 输入卡整体居中偏上;开始对话后输入卡落回底部 */
 .chat-empty { justify-content: center; padding-bottom: 12vh; }
 .chat-empty .messages { flex: 0 0 auto; overflow: visible; padding: var(--s-6) var(--s-8); }
@@ -717,6 +717,83 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .md-body code { font-family: var(--font-mono); font-size: 0.86em; background: var(--vellum); padding: 0.12em 0.4em; border-radius: var(--radius-sm); }
 .md-body pre { background: var(--paper-deep); border: 1px solid var(--sand); border-radius: var(--radius-md); padding: var(--s-4); overflow-x: auto; margin: 0.9em 0; }
 .md-body pre code { background: none; padding: 0; font-size: var(--t-body-sm); line-height: 1.55; }
+
+/* mermaid 流程图(Markdown ```mermaid;主题色来自 MermaidBlock 读 token) */
+.mermaid-block {
+  position: relative;
+  margin: 0.9em 0; padding: var(--s-4);
+  background: var(--paper-deep); border: 1px solid var(--sand);
+  border-radius: var(--radius-md);
+  /* 横向滚动只在内层:工具条钉在容器可见右上角,不随图一起滚走 */
+  overflow: hidden;
+}
+.mermaid-scroll { overflow-x: auto; }
+.mermaid-toolbar {
+  position: absolute; top: var(--s-2); right: var(--s-2); z-index: 2;
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 3px; border: 1px solid color-mix(in srgb, var(--paper-solid) 22%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 78%, transparent);
+  box-shadow: var(--shadow-1);
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.mermaid-block:hover .mermaid-toolbar,
+.mermaid-block:focus-within .mermaid-toolbar { opacity: 1; pointer-events: auto; }
+.mermaid-tool {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border: none; border-radius: var(--radius-sm);
+  background: none; color: var(--ink-mute); cursor: pointer; padding: 0;
+}
+.mermaid-tool:hover { background: var(--sand); color: var(--ink); }
+.mermaid-tool.is-copied { color: var(--ember); }
+/* 图块右上角悬停条:深色 pill,图标反白 */
+.mermaid-toolbar .mermaid-tool {
+  border-radius: 999px; color: var(--paper-solid);
+}
+.mermaid-toolbar .mermaid-tool:hover {
+  background: color-mix(in srgb, var(--paper-solid) 18%, transparent);
+  color: var(--paper-solid);
+}
+.mermaid-toolbar .mermaid-tool.is-copied { color: var(--ember-tint); }
+.mermaid-svg { display: flex; justify-content: center; }
+.mermaid-svg svg { max-width: 100%; height: auto; }
+.mermaid-pending { color: var(--ink-mute); font-size: var(--t-caption); font-family: var(--font-sans); }
+.mermaid-fallback { display: flex; flex-direction: column; gap: var(--s-2); }
+.mermaid-error { color: var(--danger); font-size: var(--t-caption); font-family: var(--font-sans); }
+.mermaid-source {
+  margin: 0; padding: var(--s-3);
+  background: var(--card); border: 1px solid var(--sand); border-radius: var(--radius-md);
+  overflow-x: auto; font-size: var(--t-body-sm); line-height: 1.55;
+}
+.mermaid-source code { background: none; padding: 0; font-family: var(--font-mono); }
+/* 放大层:可滚动看清密图;Esc / 点遮罩关闭 */
+.mermaid-lightbox {
+  position: fixed; inset: 0; z-index: var(--z-modal);
+  display: flex; flex-direction: column;
+  background: color-mix(in srgb, var(--ink) 45%, transparent);
+  padding: var(--s-4);
+}
+.mermaid-lightbox-bar {
+  flex: none; align-self: center; display: flex; align-items: center; gap: var(--s-2);
+  margin-bottom: var(--s-3); padding: 4px 6px 4px 12px;
+  background: var(--card); border: 1px solid var(--sand); border-radius: 999px;
+  box-shadow: var(--shadow-2);
+}
+.mermaid-lightbox-title {
+  font-size: var(--t-caption); color: var(--ink-mute); font-family: var(--font-sans);
+  margin-right: var(--s-2);
+}
+.mermaid-lightbox-body {
+  flex: 1; min-height: 0; overflow: auto;
+  background: var(--paper-solid); border: 1px solid var(--sand);
+  border-radius: var(--radius-lg); padding: var(--s-6);
+  box-shadow: var(--shadow-3);
+}
+.mermaid-lightbox-body svg {
+  display: block; margin: 0 auto;
+  max-width: none; width: max(100%, 960px); height: auto;
+}
 .md-body blockquote { margin: 0.9em 0; padding-left: var(--s-4); border-left: 3px solid var(--sand-deep); color: var(--ink-soft); }
 .md-body hr { border: none; border-top: 1px solid var(--sand); margin: 1.4em 0; }
 .md-body table { border-collapse: collapse; margin: 0.9em 0; font-size: var(--t-body-sm); display: block; overflow-x: auto; }

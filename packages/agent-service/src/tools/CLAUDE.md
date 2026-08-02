@@ -11,6 +11,8 @@
 - `run-code.ts` — runCodeTool:在当前会话工作区跑 node/python(cwd 锁工作区/60s 超时/输出上限/命令进事件流)。
 - `sandbox.ts` — Seatbelt profile(macOS):allow-default + 精准 deny(网络全禁/写限工作区/读封敏感目录);
   非 macOS 退化为仅 L1 进程纪律。**改 profile 必跑 tests/workspace/run-code.test.ts 的三条逃逸验收。**
+- `image-store.ts` — 任务级图片侧车 + `[[image:img-N]]` 占位符;`stripImagesForModel` 供 DeepSeek 路径去 image_url
+- `vision-tools.ts` — `look_at_image`(硅基 VL);`withImageSanitize` ModelPort 包装;env:`LUMEN_VISION_*`
 
 ## research/ — L2 研究桥接(把外部世界灌进工作区)
 

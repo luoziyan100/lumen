@@ -20,6 +20,7 @@
     "@tailwindcss/vite": "^4.3.2",
     "@tauri-apps/api": "^2.11.1",
     "katex": "^0.17.0",
+    "mermaid": "^11.16.0",
     "pdfjs-dist": "^4.10.38",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

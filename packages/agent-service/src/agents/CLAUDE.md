@@ -7,7 +7,7 @@
 ## 成员
 
 - `persona.ts` — LUMEN_PERSONA:人格剧本(L0–L3)+ 工具/可视化能力段。人格源自 briefs 工程线
-  (P0→P4);`show-widget` 能力段随 `briefs/active/web-sandbox-widget.md` 落地,非人格表演改写。
+  (P0→P4);可视化合同:结构图→`mermaid`,交互→`show-widget`(非人格表演改写)。
 - `roles.ts` — WORKER_ROLE_SPECS / buildRoles:worker 角色定义与受限工具装配(spawn 用)。
 
 ## 规则

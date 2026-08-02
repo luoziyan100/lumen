@@ -1,7 +1,7 @@
 /**
  * [INPUT]: parseShowWidget / WidgetFrame / Markdown
- * [OUTPUT]: AssistantContent —— 把 reply 拆成文本段 + show-widget 段交错渲染
- * [POS]: widget/ 与对话气泡的接合点;替代气泡内直接 <Markdown>
+ * [OUTPUT]: AssistantContent —— 文本段(Markdown/mermaid) + show-widget 段交错渲染
+ * [POS]: widget/ 与对话气泡的接合点;mermaid 走 Markdown,不经沙箱
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { Markdown } from '../Markdown'

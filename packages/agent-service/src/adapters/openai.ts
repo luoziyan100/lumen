@@ -47,6 +47,11 @@ export interface OpenAIResponseBody {
   usage?: { prompt_tokens?: number; completion_tokens?: number }
 }
 
+/** DeepSeek 系(含 V3/V4):API 不接受 content part 的 image_url */
+export function isDeepSeekModel(model: string): boolean {
+  return /deepseek/i.test(model)
+}
+
 /** DeepSeek V4 系列:思考与正文抢同一份 completion 预算 */
 export function isDeepSeekV4(model: string): boolean {
   return /deepseek-v4/i.test(model)
@@ -132,6 +137,17 @@ export function buildOpenAIRequest(messages: Message[], tools: ToolSpec[], model
       }
     }
     if (message.images?.length) {
+      // DeepSeek 最后防线:绝不发 image_url(正常应由 runtime withImageSanitize 先去图插桩)
+      if (isDeepSeekModel(model)) {
+        const text = message.content.includes('[[image:')
+          ? message.content
+          : [
+              ...message.images.map((_, i) =>
+                `[[image:img-${i + 1}]] 用户输入了一张图片。你看不到像素；请调用工具 look_at_image(image_id="img-${i + 1}") 识图后再回答。`),
+              message.content.trim(),
+            ].filter(Boolean).join('\n\n')
+        return { role: message.role, content: text }
+      }
       // 带图消息:OpenAI 多模态 content parts(data URI)
       const parts: OAContentPart[] = message.images.map((img) => ({
         type: 'image_url',

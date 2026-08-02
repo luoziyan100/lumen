@@ -17,6 +17,12 @@ import { AgentRuntime, defaultSystemPrompt } from './runtime/agent-runtime.ts'
 import { startServer, type ServerHandle } from './protocol/server.ts'
 import { ENV_TOOLS } from './tools/env/fs-tools.ts'
 import { runCodeTool } from './tools/env/run-code.ts'
+import { ImageStore } from './tools/env/image-store.ts'
+import {
+  createLookAtImageTool,
+  shouldStripImagesForModel,
+  visionEnvFromProcess,
+} from './tools/env/vision-tools.ts'
 import { createResearchTools, createUnpdfEngine, createTavilyWebSearch } from './tools/research/index.ts'
 import { buildRoles } from './agents/roles.ts'
 import { createClaudeAdapter, createFetchTransport } from './adapters/claude.ts'
@@ -104,9 +110,15 @@ export function createService(config: ServiceConfig = {}): Service {
     pdfEngine: createUnpdfEngine(),
     webSearch: tavilyKey ? createTavilyWebSearch({ apiKey: tavilyKey }) : undefined,
   })
+  // 识图:侧车 + look_at_image;DeepSeek 主模型 chat 前去图插桩(见 imageBridge)
+  const imageStore = new ImageStore()
+  const visionEnv = visionEnvFromProcess()
+  const lookAtImage = createLookAtImageTool({ store: imageStore, env: visionEnv })
   // run_code:owner 拍板 2026-07-05 进默认工具集(L1 进程纪律 + macOS Seatbelt,见 tools/env/sandbox.ts)
   // demo 模式:剔除 run_code —— 云端 Linux 无 macOS Seatbelt,公网开放=远程任意代码执行(2026-07-15 审计 must-fix)
-  const mainTools = (demo ? [...ENV_TOOLS, ...research] : [...ENV_TOOLS, runCodeTool, ...research]).map((t) => withGuard(t))
+  const mainTools = (
+    demo ? [...ENV_TOOLS, ...research, lookAtImage] : [...ENV_TOOLS, runCodeTool, ...research, lookAtImage]
+  ).map((t) => withGuard(t))
   const roles = buildRoles(mainTools)
 
   const runtime = new AgentRuntime({
@@ -118,6 +130,15 @@ export function createService(config: ServiceConfig = {}): Service {
     libraryRoot: config.libraryRoot,
     mainTools,
     roles,
+    imageBridge: {
+      store: imageStore,
+      // 模型名或 baseUrl 含 deepseek 都去图(防 profile 只改了 endpoint)
+      enabled: () => {
+        const eff = settings.effective()
+        return shouldStripImagesForModel(eff.model)
+          || /deepseek/i.test(eff.baseUrl ?? '')
+      },
+    },
     // 人格(owner 主导,persona.ts)不动;用户自定义指令作为独立小节追加,实时读设置=保存即生效
     buildSystemPrompt: (info) => {
       const base = defaultSystemPrompt(info)

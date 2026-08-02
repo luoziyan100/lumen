@@ -1,7 +1,9 @@
 /**
  * [INPUT]: core（runAgent/Thread/spawn）、storage（TaskStore/session/budget/resume）、workspace（FsWorkspace）
  * [OUTPUT]: AgentRuntime —— 把内核、存储、工作区、worker 角色拼成可执行、可订阅、可恢复的任务运行时
- * [POS]: §4 运行环境。一个任务 = 一次 runAgent；emit 同时落 task_events + session jsonl + 通知订阅者（WS）
+ * [POS]: §4 运行环境。一个任务 = 一次 runAgent；emit 同时落 task_events + session jsonl + 通知订阅者（WS）；
+ *        imageBridge 在 DeepSeek 路径去 image_url 并插 [[image:img-N]] 桩
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { Thread, type ForModelOptions } from '../core/thread.ts'
 import { runAgent } from '../core/loop.ts'
@@ -22,6 +24,8 @@ import { FsWorkspace } from '../workspace/fs-workspace.ts'
 import { readdirSync } from 'node:fs'
 import { LUMEN_PERSONA } from '../agents/persona.ts'
 import { createMemoryTools, readMemoryIndex } from '../tools/env/memory-tools.ts'
+import type { ImageStore } from '../tools/env/image-store.ts'
+import { withImageSanitize } from '../tools/env/vision-tools.ts'
 
 export interface RuntimeContextInfo {
   currentDate: string
@@ -51,6 +55,14 @@ export interface AgentRuntimeConfig {
     keepRecentTokens?: number
     userVerbatimTokens?: number
     persistToolResultChars?: number
+  }
+  /**
+   * 识图桥:DeepSeek 等不吃 image_url 时,chat 前去图并插 [[image:img-N]] 桩;
+   * look_at_image 工具读同一 ImageStore。enabled 热读当前主模型名。
+   */
+  imageBridge?: {
+    store: ImageStore
+    enabled: () => boolean
   }
 }
 
@@ -400,7 +412,11 @@ export class AgentRuntime {
   }
 
   private async execute(task: Task, thread: Thread, signal: AbortSignal, modelOverride?: ModelPort): Promise<void> {
-    const model = modelOverride ?? this.cfg.model // demo:连接携带的 key 构建的 model;本地:全局 model
+    const rawModel = modelOverride ?? this.cfg.model // demo:连接携带的 key 构建的 model;本地:全局 model
+    // DeepSeek 路径:每次 chat 去 image_url,侧车保留像素供 look_at_image
+    const model = this.cfg.imageBridge?.enabled()
+      ? withImageSanitize(rawModel, this.cfg.imageBridge.store, task.id)
+      : rawModel
     const startedAt = Date.now()
     const emit = this.makeEmit(task.id)
     const budget = mergeBudget(this.cfg.budget)
@@ -418,7 +434,7 @@ export class AgentRuntime {
       spawn,
       emit,
       workspace,
-      deps: { model },
+      deps: { model, imageStore: this.cfg.imageBridge?.store },
     }
     const memoryTools = createMemoryTools(this.memoryDir(task.project_id)) // 跨会话记忆:仅主 agent,worker 不带
     const mains = [...this.cfg.mainTools, ...memoryTools]
