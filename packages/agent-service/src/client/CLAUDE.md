@@ -7,7 +7,7 @@
 
 ## 成员
 
-- `agent-client.ts` — LumenClient:submit/continue/subscribe/cancel/list + 事件订阅;自动从 portfile 读端口与 token
+- `agent-client.ts` — LumenClient:submit/continue/subscribe/cancel/list/listProjects/createProject/资产 + 事件订阅;自动从 portfile 读端口与 token
 
 ## 规则
 

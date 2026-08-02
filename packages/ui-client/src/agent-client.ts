@@ -1,6 +1,6 @@
 /**
  * [INPUT]: agent-service WS/HTTP 协议(messages 真源的浏览器侧内联副本)
- * [OUTPUT]: AgentClient —— connect/submit/continue/subscribe/设置与资产
+ * [OUTPUT]: AgentClient —— connect/submit/continue/listProjects/createProject/设置与资产(含 upload scope)
  * [POS]: UI 唯一出站口;send 在 WS 非 OPEN 时必须失败(禁静默丢包),continue 等 ok/error 回执
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md;改消息格式须三处同步
  */
@@ -17,11 +17,24 @@ export interface Task {
   project_id: string
   goal: string
   status: string
+  created_at?: string
 }
 export interface Asset {
   path: string
   kind: 'pdf' | 'doc' | 'html' | 'image' | 'file'
   name: string
+  /** shared=项目共享区;session=当前会话目录 */
+  scope?: 'shared' | 'session'
+}
+
+/** 一等项目(与 service ProjectStore 对齐) */
+export interface Project {
+  id: string
+  name: string
+  /** 可选本机源文件夹;agent 只读挂载为 library/ */
+  source_path?: string | null
+  created_at: string
+  updated_at: string
 }
 
 /** demo 模式:浏览器随连接带入的模型配置(含用户自己的 key),后端只在连接内存持有、不落盘 */
@@ -72,6 +85,8 @@ type ServerMessage =
   | { type: 'task_created'; taskId: string }
   | { type: 'event'; event: TaskEvent }
   | { type: 'tasks'; tasks: Task[] }
+  | { type: 'projects'; projects: Project[] }
+  | { type: 'project_created'; project: Project }
   | { type: 'assets'; assets: Asset[] }
   | { type: 'asset'; path: string; content: string }
   | { type: 'settings'; settings: PublicSettings }
@@ -84,6 +99,8 @@ export class AgentClient {
   private readonly closeHandlers = new Set<(code: number, reason: string) => void>()
   private pendingCreated: ((id: string) => void) | null = null
   private pendingTasks: ((tasks: Task[]) => void) | null = null
+  private pendingProjects: { resolve: (p: Project[]) => void; reject: (e: Error) => void } | null = null
+  private pendingProjectCreated: { resolve: (p: Project) => void; reject: (e: Error) => void } | null = null
   private pendingAssets: ((assets: Asset[]) => void) | null = null
   private pendingAsset: ((content: string) => void) | null = null
   private pendingSettings: ((settings: PublicSettings) => void) | null = null
@@ -202,6 +219,30 @@ export class AgentClient {
     })
   }
 
+  listProjects(): Promise<Project[]> {
+    return new Promise((resolve, reject) => {
+      try {
+        this.pendingProjects = { resolve, reject }
+        this.send({ type: 'list_projects' })
+      } catch (e) {
+        this.pendingProjects = null
+        reject(e)
+      }
+    })
+  }
+
+  createProject(name: string, sourcePath?: string): Promise<Project> {
+    return new Promise((resolve, reject) => {
+      try {
+        this.pendingProjectCreated = { resolve, reject }
+        this.send({ type: 'create_project', name, ...(sourcePath ? { sourcePath } : {}) })
+      } catch (e) {
+        this.pendingProjectCreated = null
+        reject(e)
+      }
+    })
+  }
+
   // ---- 设置(WS) ----
   getSettings(): Promise<PublicSettings> {
     return new Promise((resolve) => {
@@ -243,12 +284,18 @@ export class AgentClient {
     return u.toString()
   }
 
-  /** 上传任意文件(PDF/文档/图片…),服务端按类型归位工作区,返回相对路径 */
-  async uploadFile(projectId: string, file: File, taskId?: string): Promise<string> {
+  /** 上传任意文件;scope=shared 写入项目共享区,否则进会话目录 */
+  async uploadFile(
+    projectId: string,
+    file: File,
+    taskId?: string,
+    scope: 'shared' | 'session' = 'session',
+  ): Promise<string> {
     const u = new URL('/upload', this.httpBase)
     u.searchParams.set('project', projectId)
     u.searchParams.set('name', file.name)
     if (taskId) u.searchParams.set('task', taskId)
+    if (scope === 'shared') u.searchParams.set('scope', 'shared')
     if (this.token) u.searchParams.set('token', this.token)
     const res = await fetch(u.toString(), { method: 'POST', body: file })
     return ((await res.json()) as { path: string }).path
@@ -331,6 +378,14 @@ export class AgentClient {
         this.pendingTasks?.(message.tasks)
         this.pendingTasks = null
         break
+      case 'projects':
+        this.pendingProjects?.resolve(message.projects)
+        this.pendingProjects = null
+        break
+      case 'project_created':
+        this.pendingProjectCreated?.resolve(message.project)
+        this.pendingProjectCreated = null
+        break
       case 'assets':
         this.pendingAssets?.(message.assets)
         this.pendingAssets = null
@@ -346,9 +401,21 @@ export class AgentClient {
       case 'ok':
         this.resolvePendingAck()
         break
-      case 'error':
-        if (this.pendingAck) this.rejectPendingAck(new Error(message.message || '请求失败'))
+      case 'error': {
+        const err = new Error(message.message || '请求失败')
+        if (this.pendingAck) this.rejectPendingAck(err)
+        if (this.pendingProjectCreated) {
+          const p = this.pendingProjectCreated
+          this.pendingProjectCreated = null
+          p.reject(err)
+        }
+        if (this.pendingProjects) {
+          const p = this.pendingProjects
+          this.pendingProjects = null
+          p.reject(err)
+        }
         break
+      }
       default:
         break
     }

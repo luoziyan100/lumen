@@ -13,6 +13,43 @@ export const SIDEBAR_ACCOUNT_COPY = {
   hint: '设置',
 } as const
 
+/** 侧栏:项目树(仅用户创建) + 最近(历史平铺,不是项目) */
+export const SIDEBAR_PROJECT_COPY = {
+  section: '项目',
+  recent: '最近',
+  newChat: '新对话',
+  search: '搜索',
+  emptyProjects: '还没有项目。点上方「新建项目」创建。',
+  emptyRecent: '还没有对话。',
+  empty: '还没有项目。',
+  offline: '服务未连接',
+  offlineHint: 'agent-service 不在线。桌面版请刷新窗口以补拉;开发态请确认 8787 已启动。',
+  /** 点项目行 + 后出现的临时项;发消息成真会话,未发言离开则消失 */
+  draftChat: '新建对话',
+  newChatInProject: '在此项目新建会话',
+  newProject: '新建项目',
+  namePlaceholder: '项目名称',
+} as const
+
+export const CREATE_PROJECT_COPY = {
+  title: '创建项目',
+  nameLabel: '项目名称',
+  namePlaceholder: '项目名称',
+  folderLabel: '源文件夹',
+  folderHint: '添加 Lumen 可读取的本地文件夹(可选)',
+  folderChosen: '已选择',
+  folderClear: '清除',
+  folderPaste: '或粘贴路径…',
+  cancel: '取消',
+  submit: '创建项目',
+} as const
+
+export const WORKSPACE_SCOPE_COPY = {
+  shared: '共享区',
+  session: '本会话',
+  uploadShared: '上传到共享区',
+} as const
+
 export const APP_TITLEBAR_WORKSPACE_TOGGLE = {
   id: 'workspace-toggle',
   icon: 'panel',

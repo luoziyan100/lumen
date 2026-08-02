@@ -99,7 +99,14 @@ async function handleHttp(
       if (total > maxUploadBytes) { res.writeHead(413); res.end('upload too large'); req.destroy(); return } // 公网防塞爆磁盘/内存
       chunks.push(chunk as Buffer)
     }
-    const saved = await runtime.saveUpload(project, url.searchParams.get('name') ?? 'upload.pdf', new Uint8Array(Buffer.concat(chunks)), url.searchParams.get('task') ?? undefined)
+    const scope = url.searchParams.get('scope') === 'shared' ? 'shared' as const : 'session' as const
+    const saved = await runtime.saveUpload(
+      project,
+      url.searchParams.get('name') ?? 'upload.pdf',
+      new Uint8Array(Buffer.concat(chunks)),
+      url.searchParams.get('task') ?? undefined,
+      scope,
+    )
     res.writeHead(200, { 'content-type': 'application/json' })
     res.end(JSON.stringify({ path: saved }))
     return
@@ -181,7 +188,25 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
         })
         break
       case 'list':
+        // demo:必须带 projectId,否则空列表(防漏列全库会话)
+        if (demo && !message.projectId) { send({ type: 'tasks', tasks: [] }); break }
         send({ type: 'tasks', tasks: runtime.listTasks(message.projectId) })
+        break
+      case 'list_projects':
+        // demo:不暴露全库项目名册;访客 UI 用本地 visitor id 合成单项目
+        if (demo) { send({ type: 'projects', projects: [] }); break }
+        send({ type: 'projects', projects: runtime.listProjects() })
+        break
+      case 'create_project':
+        if (demo) { send({ type: 'error', message: 'demo 模式不支持创建项目' }); break }
+        try {
+          send({
+            type: 'project_created',
+            project: runtime.createProject(message.name, message.sourcePath),
+          })
+        } catch (e) {
+          send({ type: 'error', message: e instanceof Error ? e.message : 'create_project 失败' })
+        }
         break
       case 'list_assets':
         void runtime.listAssets(message.projectId, message.taskId).then((assets) => send({ type: 'assets', assets }))

@@ -11,6 +11,7 @@ import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { openDatabase } from './storage/db.ts'
 import { TaskStore } from './storage/task-store.ts'
+import { ProjectStore } from './storage/project-store.ts'
 import { SettingsStore } from './storage/settings.ts'
 import { AgentRuntime, defaultSystemPrompt } from './runtime/agent-runtime.ts'
 import { startServer, type ServerHandle } from './protocol/server.ts'
@@ -61,6 +62,8 @@ export function createService(config: ServiceConfig = {}): Service {
 
   const db = openDatabase(path.join(home, 'lumen.sqlite'))
   const store = new TaskStore(db)
+  const workspacesDir = path.join(home, 'workspaces')
+  const projects = new ProjectStore(db, workspacesDir)
   const demo = config.demo ?? process.env.LUMEN_DEMO === '1'
 
   // 出厂默认 = 显式 config > env/.env;用户覆盖层在 ~/.lumen/settings.json(设置弹窗写入)
@@ -110,7 +113,8 @@ export function createService(config: ServiceConfig = {}): Service {
     store,
     model,
     sessionDir: path.join(home, 'sessions'),
-    workspacesDir: path.join(home, 'workspaces'),
+    workspacesDir,
+    projects,
     libraryRoot: config.libraryRoot,
     mainTools,
     roles,

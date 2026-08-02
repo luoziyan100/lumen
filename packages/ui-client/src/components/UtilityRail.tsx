@@ -1,17 +1,21 @@
 /**
- * 右侧工具轨(持久):只放有真实数据的卡(owner 定)——
- *   进度(运行中的过程步骤) · 工作目录(本会话产物 ws.assets)。
- * 连接器/上下文等尚不具备的能力一律不摆(owner 定「没有的功能不放」)。
- * PDF / HTML / 文档点开走阅读器(替换本轨)。
+ * [INPUT]: Asset(含 scope);ChatItem;icons;useResizable;WORKSPACE_SCOPE_COPY
+ * [OUTPUT]: UtilityRail —— 进度 + 工作目录(共享区 / 本会话)
+ * [POS]: 右轨;阅读器打开时由 ReaderPane 替换
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import { useState, type CSSProperties } from 'react'
+import { useRef, useState, type ChangeEvent, type CSSProperties } from 'react'
 import type { Asset } from '../agent-client'
 import type { ChatItem, ProcessItem } from '../useAgent'
-import { ChevronIcon, FileTypeIcon, FoldersIcon, ICON_MD } from './icons'
+import { WORKSPACE_SCOPE_COPY } from '../appCopy'
+import { ChevronIcon, FileTypeIcon, FoldersIcon, PlusIcon, ICON_MD } from './icons'
 import { useResizable } from '../useResizable'
 
 const OPENABLE: Asset['kind'][] = ['pdf', 'doc', 'html']
-const UPLOAD_DIR = /^(papers|docs|images|uploads)\//
+
+function isShared(a: Asset): boolean {
+  return a.scope === 'shared' || a.path.startsWith('shared/')
+}
 
 function AssetGroup({ label, items, onOpen }: { label: string; items: Asset[]; onOpen: (a: Asset) => void }) {
   if (!items.length) return null
@@ -33,14 +37,28 @@ function AssetGroup({ label, items, onOpen }: { label: string; items: Asset[]; o
   )
 }
 
-export function UtilityRail({ assets, onOpen, items, running }: {
-  assets: Asset[]; onOpen: (a: Asset) => void; items: ChatItem[]; running: boolean
+export function UtilityRail({ assets, onOpen, items, running, onUploadShared }: {
+  assets: Asset[]
+  onOpen: (a: Asset) => void
+  items: ChatItem[]
+  running: boolean
+  /** 有则显示「上传到共享区」 */
+  onUploadShared?: (files: File[]) => void
 }) {
   const proc: ProcessItem | undefined = running
     ? [...items].reverse().find((it): it is ProcessItem => it.kind === 'process' && it.running)
     : undefined
-  const [dirOpen, setDirOpen] = useState(true) // 工作目录默认展开;点标题收放
+  const [dirOpen, setDirOpen] = useState(true)
   const { width, handleProps } = useResizable({ edge: 'left', min: 260, max: 480, fallback: 320, storageKey: 'lumen:railWidth' })
+  const sharedFileRef = useRef<HTMLInputElement>(null)
+  const shared = assets.filter(isShared)
+  const session = assets.filter((a) => !isShared(a))
+
+  function onPickShared(e: ChangeEvent<HTMLInputElement>): void {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    if (files.length && onUploadShared) onUploadShared(files)
+  }
 
   return (
     <aside className="rail" aria-label="工具轨" style={{ '--rail-w': `${width}px` } as CSSProperties}>
@@ -66,10 +84,40 @@ export function UtilityRail({ assets, onOpen, items, running }: {
           <span className="rail-count">{assets.length}</span>
           <ChevronIcon open={dirOpen} />
         </button>
-        {dirOpen && assets.length > 0 && (
+        {dirOpen && (
           <div className="rail-dir-body">
-            <AssetGroup label="资料" items={assets.filter((a) => UPLOAD_DIR.test(a.path))} onOpen={onOpen} />
-            <AssetGroup label="产物" items={assets.filter((a) => !UPLOAD_DIR.test(a.path))} onOpen={onOpen} />
+            <div className="rail-group">
+              <div className="rail-group-head">
+                {WORKSPACE_SCOPE_COPY.shared}
+                <span className="rail-group-n">{shared.length}</span>
+                {onUploadShared && (
+                  <>
+                    <button
+                      type="button"
+                      className="rail-upload-shared"
+                      title={WORKSPACE_SCOPE_COPY.uploadShared}
+                      aria-label={WORKSPACE_SCOPE_COPY.uploadShared}
+                      onClick={() => sharedFileRef.current?.click()}
+                    >
+                      <PlusIcon size={12} />
+                    </button>
+                    <input ref={sharedFileRef} type="file" multiple hidden onChange={onPickShared} />
+                  </>
+                )}
+              </div>
+              {shared.map((a) => {
+                const inner = (
+                  <>
+                    <span className="ws-file-icon"><FileTypeIcon name={a.name} size={ICON_MD} /></span>
+                    <span className="ws-name">{a.name}</span>
+                  </>
+                )
+                return OPENABLE.includes(a.kind)
+                  ? <button key={a.path} className="ws-item" onClick={() => onOpen(a)}>{inner}</button>
+                  : <div key={a.path} className="ws-item ws-item-static">{inner}</div>
+              })}
+            </div>
+            <AssetGroup label={WORKSPACE_SCOPE_COPY.session} items={session} onOpen={onOpen} />
           </div>
         )}
       </section>

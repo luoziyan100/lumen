@@ -4,6 +4,7 @@
  */
 export { openDatabase, type DB } from './db.ts'
 export { TaskStore, type Task, type TaskStatus, type TaskEvent, type TaskEventKind } from './task-store.ts'
+export { ProjectStore, ensureProjectDirs, type Project } from './project-store.ts'
 export {
   computeBudgetUsage,
   mergeBudget,

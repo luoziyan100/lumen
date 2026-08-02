@@ -1,7 +1,7 @@
 /** 图标唯一入口:一律 @phosphor-icons/react(Kumo 同源家族),经此单点 re-export。
  *  规范见 doc/ui-design.md「§3.1 图标规范」:三档尺寸 + weight 全站统一 regular;
  *  禁手写 SVG / 字符凑图标(← › × ＋) / emoji / 绕过本文件直接 import phosphor。 */
-import { ArrowUp, CaretLeft, CaretRight, ChatCircle, Check, Copy, File, FileCode, FileCsv, FileDoc, FileHtml, FileImage, FilePdf, FilePpt, FileText, FileZip, Gear, MagnifyingGlass, Plus, SidebarSimple, User, X } from '@phosphor-icons/react'
+import { ArrowUp, CaretLeft, CaretRight, ChatCircle, Check, Copy, File, FileCode, FileCsv, FileDoc, FileHtml, FileImage, FilePdf, FilePpt, FileText, FileZip, FolderSimple, Gear, MagnifyingGlass, Plus, SidebarSimple, User, X } from '@phosphor-icons/react'
 
 // 尺寸三档:行内(列表/标签内) / 按钮内 / 导航按钮
 export const ICON_SM = 16
@@ -24,6 +24,16 @@ export function SearchIcon({ size = ICON_LG }: { size?: number }) {
 /** 新对话:聊天气泡(owner 定用 chat 图标,非加号) */
 export function ChatIcon({ size = ICON_MD }: { size?: number }) {
   return <ChatCircle size={size} />
+}
+
+/** 新建项目:加号(与「新建」语义对齐;新对话已用气泡,不抢戏) */
+export function NewProjectIcon({ size = ICON_MD }: { size?: number }) {
+  return <Plus size={size} />
+}
+
+/** 项目行:文件夹图标(Cursor 式侧栏) */
+export function FolderIcon({ size = ICON_MD }: { size?: number }) {
+  return <FolderSimple size={size} />
 }
 
 /* 以下两枚为 owner 指定的具体图标(非 phosphor 库内),经此单点收口:

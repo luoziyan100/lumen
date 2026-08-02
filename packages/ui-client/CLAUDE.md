@@ -8,10 +8,10 @@
 
 | 成员 | 职责 |
 |---|---|
-| `App.tsx` | 布局与装配:标题栏 / 侧栏 / 对话 / 抽屉 / 阅读器 / 弹窗;空态 = 封面(氛围全屏,问候+输入卡居中偏上) |
-| `agent-client.ts` | 浏览器侧 WS 客户端;WS 非 OPEN 抛错、continue 等 ok/error(禁静默丢包);⚠ 协议类型手工内联 |
-| `useAgent.ts` | 事件流 → ChatItem;send 失败收回 running 并红字;重连后 re-subscribe;空 model_step→error;开屏欢迎页 |
-| `useWorkspace.ts` | 工作区资产列表 + 打开的资产(驱动阅读器) |
+| `App.tsx` | 布局与装配:标题栏 / 侧栏(项目 p-* + 最近平铺) / 对话 / 工作区轨 / 阅读器 / 弹窗;历史不进「默认」文件夹 |
+| `agent-client.ts` | 浏览器侧 WS 客户端;含 listProjects/createProject/upload scope;⚠ 协议类型手工内联 |
+| `useAgent.ts` | 事件流 → ChatItem;跨项目 selectConversation(forProjectId);send 失败收回 running |
+| `useWorkspace.ts` | 资产列表(shared+session)+ 打开的资产(驱动阅读器) |
 | `tokens.css` | **设计系统唯一真源**(青瓷 v2):表面三级 / 语义五色 / 阴影 0–3 / 字体分工;头注释即规范 |
 | `styles.css` | 形态 A 布局与组件样式;只消费 token,禁硬编码颜色 |
 | `kumo.css` | 控件层样式入口:Tailwind v4(**刻意不含 preflight**)+ @cloudflare/kumo + 青瓷主题 |

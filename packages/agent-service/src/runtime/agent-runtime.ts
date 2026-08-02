@@ -11,6 +11,9 @@ import type { AgentEvent, ImageData } from '../core/types.ts'
 import type { Tool, ToolContext } from '../core/tool.ts'
 import type { Limits } from '../core/limits.ts'
 import { TaskStore, type Task, type TaskEvent } from '../storage/task-store.ts'
+import type { ProjectStore } from '../storage/project-store.ts'
+import { ensureProjectDirs } from '../storage/project-store.ts'
+import { sanitizeWorkspaceId } from '../storage/workspace-id.ts'
 import { appendSessionEntry, type SessionEntry } from '../storage/session-file.ts'
 import { rebuildThread } from '../storage/resume.ts'
 import { DEFAULT_COMPACTION, estimateWatermark, isContextOverflowError, planCompaction, withResultPersist, type CompactionPayload } from '../storage/context-budget.ts'
@@ -31,6 +34,8 @@ export interface AgentRuntimeConfig {
   sessionDir: string
   workspacesDir: string
   libraryRoot?: string
+  /** 一等项目名册;缺省时 list/create_projects 不可用(测试可省) */
+  projects?: ProjectStore
   mainTools: Tool[]
   roles?: Record<string, RoleDef>
   budget?: Partial<TaskBudget>
@@ -63,6 +68,8 @@ export interface WorkspaceAsset {
   path: string
   kind: 'pdf' | 'doc' | 'html' | 'image' | 'file'
   name: string
+  /** shared = 项目共享区;session = 当前会话(默认) */
+  scope?: 'shared' | 'session'
 }
 
 type Listener = (event: TaskEvent) => void
@@ -72,16 +79,7 @@ export function defaultSystemPrompt(info: RuntimeContextInfo): string {
   return `${LUMEN_PERSONA}\n\n# 此刻\n今天是 ${info.currentDate}。本地论文库有 ${info.localPaperCount} 篇。`
 }
 
-/**
- * 工作区标识消毒:projectId/taskId 是客户端可控字符串,直接拼路径会被 ../ 穿越到工作区外
- * (2026-07-15 公网 demo 审计 must-fix)。只留字母/数字/_/-,截断 64;空则回退 'default'。
- * 合法标识('default'、'task-<uuid>')全是许可字符 → 逐字不变,本地行为零影响。
- */
-export function sanitizeWorkspaceId(id: string): string {
-  const clean = (id ?? '').replace(/[^\w-]/g, '_').slice(0, 64)
-  return clean || 'default'
-}
-
+export { sanitizeWorkspaceId } from '../storage/workspace-id.ts'
 
 export class AgentRuntime {
   private readonly cfg: AgentRuntimeConfig
@@ -165,39 +163,59 @@ export class AgentRuntime {
     return this.cfg.store.listTasks(projectId)
   }
 
+  listProjects(): import('../storage/project-store.ts').Project[] {
+    if (!this.cfg.projects) return [{ id: 'default', name: '默认', created_at: '', updated_at: '' }]
+    return this.cfg.projects.listProjects()
+  }
+
+  createProject(name: string, sourcePath?: string): import('../storage/project-store.ts').Project {
+    if (!this.cfg.projects) throw new Error('projects 不可用')
+    return this.cfg.projects.createProject({ name, sourcePath })
+  }
+
   listEvents(taskId: string, afterSeq?: number): TaskEvent[] {
     return this.cfg.store.listEvents(taskId, afterSeq)
   }
 
-  /** 列工作区"会话资产":带 taskId 列该会话独立目录;一次遍历按扩展名分类(大小写不敏感),过滤检索缓存 */
+  /** 列资产:有 taskId 时 = 会话产物 + 项目 shared/;无 taskId 时 = 项目根(含 shared,不含 sessions) */
   async listAssets(projectId: string, taskId?: string): Promise<WorkspaceAsset[]> {
-    const ws = this.makeWorkspace(projectId, taskId)
-    const base = (p: string): string => p.split('/').pop() ?? p
-    const raw = await ws.glob('**/*').catch(() => [] as string[])
-    // 项目根视图不混入各会话的独立目录(会话内相对路径不带 sessions/ 前缀,此过滤对会话视图无影响);
-    // cache/ = 模型的中间产物(extract_pdf 提取文本等),只给模型读,不对用户陈列
-    const all = raw.filter((p) => !p.startsWith('sessions/') && !p.startsWith('cache/'))
-
-    const TEXT_EXT = ['txt', 'tex', 'csv', 'json']
-    const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'webp', 'gif']
-    const assets: WorkspaceAsset[] = []
-    for (const p of all) {
-      const ext = (p.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? '').toLowerCase()
-      if (ext === 'pdf') assets.push({ path: p, kind: 'pdf', name: base(p) })
-      else if (ext === 'md' && !/(^|\/)search-/.test(p)) assets.push({ path: p, kind: 'doc', name: base(p) })
-      else if (ext === 'html' || ext === 'htm') assets.push({ path: p, kind: 'html', name: base(p) })
-      else if (TEXT_EXT.includes(ext) && p.startsWith('docs/')) assets.push({ path: p, kind: 'doc', name: base(p) })
-      else if (IMAGE_EXT.includes(ext)) assets.push({ path: p, kind: 'image', name: base(p) })
-      // 其它格式原样存进 uploads/(agent 暂不解析,先无损保存)
-      else if (p.startsWith('uploads/')) assets.push({ path: p, kind: 'file', name: base(p) })
+    const classify = (paths: string[], scope: 'shared' | 'session'): WorkspaceAsset[] => {
+      const base = (p: string): string => p.split('/').pop() ?? p
+      const TEXT_EXT = ['txt', 'tex', 'csv', 'json']
+      const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'webp', 'gif']
+      const assets: WorkspaceAsset[] = []
+      for (const p of paths) {
+        const ext = (p.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? '').toLowerCase()
+        if (ext === 'pdf') assets.push({ path: p, kind: 'pdf', name: base(p), scope })
+        else if (ext === 'md' && !/(^|\/)search-/.test(p)) assets.push({ path: p, kind: 'doc', name: base(p), scope })
+        else if (ext === 'html' || ext === 'htm') assets.push({ path: p, kind: 'html', name: base(p), scope })
+        else if (TEXT_EXT.includes(ext) && (p.startsWith('docs/') || p.includes('/docs/'))) assets.push({ path: p, kind: 'doc', name: base(p), scope })
+        else if (IMAGE_EXT.includes(ext)) assets.push({ path: p, kind: 'image', name: base(p), scope })
+        else if (p.includes('uploads/')) assets.push({ path: p, kind: 'file', name: base(p), scope })
+      }
+      return assets
     }
-    return assets
+
+    if (taskId) {
+      const sessionWs = this.makeWorkspace(projectId, taskId)
+      const sessionRaw = (await sessionWs.glob('**/*').catch(() => [] as string[]))
+        .filter((p) => !p.startsWith('cache/') && !p.startsWith('shared/'))
+      const sharedWs = this.makeProjectRootWorkspace(projectId)
+      const sharedRaw = (await sharedWs.glob('shared/**/*').catch(() => [] as string[]))
+      return [...classify(sharedRaw, 'shared'), ...classify(sessionRaw, 'session')]
+    }
+
+    const ws = this.makeProjectRootWorkspace(projectId)
+    const raw = await ws.glob('**/*').catch(() => [] as string[])
+    const all = raw.filter((p) => !p.startsWith('sessions/') && !p.startsWith('cache/'))
+    return classify(all, all.some((p) => p.startsWith('shared/')) ? 'shared' : 'session')
+      .map((a) => ({ ...a, scope: a.path.startsWith('shared/') ? 'shared' as const : 'session' as const }))
   }
 
-  /** 读一个文本资产(.md)。PDF 二进制走 HTTP /pdf,不经这里 */
+  /** 读一个文本资产(.md)。PDF 二进制走 HTTP /pdf,不经这里。shared/ 路径走项目根 */
   async readAsset(projectId: string, path: string, taskId?: string): Promise<string | null> {
     try {
-      return await this.makeWorkspace(projectId, taskId).readFile(path)
+      return await this.workspaceForAssetPath(projectId, path, taskId).readFile(path)
     } catch {
       return null
     }
@@ -206,21 +224,37 @@ export class AgentRuntime {
   /** 取资产二进制(PDF 原件),供 HTTP /pdf 给前端 pdf.js 渲染。路径经沙箱校验 */
   async readAssetBytes(projectId: string, path: string, taskId?: string): Promise<Uint8Array | null> {
     try {
-      return await this.makeWorkspace(projectId, taskId).readBytes(path)
+      return await this.workspaceForAssetPath(projectId, path, taskId).readBytes(path)
     } catch {
       return null
     }
   }
 
-  /** 用户上传文件按类型归位:PDF→papers/ 文本→docs/ 图片→images/ 其它→uploads/(无损保存,先存后判) */
-  async saveUpload(projectId: string, name: string, bytes: Uint8Array, taskId?: string): Promise<string> {
+  /**
+   * 用户上传按类型归位。
+   * scope=shared → 写入项目 shared/{papers|docs|…}/(项目级共享);
+   * 默认 → 会话目录(有 taskId)或项目根。
+   */
+  async saveUpload(
+    projectId: string,
+    name: string,
+    bytes: Uint8Array,
+    taskId?: string,
+    scope: 'shared' | 'session' = 'session',
+  ): Promise<string> {
+    ensureProjectDirs(this.cfg.workspacesDir, projectId)
     const safe = (name.split(/[/\\]/).pop() || 'upload').replace(/[^\w.\-一-鿿]/g, '_')
     const ext = (safe.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? '').toLowerCase()
-    const dir = ext === 'pdf' ? 'papers'
+    const kind = ext === 'pdf' ? 'papers'
       : ['md', 'txt', 'tex', 'csv', 'json', 'html'].includes(ext) ? 'docs'
         : ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext) ? 'images'
           : 'uploads'
-    const file = `${dir}/${safe}`
+    if (scope === 'shared') {
+      const file = `shared/${kind}/${safe}`
+      await this.makeProjectRootWorkspace(projectId).writeBytes(file, bytes)
+      return file
+    }
+    const file = `${kind}/${safe}`
     await this.makeWorkspace(projectId, taskId).writeBytes(file, bytes)
     return file
   }
@@ -322,13 +356,35 @@ export class AgentRuntime {
   }
 
   /** 工作区定根:带 taskId = 会话独立目录(owner 拍板 2026-07-05);不带 = 项目根(兼容旧语义/旧数据) */
+  private makeProjectRootWorkspace(projectId: string): FsWorkspace {
+    const pid = sanitizeWorkspaceId(projectId)
+    ensureProjectDirs(this.cfg.workspacesDir, pid)
+    return new FsWorkspace({
+      root: `${this.cfg.workspacesDir}/${pid}`,
+      libraryRoot: this.cfg.libraryRoot,
+    })
+  }
+
   private makeWorkspace(projectId: string, taskId?: string): FsWorkspace {
     const pid = sanitizeWorkspaceId(projectId)
     const tid = taskId ? sanitizeWorkspaceId(taskId) : undefined
-    const root = tid
-      ? `${this.cfg.workspacesDir}/${pid}/sessions/${tid}`
-      : `${this.cfg.workspacesDir}/${pid}`
-    return new FsWorkspace({ root, libraryRoot: this.cfg.libraryRoot })
+    if (!tid) return this.makeProjectRootWorkspace(pid)
+    ensureProjectDirs(this.cfg.workspacesDir, pid)
+    const sharedRoot = `${this.cfg.workspacesDir}/${pid}/shared`
+    // 项目绑定的本机源文件夹优先于全局 libraryRoot(只读 library/)
+    const source = this.cfg.projects?.getProject(pid)?.source_path
+    const libraryRoot = (source && source.trim()) || this.cfg.libraryRoot
+    return new FsWorkspace({
+      root: `${this.cfg.workspacesDir}/${pid}/sessions/${tid}`,
+      libraryRoot,
+      sharedRoot, // 会话内只读挂载 shared/
+    })
+  }
+
+  /** shared/* 走项目根;其余走会话(或项目根)工作区 */
+  private workspaceForAssetPath(projectId: string, assetPath: string, taskId?: string): FsWorkspace {
+    if (assetPath.startsWith('shared/')) return this.makeProjectRootWorkspace(projectId)
+    return this.makeWorkspace(projectId, taskId)
   }
 
   private makeEmit(taskId: string): (event: AgentEvent) => void {

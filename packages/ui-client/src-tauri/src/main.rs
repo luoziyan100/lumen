@@ -1,13 +1,11 @@
-// Lumen Tauri 薄外壳(M7 v0:本机可双击运行)。职责仅三件:
-//   ① 起 agent-service sidecar(若 portfile 探活失败才拉起;已有活服务则直接连)
-//   ② 读 ~/.lumen/agent-service.json 拿 {port, token},经 initialization_script
-//      注入 window.__LUMEN_WS__ / __LUMEN_TOKEN__(打包态没有 vite 注入插件,这是唯一的门)
-//   ③ 退出 app 时杀掉自己拉起的 sidecar(不是自己拉起的不动)
+// Lumen Tauri 薄外壳(M7 v0:本机可双击运行)。职责:
+//   ① 壳拥有脑:探活 portfile;死了就补拉 node sidecar(启动 + 每次页面加载/reload)
+//   ② 读 ~/.lumen/agent-service.json 注入 window.__LUMEN_WS__ / __LUMEN_TOKEN__
+//   ③ 退出 app 时杀掉自己拉起的 sidecar(别人起的不动)
 //
 // v0 已知取舍(M7.1 再收):
-//   - sidecar 用本机 node 跑 TS 源(node 路径按 LUMEN_NODE > homebrew > /usr/local 探测;
-//     服务目录按 LUMEN_SERVICE_DIR > ~/Workspace/Projects/lumen/... 探测)——分发级打包需 bundle node+service。
-//   - 关窗即退出并杀 sidecar;「关窗留 dock 续跑」需 tray/Reopen 常驻,留 M7.1。
+//   - sidecar 用本机 node 跑 TS 源(LUMEN_NODE / LUMEN_SERVICE_DIR 可覆写)
+//   - 关窗即退出并杀 sidecar;「关窗留 dock 续跑」留 M7.1
 
 use std::path::PathBuf;
 use std::process::{Child, Command};
@@ -17,6 +15,15 @@ use tauri::webview::PageLoadEvent;
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 struct Sidecar(Mutex<Option<Child>>);
+
+/// 选本机文件夹(新建项目可选源目录);取消返回 null
+#[tauri::command]
+fn pick_folder() -> Option<String> {
+    rfd::FileDialog::new()
+        .set_title("选择项目源文件夹")
+        .pick_folder()
+        .map(|p| p.to_string_lossy().into_owned())
+}
 
 fn home() -> PathBuf {
     PathBuf::from(std::env::var("HOME").unwrap_or_default())
@@ -41,7 +48,7 @@ fn service_dir() -> PathBuf {
     home().join("Workspace/Projects/lumen/packages/agent-service")
 }
 
-/// portfile 存在且端口真能连上才算活着(防旧文件残留误判)
+/// portfile 存在且端口真能连上才算活着(防僵尸 portfile 误判)
 fn portfile_alive() -> Option<(u16, String)> {
     let data = std::fs::read_to_string(home().join(".lumen/agent-service.json")).ok()?;
     let v: serde_json::Value = serde_json::from_str(&data).ok()?;
@@ -62,6 +69,50 @@ fn spawn_service() -> std::io::Result<Child> {
         .spawn()
 }
 
+fn wait_alive(iters: u32) -> bool {
+    for _ in 0..iters {
+        if portfile_alive().is_some() {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    false
+}
+
+/// 壳拥有脑:TCP 不通则补拉。若仍持有已退出的 Child 先收尸;若 Child 还在跑则只等待。
+fn ensure_service(sidecar: &Sidecar) {
+    if portfile_alive().is_some() {
+        return;
+    }
+
+    {
+        let mut guard = sidecar.0.lock().unwrap();
+        if let Some(child) = guard.as_mut() {
+            match child.try_wait() {
+                Ok(None) => {
+                    // 子进程还在起,交给 wait_alive
+                    return;
+                }
+                Ok(Some(_)) | Err(_) => {
+                    *guard = None;
+                }
+            }
+        }
+    }
+
+    if portfile_alive().is_some() {
+        return;
+    }
+
+    match spawn_service() {
+        Ok(child) => {
+            eprintln!("[lumen] agent-service sidecar 已补拉");
+            *sidecar.0.lock().unwrap() = Some(child);
+        }
+        Err(err) => eprintln!("[lumen] 无法启动 agent-service sidecar: {err}"),
+    }
+}
+
 fn conn_script() -> Option<String> {
     let (port, token) = portfile_alive()?;
     Some(format!(
@@ -70,41 +121,38 @@ fn conn_script() -> Option<String> {
     ))
 }
 
+fn ensure_and_inject(webview: &tauri::Webview, sidecar: &Sidecar) {
+    ensure_service(sidecar);
+    let _ = wait_alive(32);
+    if let Some(script) = conn_script() {
+        let _ = webview.eval(&script);
+    } else {
+        eprintln!("[lumen] agent-service 未就绪:前端将显示未连接");
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(Sidecar(Mutex::new(None)))
-        // 每次页面加载(含 Cmd+R reload)都现读 portfile 重新注入——服务重启换 token 后,
-        // 刷新即可拿到新连接;启动时的 initialization_script 只作首帧兜底快照
+        .invoke_handler(tauri::generate_handler![pick_folder])
+        // 每次页面加载(含 Cmd+R):探活 → 必要时补拉 → 再注入 WS
         .on_page_load(|webview, payload| {
-            if matches!(payload.event(), PageLoadEvent::Started) {
-                if let Some(script) = conn_script() {
-                    let _ = webview.eval(&script);
-                }
+            if !matches!(payload.event(), PageLoadEvent::Started) {
+                return;
             }
+            let app = webview.app_handle().clone();
+            let sidecar = app.state::<Sidecar>();
+            ensure_and_inject(&webview, &sidecar);
         })
         .setup(|app| {
-            if portfile_alive().is_none() {
-                match spawn_service() {
-                    Ok(child) => {
-                        *app.state::<Sidecar>().0.lock().unwrap() = Some(child);
-                    }
-                    Err(err) => eprintln!("[lumen] 无法启动 agent-service sidecar: {err}"),
-                }
+            {
+                let sidecar = app.state::<Sidecar>();
+                ensure_service(&sidecar);
             }
-            // 等 portfile 就绪(最多 8s);拿不到也开窗,前端会明确提示连不上
-            let mut conn: Option<(u16, String)> = None;
-            for _ in 0..32 {
-                if let Some(c) = portfile_alive() {
-                    conn = Some(c);
-                    break;
-                }
-                std::thread::sleep(Duration::from_millis(250));
-            }
-            let script = match &conn {
-                Some(_) => conn_script()
-                    .unwrap_or_else(|| String::from("/* portfile 读取失败:前端将提示连不上 */")),
-                None => String::from("/* portfile 未就绪:前端将提示连不上 */"),
-            };
+            let _ = wait_alive(32);
+            let script = conn_script().unwrap_or_else(|| {
+                String::from("/* agent-service 未就绪:前端将显示未连接 */")
+            });
             WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("Lumen")
                 .inner_size(1080.0, 760.0)

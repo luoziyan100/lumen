@@ -4,17 +4,17 @@
 
 # Lumen
 
-**独立研究者的 AI 研究工作台** — 喂给它论文,它读完把报告写进你的工作区。
+**个人 AI 工作台** — 本机上的办公搭档(Co-Worker):聊天只是操作面,活儿落在真实工作区文件里。
 
-_A local-first AI research companion: feed it papers, get structured reports in a real workspace._
+_A local-first personal workbench: your on-device co-worker for everyday office work, with files as the durable output._
 
 </div>
 
 ## 它做什么
 
-- **研读文献**:上传 PDF,Lumen 提取、精读,在对话里和你讨论
-- **产出报告**:解读、综述这类交付物直接写成工作区里的真实文件,不是埋在聊天记录里
-- **三栏工作台**:会话列表 / 对话 / 工作区+阅读器,读与写互不打架
+- **个人工作台**:非编程向的日常办公(整理、研读、起草、汇总);按项目组织多会话,资料可共享、聊天互不串
+- **文件即交付**:报告、笔记、纪要写进工作区,不是埋在聊天气泡里
+- **三栏布局**:项目/会话 · 对话 · 工作区+阅读器,读与写互不打架
 - **模型可插拔**:DeepSeek、Claude 或任意 OpenAI 兼容端点,界面里即可切换
 - **本地优先**:数据(SQLite)和所有文件都在你自己的电脑上
 
@@ -52,7 +52,7 @@ npm run dev        # 同时启动 agent-service + Web 界面
 
 ### 3. 打开并配置模型
 
-浏览器打开 **http://localhost:5180**,点左下角「设置」,填入你的模型 API Key(支持 DeepSeek / Anthropic / OpenAI 兼容中转),即可开始研究。
+浏览器打开 **http://localhost:5180**,点左下角「设置」,填入你的模型 API Key(支持 DeepSeek / Anthropic / OpenAI 兼容中转),即可开始工作。
 
 > 也可以把 `packages/agent-service/.env.example` 复制为 `.env`,用环境变量预填 Key / 端口等。
 
@@ -65,7 +65,7 @@ Tauri 原生壳已可本地构建:`npm run tauri:build --workspace @lumen/ui-cli
 
 ```
 packages/
-  agent-service/   # 无头 agent 服务:内核循环 + 研究工具 + SQLite 存储 + WebSocket(Node)
+  agent-service/   # 无头 agent 服务:内核循环 + 工具 + SQLite 存储 + WebSocket(Node)
   ui-client/       # 薄客户端:React + Vite;Tauri 原生壳(macOS)
 ```
 
@@ -74,11 +74,12 @@ packages/
 ## 路线图
 
 - [x] agent 内核 / 工具 / 存储 / WS 协议
-- [x] PDF 研读与报告产物
+- [x] 工作区文件产物、PDF 阅读与报告
 - [x] 会话恢复、上传暂存、工作区阅读器
+- [x] 一等项目(侧栏树 + 项目级共享区)
 - [ ] 上下文水位与超窗软着陆
 - [ ] 自包含 macOS .app(内置运行时 + 公证),下载即用
-- [ ] 更多研究工具(文献检索、引文管理)
+- [ ] 办公场景工具与工作流加深
 
 ## License
 

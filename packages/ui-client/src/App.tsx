@@ -1,15 +1,18 @@
 /**
- * Lumen 形态 A:对话主屏 + 可收工作区抽屉 + PDF/文件右侧分屏(阅读器)。
- * client 在此建并 connect,传给 useAgent(对话)/ useWorkspace(资产)。
+ * [INPUT]: AgentClient;useAgent;useWorkspace;Sidebar 项目树;UtilityRail
+ * [OUTPUT]: App —— 形态 A 装配;项目树(p-*) + 最近平铺历史
+ * [POS]: ui-client 根组件;storage project_id ≠ 用户项目;历史不分类进「默认」
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import { Toasty, useKumoToastManager } from '@cloudflare/kumo/components/toast'
 import { Tooltip, TooltipProvider } from '@cloudflare/kumo/components/tooltip'
-import { AgentClient, type ImageData, type Task } from './agent-client'
+import { AgentClient, type ImageData, type Project, type Task } from './agent-client'
 import { useAgent } from './useAgent'
 import { useWorkspace } from './useWorkspace'
 import { Sidebar } from './components/Sidebar'
+import { CreateProjectModal, type CreateProjectPayload } from './components/CreateProjectModal'
 import { SearchModal } from './components/SearchModal'
 import { SettingsModal } from './components/SettingsModal'
 import { CheckIcon, CloseIcon, CopyIcon, PanelIcon, PdfIcon, PlusIcon, RailIcon, SendIcon } from './components/icons'
@@ -23,15 +26,19 @@ import { APP_BRAND_COPY, APP_NAV_ICON_BUTTON, APP_TITLEBAR_WORKSPACE_TOGGLE } fr
 const w = window as { __LUMEN_WS__?: string; __LUMEN_TOKEN__?: string }
 const SERVICE_URL = w.__LUMEN_WS__ ?? 'ws://localhost:8787'
 const SERVICE_TOKEN = w.__LUMEN_TOKEN__ ?? new URLSearchParams(window.location.search).get('token') ?? undefined
-// demo 部署(VITE_LUMEN_DEMO=1):每个浏览器一个随机访客空间,工作区/会话彼此隔离;本地单用户仍用 default
-const PROJECT = ((): string => {
-  if (import.meta.env.VITE_LUMEN_DEMO !== '1') return 'default'
-  try {
-    let id = localStorage.getItem('lumen:visitor')
-    if (!id) { id = 'v-' + crypto.randomUUID(); localStorage.setItem('lumen:visitor', id) }
-    return id
-  } catch { return 'default' }
-})()
+const IS_DEMO = import.meta.env.VITE_LUMEN_DEMO === '1'
+
+/** demo=访客空间;本地=最近项目或 default */
+function initialProjectId(): string {
+  if (IS_DEMO) {
+    try {
+      let id = localStorage.getItem('lumen:visitor')
+      if (!id) { id = 'v-' + crypto.randomUUID(); localStorage.setItem('lumen:visitor', id) }
+      return id
+    } catch { return 'default' }
+  }
+  return localStorage.getItem('lumen:projectId') || 'default'
+}
 
 export function App() {
   return (
@@ -74,8 +81,19 @@ function AppInner() {
     }
   }, [client])
 
-  const { items, running, send, stop, newConversation, selectConversation, taskId, ctxUsage } = useAgent(client, PROJECT, connected)
-  const ws = useWorkspace(client, PROJECT, taskId, connected)
+  const [projectId, setProjectId] = useState(initialProjectId)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [tasksByProject, setTasksByProject] = useState<Record<string, Task[]>>({})
+  /** 项目行 + 后的临时「新建对话」;发言落库后清掉,未发言离开也清掉 */
+  const [draftProjectId, setDraftProjectId] = useState<string | null>(null)
+
+  function persistProjectId(id: string): void {
+    setProjectId(id)
+    if (!IS_DEMO) localStorage.setItem('lumen:projectId', id)
+  }
+
+  const { items, running, send, stop, newConversation, selectConversation, taskId, ctxUsage } = useAgent(client, projectId, connected)
+  const ws = useWorkspace(client, projectId, taskId, connected)
   // 工作目录:默认收起;当前会话有产物(上传文件/模型写出报告)才自动展开——纯问答保持收起(owner 定 2026-07-10)
   const [drawer, setDrawer] = useState(false)
   const [input, setInput] = useState('')
@@ -99,9 +117,10 @@ function AppInner() {
   // 产物驱动:当前会话有产物→展开工作目录,纯问答(无产物)→收起;手动开合保持到下次产物变化/切会话
   useEffect(() => { setDrawer(ws.assets.length > 0) }, [ws.assets.length, taskId])
 
-  // 会话搜索弹窗(侧栏🔍 / ⌘K)+ 设置弹窗
+  // 会话搜索弹窗(侧栏🔍 / ⌘K)+ 设置弹窗 + 新建项目弹框
   const [searchOpen, setSearchOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [createProjectOpen, setCreateProjectOpen] = useState(false)
   useEffect(() => {
     function onKey(e: KeyboardEvent): void {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -113,19 +132,153 @@ function AppInner() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
   function pickConversation(task: Task): void {
-    selectConversation(task.id, task.status === 'running')
+    setDraftProjectId(null) // 点进已有会话 = 取消未发言草稿
+    persistProjectId(task.project_id)
+    selectConversation(task.id, task.status === 'running', task.project_id)
     ws.close()
     setSearchOpen(false)
   }
 
-  // 会话历史:连上 / 新任务建立 / 任务收尾时刷新
-  const [convs, setConvs] = useState<Task[]>([])
+  /** 新对话:p-* 下出现临时「新建对话」行;default 桶不造项目草稿 */
+  function startNewChat(pid: string = projectId): void {
+    const target = pid.startsWith('p-') || pid === 'default' ? pid : 'default'
+    persistProjectId(target)
+    newConversation(target)
+    setDraftProjectId(target.startsWith('p-') ? target : null)
+    ws.close()
+    requestAnimationFrame(() => taRef.current?.focus())
+  }
+
+  function selectProject(pid: string): void {
+    // 点项目名≠点 +:不造草稿;若离开草稿项目且未发言,草稿取消
+    if (draftProjectId && draftProjectId !== pid) {
+      setDraftProjectId(null)
+      if (!taskId) {
+        persistProjectId(pid)
+        newConversation(pid)
+        ws.close()
+        return
+      }
+    }
+    if (pid === projectId) return
+    persistProjectId(pid)
+    // 切项目时若不在草稿空态,只换高亮;会话内容等用户点具体对话
+    if (!taskId) {
+      newConversation(pid)
+      ws.close()
+    }
+  }
+
+  async function handleCreateProject(payload: CreateProjectPayload): Promise<void> {
+    try {
+      const p = await client.createProject(payload.name, payload.sourcePath)
+      setProjects((prev) => [...prev, p])
+      setTasksByProject((prev) => ({ ...prev, [p.id]: [] }))
+      persistProjectId(p.id)
+      newConversation(p.id)
+      setDraftProjectId(p.id) // 新建项目后等同点了一次 +,露出临时「新建对话」
+      ws.close()
+      toast.add({
+        variant: 'success',
+        title: '项目已创建',
+        description: payload.sourcePath
+          ? `「${p.name}」已绑定本地文件夹；可在项目下新建对话。`
+          : `「${p.name}」已创建；可在项目行右侧 + 新建对话。`,
+      })
+      requestAnimationFrame(() => taRef.current?.focus())
+    } catch (err) {
+      toast.add({
+        variant: 'error',
+        title: '创建项目失败',
+        description: err instanceof Error ? err.message : '请重试',
+      })
+      throw err
+    }
+  }
+
+  async function uploadShared(files: File[]): Promise<void> {
+    try {
+      for (const file of files) await client.uploadFile(projectId, file, undefined, 'shared')
+      ws.refresh(taskId)
+      toggleRail(true)
+    } catch (err) {
+      toast.add({
+        variant: 'error',
+        title: '共享区上传失败',
+        description: err instanceof Error ? err.message : '请重试',
+      })
+    }
+  }
+
+  // 项目名册 + 各项目会话(树需要全量);demo 用本地 visitor 合成单项目
+  // 旧 service / 协议失败时回退到 default,避免历史会话整栏消失
   useEffect(() => {
     if (!connected) return
     let live = true
-    client.list(PROJECT).then((tasks) => { if (live) setConvs(tasks) })
+    const load = async (): Promise<void> => {
+      const fallbackDefault = (): Project => ({
+        id: 'default', name: '默认', source_path: null, created_at: '', updated_at: '',
+      })
+      if (IS_DEMO) {
+        const pid = projectId
+        const tasks = await client.list(pid).catch(() => [] as Task[])
+        if (!live) return
+        setProjects([{ id: pid, name: '我的空间', source_path: null, created_at: '', updated_at: '' }])
+        setTasksByProject({ [pid]: tasks })
+        return
+      }
+      let list: Project[]
+      try {
+        list = await client.listProjects()
+      } catch {
+        list = [fallbackDefault()]
+      }
+      if (!live) return
+      if (list.length === 0) list = [fallbackDefault()]
+      // 确保当前 projectId 在树上(旧 localStorage / 孤儿任务)
+      if (!list.some((p) => p.id === projectId)) {
+        list = [...list, {
+          id: projectId,
+          name: projectId === 'default' ? '默认' : projectId,
+          source_path: null,
+          created_at: '',
+          updated_at: '',
+        }]
+      }
+      setProjects(list)
+      // list 共用 pendingTasks 槽,必须串行,不能 Promise.all
+      const map: Record<string, Task[]> = {}
+      for (const p of list) {
+        map[p.id] = await client.list(p.id).catch(() => [])
+        if (!live) return
+      }
+      setTasksByProject(map)
+    }
+    void load()
     return () => { live = false }
-  }, [client, connected, taskId, running])
+  }, [client, connected, taskId, running, projectId])
+
+  /**
+   * 第一性原理:storage 的 project_id ≠ 用户「项目」。
+   * - 项目树:仅用户显式 create 的 p-*
+   * - 最近:default/live/等历史桶平铺——绝不塞进「默认」文件夹
+   */
+  const sidebarProjects = useMemo(
+    () => projects.filter((p) => p.id.startsWith('p-')),
+    [projects],
+  )
+  const recentTasks = useMemo(
+    () => Object.entries(tasksByProject)
+      .filter(([pid]) => !pid.startsWith('p-'))
+      .flatMap(([, tasks]) => tasks)
+      .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '')),
+    [tasksByProject],
+  )
+  /** 搜索跨项目(仍按会话点选) */
+  const convs = useMemo(
+    () => Object.values(tasksByProject).flat(),
+    [tasksByProject],
+  )
 
   // 当前激活模型:输入卡底部显示。getSettings 走共享 pendingSettings 解析器,
   // 不能和设置弹窗的 getSettings 并发(会互相覆盖 → 弹窗那次永远 pending,模型页变空白)。
@@ -147,10 +300,15 @@ function AppInner() {
     if (restoreTried.current || !connected || convs.length === 0) return
     restoreTried.current = true
     if (taskId) return
-    const saved = localStorage.getItem(`lumen:taskId:${PROJECT}`)
+    const saved = localStorage.getItem(`lumen:taskId:${projectId}`)
     const last = saved ? convs.find((t) => t.id === saved) : undefined
-    if (last?.status === 'running') selectConversation(last.id, true)
-  }, [connected, convs, taskId, selectConversation])
+    if (last?.status === 'running') selectConversation(last.id, true, last.project_id)
+  }, [connected, convs, taskId, projectId, selectConversation])
+
+  // 草稿发言落库 → 侧栏临时行消失,由真实会话接管
+  useEffect(() => {
+    if (taskId && draftProjectId) setDraftProjectId(null)
+  }, [taskId, draftProjectId])
 
   // 悬停复制:平时隐身,悬到消息上才浮现;点击复制该条原文(assistant=原始 markdown)
   const [copiedId, setCopiedId] = useState<string | null>(null)
@@ -207,10 +365,10 @@ function AppInner() {
       try {
         let id = taskId
         if (!id) {
-          id = await client.createTask(PROJECT, text)
-          selectConversation(id)
+          id = await client.createTask(projectId, text)
+          selectConversation(id, false, projectId)
         }
-        for (const file of files) await client.uploadFile(PROJECT, file, id)
+        for (const file of files) await client.uploadFile(projectId, file, id)
         ws.refresh(id)
         toggleRail(true) // 展开工作区轨,让用户看到刚入库的文件
       } catch (err) {
@@ -306,12 +464,26 @@ function AppInner() {
       <div className="body">
         {sbOpen && (
           <Sidebar
-            conversations={convs}
-            activeId={taskId}
-            onNew={() => { newConversation(); ws.close() }}
+            connected={connected}
+            projects={sidebarProjects}
+            tasksByProject={tasksByProject}
+            recentTasks={recentTasks}
+            activeProjectId={projectId}
+            activeTaskId={taskId}
+            draftProjectId={draftProjectId}
+            canCreateProject={connected && !IS_DEMO}
+            onOpenCreateProject={() => setCreateProjectOpen(true)}
+            onNewChat={startNewChat}
             onSearch={() => setSearchOpen(true)}
             onSelect={pickConversation}
+            onSelectProject={selectProject}
             onSettings={() => setSettingsOpen(true)}
+          />
+        )}
+        {createProjectOpen && (
+          <CreateProjectModal
+            onClose={() => setCreateProjectOpen(false)}
+            onCreate={handleCreateProject}
           />
         )}
         <main className={`chat ${showReader ? 'chat-with-reader' : ''} ${isEmpty ? 'chat-empty' : ''}`}>
@@ -430,8 +602,16 @@ function AppInner() {
           </form>
         </main>
 
-        {showReader && ws.open && <ReaderPane open={ws.open} pdfUrl={(p) => client.pdfUrl(PROJECT, p, taskId ?? undefined)} onClose={ws.close} />}
-        {drawer && !showReader && <UtilityRail assets={ws.assets} onOpen={ws.openAsset} items={items} running={running} />}
+        {showReader && ws.open && <ReaderPane open={ws.open} pdfUrl={(p) => client.pdfUrl(projectId, p, taskId ?? undefined)} onClose={ws.close} />}
+        {drawer && !showReader && (
+          <UtilityRail
+            assets={ws.assets}
+            onOpen={ws.openAsset}
+            items={items}
+            running={running}
+            onUploadShared={(files) => { void uploadShared(files) }}
+          />
+        )}
       </div>
 
       <SearchModal open={searchOpen} onOpenChange={setSearchOpen} conversations={convs} onSelect={pickConversation} />

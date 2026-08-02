@@ -8,6 +8,8 @@
 
 - `db.ts` — openDatabase:打开 SQLite 并跑**纯增量** migration
 - `task-store.ts` — TaskStore:tasks / task_events(事件流 = runtime 的 source of truth)
+- `project-store.ts` — ProjectStore:一等项目名册 + `shared/` 目录播种;default 零感知
+- `workspace-id.ts` — sanitizeWorkspaceId:工作区路径段消毒(防 `..` / 分隔符)
 - `resume.ts` — rebuildThread:从持久化事件重建可续跑线程
 - `budget.ts` — 多维预算:从 task_events 计算用量(event-sourced),支持扩展预算
 - `session-file.ts` — session jsonl:LLM 视角 trace(append/read/list)

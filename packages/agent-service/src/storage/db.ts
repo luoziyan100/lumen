@@ -7,7 +7,7 @@ import Database from 'better-sqlite3'
 
 export type DB = Database.Database
 
-const SCHEMA_VERSION = 3
+const SCHEMA_VERSION = 5
 
 export function openDatabase(filename: string): DB {
   const db = new Database(filename)
@@ -71,6 +71,22 @@ function migrate(db: DB): void {
     db.exec('ALTER TABLE task_events ADD COLUMN agent_role TEXT')
   }
 
-  // 后续 migration：if (current < 4) { ... } 然后更新 SCHEMA_VERSION
+  if (current < 4) {
+    // 一等 Project:侧栏树 / 共享区归属;default 由 ProjectStore.ensureDefault 播种
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id         TEXT PRIMARY KEY,
+        name       TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `)
+  }
+
+  if (current < 5) {
+    // 项目可绑定本机源文件夹(只读挂载进 agent workspace library/)
+    db.exec(`ALTER TABLE projects ADD COLUMN source_path TEXT`)
+  }
+
   db.pragma(`user_version = ${SCHEMA_VERSION}`)
 }

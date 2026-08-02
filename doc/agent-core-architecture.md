@@ -7,7 +7,7 @@
 ```
 ┌─ macOS 原生壳(Tauri)─── 或 ─── 浏览器 ─────┐
 │  ui-client · React + Vite                    │
-│  三栏:会话列表 / 对话 / 工作区+阅读器       │
+│  三栏:项目树(会话) / 对话 / 工作区+阅读器   │
 └───────────────┬──────────────────────────────┘
                 │ WebSocket(JSON · LumenClient)
 ┌───────────────┴──────────────────────────────┐
@@ -73,9 +73,10 @@ WebSocket + JSON:
 
 | 类别 | 动作 |
 |---|---|
+| 项目 | `list_projects` · `create_project`(一等 Project;demo 模式禁用以免串访客) |
 | 任务 | `create_task` · `submit` · `continue` · `cancel` · `resume` · `list` |
 | 事件流 | `subscribe`(附事件重放;客户端按事件 id 去重) |
-| 资产 | `list_assets` · `read_asset` |
+| 资产 | `list_assets` · `read_asset`(shared + 当前会话;`scope` 标注) |
 | 设置 | `get_settings` · `update_settings` |
 
 UI 状态是事件流的纯函数:界面不持有私有真相,重放同一批事件必然得到同一个界面。`client/agent-client.ts`(LumenClient)是类型化客户端,浏览器与 Node 测试共用。
@@ -88,7 +89,16 @@ UI 状态是事件流的纯函数:界面不持有私有真相,重放同一批事
 
 ## 工作区(workspace/)
 
-`fs-workspace.ts`:项目目录就是真实文件系统。用户上传的文献、模型写的报告都是磁盘上的真实文件——**文件即记忆**,跨会话共享。项目级 `memory/` 目录是模型的长期记忆(索引 + 事实文件),用户可随时查看修改。会话私有目录在 `sessions/<taskId>/`;PDF 提取等中间产物进 `cache/`,不进资产列表。
+`fs-workspace.ts`:项目目录就是真实文件系统。布局:
+
+```
+~/.lumen/workspaces/<projectId>/
+  shared/{papers,docs,notes}/   ← 项目级共享(同项目多会话可读;agent 会话 cwd 下只读挂载 shared/)
+  memory/                       ← 跨会话记忆(索引 + 事实文件)
+  sessions/<taskId>/            ← 会话私有 scratch(聊天线程永不跨会话共享)
+```
+
+**共享的是资料,不是聊天。** 会话 cwd 仍是 `sessions/<taskId>/`;工具经 `shared/` 前缀只读访问共享区。`list_assets` 合并 shared + 当前会话并标注 `scope`。PDF 提取等中间产物进 `cache/`,不进资产列表。
 
 ## 服务与外壳
 

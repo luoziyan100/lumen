@@ -1,12 +1,10 @@
 /**
  * [INPUT]: AgentClient 的事件流 / submit·continue·subscribe
- * [OUTPUT]: useAgent → items/running/send/stop/会话切换;ChatItem 归约
- * [POS]: UI 对话状态核;空 model_step→error;send 必须处理 continue/WS 失败并收回 running
+ * [OUTPUT]: useAgent → items/running/send/stop/selectConversation(forProjectId);ChatItem 归约
+ * [POS]: UI 对话状态核;跨项目切换时同步 projectIdRef;空 model_step→error
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
- * user 也走事件流(submit 后服务端回放 / continue 时 notify),不在前端乐观插入——
- * 这样刷新后能从历史事件完整重建对话。taskId 存 localStorage,重连即 attach 回放。
- * 若 send 静默失败而 running=true,会出现「思考中」且无用户气泡——根因已在 AgentClient 堵住。
+ * user 也走事件流,不在前端乐观插入。taskId 按项目键存 localStorage。
  */
 import { useEffect, useRef, useState } from 'react'
 import type { AgentClient, ImageData, TaskEvent } from './agent-client'
@@ -35,16 +33,18 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
   const [taskId, setTaskId] = useState<string | null>(null) // 给 UI 高亮当前会话
   const [ctxUsage, setCtxUsage] = useState<number | null>(null) // 上下文水位 0-1(context_usage 事件)
   const taskIdRef = useRef<string | null>(null)
+  const projectIdRef = useRef(projectId)
+  projectIdRef.current = projectId
   const seenEventIds = useRef<Set<string>>(new Set()) // 已归约过的事件 id:回放与实时交错时保证幂等
-  const taskKey = `lumen:taskId:${projectId}`
 
-  function switchTo(id: string | null): void {
+  function switchTo(id: string | null, forProjectId = projectIdRef.current): void {
     taskIdRef.current = id
     seenEventIds.current = new Set()
     setCtxUsage(null)
     setTaskId(id)
-    if (id) localStorage.setItem(taskKey, id)
-    else localStorage.removeItem(taskKey)
+    const key = `lumen:taskId:${forProjectId}`
+    if (id) localStorage.setItem(key, id)
+    else localStorage.removeItem(key)
   }
 
   useEffect(() => {
@@ -72,7 +72,7 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
   // 重连后重新 attach 当前会话,补事件流订阅(seenEventIds 幂等)
   useEffect(() => {
     if (!connected || !taskIdRef.current) return
-    client.subscribe(taskIdRef.current, projectId)
+    client.subscribe(taskIdRef.current, projectIdRef.current)
   }, [connected, client, projectId])
 
   // 进入即欢迎页(owner 拍板 2026-07-05):启动/刷新不再无条件恢复上次会话。
@@ -80,12 +80,13 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
 
   async function send(text: string, images?: ImageData[]): Promise<void> {
     setRunning(true)
+    const pid = projectIdRef.current
     try {
       if (taskIdRef.current) {
-        await client.continueTask(taskIdRef.current, text, images, projectId)
+        await client.continueTask(taskIdRef.current, text, images, pid)
       } else {
-        const id = await client.submit(projectId, text, images)
-        switchTo(id)
+        const id = await client.submit(pid, text, images)
+        switchTo(id, pid)
       }
     } catch (err) {
       setRunning(false)
@@ -100,25 +101,28 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
     }
   }
 
-  function newConversation(): void {
-    switchTo(null)
+  function newConversation(forProjectId?: string): void {
+    if (forProjectId) projectIdRef.current = forProjectId
+    switchTo(null, projectIdRef.current)
     setItems([])
     setRunning(false)
   }
 
-  /** 切到历史会话:清屏 → attach(服务端回放事件重建对话)。isRunning 来自任务列表的 status */
-  function selectConversation(id: string, isRunning = false): void {
+  /** 切到历史会话:清屏 → attach。forProjectId 在跨项目点击时同步写入,避免闭包仍是旧 projectId */
+  function selectConversation(id: string, isRunning = false, forProjectId?: string): void {
+    const pid = forProjectId ?? projectIdRef.current
+    if (forProjectId) projectIdRef.current = forProjectId
     if (id === taskIdRef.current) return
-    switchTo(id)
+    switchTo(id, pid)
     setItems([])
     setRunning(isRunning)
-    client.subscribe(id, projectId)
+    client.subscribe(id, pid)
   }
 
   /** 停止当前在跑的任务(发送按钮的暂停态) */
   function stop(): void {
     try {
-      if (taskIdRef.current) client.cancel(taskIdRef.current, projectId)
+      if (taskIdRef.current) client.cancel(taskIdRef.current, projectIdRef.current)
     } catch { /* 已断线则本地收尾即可 */ }
     setRunning(false)
   }

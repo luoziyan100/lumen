@@ -1,6 +1,10 @@
 /**
- * useWorkspace —— 当前会话工作区的资产(会话独立目录,owner 拍板 2026-07-05)+ 当前打开的资产。
- * 刷新时机:会话就绪/切换 + 每次 reply(模型可能写了文件)+ 手动;无会话时为空。
+ * [INPUT]: AgentClient.listAssets/readAsset;projectId + taskId
+ * [OUTPUT]: useWorkspace → assets(含 shared+session scope)/open/refresh
+ * [POS]: 工作区轨与阅读器的数据源;无会话时仍可刷 shared(若服务端允许)
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
+ *
+ * 刷新时机:会话就绪/切换 + 每次 reply + 手动。
  */
 import { useCallback, useEffect, useState } from 'react'
 import type { AgentClient, Asset } from './agent-client'
@@ -13,8 +17,8 @@ export function useWorkspace(client: AgentClient, projectId: string, taskId: str
 
   /** tid 覆写:刚建的草稿会话上传完立刻刷——state 里的 taskId 此时可能还没切过去 */
   const refresh = useCallback((tid: string | null = taskId) => {
-    if (!tid) { setAssets([]); return }
-    client.listAssets(projectId, tid).then(setAssets).catch(() => {})
+    // 无会话也 list(仅 shared);有会话则 shared+session
+    client.listAssets(projectId, tid ?? undefined).then(setAssets).catch(() => setAssets([]))
   }, [client, projectId, taskId])
 
   useEffect(() => {

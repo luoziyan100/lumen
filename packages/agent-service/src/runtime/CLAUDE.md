@@ -7,8 +7,8 @@
 
 ## 成员
 
-- `agent-runtime.ts` — 任务生命周期:submit/continue/cancel;事件写 task_events(source of truth)并推订阅者;
-  服务重启 sweep 遗留 running;resume 只回放 main 线程,悬空 tool_use 合成「已中断」结果
+- `agent-runtime.ts` — 任务生命周期:submit/continue/cancel;listProjects/createProject;listAssets(shared+session);
+  makeWorkspace 挂载 sharedRoot;事件写 task_events 并推订阅者;resume 只回放 main 线程
 
 ## 规则
 

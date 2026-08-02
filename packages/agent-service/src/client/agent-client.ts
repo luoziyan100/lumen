@@ -6,6 +6,7 @@
  * 断线重连：reconnect() 后对已知任务用 subscribe(afterSeq) 拉齐，事件不丢不重。
  */
 import type { Task, TaskEvent } from '../storage/task-store.ts'
+import type { Project } from '../storage/project-store.ts'
 import type { ClientMessage, ServerMessage } from '../protocol/messages.ts'
 import type { WorkspaceAsset } from '../runtime/agent-runtime.ts'
 
@@ -18,6 +19,8 @@ export class LumenClient {
   private readonly lastSeq = new Map<string, number>()
   private pendingCreated: ((taskId: string) => void) | null = null
   private pendingTasks: ((tasks: Task[]) => void) | null = null
+  private pendingProjects: ((projects: Project[]) => void) | null = null
+  private pendingProjectCreated: ((project: Project) => void) | null = null
   private pendingAssets: ((assets: WorkspaceAsset[]) => void) | null = null
   private pendingAsset: ((content: string) => void) | null = null
 
@@ -82,6 +85,20 @@ export class LumenClient {
     })
   }
 
+  listProjects(): Promise<Project[]> {
+    return new Promise((resolve) => {
+      this.pendingProjects = resolve
+      this.send({ type: 'list_projects' })
+    })
+  }
+
+  createProject(name: string, sourcePath?: string): Promise<Project> {
+    return new Promise((resolve) => {
+      this.pendingProjectCreated = resolve
+      this.send({ type: 'create_project', name, ...(sourcePath ? { sourcePath } : {}) })
+    })
+  }
+
   listAssets(projectId: string, taskId?: string): Promise<WorkspaceAsset[]> {
     return new Promise((resolve) => {
       this.pendingAssets = resolve
@@ -114,6 +131,14 @@ export class LumenClient {
       case 'tasks':
         this.pendingTasks?.(message.tasks)
         this.pendingTasks = null
+        break
+      case 'projects':
+        this.pendingProjects?.(message.projects)
+        this.pendingProjects = null
+        break
+      case 'project_created':
+        this.pendingProjectCreated?.(message.project)
+        this.pendingProjectCreated = null
         break
       case 'assets':
         this.pendingAssets?.(message.assets)
