@@ -8,10 +8,12 @@
 - `SearchModal.tsx` — 会话搜索(⌘K):Kumo CommandPalette,内部过滤,↑↓/↵ 键盘导航
 - `SettingsModal.tsx` — 设置:外壳 Kumo Dialog(居中/焦点圈/Esc),接口协议 Kumo Select,保存/删除/添加 Kumo Button;模型 profile 两级导航 + 系统提示词;key 只回掩码
 - `WorkspaceDrawer.tsx` — 工作区抽屉:「资料 / 产物」分组卡片(Kumo Collapsible),PDF/MD 可点开阅读器;左缘拖拽调宽(useResizable 共用,与侧栏对称);内容在 .ws-body 滚动(把手不被裁)
-- `ReaderPane.tsx` — 右分屏阅读器:doc 衬线正文 / PDF 二选一
+- `ReaderPane.tsx` — 右分屏阅读器:doc 衬线正文 / PDF / HTML 沙箱
 - `PdfViewer.tsx` — pdf.js 竖向连续滚动渲染(锁 4.10.38)
+- `HtmlViewer.tsx` — 工作区 HTML 预览:复用 `widget/WidgetFrame`(allow-scripts + CSP,无 same-origin)
 - `ProcessRow.tsx` — 可折叠过程块(Kumo Collapsible):折叠一行摘要,展开逐步
-- `Markdown.tsx` — assistant 回复与 .md 文档的渲染:GFM + KaTeX + 代码高亮
+- `Markdown.tsx` — .md 文档与纯文本段渲染:GFM + KaTeX + 代码高亮
+- `widget/` — 对话网页沙箱(`show-widget` 围栏 → iframe);见 `widget/CLAUDE.md`
 - `hljs-celadon.css` — highlight.js 青瓷主题:消费 tokens.css 的 --code-* 语法色板
 - `icons.tsx` — **图标唯一入口**:re-export @phosphor-icons/react(Kumo 同源家族)并统一缺省尺寸;组件不得绕过它直接 import phosphor;不用 emoji
 

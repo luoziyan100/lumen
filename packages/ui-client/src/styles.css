@@ -594,10 +594,38 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
    多出一个行盒(约 21px),整页可滚 → 上面那条壳级锁滚是保险,这条是根治 */
 .hiddenCanvasElement { position: absolute; top: 0; left: 0; width: 0; height: 0; display: none; }
 
-/* HTML artifact:沙箱 iframe 填满阅读器 */
-.html-body { padding: 0; }
-.html-artifact { width: 100%; height: 100%; border: none; background: #fff; }
+/* HTML artifact / 对话 widget:网页沙箱 */
+.html-body { padding: 0; height: 100%; }
 .ws-tag-html { color: var(--ember); border-color: rgba(47, 107, 78, 0.4); }
+
+.assistant-content { display: flex; flex-direction: column; gap: var(--s-3); }
+.widget-frame {
+  margin: var(--s-2) 0;
+  border: 1px solid var(--sand-deep);
+  border-radius: 12px;
+  background: var(--card);
+  overflow: hidden;
+}
+.widget-frame-fill { height: 100%; margin: 0; border: none; border-radius: 0; display: flex; flex-direction: column; }
+.widget-frame-fill .widget-frame-body { flex: 1; min-height: 0; }
+.widget-frame-title {
+  padding: 8px 12px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--ink-mute);
+  border-bottom: 1px solid var(--sand);
+}
+.widget-frame-body { position: relative; width: 100%; }
+.widget-iframe { display: block; width: 100%; border: none; background: transparent; }
+.widget-frame-overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: flex-end; justify-content: center;
+  padding: 12px;
+  font-family: var(--font-sans); font-size: 12px; color: var(--ink-mute);
+  background: linear-gradient(to top, var(--card), transparent 40%);
+  pointer-events: none;
+}
+.widget-frame-loading .widget-iframe { opacity: 0.92; }
 
 /* ---- 上下文水位与压缩标记(方案 B) ---- */
 .ctx-divider { display: flex; align-items: center; gap: var(--s-3); margin: var(--s-2) 0; color: var(--ink-soft); font-size: 12px; }

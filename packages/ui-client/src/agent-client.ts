@@ -1,6 +1,8 @@
 /**
- * 浏览器侧 agent-service 客户端:WS(对话/资产)+ HTTP(PDF 取件/上传)。
- * 协议类型内联(将来从 @lumen/shared 导入)。
+ * [INPUT]: agent-service WS/HTTP 协议(messages 真源的浏览器侧内联副本)
+ * [OUTPUT]: AgentClient —— connect/submit/continue/subscribe/设置与资产
+ * [POS]: UI 唯一出站口;send 在 WS 非 OPEN 时必须失败(禁静默丢包),continue 等 ok/error 回执
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md;改消息格式须三处同步
  */
 export interface TaskEvent {
   id: string
@@ -85,6 +87,8 @@ export class AgentClient {
   private pendingAssets: ((assets: Asset[]) => void) | null = null
   private pendingAsset: ((content: string) => void) | null = null
   private pendingSettings: ((settings: PublicSettings) => void) | null = null
+  /** continue/cancel 等等待服务端 ok|error 的回执(禁 fire-and-forget) */
+  private pendingAck: { resolve: () => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> } | null = null
   private readonly url: string
   private readonly httpBase: string
   private readonly token?: string
@@ -100,7 +104,26 @@ export class AgentClient {
     this.url = u.toString()
   }
 
+  get connected(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN
+  }
+
   connect(): Promise<void> {
+    // 已打开则复用,避免重连时叠多条 socket
+    if (this.ws?.readyState === WebSocket.OPEN) return Promise.resolve()
+    if (this.ws?.readyState === WebSocket.CONNECTING) {
+      return new Promise((resolve, reject) => {
+        const ws = this.ws!
+        const onOpen = () => { cleanup(); resolve() }
+        const onErr = (e: Event) => { cleanup(); reject(e) }
+        const cleanup = () => {
+          ws.removeEventListener('open', onOpen)
+          ws.removeEventListener('error', onErr)
+        }
+        ws.addEventListener('open', onOpen)
+        ws.addEventListener('error', onErr)
+      })
+    }
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(this.url)
       this.ws = ws
@@ -108,7 +131,10 @@ export class AgentClient {
       ws.onopen = () => { opened = true; resolve() }
       ws.onerror = (e) => { if (!opened) reject(e) }
       // 握手成功后被服务端 4401 踢掉时 onopen 已 resolve,只有 onclose 能告诉我们"被拒"
-      ws.onclose = (ev) => { for (const h of this.closeHandlers) h(ev.code, ev.reason) }
+      ws.onclose = (ev) => {
+        this.rejectPendingAck(new Error('连接已断开'))
+        for (const h of this.closeHandlers) h(ev.code, ev.reason)
+      }
       ws.onmessage = (ev) => this.onMessage(JSON.parse(ev.data) as ServerMessage)
     })
   }
@@ -124,31 +150,48 @@ export class AgentClient {
   }
 
   submit(projectId: string, userText: string, images?: ImageData[]): Promise<string> {
-    return new Promise((resolve) => {
-      this.pendingCreated = resolve
-      this.send({ type: 'submit', projectId, userText, ...(images?.length ? { images } : {}) })
+    return new Promise((resolve, reject) => {
+      try {
+        this.pendingCreated = resolve
+        this.send({ type: 'submit', projectId, userText, ...(images?.length ? { images } : {}) })
+      } catch (e) {
+        this.pendingCreated = null
+        reject(e)
+      }
     })
   }
 
   /** 草稿会话:只建档不开跑。新对话先上传文件 → 文件立刻归入会话工作区 */
   createTask(projectId: string, goal?: string): Promise<string> {
-    return new Promise((resolve) => {
-      this.pendingCreated = resolve
-      this.send({ type: 'create_task', projectId, ...(goal ? { goal } : {}) })
+    return new Promise((resolve, reject) => {
+      try {
+        this.pendingCreated = resolve
+        this.send({ type: 'create_task', projectId, ...(goal ? { goal } : {}) })
+      } catch (e) {
+        this.pendingCreated = null
+        reject(e)
+      }
     })
   }
 
-  continueTask(taskId: string, userText: string, images?: ImageData[]): void {
-    this.send({ type: 'continue', taskId, userText, ...(images?.length ? { images } : {}) })
+  /** 续聊:等服务端 ok/error。失败时(未连上/任务在跑/forbidden)必须 reject,UI 才能收回「思考中」 */
+  continueTask(taskId: string, userText: string, images?: ImageData[], projectId?: string): Promise<void> {
+    const ack = this.expectAck()
+    try {
+      this.send({ type: 'continue', taskId, userText, ...(images?.length ? { images } : {}), ...(projectId ? { projectId } : {}) })
+    } catch (e) {
+      this.rejectPendingAck(e instanceof Error ? e : new Error(String(e)))
+    }
+    return ack
   }
 
   /** attach 已有 task:服务端回放历史事件 + 订阅新事件(刷新恢复用) */
-  subscribe(taskId: string): void {
-    this.send({ type: 'subscribe', taskId })
+  subscribe(taskId: string, projectId?: string): void {
+    this.send({ type: 'subscribe', taskId, ...(projectId ? { projectId } : {}) })
   }
 
-  cancel(taskId: string): void {
-    this.send({ type: 'cancel', taskId })
+  cancel(taskId: string, projectId?: string): void {
+    this.send({ type: 'cancel', taskId, ...(projectId ? { projectId } : {}) })
   }
 
   /** 会话历史 = 本项目的 task 列表(服务端按创建时间倒序) */
@@ -222,12 +265,46 @@ export class AgentClient {
   }
 
   close(): void {
+    this.rejectPendingAck(new Error('连接已关闭'))
     this.ws?.close()
     this.ws = null
   }
 
+  /** WS 非 OPEN 一律抛错——静默丢包会让 UI 假「思考中」且用户气泡永不出现 */
   private send(message: unknown): void {
-    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(message))
+    if (this.ws?.readyState !== WebSocket.OPEN) {
+      throw new Error('未连接到 agent-service(连接已断开)。请稍候重连后重试,或刷新窗口。')
+    }
+    this.ws.send(JSON.stringify(message))
+  }
+
+  private expectAck(ms = 15_000): Promise<void> {
+    if (this.pendingAck) this.rejectPendingAck(new Error('上一次请求尚未完成'))
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (this.pendingAck) {
+          this.pendingAck = null
+          reject(new Error('等待服务端确认超时'))
+        }
+      }, ms)
+      this.pendingAck = { resolve, reject, timer }
+    })
+  }
+
+  private resolvePendingAck(): void {
+    const p = this.pendingAck
+    if (!p) return
+    this.pendingAck = null
+    clearTimeout(p.timer)
+    p.resolve()
+  }
+
+  private rejectPendingAck(err: Error): void {
+    const p = this.pendingAck
+    if (!p) return
+    this.pendingAck = null
+    clearTimeout(p.timer)
+    p.reject(err)
   }
 
   private onMessage(message: ServerMessage): void {
@@ -265,6 +342,12 @@ export class AgentClient {
       case 'settings':
         this.pendingSettings?.(message.settings)
         this.pendingSettings = null
+        break
+      case 'ok':
+        this.resolvePendingAck()
+        break
+      case 'error':
+        if (this.pendingAck) this.rejectPendingAck(new Error(message.message || '请求失败'))
         break
       default:
         break

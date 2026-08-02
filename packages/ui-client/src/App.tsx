@@ -16,14 +16,22 @@ import { CheckIcon, CloseIcon, CopyIcon, PanelIcon, PdfIcon, PlusIcon, RailIcon,
 import { UtilityRail } from './components/UtilityRail'
 import { ReaderPane } from './components/ReaderPane'
 import { ProcessRow } from './components/ProcessRow'
-import { Markdown } from './components/Markdown'
+import { AssistantContent } from './components/widget/AssistantContent'
 import { getTimeGreeting } from './greeting'
 import { APP_BRAND_COPY, APP_NAV_ICON_BUTTON, APP_TITLEBAR_WORKSPACE_TOGGLE } from './appCopy'
 
 const w = window as { __LUMEN_WS__?: string; __LUMEN_TOKEN__?: string }
 const SERVICE_URL = w.__LUMEN_WS__ ?? 'ws://localhost:8787'
 const SERVICE_TOKEN = w.__LUMEN_TOKEN__ ?? new URLSearchParams(window.location.search).get('token') ?? undefined
-const PROJECT = 'default'
+// demo 部署(VITE_LUMEN_DEMO=1):每个浏览器一个随机访客空间,工作区/会话彼此隔离;本地单用户仍用 default
+const PROJECT = ((): string => {
+  if (import.meta.env.VITE_LUMEN_DEMO !== '1') return 'default'
+  try {
+    let id = localStorage.getItem('lumen:visitor')
+    if (!id) { id = 'v-' + crypto.randomUUID(); localStorage.setItem('lumen:visitor', id) }
+    return id
+  } catch { return 'default' }
+})()
 
 export function App() {
   return (
@@ -39,10 +47,31 @@ function AppInner() {
   const toast = useKumoToastManager()
   const client = useMemo(() => new AgentClient(SERVICE_URL, SERVICE_TOKEN), [])
   const [connected, setConnected] = useState(false)
+  // 连接生命周期:断线必须把 connected 打回 false 并自动重连——否则 UI 假在线,send 静默失败
   useEffect(() => {
     let live = true
-    client.connect().then(() => { if (live) setConnected(true) }).catch(() => {})
-    return () => { live = false; client.close() }
+    let retry: ReturnType<typeof setTimeout> | null = null
+    const connect = (): void => {
+      client.connect()
+        .then(() => { if (live) setConnected(true) })
+        .catch(() => {
+          if (!live) return
+          setConnected(false)
+          retry = setTimeout(connect, 1200)
+        })
+    }
+    const offClose = client.onClose(() => {
+      if (!live) return
+      setConnected(false)
+      retry = setTimeout(connect, 800)
+    })
+    connect()
+    return () => {
+      live = false
+      offClose()
+      if (retry) clearTimeout(retry)
+      client.close()
+    }
   }, [client])
 
   const { items, running, send, stop, newConversation, selectConversation, taskId, ctxUsage } = useAgent(client, PROJECT, connected)
@@ -294,12 +323,19 @@ function AppInner() {
               }
               if (it.kind !== 'msg') return <ProcessRow key={it.id} block={it} />
               if (it.role === 'assistant') {
+                const streamingWidget = running && !finalAssistantIds.has(it.id)
                 if (!finalAssistantIds.has(it.id)) {
-                  return <div key={it.id} className="bubble bubble-assistant"><Markdown>{it.content}</Markdown></div>
+                  return (
+                    <div key={it.id} className="bubble bubble-assistant">
+                      <AssistantContent content={it.content} isStreaming={streamingWidget} onSendMessage={(t) => { void send(t) }} />
+                    </div>
+                  )
                 }
                 return (
                   <div key={it.id} className="msg-group msg-group-assistant">
-                    <div className="bubble bubble-assistant"><Markdown>{it.content}</Markdown></div>
+                    <div className="bubble bubble-assistant">
+                      <AssistantContent content={it.content} onSendMessage={(t) => { void send(t) }} />
+                    </div>
                     <div className="msg-actions">{copyBtn(it.id, it.content, '复制这条回答')}</div>
                   </div>
                 )

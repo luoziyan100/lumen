@@ -1,9 +1,11 @@
 /**
  * [INPUT]: core 的 Message / ToolSpec / ModelPort / ModelResponse
- * [OUTPUT]: buildOpenAIRequest / parseOpenAIResponse / createOpenAIFetchTransport / createOpenAIAdapter + 录制重放
+ * [OUTPUT]: buildOpenAIRequest / parseOpenAIResponse / resolveOpenAIMaxTokens / createOpenAIFetchTransport / createOpenAIAdapter + 录制重放
  * [POS]: ModelPort 的 OpenAI-Chat-Completions 实现（兼容第三方代理）
  *
  * 同 claude.ts：请求构造与响应解析是纯函数，网络是可注入 transport，录制-重放走真实解析路径。
+ * DeepSeek V4 默认开启 thinking：推理与正文共享 max_tokens；额度被隐式推理烧光时
+ * HTTP 200 + content="" + finish_reason=length——适配器必须抬高额度、关掉 agent 环上的思考，并把空回复变成可观测错误。
  */
 import type { ModelPort, ModelResponse } from '../core/model-port.ts'
 import type { Message, ToolCall, ToolSpec } from '../core/types.ts'
@@ -29,11 +31,31 @@ export interface OpenAIRequest {
   messages: OAMessage[]
   tools?: OpenAITool[]
   tool_choice?: 'auto'
+  /** DeepSeek V4:启用/关闭思考模式(默认 provider 侧为 enabled) */
+  thinking?: { type: 'enabled' | 'disabled' }
 }
 export interface OpenAIResponseBody {
   model?: string
-  choices?: Array<{ message?: { content?: string | null; tool_calls?: OAToolCall[] }; finish_reason?: string }>
+  choices?: Array<{
+    message?: {
+      content?: string | null
+      reasoning_content?: string | null
+      tool_calls?: OAToolCall[]
+    }
+    finish_reason?: string
+  }>
   usage?: { prompt_tokens?: number; completion_tokens?: number }
+}
+
+/** DeepSeek V4 系列:思考与正文抢同一份 completion 预算 */
+export function isDeepSeekV4(model: string): boolean {
+  return /deepseek-v4/i.test(model)
+}
+
+/** V4 思考模式下 4096 极易烧光;抬到 16k 给正文留余地(调用方更大值则保留) */
+export function resolveOpenAIMaxTokens(model: string, requested = 4096): number {
+  if (isDeepSeekV4(model)) return Math.max(requested, 16_384)
+  return requested
 }
 
 export type OpenAITransport = (request: OpenAIRequest, signal?: AbortSignal) => Promise<OpenAIResponseBody>
@@ -126,6 +148,8 @@ export function buildOpenAIRequest(messages: Message[], tools: ToolSpec[], model
     request.tools = tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }))
     request.tool_choice = 'auto'
   }
+  // Agent 环要工具调用 + 可见正文;V4 默认 thinking 会把额度先花在 reasoning_content 上
+  if (isDeepSeekV4(model)) request.thinking = { type: 'disabled' }
   return request
 }
 
@@ -175,12 +199,22 @@ export interface OpenAIAdapterOptions {
 
 export function createOpenAIAdapter(options: OpenAIAdapterOptions): ModelPort {
   const model = options.model ?? 'claude-sonnet-4-6'
-  const maxTokens = options.maxTokens ?? 4096
+  const maxTokens = resolveOpenAIMaxTokens(model, options.maxTokens ?? 4096)
   return {
     async chat(messages: Message[], tools: ToolSpec[], signal?: AbortSignal): Promise<ModelResponse> {
       const request = buildOpenAIRequest(messages, tools, model, maxTokens)
       const body = await options.transport(request, signal)
-      return parseOpenAIResponse(body)
+      const parsed = parseOpenAIResponse(body)
+      const content = (parsed.message.content ?? '').trim()
+      const finish = body.choices?.[0]?.finish_reason
+      // 空正文 + 无工具 = 对用户不可见的「成功」;V4 思考烧光额度时的典型形态
+      if (!content && parsed.toolCalls.length === 0) {
+        const hint = finish === 'length'
+          ? '模型把输出额度花在了隐式思考上，没有留下正文（finish_reason=length）。请重试；若仍空，在设置里换模型。'
+          : '模型返回了空回复（无正文、无工具调用）。请重试或在设置里换模型。'
+        throw new Error(hint)
+      }
+      return parsed
     },
   }
 }

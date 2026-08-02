@@ -1,6 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildOpenAIRequest, parseOpenAIResponse, type OpenAIResponseBody } from '../../src/adapters/openai.ts'
+import {
+  buildOpenAIRequest,
+  createOpenAIAdapter,
+  parseOpenAIResponse,
+  resolveOpenAIMaxTokens,
+  type OpenAIResponseBody,
+} from '../../src/adapters/openai.ts'
 
 test('buildOpenAIRequest：tool_result→tool 角色，assistant.toolCalls→tool_calls', () => {
   const req = buildOpenAIRequest(
@@ -55,4 +61,27 @@ test('arguments 含字符串内括号也能正确平衡解析', () => {
   }
   const parsed = parseOpenAIResponse(body)
   assert.equal(parsed.toolCalls[0].arguments.q, 'a {nested} brace } here')
+})
+
+test('DeepSeek V4:max_tokens 抬到 ≥16k,并默认关闭 thinking', () => {
+  assert.equal(resolveOpenAIMaxTokens('deepseek-v4-flash', 4096), 16_384)
+  assert.equal(resolveOpenAIMaxTokens('deepseek-v4-pro', 32_768), 32_768)
+  assert.equal(resolveOpenAIMaxTokens('gpt-4o', 4096), 4096)
+  const req = buildOpenAIRequest([{ role: 'user', content: 'hi' }], [], 'deepseek-v4-flash', 16_384)
+  assert.deepEqual(req.thinking, { type: 'disabled' })
+  assert.equal(req.max_tokens, 16_384)
+})
+
+test('DeepSeek V4 空 content+finish length → adapter 抛可观测错误(不静默 done)', async () => {
+  const adapter = createOpenAIAdapter({
+    model: 'deepseek-v4-flash',
+    transport: async () => ({
+      choices: [{ message: { content: '', reasoning_content: '思考…' }, finish_reason: 'length' }],
+      usage: { prompt_tokens: 100, completion_tokens: 4096 },
+    }),
+  })
+  await assert.rejects(
+    () => adapter.chat([{ role: 'user', content: 'hi' }], []),
+    /隐式思考|空回复/,
+  )
 })

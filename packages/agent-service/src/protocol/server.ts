@@ -116,6 +116,12 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
   }
   // demo:该连接自带的 model(浏览器随 set_model 送来的 key 构建),只在连接内存、断开即弃、绝不落盘
   let connModel: ModelPort | undefined
+  // 访客隔离:demo 模式下 taskId 操作必须归属于消息带的 projectId(防访客 A 用 B 的 taskId 越权);本地不校验
+  const ownsTask = (taskId: string, projectId?: string): boolean => {
+    if (!demo) return true
+    const owner = runtime.taskProject(taskId)
+    return owner == null || owner === projectId // 不存在的 task 交下游返错;存在则必须归属匹配
+  }
   send({ type: 'hello', demo })
 
   // 回放与订阅解耦:UI 每次点进会话都清屏、靠回放重建,回放不能因"已订阅"跳过
@@ -152,19 +158,23 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
         break
       }
       case 'continue': {
+        if (!ownsTask(message.taskId, message.projectId)) { send({ type: 'error', message: 'forbidden' }); break }
         const ok = runtime.continueTask(message.taskId, message.userText, message.images, connModel)
         if (ok) subscribe(message.taskId, undefined, false) // 续聊不回放:客户端没清屏,回放会把记录翻倍
         send({ type: ok ? 'ok' : 'error', ...(ok ? { taskId: message.taskId } : { message: 'continue failed: task 不存在或正在运行' }) } as ServerMessage)
         break
       }
       case 'subscribe':
+        if (!ownsTask(message.taskId, message.projectId)) { send({ type: 'error', message: 'forbidden' }); break }
         subscribe(message.taskId, message.afterSeq)
         break
       case 'cancel':
+        if (!ownsTask(message.taskId, message.projectId)) { send({ type: 'error', message: 'forbidden' }); break }
         runtime.cancel(message.taskId)
         send({ type: 'ok', taskId: message.taskId })
         break
       case 'resume':
+        if (!ownsTask(message.taskId, message.projectId)) { send({ type: 'error', message: 'forbidden' }); break }
         void runtime.resume(message.taskId, connModel).then((ok) => {
           if (ok) subscribe(message.taskId)
           send({ type: 'ok', taskId: message.taskId })

@@ -18,11 +18,11 @@ export interface ConnModelConfig {
 
 export type ClientMessage =
   | { type: 'submit'; projectId: string; userText: string; images?: ImageData[] }
-  | { type: 'continue'; taskId: string; userText: string; images?: ImageData[] }
+  | { type: 'continue'; taskId: string; userText: string; images?: ImageData[]; projectId?: string }
   | { type: 'create_task'; projectId: string; goal?: string }
-  | { type: 'subscribe'; taskId: string; afterSeq?: number }
-  | { type: 'cancel'; taskId: string }
-  | { type: 'resume'; taskId: string }
+  | { type: 'subscribe'; taskId: string; afterSeq?: number; projectId?: string }
+  | { type: 'cancel'; taskId: string; projectId?: string }
+  | { type: 'resume'; taskId: string; projectId?: string }
   | { type: 'list'; projectId?: string }
   | { type: 'list_assets'; projectId: string; taskId?: string }
   | { type: 'read_asset'; projectId: string; path: string; taskId?: string }

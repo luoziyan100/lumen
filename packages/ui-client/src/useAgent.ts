@@ -1,10 +1,12 @@
 /**
- * useAgent —— 对话状态。client 由 App 建并 connect,这里订阅事件 + 发消息。
- * 事件流归约成 ChatItem[]:user/assistant/error 是消息气泡;一轮的 tool_call/tool_result
- * (按 id 配对)聚合成可折叠过程块(§9)。
+ * [INPUT]: AgentClient 的事件流 / submit·continue·subscribe
+ * [OUTPUT]: useAgent → items/running/send/stop/会话切换;ChatItem 归约
+ * [POS]: UI 对话状态核;空 model_step→error;send 必须处理 continue/WS 失败并收回 running
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * user 也走事件流(submit 后服务端回放 / continue 时 notify),不在前端乐观插入——
  * 这样刷新后能从历史事件完整重建对话。taskId 存 localStorage,重连即 attach 回放。
+ * 若 send 静默失败而 running=true,会出现「思考中」且无用户气泡——根因已在 AgentClient 堵住。
  */
 import { useEffect, useRef, useState } from 'react'
 import type { AgentClient, ImageData, TaskEvent } from './agent-client'
@@ -60,21 +62,41 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
     })
     const offClose = client.onClose((code) => {
       if (code === 4401) setItems((prev) => [...prev, { kind: 'msg', id: `c-${Date.now()}`, role: 'error', content: '连接被拒:未授权(刷新页面重试)。' }])
-      if (code !== 1000) setRunning(false)
+      // 断线必须收回思考态——否则会出现永远「思考中」且无用户气泡
+      setRunning(false)
+      void code
     })
     return () => { offEvent(); offClose() }
   }, [client])
+
+  // 重连后重新 attach 当前会话,补事件流订阅(seenEventIds 幂等)
+  useEffect(() => {
+    if (!connected || !taskIdRef.current) return
+    client.subscribe(taskIdRef.current, projectId)
+  }, [connected, client, projectId])
 
   // 进入即欢迎页(owner 拍板 2026-07-05):启动/刷新不再无条件恢复上次会话。
   // localStorage 仍记录最近 taskId,但只由 App 在「该任务仍在运行」时调 selectConversation 接回。
 
   async function send(text: string, images?: ImageData[]): Promise<void> {
     setRunning(true)
-    if (taskIdRef.current) {
-      client.continueTask(taskIdRef.current, text, images)
-    } else {
-      const id = await client.submit(projectId, text, images)
-      switchTo(id)
+    try {
+      if (taskIdRef.current) {
+        await client.continueTask(taskIdRef.current, text, images, projectId)
+      } else {
+        const id = await client.submit(projectId, text, images)
+        switchTo(id)
+      }
+    } catch (err) {
+      setRunning(false)
+      const msg = err instanceof Error ? err.message : String(err)
+      const preview = text.trim().slice(0, 80)
+      setItems((prev) => [...prev, {
+        kind: 'msg',
+        id: `send-err-${Date.now()}`,
+        role: 'error',
+        content: `消息未送达:${msg}${preview ? `（原文: ${preview}${text.trim().length > 80 ? '…' : ''}）` : ''}`,
+      }])
     }
   }
 
@@ -90,12 +112,14 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
     switchTo(id)
     setItems([])
     setRunning(isRunning)
-    client.subscribe(id)
+    client.subscribe(id, projectId)
   }
 
   /** 停止当前在跑的任务(发送按钮的暂停态) */
   function stop(): void {
-    if (taskIdRef.current) client.cancel(taskIdRef.current)
+    try {
+      if (taskIdRef.current) client.cancel(taskIdRef.current, projectId)
+    } catch { /* 已断线则本地收尾即可 */ }
     setRunning(false)
   }
 
@@ -111,7 +135,18 @@ function reduce(prev: ChatItem[], event: TaskEvent, p: Record<string, unknown>):
     }
     case 'model_step': {
       const content = typeof p.content === 'string' ? p.content.trim() : ''
-      return content ? [...prev, { kind: 'msg', id: event.id, role: 'assistant', content }] : prev
+      if (content) return [...prev, { kind: 'msg', id: event.id, role: 'assistant', content }]
+      // 空正文且无工具:历史上会被静默丢掉 → 用户只看见自己的气泡(DeepSeek V4 思考烧光额度)
+      const tools = Array.isArray(p.toolCalls) ? p.toolCalls : []
+      if (tools.length === 0) {
+        return [...prev, {
+          kind: 'msg',
+          id: event.id,
+          role: 'error',
+          content: '模型返回了空回复（常见于思考模式耗尽输出额度）。请重试，或在设置中换模型。',
+        }]
+      }
+      return prev
     }
     case 'tool_call': {
       const name = String(p.name ?? 'tool')

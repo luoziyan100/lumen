@@ -1,15 +1,21 @@
-/** 工作区 HTML artifact 预览:严格沙箱 iframe(srcdoc + 空 sandbox = 唯一不透明源,无脚本/表单/导航/同源)。
- *  v1 只渲染静态 artifact(内联 CSS / SVG / data: 图片);模型 HTML 里的 <script> 一律不执行——
- *  既因 sandbox 未开 allow-scripts,也因父窗口 CSP `script-src 'self'`。交互型(JS 图表)属 v2:
- *  改由本地 service 以独立宽松 CSP 供源 + 放开一条 frame-src,评审记录在案,勿在此偷偷放开 sandbox。 */
+/**
+ * [INPUT]: widget/WidgetFrame(共享网页沙箱栈)
+ * [OUTPUT]: HtmlViewer —— 工作区 HTML artifact 预览(可执行脚本)
+ * [POS]: components/ 阅读器侧 HTML 入口;与对话内 WidgetFrame 同安全合同
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
+ *
+ * v2:sandbox="allow-scripts" 无 allow-same-origin;CSP 在 receiver srcdoc 内。
+ * 父页 script-src 'self' 不放宽 —— 脚本只在 iframe 内跑。独立宽松 CSP 供源属后续加固。
+ */
+import { WidgetFrame } from './widget/WidgetFrame'
+
 export function HtmlViewer({ html }: { html: string }) {
   return (
-    <iframe
-      className="html-artifact"
-      title="HTML 预览"
-      sandbox=""
-      srcDoc={html}
-      referrerPolicy="no-referrer"
+    <WidgetFrame
+      widgetCode={html}
+      isStreaming={false}
+      fillHeight
+      title={undefined}
     />
   )
 }

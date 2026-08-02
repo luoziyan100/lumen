@@ -100,3 +100,5 @@ UI 状态是事件流的纯函数:界面不持有私有真相,重放同一批事
 ## ui-client
 
 React + Vite。三栏工作台:会话列表 / 对话(全幅消息流,输入卡片悬浮其上)/ 工作区+阅读器(分栏可拖宽,工作区随产物自动展开)。`useAgent` 持有 WS 连接,把事件流 reduce 成界面状态;上传文件先在输入区暂存,发送时才进入工作区。
+
+**对话可视化(网页沙箱):** assistant 文本中的 ` ```show-widget ` 围栏由 ui-client 解析,在 `sandbox="allow-scripts"`(无 same-origin)的 receiver iframe 内渲染 HTML/SVG/JS;CSP 限制 CDN 白名单且 `connect-src 'none'`。过程与验收见 `briefs/active/web-sandbox-widget.md`。这与 `run_code` 的进程沙箱(Seatbelt)是不同隔离面。

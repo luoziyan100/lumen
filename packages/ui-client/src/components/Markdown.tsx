@@ -1,5 +1,9 @@
-/** Markdown 渲染:GFM(表格/任务列表/删除线)+ KaTeX 数学 + 代码高亮。
- *  用于 assistant 回复气泡与 .md 文档阅读。 */
+/**
+ * [INPUT]: react-markdown + remark-gfm/math + rehype-katex/highlight
+ * [OUTPUT]: Markdown —— GFM/数学/代码高亮渲染
+ * [POS]: .md 阅读器与 AssistantContent 的文本段;show-widget 不经此组件
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
+ */
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'

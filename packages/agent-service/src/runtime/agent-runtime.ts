@@ -156,6 +156,11 @@ export class AgentRuntime {
     return this.running.has(taskId)
   }
 
+  /** 任务归属的 project(访客隔离归属校验用);任务不存在返回 null */
+  taskProject(taskId: string): string | null {
+    return this.cfg.store.getTask(taskId)?.project_id ?? null
+  }
+
   listTasks(projectId?: string): Task[] {
     return this.cfg.store.listTasks(projectId)
   }
