@@ -4,8 +4,8 @@
  * [POS]: components/ 阅读器侧 HTML 入口;与对话内 WidgetFrame 同安全合同
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
- * v2:sandbox="allow-scripts" 无 allow-same-origin;CSP 在 receiver srcdoc 内。
- * 父页 script-src 'self' 不放宽 —— 脚本只在 iframe 内跑。独立宽松 CSP 供源属后续加固。
+ * v2:sandbox="allow-scripts" 无 allow-same-origin;
+ * receiver 为同源 /widget-receiver.html(非 srcdoc),自带 meta CSP——父页 script-src 'self' 不继承。
  */
 import { WidgetFrame } from './widget/WidgetFrame'
 

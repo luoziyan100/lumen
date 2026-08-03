@@ -24,6 +24,7 @@ import {
   visionEnvFromProcess,
 } from './tools/env/vision-tools.ts'
 import { createResearchTools, createUnpdfEngine, createTavilyWebSearch } from './tools/research/index.ts'
+import { createPlanTools } from './tools/env/plan-tools.ts'
 import { buildRoles } from './agents/roles.ts'
 import { createClaudeAdapter, createFetchTransport } from './adapters/claude.ts'
 import { createOpenAIAdapter, createOpenAIFetchTransport } from './adapters/openai.ts'
@@ -116,8 +117,11 @@ export function createService(config: ServiceConfig = {}): Service {
   const lookAtImage = createLookAtImageTool({ store: imageStore, env: visionEnv })
   // run_code:owner 拍板 2026-07-05 进默认工具集(L1 进程纪律 + macOS Seatbelt,见 tools/env/sandbox.ts)
   // demo 模式:剔除 run_code —— 云端 Linux 无 macOS Seatbelt,公网开放=远程任意代码执行(2026-07-15 审计 must-fix)
+  const planTools = createPlanTools()
   const mainTools = (
-    demo ? [...ENV_TOOLS, ...research, lookAtImage] : [...ENV_TOOLS, runCodeTool, ...research, lookAtImage]
+    demo
+      ? [...ENV_TOOLS, ...planTools, ...research, lookAtImage]
+      : [...ENV_TOOLS, ...planTools, runCodeTool, ...research, lookAtImage]
   ).map((t) => withGuard(t))
   const roles = buildRoles(mainTools)
 

@@ -13,6 +13,8 @@
   非 macOS 退化为仅 L1 进程纪律。**改 profile 必跑 tests/workspace/run-code.test.ts 的三条逃逸验收。**
 - `image-store.ts` — 任务级图片侧车 + `[[image:img-N]]` 占位符;`stripImagesForModel` 供 DeepSeek 路径去 image_url
 - `vision-tools.ts` — `look_at_image`(硅基 VL);`withImageSanitize` ModelPort 包装;env:`LUMEN_VISION_*`
+- `plan-tools.ts` — `update_plan`:复杂任务结构化进度;回灌线程 + `drafts/plan.md`(见 `doc/plan-card.md`)
+- `memory-tools.ts` — read_memory / write_memory(由 runtime 按项目注入,不在 ENV_TOOLS 常量里)
 
 ## research/ — L2 研究桥接(把外部世界灌进工作区)
 

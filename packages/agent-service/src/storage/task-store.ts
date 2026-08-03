@@ -1,7 +1,9 @@
 /**
  * [INPUT]: db.ts 的 DB
  * [OUTPUT]: TaskStore —— tasks / task_events 持久化（事件流是 runtime 的 source of truth）
- * [POS]: §存储层。语义搬自 old_lumen services/tasks.ts；seq 在事务内单调自增
+ * [POS]: §存储层。语义搬自 old_lumen services/tasks.ts；seq 在事务内单调自增;
+ *        archived_at 软归档,list 默认排除
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { DB } from './db.ts'
 
@@ -16,6 +18,8 @@ export interface Task {
   created_at: string
   updated_at: string
   finished_at: string | null
+  /** ISO 时间;NULL/缺省 = 未归档 */
+  archived_at?: string | null
 }
 
 export type TaskEventKind =
@@ -61,6 +65,7 @@ export class TaskStore {
     listTasks: ReturnType<DB['prepare']>
     listAllTasks: ReturnType<DB['prepare']>
     updateTask: ReturnType<DB['prepare']>
+    archiveTask: ReturnType<DB['prepare']>
     touchTask: ReturnType<DB['prepare']>
     insertEvent: ReturnType<DB['prepare']>
     maxSeq: ReturnType<DB['prepare']>
@@ -77,9 +82,16 @@ export class TaskStore {
         'INSERT INTO tasks (id, project_id, goal, status, last_error, created_at, updated_at, finished_at) VALUES (@id,@project_id,@goal,@status,@last_error,@created_at,@updated_at,@finished_at)',
       ),
       getTask: db.prepare('SELECT * FROM tasks WHERE id = ?'),
-      listTasks: db.prepare('SELECT * FROM tasks WHERE project_id = ? ORDER BY created_at DESC'),
-      listAllTasks: db.prepare('SELECT * FROM tasks ORDER BY created_at DESC'),
+      listTasks: db.prepare(
+        'SELECT * FROM tasks WHERE project_id = ? AND archived_at IS NULL ORDER BY created_at DESC',
+      ),
+      listAllTasks: db.prepare(
+        'SELECT * FROM tasks WHERE archived_at IS NULL ORDER BY created_at DESC',
+      ),
       updateTask: db.prepare('UPDATE tasks SET status=?, last_error=?, finished_at=?, updated_at=? WHERE id=?'),
+      archiveTask: db.prepare(
+        'UPDATE tasks SET archived_at = COALESCE(archived_at, ?), updated_at = ? WHERE id = ?',
+      ),
       touchTask: db.prepare('UPDATE tasks SET updated_at=? WHERE id=?'),
       insertEvent: db.prepare(
         'INSERT INTO task_events (id, task_id, seq, kind, payload_json, agent_role, created_at) VALUES (?,?,?,?,?,?,?)',
@@ -88,7 +100,7 @@ export class TaskStore {
       listEvents: db.prepare('SELECT * FROM task_events WHERE task_id = ? ORDER BY seq ASC'),
       listEventsAfter: db.prepare('SELECT * FROM task_events WHERE task_id = ? AND seq > ? ORDER BY seq ASC'),
       findInterrupted: db.prepare(
-        "SELECT * FROM tasks WHERE status IN ('running','interrupted') ORDER BY updated_at DESC",
+        "SELECT * FROM tasks WHERE status IN ('running','interrupted') AND archived_at IS NULL ORDER BY updated_at DESC",
       ),
     }
     this.appendTx = db.transaction((taskId: string, kind: string, payloadJson: string, agentRole: string | null): TaskEvent => {
@@ -125,6 +137,15 @@ export class TaskStore {
 
   listTasks(projectId?: string): Task[] {
     return (projectId ? this.stmts.listTasks.all(projectId) : this.stmts.listAllTasks.all()) as Task[]
+  }
+
+  /** 软归档:列表隐藏;幂等(已归档不改 archived_at) */
+  archiveTask(id: string): boolean {
+    const task = this.getTask(id)
+    if (!task) return false
+    const ts = now()
+    this.stmts.archiveTask.run(ts, ts, id)
+    return true
   }
 
   updateTaskStatus(id: string, status: TaskStatus, lastError: string | null = null): void {

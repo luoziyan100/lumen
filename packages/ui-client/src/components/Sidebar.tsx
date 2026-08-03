@@ -1,17 +1,33 @@
 /**
- * [INPUT]: Project / Task;icons;SIDEBAR_*_COPY;useResizable
- * [OUTPUT]: Sidebar —— 项目树 + 最近;+ 才出临时「新建对话」,空项目不写「还没有会话」
- * [POS]: 左栏;历史≠项目;草稿未发言离开即消
+ * [INPUT]: Project / Task;icons;SIDEBAR_*_COPY;useResizable;Kumo DropdownMenu
+ * [OUTPUT]: Sidebar —— 项目树 + 最近;次要点击(双指点按/右键)弹出复制 ID / 软归档
+ * [POS]: 左栏;contextmenu 自绘菜单并 preventDefault 挡系统 Look Up——对标 Cursor/Codex
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useEffect, useState, type MouseEvent } from 'react'
+import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
 import type { Project, Task } from '../agent-client'
 import {
-  AccountIcon, ChatIcon, ChevronIcon, FolderIcon, GearIcon, NewProjectIcon,
-  PlusIcon, SearchIcon, ICON_MD,
+  AccountIcon, ArchiveGlyph, ChatIcon, CheckIcon, ChevronIcon, CopyGlyph, FolderIcon, GearIcon,
+  NewProjectIcon, PlusIcon, SearchIcon, ICON_MD, ICON_SM,
 } from './icons'
 import { SIDEBAR_ACCOUNT_COPY, SIDEBAR_PROJECT_COPY } from '../appCopy'
 import { useResizable } from '../useResizable'
+
+async function copyText(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text)
+  } catch {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    ta.remove()
+  }
+}
 
 interface SidebarProps {
   connected: boolean
@@ -30,6 +46,7 @@ interface SidebarProps {
   onSearch: () => void
   onSelect: (task: Task) => void
   onSelectProject: (projectId: string) => void
+  onArchive: (task: Task) => void
   onSettings: () => void
 }
 
@@ -51,12 +68,84 @@ export function Sidebar({
   onSearch,
   onSelect,
   onSelectProject,
+  onArchive,
   onSettings,
 }: SidebarProps) {
   const { width, handleProps } = useResizable({ edge: 'right', min: 220, max: 420, fallback: 300, storageKey: 'lumen:sbWidth' })
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(
     activeProjectId.startsWith('p-') ? [activeProjectId] : [],
   ))
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+  /** 次要点击打开的浮层菜单所挂会话;单击主按钮不打开 */
+  const [menuTaskId, setMenuTaskId] = useState<string | null>(null)
+
+  async function onCopySessionId(taskId: string): Promise<void> {
+    await copyText(taskId)
+    setCopiedId(taskId)
+    window.setTimeout(() => setCopiedId((cur) => (cur === taskId ? null : cur)), 1400)
+  }
+
+  function renderTaskRow(task: Task, flat?: boolean) {
+    const copied = copiedId === task.id
+    const menuOpen = menuTaskId === task.id
+    return (
+      <div
+        key={task.id}
+        className={`sb-item-row${flat ? ' sb-item-flat' : ''}${task.id === activeTaskId ? ' is-active' : ''}${menuOpen ? ' is-menu-open' : ''}`}
+        data-task-row={task.id}
+      >
+        <DropdownMenu
+          open={menuOpen}
+          onOpenChange={(open) => {
+            // 主按钮单击会请求 open——拒绝;只允许 contextmenu(双指点按/右键)打开
+            if (!open) setMenuTaskId(null)
+          }}
+        >
+          <DropdownMenu.Trigger
+            className="sb-item"
+            title={`${task.goal}\n${task.id}\n${SIDEBAR_PROJECT_COPY.secondaryClickHint}`}
+            onClick={(e) => {
+              e.preventDefault()
+              if (menuTaskId && menuTaskId !== task.id) setMenuTaskId(null)
+              onSelect(task)
+            }}
+            onContextMenu={(e) => {
+              // 双指点按 / 右键:挡系统菜单,开我们的复制/归档
+              e.preventDefault()
+              e.stopPropagation()
+              window.getSelection()?.removeAllRanges()
+              setMenuTaskId(task.id)
+            }}
+          >
+            <span className="sb-item-title">{task.goal}</span>
+            {task.status === 'running' && <span className="sb-dot" />}
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content align="start" side="bottom" sideOffset={4} className="sb-task-menu">
+            <DropdownMenu.Item
+              icon={copied ? undefined : CopyGlyph}
+              onClick={() => { void onCopySessionId(task.id) }}
+            >
+              {copied ? (
+                <span className="sb-task-menu-copied"><CheckIcon size={ICON_SM} /> {SIDEBAR_PROJECT_COPY.copiedSessionId}</span>
+              ) : (
+                SIDEBAR_PROJECT_COPY.copySessionId
+              )}
+            </DropdownMenu.Item>
+            <DropdownMenu.Item
+              icon={ArchiveGlyph}
+              variant="danger"
+              onClick={() => {
+                setMenuTaskId(null)
+                onArchive(task)
+              }}
+            >
+              {SIDEBAR_PROJECT_COPY.archiveChat}
+            </DropdownMenu.Item>
+          </DropdownMenu.Content>
+        </DropdownMenu>
+      </div>
+    )
+  }
 
   useEffect(() => {
     const focus = draftProjectId ?? (activeProjectId.startsWith('p-') ? activeProjectId : null)
@@ -79,6 +168,7 @@ export function Sidebar({
   }
 
   function onProjectRowClick(p: Project): void {
+    setMenuTaskId(null)
     onSelectProject(p.id)
     if (!expanded.has(p.id)) toggle(p.id)
   }
@@ -91,20 +181,21 @@ export function Sidebar({
   function onPlus(e: MouseEvent, projectId: string): void {
     e.preventDefault()
     e.stopPropagation()
+    setMenuTaskId(null)
     onNewChat(projectId)
   }
 
   return (
     <aside className="sidebar" style={{ '--sidebar-w': `${width}px` } as React.CSSProperties}>
       <nav className="sb-nav">
-        <button type="button" className="sb-navrow" disabled={!connected} onClick={() => onNewChat(activeProjectId)}>
+        <button type="button" className="sb-navrow" disabled={!connected} onClick={() => { setMenuTaskId(null); onNewChat(activeProjectId) }}>
           <span className="sb-navrow-ic"><ChatIcon size={ICON_MD} /></span>{SIDEBAR_PROJECT_COPY.newChat}
         </button>
-        <button type="button" className="sb-navrow" disabled={!connected} onClick={onSearch}>
+        <button type="button" className="sb-navrow" disabled={!connected} onClick={() => { setMenuTaskId(null); onSearch() }}>
           <span className="sb-navrow-ic"><SearchIcon size={ICON_MD} /></span>{SIDEBAR_PROJECT_COPY.search}
         </button>
         {canCreateProject && (
-          <button type="button" className="sb-navrow" disabled={!connected} onClick={onOpenCreateProject}>
+          <button type="button" className="sb-navrow" disabled={!connected} onClick={() => { setMenuTaskId(null); onOpenCreateProject() }}>
             <span className="sb-navrow-ic"><NewProjectIcon size={ICON_MD} /></span>{SIDEBAR_PROJECT_COPY.newProject}
           </button>
         )}
@@ -130,7 +221,6 @@ export function Sidebar({
               const draftActive = hasDraft && !activeTaskId
               const active = proj.id === activeProjectId
               const label = projectLabel(proj)
-              // 空项目且无草稿:不展开空洞、不写「还没有会话」;仅 + 才出现临时行
               const showSess = open && (hasDraft || tasks.length > 0)
               return (
                 <div key={proj.id} className={`sb-folder ${active ? 'is-active-proj' : ''}`}>
@@ -170,24 +260,13 @@ export function Sidebar({
                         <button
                           type="button"
                           className={`sb-item sb-item-draft ${draftActive ? 'is-active' : ''}`}
-                          onClick={() => onNewChat(proj.id)}
+                          onClick={() => { setMenuTaskId(null); onNewChat(proj.id) }}
                           title={SIDEBAR_PROJECT_COPY.draftChat}
                         >
                           <span className="sb-item-title">{SIDEBAR_PROJECT_COPY.draftChat}</span>
                         </button>
                       )}
-                      {tasks.map((task) => (
-                        <button
-                          key={task.id}
-                          type="button"
-                          className={`sb-item ${task.id === activeTaskId ? 'is-active' : ''}`}
-                          onClick={() => onSelect(task)}
-                          title={task.goal}
-                        >
-                          <span className="sb-item-title">{task.goal}</span>
-                          {task.status === 'running' && <span className="sb-dot" />}
-                        </button>
-                      ))}
+                      {tasks.map((task) => renderTaskRow(task))}
                     </div>
                   )}
                 </div>
@@ -198,18 +277,7 @@ export function Sidebar({
             {recentTasks.length === 0 ? (
               <div className="sb-empty">{SIDEBAR_PROJECT_COPY.emptyRecent}</div>
             ) : (
-              recentTasks.map((task) => (
-                <button
-                  key={task.id}
-                  type="button"
-                  className={`sb-item sb-item-flat ${task.id === activeTaskId ? 'is-active' : ''}`}
-                  onClick={() => onSelect(task)}
-                  title={task.goal}
-                >
-                  <span className="sb-item-title">{task.goal}</span>
-                  {task.status === 'running' && <span className="sb-dot" />}
-                </button>
-              ))
+              recentTasks.map((task) => renderTaskRow(task, true))
             )}
           </>
         )}

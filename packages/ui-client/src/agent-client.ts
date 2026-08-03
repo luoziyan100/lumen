@@ -1,7 +1,9 @@
 /**
- * [INPUT]: agent-service WS/HTTP 协议(messages 真源的浏览器侧内联副本)
- * [OUTPUT]: AgentClient —— connect/submit/continue/listProjects/createProject/设置与资产(含 upload scope)
- * [POS]: UI 唯一出站口;send 在 WS 非 OPEN 时必须失败(禁静默丢包),continue 等 ok/error 回执
+ * [INPUT]: agent-service WS/HTTP 协议(messages 真源的浏览器侧内联副本);
+ *          运行时读 window.__LUMEN_WS__/__LUMEN_TOKEN__(Tauri 注入,可晚于首屏)
+ * [OUTPUT]: AgentClient —— connect/submit/continue/archiveTask/listProjects/createProject/设置与资产
+ * [POS]: UI 唯一出站口;connect 每次解析端点并把 localhost→127.0.0.1(防 IPv6 假死);
+ *        send 在 WS 非 OPEN 时必须失败,continue/archive 等 ok/error 回执
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md;改消息格式须三处同步
  */
 export interface TaskEvent {
@@ -93,6 +95,21 @@ type ServerMessage =
   | { type: 'ok'; taskId?: string }
   | { type: 'error'; message: string }
 
+/** 解析当前应连的端点。Tauri 注入可晚于模块求值,故每次 connect 重读 window。 */
+function resolveServiceEndpoint(fallbackUrl: string, fallbackToken?: string): { wsUrl: string; httpBase: string } {
+  const w = window as { __LUMEN_WS__?: string; __LUMEN_TOKEN__?: string }
+  const raw = (w.__LUMEN_WS__ || fallbackUrl).trim() || 'ws://127.0.0.1:8787'
+  const token = (w.__LUMEN_TOKEN__ || fallbackToken || '').trim() || undefined
+  const u = new URL(raw)
+  // service 默认只听 127.0.0.1;localhost→::1 会连不上
+  if (u.hostname === 'localhost' || u.hostname === '[::1]' || u.hostname === '::1') {
+    u.hostname = '127.0.0.1'
+  }
+  const httpBase = `${u.protocol === 'wss:' ? 'https:' : 'http:'}//${u.host}`
+  if (token) u.searchParams.set('token', token)
+  return { wsUrl: u.toString(), httpBase }
+}
+
 export class AgentClient {
   private ws: WebSocket | null = null
   private readonly handlers = new Set<(e: TaskEvent) => void>()
@@ -106,26 +123,36 @@ export class AgentClient {
   private pendingSettings: ((settings: PublicSettings) => void) | null = null
   /** continue/cancel 等等待服务端 ok|error 的回执(禁 fire-and-forget) */
   private pendingAck: { resolve: () => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> } | null = null
-  private readonly url: string
-  private readonly httpBase: string
-  private readonly token?: string
+  private url: string
+  private httpBase: string
+  private readonly fallbackUrl: string
+  private readonly fallbackToken?: string
   /** 服务端是否 demo 模式(公网多访客,key 走浏览器);连接后由 hello 事件置位 */
   demo = false
   private readonly helloHandlers = new Set<(demo: boolean) => void>()
 
   constructor(url: string, token?: string) {
-    this.token = token
-    const u = new URL(url)
-    this.httpBase = `${u.protocol === 'wss:' ? 'https:' : 'http:'}//${u.host}`
-    if (token) u.searchParams.set('token', token)
-    this.url = u.toString()
+    this.fallbackUrl = url
+    this.fallbackToken = token
+    const ep = resolveServiceEndpoint(url, token)
+    this.url = ep.wsUrl
+    this.httpBase = ep.httpBase
   }
 
   get connected(): boolean {
     return this.ws?.readyState === WebSocket.OPEN
   }
 
+  private currentToken(): string | undefined {
+    const w = window as { __LUMEN_TOKEN__?: string }
+    return (w.__LUMEN_TOKEN__ || this.fallbackToken || '').trim() || undefined
+  }
+
   connect(): Promise<void> {
+    // 每次重解析:壳可能在首屏后才注入 __LUMEN_WS__
+    const ep = resolveServiceEndpoint(this.fallbackUrl, this.fallbackToken)
+    this.url = ep.wsUrl
+    this.httpBase = ep.httpBase
     // 已打开则复用,避免重连时叠多条 socket
     if (this.ws?.readyState === WebSocket.OPEN) return Promise.resolve()
     if (this.ws?.readyState === WebSocket.CONNECTING) {
@@ -211,6 +238,17 @@ export class AgentClient {
     this.send({ type: 'cancel', taskId, ...(projectId ? { projectId } : {}) })
   }
 
+  /** 软归档:列表隐藏;等 ok/error */
+  archiveTask(taskId: string, projectId?: string): Promise<void> {
+    const ack = this.expectAck()
+    try {
+      this.send({ type: 'archive_task', taskId, ...(projectId ? { projectId } : {}) })
+    } catch (e) {
+      this.rejectPendingAck(e instanceof Error ? e : new Error(String(e)))
+    }
+    return ack
+  }
+
   /** 会话历史 = 本项目的 task 列表(服务端按创建时间倒序) */
   list(projectId: string): Promise<Task[]> {
     return new Promise((resolve) => {
@@ -280,7 +318,7 @@ export class AgentClient {
     u.searchParams.set('project', projectId)
     u.searchParams.set('path', path)
     if (taskId) u.searchParams.set('task', taskId)
-    if (this.token) u.searchParams.set('token', this.token)
+    if (this.currentToken()) u.searchParams.set('token', this.currentToken()!)
     return u.toString()
   }
 
@@ -296,7 +334,7 @@ export class AgentClient {
     u.searchParams.set('name', file.name)
     if (taskId) u.searchParams.set('task', taskId)
     if (scope === 'shared') u.searchParams.set('scope', 'shared')
-    if (this.token) u.searchParams.set('token', this.token)
+    if (this.currentToken()) u.searchParams.set('token', this.currentToken()!)
     const res = await fetch(u.toString(), { method: 'POST', body: file })
     return ((await res.json()) as { path: string }).path
   }

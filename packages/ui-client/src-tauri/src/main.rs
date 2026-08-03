@@ -1,11 +1,11 @@
 // Lumen Tauri 薄外壳(M7 v0:本机可双击运行)。职责:
 //   ① 壳拥有脑:探活 portfile;死了就补拉 node sidecar(启动 + 每次页面加载/reload)
 //   ② 读 ~/.lumen/agent-service.json 注入 window.__LUMEN_WS__ / __LUMEN_TOKEN__
-//   ③ 退出 app 时杀掉自己拉起的 sidecar(别人起的不动)
+//   ③ 真正退出(Cmd+Q / 菜单退出)时杀掉自己拉起的 sidecar(别人起的不动)
+//   ④ macOS:红叉关窗 = hide,进程与 sidecar 留在 Dock;点 Dock 再 show(RunEvent::Reopen)
 //
 // v0 已知取舍(M7.1 再收):
 //   - sidecar 用本机 node 跑 TS 源(LUMEN_NODE / LUMEN_SERVICE_DIR 可覆写)
-//   - 关窗即退出并杀 sidecar;「关窗留 dock 续跑」留 M7.1
 
 use std::path::PathBuf;
 use std::process::{Child, Command};
@@ -131,6 +131,12 @@ fn ensure_and_inject(webview: &tauri::Webview, sidecar: &Sidecar) {
     }
 }
 
+fn kill_owned_sidecar(app: &tauri::AppHandle) {
+    if let Some(mut child) = app.state::<Sidecar>().0.lock().unwrap().take() {
+        let _ = child.kill();
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(Sidecar(Mutex::new(None)))
@@ -161,13 +167,45 @@ fn main() {
                 .build()?;
             Ok(())
         })
+        // macOS:红叉不销毁窗口,只 hide——agent sidecar 继续跑
+        .on_window_event(|window, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+                eprintln!("[lumen] 关窗 → hide(留 Dock;Cmd+Q 才退出)");
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (window, event);
+        })
         .build(tauri::generate_context!())
         .expect("error building tauri app")
         .run(|app_handle, event| {
-            if let tauri::RunEvent::ExitRequested { .. } = event {
-                if let Some(mut child) = app_handle.state::<Sidecar>().0.lock().unwrap().take() {
-                    let _ = child.kill();
+            match event {
+                // code=None:关窗/软退出;code=Some:AppHandle.exit(Cmd+Q)——后者 ignore prevent_exit
+                tauri::RunEvent::ExitRequested { api, code, .. } => {
+                    #[cfg(target_os = "macos")]
+                    if code.is_none() {
+                        api.prevent_exit();
+                        eprintln!("[lumen] 拦截软退出(点 Dock 可回)");
+                        return;
+                    }
+                    #[cfg(not(target_os = "macos"))]
+                    let _ = api;
+
+                    kill_owned_sidecar(&app_handle);
                 }
+                #[cfg(target_os = "macos")]
+                tauri::RunEvent::Reopen { has_visible_windows, .. } => {
+                    if !has_visible_windows {
+                        if let Some(win) = app_handle.get_webview_window("main") {
+                            let _ = win.show();
+                            let _ = win.unminimize();
+                            let _ = win.set_focus();
+                        }
+                    }
+                }
+                _ => {}
             }
         });
 }

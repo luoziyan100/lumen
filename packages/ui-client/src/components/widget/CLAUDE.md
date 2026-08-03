@@ -7,10 +7,11 @@
 ## 成员
 
 - `sanitize.ts` — 流式剥脚本 / 终态轻清理 / CDN 白名单 / 未闭合 script 截断
-- `receiver.ts` — receiver srcdoc(CSP + postMessage 协议 + 青瓷 token 桥)
+- `receiver.ts` — receiver HTML 模板(CSP + postMessage + 青瓷 token 桥)
+- `../../scripts/vite-widget-receiver.ts` — Vite 插件产出 `/widget-receiver.html`(dev 中间件 + build asset)
 - `parseShowWidget.ts` — 围栏分段解析与 partial JSON 提取
 - `height.ts` — `nextWidgetHeight`:流式 ratchet、终态可收缩
-- `WidgetFrame.tsx` — 单 iframe 生命周期、debounce update、finalize;宿主栏宽变化 ping 重测
+- `WidgetFrame.tsx` — iframe.src=`/widget-receiver.html`(禁 srcdoc:父 CSP 会继承掐死 bootstrap);debounce update / finalize
 - `AssistantContent.tsx` — 文本 Markdown(含 mermaid)+ widget 交错;气泡入口
 
 测试:`tests/widget-parse.test.ts`(解析 + sanitize)。
@@ -18,5 +19,5 @@
 ## 安全硬规则
 
 - `sandbox="allow-scripts"`，禁止 `allow-same-origin`
-- CSP：`connect-src 'none'`；script 仅 inline + 四家 CDN
+- CSP 在 **receiver 文档自身**(meta);父页 `script-src 'self'` 保持不放宽
 - 流式不执行 script；finalize 才执行

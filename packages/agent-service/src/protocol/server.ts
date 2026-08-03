@@ -180,6 +180,14 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
         runtime.cancel(message.taskId)
         send({ type: 'ok', taskId: message.taskId })
         break
+      case 'archive_task': {
+        if (!ownsTask(message.taskId, message.projectId)) { send({ type: 'error', message: 'forbidden' }); break }
+        const archived = runtime.archiveTask(message.taskId)
+        send(archived
+          ? { type: 'ok', taskId: message.taskId }
+          : { type: 'error', message: 'archive failed: task 不存在' })
+        break
+      }
       case 'resume':
         if (!ownsTask(message.taskId, message.projectId)) { send({ type: 'error', message: 'forbidden' }); break }
         void runtime.resume(message.taskId, connModel).then((ok) => {

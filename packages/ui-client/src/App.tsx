@@ -1,6 +1,6 @@
 /**
- * [INPUT]: AgentClient;useAgent;useWorkspace;Sidebar 项目树;UtilityRail
- * [OUTPUT]: App —— 形态 A 装配;项目树(p-*) + 最近平铺历史
+ * [INPUT]: AgentClient;useAgent;useWorkspace;Sidebar;TurnPreviewRail;UtilityRail
+ * [OUTPUT]: App —— 形态 A 装配;项目树(p-*) + 最近平铺历史;轮次轨;PlanCard/ProcessRow/ThinkingIndicator
  * [POS]: ui-client 根组件;storage project_id ≠ 用户项目;历史不分类进「默认」
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
@@ -19,13 +19,18 @@ import { CheckIcon, CloseIcon, CopyIcon, PanelIcon, PdfIcon, PlusIcon, RailIcon,
 import { UtilityRail } from './components/UtilityRail'
 import { ReaderPane } from './components/ReaderPane'
 import { ProcessRow } from './components/ProcessRow'
+import { PlanCard } from './components/PlanCard'
+import { ThinkingIndicator } from './components/ThinkingIndicator'
+import { TurnPreviewRail } from './components/TurnPreviewRail'
+import { buildTurnRailItems, msgAnchorId } from './components/turnRail'
 import { AssistantContent } from './components/widget/AssistantContent'
 import { getTimeGreeting } from './greeting'
 import { APP_BRAND_COPY, APP_NAV_ICON_BUTTON, APP_TITLEBAR_WORKSPACE_TOGGLE } from './appCopy'
 
+// 默认必须 127.0.0.1:service 只绑 IPv4;localhost 常解析到 ::1 → 永远「服务未连接」
 const w = window as { __LUMEN_WS__?: string; __LUMEN_TOKEN__?: string }
-const SERVICE_URL = w.__LUMEN_WS__ ?? 'ws://localhost:8787'
-const SERVICE_TOKEN = w.__LUMEN_TOKEN__ ?? new URLSearchParams(window.location.search).get('token') ?? undefined
+const SERVICE_URL = w.__LUMEN_WS__ ?? 'ws://127.0.0.1:8787'
+const SERVICE_TOKEN = w.__LUMEN_TOKEN__ || new URLSearchParams(window.location.search).get('token') || undefined
 const IS_DEMO = import.meta.env.VITE_LUMEN_DEMO === '1'
 
 /** demo=访客空间;本地=最近项目或 default */
@@ -137,6 +142,31 @@ function AppInner() {
     selectConversation(task.id, task.status === 'running', task.project_id)
     ws.close()
     setSearchOpen(false)
+  }
+
+  /** 软归档:列表消失;若正看着该会话则清到空态 */
+  async function archiveConversation(task: Task): Promise<void> {
+    try {
+      await client.archiveTask(task.id, task.project_id)
+      setTasksByProject((prev) => {
+        const next: Record<string, Task[]> = {}
+        for (const [pid, list] of Object.entries(prev)) {
+          next[pid] = list.filter((t) => t.id !== task.id)
+        }
+        return next
+      })
+      if (taskId === task.id) {
+        setDraftProjectId(null)
+        newConversation(task.project_id)
+        ws.close()
+      }
+    } catch (err) {
+      toast.add({
+        variant: 'error',
+        title: '归档失败',
+        description: err instanceof Error ? err.message : '请重试',
+      })
+    }
   }
 
   /** 新对话:p-* 下出现临时「新建对话」行;default 桶不造项目草稿 */
@@ -422,6 +452,49 @@ function AppInner() {
     if (candidate && !running) ids.add(candidate)
     return ids
   }, [items, running])
+
+  const turnRailItems = useMemo(() => buildTurnRailItems(items), [items])
+  const messagesRef = useRef<HTMLDivElement>(null)
+  const [activeTurnId, setActiveTurnId] = useState<string | null>(null)
+
+  // 视口内最靠上的用户轮 → rail 选中态(与悬停预览分离)
+  useEffect(() => {
+    const root = messagesRef.current
+    if (!root || turnRailItems.length < 4) {
+      setActiveTurnId(null)
+      return
+    }
+    const ids = turnRailItems.map((t) => t.userMsgId)
+    const visible = new Map<string, number>() // id → bounding top
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          const id = e.target.id.replace(/^msg-/, '')
+          if (e.isIntersecting) visible.set(id, e.boundingClientRect.top)
+          else visible.delete(id)
+        }
+        let best: string | null = null
+        let bestTop = Infinity
+        for (const [id, top] of visible) {
+          if (top < bestTop) { bestTop = top; best = id }
+        }
+        if (best) setActiveTurnId(best)
+      },
+      { root, rootMargin: '-8% 0px -55% 0px', threshold: [0, 0.1, 0.5] },
+    )
+    for (const id of ids) {
+      const el = document.getElementById(msgAnchorId(id))
+      if (el) io.observe(el)
+    }
+    return () => io.disconnect()
+  }, [turnRailItems, items.length])
+
+  function scrollToTurn(userMsgId: string): void {
+    const el = document.getElementById(msgAnchorId(userMsgId))
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setActiveTurnId(userMsgId)
+  }
+
   const copyBtn = (id: string, text: string, label: string) => (
     <button type="button" className={`msg-copy${copiedId === id ? ' is-copied' : ''}`} aria-label={label} title="复制" onClick={() => void copyMsg(id, text)}>
       {copiedId === id ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
@@ -477,6 +550,7 @@ function AppInner() {
             onSearch={() => setSearchOpen(true)}
             onSelect={pickConversation}
             onSelectProject={selectProject}
+            onArchive={(t) => { void archiveConversation(t) }}
             onSettings={() => setSettingsOpen(true)}
           />
         )}
@@ -487,51 +561,61 @@ function AppInner() {
           />
         )}
         <main className={`chat ${showReader ? 'chat-with-reader' : ''} ${isEmpty ? 'chat-empty' : ''}`}>
-          <div className={`messages ${isEmpty ? 'messages-empty' : ''}`}>
-            {isEmpty && <EmptyState />}
-            {items.map((it) => {
-              if (it.kind === 'compaction') {
-                return <div key={it.id} className="ctx-divider"><span>已整理更早的上下文 · 细节在工作区与历史记录</span></div>
-              }
-              if (it.kind !== 'msg') return <ProcessRow key={it.id} block={it} />
-              if (it.role === 'assistant') {
-                const streamingWidget = running && !finalAssistantIds.has(it.id)
-                if (!finalAssistantIds.has(it.id)) {
+          <div className="chat-stage">
+            {!isEmpty && (
+              <TurnPreviewRail
+                turns={turnRailItems}
+                activeId={activeTurnId}
+                onSelectTurn={scrollToTurn}
+              />
+            )}
+            <div ref={messagesRef} className={`messages ${isEmpty ? 'messages-empty' : ''}`}>
+              {isEmpty && <EmptyState />}
+              {items.map((it) => {
+                if (it.kind === 'compaction') {
+                  return <div key={it.id} className="ctx-divider"><span>已整理更早的上下文 · 细节在工作区与历史记录</span></div>
+                }
+                if (it.kind === 'plan') return <PlanCard key={it.id} plan={it} />
+                if (it.kind === 'process') return <ProcessRow key={it.id} block={it} />
+                if (it.role === 'assistant') {
+                  const streamingWidget = running && !finalAssistantIds.has(it.id)
+                  if (!finalAssistantIds.has(it.id)) {
+                    return (
+                      <div key={it.id} id={msgAnchorId(it.id)} className="bubble bubble-assistant">
+                        <AssistantContent content={it.content} isStreaming={streamingWidget} onSendMessage={(t) => { void send(t) }} />
+                      </div>
+                    )
+                  }
                   return (
-                    <div key={it.id} className="bubble bubble-assistant">
-                      <AssistantContent content={it.content} isStreaming={streamingWidget} onSendMessage={(t) => { void send(t) }} />
+                    <div key={it.id} id={msgAnchorId(it.id)} className="msg-group msg-group-assistant">
+                      <div className="bubble bubble-assistant">
+                        <AssistantContent content={it.content} onSendMessage={(t) => { void send(t) }} />
+                      </div>
+                      <div className="msg-actions">{copyBtn(it.id, it.content, '复制这条回答')}</div>
                     </div>
                   )
                 }
-                return (
-                  <div key={it.id} className="msg-group msg-group-assistant">
-                    <div className="bubble bubble-assistant">
-                      <AssistantContent content={it.content} onSendMessage={(t) => { void send(t) }} />
+                if (it.role === 'user') {
+                  return (
+                    <div key={it.id} id={msgAnchorId(it.id)} className="msg-group msg-group-user">
+                      <div className="bubble bubble-user">
+                        {it.images?.length ? (
+                          <div className="msg-images">
+                            {it.images.map((im, i) => (
+                              <img key={i} className="msg-image" src={`data:${im.mediaType};base64,${im.base64}`} alt="粘贴的图片" />
+                            ))}
+                          </div>
+                        ) : null}
+                        {it.content}
+                      </div>
+                      <div className="msg-actions">{copyBtn(it.id, it.content, '复制这条输入')}</div>
                     </div>
-                    <div className="msg-actions">{copyBtn(it.id, it.content, '复制这条回答')}</div>
-                  </div>
-                )
-              }
-              if (it.role === 'user') {
-                return (
-                  <div key={it.id} className="msg-group msg-group-user">
-                    <div className="bubble bubble-user">
-                      {it.images?.length ? (
-                        <div className="msg-images">
-                          {it.images.map((im, i) => (
-                            <img key={i} className="msg-image" src={`data:${im.mediaType};base64,${im.base64}`} alt="粘贴的图片" />
-                          ))}
-                        </div>
-                      ) : null}
-                      {it.content}
-                    </div>
-                    <div className="msg-actions">{copyBtn(it.id, it.content, '复制这条输入')}</div>
-                  </div>
-                )
-              }
-              return <div key={it.id} className={`bubble bubble-${it.role}`}>{it.content}</div>
-            })}
-            {running && !lastRunning && <div className="bubble bubble-status">思考中…</div>}
+                  )
+                }
+                return <div key={it.id} id={msgAnchorId(it.id)} className={`bubble bubble-${it.role}`}>{it.content}</div>
+              })}
+              {running && !lastRunning && <ThinkingIndicator />}
+            </div>
           </div>
           <form className="composer-card" onSubmit={onSubmit}>
             {attachments.length > 0 && (

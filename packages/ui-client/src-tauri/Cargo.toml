@@ -1,4 +1,5 @@
 [package]
+# crate 名(内部);Dock/菜单显示名看 [[bin]] + tauri.conf productName
 name = "lumen-ui"
 version = "0.0.0"
 edition = "2021"
@@ -13,5 +14,6 @@ serde_json = "1"
 rfd = "0.15"
 
 [[bin]]
-name = "lumen-ui"
+# tauri:dev 直接跑此二进制——macOS Dock 气泡用进程文件名;勿再用 lumen-ui(会显示成 Lumen UI)
+name = "Lumen"
 path = "src/main.rs"

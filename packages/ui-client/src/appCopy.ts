@@ -23,12 +23,17 @@ export const SIDEBAR_PROJECT_COPY = {
   emptyRecent: '还没有对话。',
   empty: '还没有项目。',
   offline: '服务未连接',
-  offlineHint: 'agent-service 不在线。桌面版请刷新窗口以补拉;开发态请确认 8787 已启动。',
+  offlineHint: 'agent-service 不在线。桌面版请刷新窗口以补拉;确认 127.0.0.1:8787 已监听(勿依赖 localhost/IPv6)。',
   /** 点项目行 + 后出现的临时项;发消息成真会话,未发言离开则消失 */
   draftChat: '新建对话',
   newChatInProject: '在此项目新建会话',
   newProject: '新建项目',
   namePlaceholder: '项目名称',
+  /** 次要点击(触控板双指点按 / 鼠标右键)后露出 */
+  copySessionId: '复制会话 ID',
+  copiedSessionId: '已复制会话 ID',
+  archiveChat: '归档对话',
+  secondaryClickHint: '双指点按或右键：复制 / 归档',
 } as const
 
 export const CREATE_PROJECT_COPY = {
@@ -69,4 +74,9 @@ export const WORKSPACE_DRAWER_COPY = {
   title: '工作区',
   countUnit: '项',
   internalCollapseGlyph: '',
+} as const
+
+/** 对话流等待态(Dot Matrix + 文案) */
+export const APP_STATUS_COPY = {
+  thinking: '思考中',
 } as const

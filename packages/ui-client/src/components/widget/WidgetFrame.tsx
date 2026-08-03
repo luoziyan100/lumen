@@ -5,6 +5,7 @@
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * 高度铁律见 height.ts:终态可收缩,否则进出阅读器后底部留白。
+ * iframe 用同源 /widget-receiver.html(非 srcdoc),避开父 CSP 继承掐死 bootstrap。
  */
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
@@ -15,11 +16,15 @@ import {
   WIDGET_SEND,
   WIDGET_THEME,
   WIDGET_UPDATE,
-  buildReceiverSrcdoc,
   collectThemeVars,
 } from './receiver'
 import { sanitizeForIframe, sanitizeForStreaming, truncateOpenScript } from './sanitize'
 import { nextWidgetHeight } from './height'
+
+function receiverUrl(): string {
+  const base = import.meta.env.BASE_URL || '/'
+  return `${base.endsWith('/') ? base : `${base}/`}widget-receiver.html`
+}
 
 const heightCache = new Map<string, number>()
 const UPDATE_DEBOUNCE_MS = 120
@@ -60,17 +65,22 @@ export function WidgetFrame({
   const isDark = typeof window !== 'undefined'
     && window.matchMedia('(prefers-color-scheme: dark)').matches
 
-  // 挂载时写 srcdoc(只一次)
+  // 挂载时导航到同源 receiver(只一次;勿用 srcdoc——会继承父 script-src 'self')
   useEffect(() => {
     const iframe = iframeRef.current
     if (!iframe) return
-    const vars = collectThemeVars(document.documentElement)
-    const styleBlock = Object.entries(vars).map(([k, v]) => `${k}:${v};`).join('')
-    const rootStyle = `:root{${styleBlock}}`
     readyRef.current = false
     firstResizeRef.current = true
-    iframe.srcdoc = buildReceiverSrcdoc(rootStyle, isDark)
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    iframe.src = receiverUrl()
+  }, [])
+
+  function pushTheme(win: Window): void {
+    win.postMessage({
+      type: WIDGET_THEME,
+      vars: collectThemeVars(document.documentElement),
+      isDark,
+    }, '*')
+  }
 
   // postMessage 监听
   useEffect(() => {
@@ -80,6 +90,7 @@ export function WidgetFrame({
       switch (e.data.type) {
         case WIDGET_READY:
           readyRef.current = true
+          if (iframe.contentWindow) pushTheme(iframe.contentWindow)
           pushContent(iframe, widgetCode, isStreaming)
           break
         case WIDGET_RESIZE: {
@@ -110,7 +121,7 @@ export function WidgetFrame({
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [widgetCode, isStreaming, fillHeight])
+  }, [widgetCode, isStreaming, fillHeight, isDark])
 
   // 宿主栏宽变化(开/关阅读器)→ 内容重排高度会变;请 receiver 再报一次
   // iframe 内 ResizeObserver 通常会跟,但 WebKit 偶发不抬;主动 ping 更稳
@@ -176,11 +187,12 @@ export function WidgetFrame({
           referrerPolicy="no-referrer"
           style={style}
           onLoad={() => {
-            // ready 竞态兜底:receiver 已发过 ready 时再推一次
-            if (iframeRef.current) {
-              readyRef.current = true
-              pushContent(iframeRef.current, widgetCode, isStreaming)
-            }
+            // ready 竞态兜底:receiver 脚本已跑时再推主题+内容
+            const el = iframeRef.current
+            if (!el?.contentWindow) return
+            readyRef.current = true
+            pushTheme(el.contentWindow)
+            pushContent(el, widgetCode, isStreaming)
           }}
         />
         {showOverlay ? <div className="widget-frame-overlay" aria-hidden>正在为可视化添加交互动画</div> : null}

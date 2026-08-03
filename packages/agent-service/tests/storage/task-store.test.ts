@@ -71,3 +71,17 @@ test('findInterrupted 只返回 running / interrupted', async (t) => {
   const ids = store.findInterrupted().map((t2) => t2.id).sort()
   assert.deepEqual(ids, [a.id, b.id].sort())
 })
+
+test('archiveTask 软归档:list 排除,事件仍在', async (t) => {
+  const store = await makeStore(t)
+  const keep = store.createTask('p', 'keep')
+  const gone = store.createTask('p', 'gone')
+  store.appendEvent(gone.id, 'model_step', { content: 'still here' })
+  assert.equal(store.archiveTask(gone.id), true)
+  assert.equal(store.archiveTask(gone.id), true) // 幂等
+  const listed = store.listTasks('p').map((x) => x.id)
+  assert.deepEqual(listed, [keep.id])
+  assert.ok(store.getTask(gone.id)?.archived_at)
+  const events = store.listEvents(gone.id)
+  assert.ok(events.some((e) => e.kind === 'model_step'))
+})

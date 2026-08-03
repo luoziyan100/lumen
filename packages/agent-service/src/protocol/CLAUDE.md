@@ -2,7 +2,7 @@
 
 > [PROTOCOL] 成员或职责变更时:先更新本文档,再动代码;**改任何消息格式,必须同步下方「同步债」两处并跑 ws 契约测试**。
 
-职责:agent-service 与 UI 之间的单 WebSocket 协议:UI 发 submit/continue/subscribe/cancel/list/list_projects/create_project/设置类消息,service 推事件流(event/tasks/projects/assets/settings/ok/error)。事件流是 task_events 的实时投影;断线靠 subscribe 回放拉齐。
+职责:agent-service 与 UI 之间的单 WebSocket 协议:UI 发 submit/continue/subscribe/cancel/archive_task/list/list_projects/create_project/设置类消息,service 推事件流(event/tasks/projects/assets/settings/ok/error)。事件流是 task_events 的实时投影;断线靠 subscribe 回放拉齐。
 
 ## 成员
 

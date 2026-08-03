@@ -1,8 +1,11 @@
 /**
  * [INPUT]: sanitize.ts 的 CDN_WHITELIST;宿主注入的 CSS 变量块
- * [OUTPUT]: buildReceiverSrcdoc —— 长生命周期 receiver 页(postMessage 推内容)
+ * [OUTPUT]: buildReceiverSrcdoc —— receiver HTML(供 emit 成 public/ 同源页;勿再当 srcdoc)
  * [POS]: widget/ 沙箱壳 —— CSP + 高度同步 + 链接拦截 + __widgetSendMessage
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
+ *
+ * 为何不 srcdoc:父页 CSP(script-src 'self')会继承进 srcdoc,掐死本页内联 bootstrap,
+ * 症状=标题在父 React 画出、iframe 身子空白。必须同源独立导航(/widget-receiver.html)。
  */
 
 import { CDN_WHITELIST } from './sanitize'

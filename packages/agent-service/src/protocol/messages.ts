@@ -25,6 +25,7 @@ export type ClientMessage =
   | { type: 'create_task'; projectId: string; goal?: string }
   | { type: 'subscribe'; taskId: string; afterSeq?: number; projectId?: string }
   | { type: 'cancel'; taskId: string; projectId?: string }
+  | { type: 'archive_task'; taskId: string; projectId?: string }
   | { type: 'resume'; taskId: string; projectId?: string }
   | { type: 'list'; projectId?: string }
   | { type: 'list_projects' }

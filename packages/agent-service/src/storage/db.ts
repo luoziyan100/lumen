@@ -1,13 +1,15 @@
 /**
  * [INPUT]: better-sqlite3
  * [OUTPUT]: openDatabase / DB —— 打开 SQLite 并跑增量 migration
- * [POS]: §存储层根。表结构搬自 old_lumen migration v7（tasks/task_events），只增不改
+ * [POS]: §存储层根。表结构搬自 old_lumen migration v7（tasks/task_events），只增不改;
+ *        v6:tasks.archived_at 软归档
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import Database from 'better-sqlite3'
 
 export type DB = Database.Database
 
-const SCHEMA_VERSION = 5
+const SCHEMA_VERSION = 6
 
 export function openDatabase(filename: string): DB {
   const db = new Database(filename)
@@ -86,6 +88,11 @@ function migrate(db: DB): void {
   if (current < 5) {
     // 项目可绑定本机源文件夹(只读挂载进 agent workspace library/)
     db.exec(`ALTER TABLE projects ADD COLUMN source_path TEXT`)
+  }
+
+  if (current < 6) {
+    // 软归档:列表隐藏,事件/工作区保留;NULL=未归档
+    db.exec(`ALTER TABLE tasks ADD COLUMN archived_at TEXT`)
   }
 
   db.pragma(`user_version = ${SCHEMA_VERSION}`)

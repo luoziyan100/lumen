@@ -74,6 +74,10 @@ export class LumenClient {
     this.send({ type: 'cancel', taskId })
   }
 
+  archiveTask(taskId: string): void {
+    this.send({ type: 'archive_task', taskId })
+  }
+
   resume(taskId: string): void {
     this.send({ type: 'resume', taskId })
   }

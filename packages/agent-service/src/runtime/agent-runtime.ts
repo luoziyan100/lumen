@@ -162,6 +162,13 @@ export class AgentRuntime {
     this.running.get(taskId)?.controller.abort()
   }
 
+  /** 软归档:若在跑先 cancel,再写 archived_at;列表不再返回 */
+  archiveTask(taskId: string): boolean {
+    if (!this.cfg.store.getTask(taskId)) return false
+    if (this.running.has(taskId)) this.cancel(taskId)
+    return this.cfg.store.archiveTask(taskId)
+  }
+
   isRunning(taskId: string): boolean {
     return this.running.has(taskId)
   }

@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import * as path from 'node:path'
+import { widgetReceiverPlugin } from './scripts/vite-widget-receiver'
 
 // dev 模式:每次请求 index.html 时读 ~/.lumen/agent-service.json 的 token,
 // 注入 window.__LUMEN_TOKEN__。这样浏览器直接开 localhost:5180 就自动带 token;
@@ -40,6 +41,7 @@ function injectCsp(): Plugin {
     "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
     "object-src 'none'",
     "base-uri 'self'",
+    "frame-src 'self'", // widget receiver 同源页(非 srcdoc,避开父 script-src 继承)
     "frame-ancestors 'none'", // 防点击劫持(反代 HTTP header 里真正生效)
   ].join('; ')
   return {
@@ -53,7 +55,7 @@ function injectCsp(): Plugin {
 
 // Tauri 期望固定 dev 端口
 export default defineConfig({
-  plugins: [react(), tailwindcss(), injectLumenToken(), injectCsp()],
+  plugins: [react(), tailwindcss(), injectLumenToken(), injectCsp(), widgetReceiverPlugin()],
   clearScreen: false,
   server: { port: 5180, strictPort: false },
 })

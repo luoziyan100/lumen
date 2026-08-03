@@ -43,6 +43,7 @@
 - **研究**:`extract_pdf`(PDF → 文本,产物进会话 `cache/`)、`search_papers` / `get_citations`(OpenAlex 检索与引文,期刊分级参与排序)、`search_web`、`fetch_url`
 - **环境**:`read_file` / `write_file` / `edit_file` / `list_dir` / `grep` / `glob`(全部限定在工作区内)、`run_code`(沙箱执行)
 - **记忆**:`read_memory` / `write_memory` —— 项目级跨会话记忆:`memory/` 目录一条事实一个文件 + `MEMORY.md` 索引开局注入系统提示词;对用户完全透明
+- **计划**:`update_plan` —— 复杂任务的结构化进度契约;结果回灌线程并写 `drafts/plan.md`;UI 以 PlanCard 投影(见 `doc/plan-card.md`)
 
 约定:工具结果一律回灌线程;长交付物(报告、笔记)写成工作区文件,对话里只留指针。
 
