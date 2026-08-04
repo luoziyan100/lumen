@@ -20,7 +20,7 @@ export function ReaderPane({ open, pdfUrl, onClose }: {
   const tag = TAG[open.kind]
   const { width, handleProps } = useResizable({ edge: 'left', min: 360, max: 820, fallback: 480, storageKey: 'lumen:readerWidth' })
   return (
-    <section className="reader glass-beam" style={{ '--reader-w': `${width}px` } as CSSProperties}>
+    <section className="reader" style={{ '--reader-w': `${width}px` } as CSSProperties}>
       <div className="reader-resize" role="separator" aria-orientation="vertical" aria-label="调整阅读器宽度(双击复位)" title="拖拽调宽 · 双击复位" {...handleProps} />
       <header className="reader-head">
         <Tooltip content="返回对话" render={

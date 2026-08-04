@@ -30,7 +30,7 @@
 ## 规则
 
 - 组件只消费 token 与 `styles.css` 既有 class;新视觉模式先进 `doc/ui-design.md` §3 再落地。
-- 全窗 Glass 实验(分支 `experiment/glass-ui`):浮卡可挂 `.glass-beam`(宿主须自带 position);回退见 `doc/ui-design.md` §0。
+- 全窗 Glass 实验(分支 `experiment/glass-ui`):光边只挂输入卡(`border-beam`)与右轨工作区卡(`.glass-beam`);对话列全幅无壳,侧栏/阅读器/弹层不加光边。回退见 `doc/ui-design.md` §0。
 - 文案不内联,进 `appCopy.ts` / `settingsCopy.ts`。
 - ⚠ styles.css 未分层:同一元素上混用自有 class 与 Kumo 组件时,别写会盖过其 utility 的属性
   (教训:`.glass-beam{position:relative}` 与 `.settings-modal` 的 position 曾压掉 Kumo Dialog 的 `fixed` 居中 → 设置页下移裁切;设置弹窗禁挂 glass-beam)。

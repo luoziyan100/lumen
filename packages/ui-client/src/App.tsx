@@ -570,7 +570,7 @@ function AppInner() {
             onCreate={handleCreateProject}
           />
         )}
-        <main className={`chat glass-beam ${showReader ? 'chat-with-reader' : ''} ${isEmpty ? 'chat-empty' : ''}${pendingAsk ? ' has-ask-user' : ''}`}>
+        <main className={`chat ${showReader ? 'chat-with-reader' : ''} ${isEmpty ? 'chat-empty' : ''}${pendingAsk ? ' has-ask-user' : ''}`}>
           <div className="chat-stage">
             {!isEmpty && (
               <TurnPreviewRail

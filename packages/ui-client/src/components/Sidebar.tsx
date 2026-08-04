@@ -187,7 +187,7 @@ export function Sidebar({
   }
 
   return (
-    <aside className="sidebar glass-beam" style={{ '--sidebar-w': `${width}px` } as React.CSSProperties}>
+    <aside className="sidebar" style={{ '--sidebar-w': `${width}px` } as React.CSSProperties}>
       <nav className="sb-nav">
         <button type="button" className="sb-navrow" disabled={!connected} onClick={() => { setMenuTaskId(null); onNewChat(activeProjectId) }}>
           <span className="sb-navrow-ic"><ChatIcon size={ICON_MD} /></span>{SIDEBAR_PROJECT_COPY.newChat}

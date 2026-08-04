@@ -586,31 +586,16 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .sb-account:hover .sb-account-gear { color: var(--ink-soft); }
 
 /* ---- Chat ---- */
+/* 全幅(2026-07-10 owner 定):对话铺满中间栏,不再是卡片;正文仍限宽居中(内边距算出)。
+   玻璃实验也不给对话列加壳——光边只挂输入卡 + 右轨工作台。 */
 .chat {
   position: relative; flex: 1; display: flex; flex-direction: column; min-width: 0;
-  margin: var(--s-2);
-  border: 1px solid var(--sand-deep);
-  border-radius: var(--radius-lg);
-  background: var(--paper-solid);
-  box-shadow: var(--shadow-2);
-  backdrop-filter: blur(18px) saturate(1.2);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
-  overflow: hidden;
 }
 .chat-with-reader { flex: 1 1 0; min-width: 300px; }
-/* 空态封面:隐去对话列玻璃壳,只留问候+输入卡浮在 aurora 上 */
-.chat-empty {
-  justify-content: center; padding-bottom: 12vh;
-  margin: 0; border-color: transparent; background: transparent;
-  box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none;
-  overflow: visible;
-}
-.chat-empty.glass-beam::after { display: none; }
+.chat-empty { justify-content: center; padding-bottom: 12vh; }
 .chat-empty .messages { flex: 0 0 auto; overflow: visible; padding: var(--s-6) var(--s-8); }
-/* 全幅(2026-07-10 owner 定):对话铺满中间栏,不再是卡片;正文仍限宽居中(内边距算出),
-   底部大留白给浮动输入卡让位。空态封面把底衬收回(见 .chat-empty .messages) */
 /* 对话舞台:消息滚动 + 左侧轮次轨(绝对定位,不挤 --chat-max);
-   container:窄栏时隐藏轨(对标 Codex) */
+   container:窄栏时隐藏轨(对标 Codex)。底部大留白给浮动输入卡让位。 */
 .chat-stage {
   position: relative;
   flex: 1; min-height: 0;
