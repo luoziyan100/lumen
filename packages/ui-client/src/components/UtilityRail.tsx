@@ -61,7 +61,7 @@ export function UtilityRail({ assets, onOpen, items, running, onUploadShared }: 
   }
 
   return (
-    <aside className="rail" aria-label="工具轨" style={{ '--rail-w': `${width}px` } as CSSProperties}>
+    <aside className="rail glass-beam" aria-label="工具轨" style={{ '--rail-w': `${width}px` } as CSSProperties}>
       <div className="rail-resize" role="separator" aria-orientation="vertical" aria-label="调整工作目录宽度(双击复位)" title="拖拽调宽 · 双击复位" {...handleProps} />
       {proc && (
         <section className="rail-card">

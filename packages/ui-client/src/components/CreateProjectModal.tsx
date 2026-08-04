@@ -53,7 +53,7 @@ export function CreateProjectModal({
   }
 
   return (
-    <aside className="create-proj-card" role="dialog" aria-label={CREATE_PROJECT_COPY.title}>
+    <aside className="create-proj-card glass-beam" role="dialog" aria-label={CREATE_PROJECT_COPY.title}>
       <div className="create-proj-head">
         <h2 className="create-proj-title">{CREATE_PROJECT_COPY.title}</h2>
         <button type="button" className="create-proj-x" aria-label="关闭" onClick={onClose}>

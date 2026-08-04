@@ -29,6 +29,7 @@
 ## 规则
 
 - 组件只消费 token 与 `styles.css` 既有 class;新视觉模式先进 `doc/ui-design.md` §3 再落地。
+- 全窗 Glass 实验(分支 `experiment/glass-ui`):浮卡可挂 `.glass-beam`;回退见 `doc/ui-design.md` §0。
 - 文案不内联,进 `appCopy.ts` / `settingsCopy.ts`。
 - ⚠ styles.css 未分层:同一元素上混用自有 class 与 Kumo 组件时,别写会盖过其 utility 的属性
   (教训:.settings-modal 的 position:relative 曾压掉 Dialog 的 fixed 居中)。

@@ -12,17 +12,66 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   overflow: hidden;
   background: var(--canvas);
 }
+/* Glass 实验:画布 aurora(不挡交互) */
+.app::before {
+  content: '';
+  position: absolute; inset: 0; z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 52% 42% at 12% 18%, rgba(56, 210, 180, 0.18), transparent 62%),
+    radial-gradient(ellipse 46% 38% at 88% 28%, rgba(140, 100, 255, 0.16), transparent 62%),
+    radial-gradient(ellipse 42% 32% at 48% 92%, rgba(255, 200, 80, 0.09), transparent 58%);
+}
+.app > * { position: relative; z-index: 1; }
 
-/* aura 动效与状态色已移除(2026-07-06 重构):画布改纯色暖纸,氛围来自材质而非动画 */
+/* 共享炫光边(conic beam);挂在浮卡上 */
+@property --glass-beam-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes glass-beam-spin {
+  to { --glass-beam-angle: 360deg; }
+}
+.glass-beam {
+  position: relative;
+  isolation: isolate;
+}
+.glass-beam::after {
+  content: '';
+  position: absolute; inset: 0; z-index: 3;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--glass-beam-angle),
+    transparent 0deg,
+    transparent 220deg,
+    var(--beam-a) 280deg,
+    var(--beam-b) 320deg,
+    var(--beam-c) 345deg,
+    transparent 360deg
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: glass-beam-spin 3.2s linear infinite;
+  opacity: 0.92;
+}
+@media (prefers-reduced-motion: reduce) {
+  .glass-beam::after { animation: none; opacity: 0.55; }
+}
 
 /* ---- TitleBar ---- */
 .titlebar {
   height: var(--titlebar-h); flex: none;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 var(--s-4); border-bottom: 1px solid var(--sand);
+  padding: 0 var(--s-4); border-bottom: 1px solid var(--sand-deep);
   background: var(--paper);
-  backdrop-filter: blur(14px) saturate(1.05);
-  -webkit-backdrop-filter: blur(14px) saturate(1.05);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
 }
 .tb-left { display: flex; align-items: center; gap: var(--s-2); }
 .brand { font-weight: var(--w-semi); }
@@ -41,12 +90,12 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   flex: 0 0 var(--sidebar-w); min-width: 0;
   margin: var(--s-2);
   display: flex; flex-direction: column;
-  border: 1px solid var(--sand);
+  border: 1px solid var(--sand-deep);
   border-radius: var(--radius-lg);
   background: var(--paper);
   box-shadow: var(--shadow-2);
-  backdrop-filter: blur(14px) saturate(1.05);
-  -webkit-backdrop-filter: blur(14px) saturate(1.05);
+  backdrop-filter: blur(20px) saturate(1.25);
+  -webkit-backdrop-filter: blur(20px) saturate(1.25);
 }
 /* 右缘拖拽把手:7px 命中区,悬停/拖动时中缝浮现 2px 提示线 */
 .sb-resize {
@@ -86,6 +135,12 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   width: min(760px, calc(100vw - 2 * var(--s-6)));
   height: min(520px, calc(100vh - 2 * var(--s-8)));
   display: flex; overflow: hidden;
+  border: 1px solid var(--sand-deep);
+  border-radius: var(--radius-xl);
+  background: var(--card);
+  box-shadow: var(--shadow-3);
+  backdrop-filter: blur(22px) saturate(1.25);
+  -webkit-backdrop-filter: blur(22px) saturate(1.25);
 }
 .settings-nav {
   flex: 0 0 168px; background: var(--paper-deep); border-right: 1px solid var(--sand);
@@ -275,16 +330,18 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .sb-item-draft .sb-item-title { color: var(--ink-mute); font-style: italic; }
 .sb-item-draft.is-active .sb-item-title { color: var(--ink); font-style: normal; }
 
-/* 创建项目:悬浮卡(无遮罩,背景保持可读) */
+/* 创建项目:悬浮玻璃卡(无遮罩) */
 .create-proj-card {
   position: fixed; z-index: var(--z-popover);
   top: 18vh; left: 50%; transform: translateX(-50%);
   width: min(420px, calc(100vw - 32px));
   padding: var(--s-5);
   display: flex; flex-direction: column; gap: var(--s-4);
-  border: 1px solid var(--sand-deep); border-radius: var(--radius-lg);
+  border: 1px solid var(--sand-deep); border-radius: var(--radius-xl);
   background: var(--card);
-  box-shadow: 0 8px 28px -10px rgba(66, 56, 42, .22), var(--shadow-2);
+  box-shadow: var(--shadow-3);
+  backdrop-filter: blur(22px) saturate(1.25);
+  -webkit-backdrop-filter: blur(22px) saturate(1.25);
 }
 .create-proj-head { display: flex; align-items: center; gap: var(--s-3); }
 .create-proj-title { flex: 1; margin: 0; font-size: var(--t-title); font-weight: var(--w-medium); color: var(--ink); }
@@ -358,9 +415,11 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   display: flex; flex-direction: column; gap: var(--s-3);
   max-height: min(42vh, 420px);
   padding: var(--s-4);
-  border: 1px solid var(--sand-deep); border-radius: var(--radius-lg);
+  border: 1px solid var(--sand-deep); border-radius: var(--radius-xl);
   background: var(--card);
-  box-shadow: 0 8px 28px -10px rgba(66, 56, 42, .22), var(--shadow-2);
+  box-shadow: var(--shadow-3);
+  backdrop-filter: blur(22px) saturate(1.25);
+  -webkit-backdrop-filter: blur(22px) saturate(1.25);
   overflow: hidden;
 }
 .ask-user-head { display: flex; align-items: flex-start; gap: var(--s-3); flex: none; }
@@ -404,7 +463,7 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--sand); color: var(--ink-mute); font-size: var(--t-caption); font-weight: var(--w-medium);
 }
-.ask-user-opt.is-active .ask-user-opt-n { background: var(--ember); color: var(--paper); }
+.ask-user-opt.is-active .ask-user-opt-n { background: var(--ember); color: #0B0C10; }
 .ask-user-opt-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ask-user-opt-label { color: inherit; }
 .ask-user-opt-desc { color: var(--ink-mute); font-size: var(--t-caption); line-height: 1.4; }
@@ -516,12 +575,26 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .sb-account:hover .sb-account-gear { color: var(--ink-soft); }
 
 /* ---- Chat ---- */
-.chat { position: relative; flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.chat {
+  position: relative; flex: 1; display: flex; flex-direction: column; min-width: 0;
+  margin: var(--s-2);
+  border: 1px solid var(--sand-deep);
+  border-radius: var(--radius-lg);
+  background: var(--paper-solid);
+  box-shadow: var(--shadow-2);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  overflow: hidden;
+}
 .chat-with-reader { flex: 1 1 0; min-width: 300px; }
-/* 中间栏不再画左右分隔线——左右已是浮卡自带描边;再画 = 双线(owner 2026-08-02)。
-   调宽靠 sb-resize / rail-resize 命中区,仅悬停/拖动时浮现青瓷提示线。 */
-/* 空态(封面):问候 + 输入卡整体居中偏上;开始对话后输入卡落回底部 */
-.chat-empty { justify-content: center; padding-bottom: 12vh; }
+/* 空态封面:隐去对话列玻璃壳,只留问候+输入卡浮在 aurora 上 */
+.chat-empty {
+  justify-content: center; padding-bottom: 12vh;
+  margin: 0; border-color: transparent; background: transparent;
+  box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none;
+  overflow: visible;
+}
+.chat-empty.glass-beam::after { display: none; }
 .chat-empty .messages { flex: 0 0 auto; overflow: visible; padding: var(--s-6) var(--s-8); }
 /* 全幅(2026-07-10 owner 定):对话铺满中间栏,不再是卡片;正文仍限宽居中(内边距算出),
    底部大留白给浮动输入卡让位。空态封面把底衬收回(见 .chat-empty .messages) */
@@ -693,29 +766,24 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .msg-copy:hover { color: var(--ink); background: var(--sand); }
 .msg-copy.is-copied { color: var(--ember); opacity: 1; }
 
-/* ---- Composer:Border Beam 暗玻璃像素试点(2026-08-04;见 doc/ui-design.md §0) ----
-   局部变量挂在 .composer-card,不污染全局暖纸 token */
+/* ---- Composer:Border Beam 输入岛(全窗 Glass 实验下与全局 token 同族) ---- */
 .composer-card {
-  --c-fg: rgba(245, 246, 248, 0.92);
-  --c-fg-soft: rgba(220, 224, 230, 0.62);
-  --c-fg-mute: rgba(200, 206, 214, 0.42);
-  --c-line: rgba(255, 255, 255, 0.10);
-  --c-fill: rgba(255, 255, 255, 0.06);
+  --c-fg: var(--ink);
+  --c-fg-soft: var(--ink-soft);
+  --c-fg-mute: var(--ink-mute);
+  --c-line: var(--sand-deep);
+  --c-fill: var(--sand);
   --c-fill-hot: rgba(255, 255, 255, 0.11);
   position: relative; z-index: auto;
   display: flex; flex-direction: column; gap: 10px;
   width: 100%; margin: 0;
   padding: 14px 16px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--sand-deep);
   border-radius: 24px;
-  background:
-    linear-gradient(165deg, rgba(48, 50, 56, 0.72) 0%, rgba(22, 23, 27, 0.82) 55%, rgba(16, 17, 20, 0.88) 100%);
-  backdrop-filter: blur(22px) saturate(1.2);
-  -webkit-backdrop-filter: blur(22px) saturate(1.2);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.06) inset,
-    0 18px 48px -18px rgba(0, 0, 0, 0.55),
-    0 8px 24px -12px rgba(40, 20, 80, 0.28);
+  background: var(--card);
+  backdrop-filter: blur(22px) saturate(1.25);
+  -webkit-backdrop-filter: blur(22px) saturate(1.25);
+  box-shadow: var(--shadow-3);
   color: var(--c-fg);
   transition: box-shadow var(--dur-fast) var(--ease-out);
 }
@@ -927,12 +995,21 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   flex: 0 0 var(--rail-w, 320px); min-width: 0;
   margin: var(--s-2);
   display: flex; flex-direction: column; gap: var(--s-3);
+  padding: var(--s-3);
   overflow-y: auto;
+  border: 1px solid var(--sand-deep);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow-2);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
 }
 .rail-card {
-  background: var(--card); border: 1px solid var(--sand);
-  border-radius: var(--radius-lg); box-shadow: var(--shadow-1);
+  background: var(--vellum); border: 1px solid var(--sand);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-1);
   padding: var(--s-4);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 .rail-h {
   display: flex; align-items: center; gap: var(--s-2);
@@ -974,9 +1051,11 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   display: flex;
   flex-direction: column;
   background: var(--paper-solid);
-  border: 1px solid var(--sand);
+  border: 1px solid var(--sand-deep);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-2);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
   overflow: hidden;
 }
 .reader-head { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-5); border-bottom: 1px solid var(--sand); }

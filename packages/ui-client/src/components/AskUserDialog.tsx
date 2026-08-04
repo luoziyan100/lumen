@@ -78,7 +78,7 @@ export function AskUserDialog({
   const titleIsQuestion = questions.length === 1 && !questions[0]?.header
 
   return (
-    <aside className="ask-user-card" role="dialog" aria-label={ASK_USER_COPY.title}>
+    <aside className="ask-user-card glass-beam" role="dialog" aria-label={ASK_USER_COPY.title}>
       <div className="ask-user-head">
         <h2 className="ask-user-title">{title}</h2>
         <button
