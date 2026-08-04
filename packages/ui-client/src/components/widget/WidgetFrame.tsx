@@ -1,7 +1,8 @@
 /**
- * [INPUT]: receiver/sanitize;宿主 onSendMessage;青瓷 CSS 变量
+ * [INPUT]: receiver/sanitize;宿主 onSendMessage;collectThemeVars/hostChromeIsDark
  * [OUTPUT]: WidgetFrame —— 沙箱 iframe + 高度同步(策略见 height.ts)
- * [POS]: widget/ 渲染核心;被 AssistantContent 与 HtmlViewer 消费
+ * [POS]: widget/ 渲染核心;被 AssistantContent 与 HtmlViewer 消费;
+ *       暗壳内容岛浅档 + color-scheme:light,防 WKWebView 洗灰
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * 高度铁律见 height.ts:终态可收缩,否则进出阅读器后底部留白。
@@ -16,8 +17,8 @@ import {
   WIDGET_SEND,
   WIDGET_THEME,
   WIDGET_UPDATE,
-  collectThemeVars,
 } from './receiver'
+import { collectThemeVars, hostChromeIsDark } from './themeVars'
 import { sanitizeForIframe, sanitizeForStreaming, truncateOpenScript } from './sanitize'
 import { nextWidgetHeight } from './height'
 
@@ -62,7 +63,10 @@ export function WidgetFrame({
   const [height, setHeight] = useState<number | undefined>(initial)
   const [skipTransition, setSkipTransition] = useState(true)
 
+  // 内容岛永不跟系统/玻璃壳走暗色——暗 isDark 会触发 WK 换皮,inline 颜色丢失。
+  // 宿主暗壳时强制浅档;仅暖纸浅壳且系统暗色时才给 .dark(旧 widget)。
   const isDark = typeof window !== 'undefined'
+    && !hostChromeIsDark(document.documentElement)
     && window.matchMedia('(prefers-color-scheme: dark)').matches
 
   // 挂载时导航到同源 receiver(只一次;勿用 srcdoc——会继承父 script-src 'self')

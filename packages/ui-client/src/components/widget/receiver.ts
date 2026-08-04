@@ -1,7 +1,8 @@
 /**
  * [INPUT]: sanitize.ts 的 CDN_WHITELIST;宿主注入的 CSS 变量块
  * [OUTPUT]: buildReceiverSrcdoc —— receiver HTML(供 emit 成 public/ 同源页;勿再当 srcdoc)
- * [POS]: widget/ 沙箱壳 —— CSP + 高度同步 + 链接拦截 + __widgetSendMessage
+ * [POS]: widget/ 沙箱壳 —— CSP + 高度同步 + 链接拦截 + __widgetSendMessage;
+ *       主题变量见 themeVars.ts
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * 为何不 srcdoc:父页 CSP(script-src 'self')会继承进 srcdoc,掐死本页内联 bootstrap,
@@ -28,6 +29,8 @@ export function buildReceiverSrcdoc(styleBlock: string, isDark: boolean): string
     "default-src 'none'",
     `script-src 'unsafe-inline' ${cspDomains}`,
     "style-src 'unsafe-inline'",
+    "style-src-attr 'unsafe-inline'",
+    "style-src-elem 'unsafe-inline'",
     'img-src * data: blob:',
     'font-src * data:',
     "connect-src 'none'",
@@ -101,7 +104,11 @@ window.addEventListener('message',function(e){
     case '${WIDGET_THEME}':
       var r=document.documentElement,v=e.data.vars;
       if(v)for(var k in v)r.style.setProperty(k,v[k]);
-      if(typeof e.data.isDark==='boolean')r.className=e.data.isDark?'dark':'light';
+      if(typeof e.data.isDark==='boolean'){
+        r.className=e.data.isDark?'dark':'light';
+        /* only:禁止 WKWebView/系统暗色把浅档文档自动换皮(丢 inline 颜色) */
+        r.style.colorScheme=e.data.isDark?'only dark':'only light';
+      }
       setTimeout(_h,100);
       break;
   }
@@ -124,12 +131,22 @@ parent.postMessage({type:'${WIDGET_READY}'},'*');
 })();`
 
   const darkClass = isDark ? 'dark' : 'light'
-  return `<!DOCTYPE html><html class="${darkClass}"><head>
+  const scheme = isDark ? 'only dark' : 'only light'
+  return `<!DOCTYPE html><html class="${darkClass}" style="color-scheme:${scheme}"><head>
 <meta charset="utf-8"/>
 <meta http-equiv="Content-Security-Policy" content="${csp}"/>
 <style>
-html,body{margin:0;padding:0;background:transparent;overflow:hidden;}
-body{font-family:system-ui,-apple-system,sans-serif;color:var(--color-text-primary,#1a1a1a);}
+/* 内容岛默认浅档实底;only light 阻止系统暗色自适应抹掉 author/inline 颜色 */
+html,body{margin:0;padding:0;overflow:hidden;}
+html.light,html:not(.dark){color-scheme:only light;background:#ffffff;}
+html.dark{color-scheme:only dark;background:#14161c;}
+body{
+  font-family:system-ui,-apple-system,sans-serif;
+  color:var(--color-text-primary,#211f1c);
+  background:transparent;
+}
+/* 让 button 吃得下 inline background(WK 在 appearance:auto 时会忽略) */
+button,input,select,textarea{-webkit-appearance:none;appearance:none;}
 #__root{min-height:1px;}
 ${styleBlock}
 </style>
@@ -137,26 +154,4 @@ ${styleBlock}
 <div id="__root"></div>
 <script>${receiverScript}</script>
 </body></html>`
-}
-
-/** 把宿主暖纸 token 映射为 widget 指南里的标准变量名 */
-export function collectThemeVars(el: HTMLElement | null): Record<string, string> {
-  if (!el) return {}
-  const cs = getComputedStyle(el)
-  const pick = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback
-  return {
-    '--color-background-primary': pick('--paper-solid', '#fffeff'),
-    '--color-background-secondary': pick('--card', '#ffffff'),
-    '--color-background-tertiary': pick('--paper-deep', '#f4f2ec'),
-    '--color-text-primary': pick('--ink', '#211f1c'),
-    '--color-text-secondary': pick('--ink-soft', 'rgba(33,31,28,0.82)'),
-    '--color-text-tertiary': pick('--ink-mute', 'rgba(33,31,28,0.56)'),
-    '--color-border-tertiary': pick('--sand-deep', 'rgba(66,56,42,0.17)'),
-    '--color-border-secondary': pick('--sand-deep', 'rgba(66,56,42,0.17)'),
-    '--color-border-primary': pick('--ink-faint', 'rgba(33,31,28,0.34)'),
-    '--border-radius-md': '8px',
-    '--border-radius-lg': '12px',
-    '--font-sans': pick('--font-sans', 'system-ui,sans-serif'),
-    '--font-mono': pick('--font-mono', 'ui-monospace,monospace'),
-  }
 }

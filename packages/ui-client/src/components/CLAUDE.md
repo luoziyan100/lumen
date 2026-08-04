@@ -15,12 +15,13 @@
 - `ReaderPane.tsx` — 右分屏阅读器:doc 衬线正文 / PDF / HTML 沙箱
 - `PdfViewer.tsx` — pdf.js 竖向连续滚动渲染(锁 4.10.38)
 - `HtmlViewer.tsx` — 工作区 HTML 预览:复用 `widget/WidgetFrame`(allow-scripts + CSP,无 same-origin)
-- `ProcessRow.tsx` — 可折叠过程块(Kumo Collapsible):折叠一行摘要,展开逐步
+- `StatusOrb.tsx` — 行内点云球:thinking-orbs 按 64 档绘制、CSS 缩显 20px(避 size=20 粒子过稀碎线)
+- `ProcessRow.tsx` — 可折叠过程块(Kumo Collapsible):运行中左侧 `StatusOrb`(态见 `orbState.ts`);步全完成仍等回复时用 breathing
 - `PlanCard.tsx` — 复杂任务计划卡(`update_plan`→`kind:'plan'`):标题+k/n+步骤;全完成折叠绿勾;与 ProcessRow 职责分离(见 `doc/plan-card.md`)
 - `AskUserDialog.tsx` — `ask_user` 输入框上方悬浮问询卡(无遮罩);由 `useAgent.pendingAsk` 驱动(见 `doc/ask-user.md`)
 - `ComposerCard.tsx` — 对话输入暗玻璃岛(`border-beam` + @/pills/send);像素试点,见 `doc/ui-design.md` §0
 - `CollapsibleUserText.tsx` — 用户超长 prompt 默认折叠(>9 行或 >750 字);底渐隐 + 展开/收起;助手消息不折
-- `ThinkingIndicator.tsx` — 模型等待态:CSS 3×3 Dot Matrix 对角波 +「思考中」;不引 motion;reduced-motion 压成 opacity pulse
+- `ThinkingIndicator.tsx` — 模型等待态:`StatusOrb` breathing +「思考中」;侧栏 sb-dot 仍脉冲点
 - `Markdown.tsx` — .md 文档与纯文本段渲染:GFM + KaTeX + 代码高亮 + ` ```mermaid ` → MermaidBlock
 - `MermaidBlock.tsx` — mermaid.js 动态加载;securityLevel=strict;主题读青瓷 token;悬停工具条放大/复制源码;失败回退源码
 - `widget/` — 对话网页沙箱(`show-widget` 围栏 → iframe);见 `widget/CLAUDE.md`

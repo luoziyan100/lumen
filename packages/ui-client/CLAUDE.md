@@ -19,6 +19,7 @@
 | `scripts/check-theme-celadon.mjs` | 主题覆盖校验(`npm run check:theme`);升级 kumo 后必跑 |
 | `appCopy.ts` / `settingsCopy.ts` / `greeting.ts` | 文案与问候(简体中文,不用 emoji) |
 | `msgFold.ts` | 用户气泡折叠阈值(9 行 / 750 字);供 CollapsibleUserText 与测试 |
+| `orbState.ts` | tool 名 → `thinking-orbs` OrbState;等待态 `ORB_THINKING=breathing` |
 | `components/` `components/widget/` `aura/` | 见各自 CLAUDE.md;widget=对话/阅读器网页沙箱 |
 
 ## 设计纪律(违者打回)

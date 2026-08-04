@@ -726,40 +726,23 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 }
 .bubble-status { align-self: flex-start; color: var(--ink-mute); font-size: var(--t-body-sm); }
 
-/* ---- 思考态 Dot Matrix(对标 beui loader;CSS only,不引 motion) ---- */
+/* ---- 思考/过程态:thinking-orbs(StatusOrb 64→20 缩显) ---- */
 .think-status {
   display: inline-flex; align-items: center; gap: var(--s-3);
   padding: 4px 0;
 }
-.think-matrix {
-  display: grid;
-  grid-template-columns: repeat(3, 5px);
-  gap: 3px;
-  width: 21px; height: 21px;
-  color: var(--ember);
+.think-orb,
+.proc-orb {
+  display: block;
   flex: none;
-}
-.think-cell {
-  width: 5px; height: 5px; border-radius: 50%;
-  background: currentColor;
-  animation: think-cell 1s ease-in-out infinite;
-  opacity: 0.22;
-}
-@keyframes think-cell {
-  0%, 100% { opacity: 0.22; transform: scale(0.72); }
-  45%, 55% { opacity: 1; transform: scale(1); }
+  flex-shrink: 0;
+  width: 20px !important;
+  height: 20px !important;
+  max-width: 20px;
+  max-height: 20px;
+  aspect-ratio: 1;
 }
 .think-label { color: var(--ink-mute); font-size: var(--t-body-sm); letter-spacing: 0.02em; }
-@media (prefers-reduced-motion: reduce) {
-  .think-cell {
-    animation: think-cell-calm 1.4s ease-in-out infinite;
-    transform: none;
-  }
-  @keyframes think-cell-calm {
-    0%, 100% { opacity: 0.35; }
-    50% { opacity: 1; }
-  }
-}
 
 /* 悬停复制(2026-07-10 owner 定):只配给用户输入 + 每轮的最终输出;
    钮在消息"下方"的动作行里(回答=左下,输入=右下),平时隐身,悬停浮现 */
@@ -1088,7 +1071,7 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .proc-head { display: flex; align-items: center; gap: var(--s-3); width: 100%; padding: 8px 12px; border: 1px solid var(--sand); border-radius: var(--radius-md); background: var(--paper-deep); color: var(--ink-soft); font: inherit; font-size: var(--t-body-sm); cursor: pointer; text-align: left; box-shadow: var(--shadow-1); }
 .proc-head:hover { background: var(--sand); }
 .proc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-mute); flex: none; }
-.proc-running .proc-dot { background: var(--ember); animation: proc-pulse 1.2s ease-in-out infinite; }
+/* 运行态指示改 thinking-orbs(.proc-orb);侧栏 sb-dot 仍用 proc-pulse */
 @keyframes proc-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .42; transform: scale(.72); } }
 .proc-label { flex: 1; }
 .proc-toggle { color: var(--ink-mute); font-size: var(--t-body-sm); flex: none; }
@@ -1189,13 +1172,13 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 }
 .mermaid-tool:hover { background: var(--sand); color: var(--ink); }
 .mermaid-tool.is-copied { color: var(--ember); }
-/* 图块右上角悬停条:深色 pill,图标反白 */
+/* 图块右上角悬停条:深色 pill,图标反白(玻璃壳下 paper-solid 近黑,改用固定浅色) */
 .mermaid-toolbar .mermaid-tool {
-  border-radius: 999px; color: var(--paper-solid);
+  border-radius: 999px; color: rgba(255, 255, 255, 0.92);
 }
 .mermaid-toolbar .mermaid-tool:hover {
-  background: color-mix(in srgb, var(--paper-solid) 18%, transparent);
-  color: var(--paper-solid);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
 }
 .mermaid-toolbar .mermaid-tool.is-copied { color: var(--ember-tint); }
 .mermaid-svg { display: flex; justify-content: center; }
@@ -1284,7 +1267,12 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   border-bottom: 1px solid var(--sand);
 }
 .widget-frame-body { position: relative; width: 100%; }
-.widget-iframe { display: block; width: 100%; border: none; background: transparent; }
+/* 内容岛自带 only light;iframe 实白底,避免暗壳透底 + 系统暗色自适应洗掉颜色 */
+.widget-iframe {
+  display: block; width: 100%; border: none;
+  background: #ffffff;
+  color-scheme: only light;
+}
 .widget-frame-overlay {
   position: absolute; inset: 0;
   display: flex; align-items: flex-end; justify-content: center;
