@@ -1,7 +1,7 @@
 /**
- * [INPUT]: AgentClient;useAgent;useWorkspace;Sidebar;TurnPreviewRail;UtilityRail;AskUserDialog;ComposerCard
+ * [INPUT]: AgentClient;useAgent;useWorkspace;Sidebar;TurnPreviewRail;UtilityRail;AskUserDialog;ComposerCard;CollapsibleUserText
  * [OUTPUT]: App —— 形态 A 装配;项目树(p-*) + 最近平铺历史;轮次轨;PlanCard/ProcessRow/ThinkingIndicator;
- *           ask_user 悬浮问询;composer 暗玻璃像素试点
+ *           ask_user 悬浮问询;composer 暗玻璃;用户超长 prompt 折叠
  * [POS]: ui-client 根组件;storage project_id ≠ 用户项目;历史不分类进「默认」
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
@@ -14,6 +14,7 @@ import { useWorkspace } from './useWorkspace'
 import { Sidebar } from './components/Sidebar'
 import { CreateProjectModal, type CreateProjectPayload } from './components/CreateProjectModal'
 import { AskUserDialog } from './components/AskUserDialog'
+import { CollapsibleUserText } from './components/CollapsibleUserText'
 import { ComposerCard } from './components/ComposerCard'
 import { SearchModal } from './components/SearchModal'
 import { SettingsModal } from './components/SettingsModal'
@@ -608,14 +609,16 @@ function AppInner() {
                   return (
                     <div key={it.id} id={msgAnchorId(it.id)} className="msg-group msg-group-user">
                       <div className="bubble bubble-user">
-                        {it.images?.length ? (
-                          <div className="msg-images">
-                            {it.images.map((im, i) => (
-                              <img key={i} className="msg-image" src={`data:${im.mediaType};base64,${im.base64}`} alt="粘贴的图片" />
-                            ))}
-                          </div>
-                        ) : null}
-                        {it.content}
+                        <CollapsibleUserText
+                          text={it.content}
+                          leading={it.images?.length ? (
+                            <div className="msg-images">
+                              {it.images.map((im, i) => (
+                                <img key={i} className="msg-image" src={`data:${im.mediaType};base64,${im.base64}`} alt="粘贴的图片" />
+                              ))}
+                            </div>
+                          ) : undefined}
+                        />
                       </div>
                       <div className="msg-actions">{copyBtn(it.id, it.content, '复制这条输入')}</div>
                     </div>

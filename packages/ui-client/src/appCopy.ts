@@ -49,6 +49,12 @@ export const CREATE_PROJECT_COPY = {
 } as const
 
 /** ask_user 悬浮问询(见 doc/ask-user.md) */
+/** 用户超长 prompt 折叠(9 行 / 750 字) */
+export const MSG_FOLD_COPY = {
+  expand: '展开全文',
+  collapse: '收起',
+}
+
 export const ASK_USER_COPY = {
   title: '需要你的选择',
   questionN: '问题 ',

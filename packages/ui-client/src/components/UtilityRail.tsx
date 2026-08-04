@@ -61,10 +61,10 @@ export function UtilityRail({ assets, onOpen, items, running, onUploadShared }: 
   }
 
   return (
-    <aside className="rail glass-beam" aria-label="工具轨" style={{ '--rail-w': `${width}px` } as CSSProperties}>
+    <aside className="rail" aria-label="工具轨" style={{ '--rail-w': `${width}px` } as CSSProperties}>
       <div className="rail-resize" role="separator" aria-orientation="vertical" aria-label="调整工作目录宽度(双击复位)" title="拖拽调宽 · 双击复位" {...handleProps} />
       {proc && (
-        <section className="rail-card">
+        <section className="rail-card glass-beam">
           <h3 className="rail-h">进度</h3>
           <ul className="proc-steps rail-steps">
             {proc.steps.map((s) => (
@@ -77,7 +77,7 @@ export function UtilityRail({ assets, onOpen, items, running, onUploadShared }: 
         </section>
       )}
 
-      <section className="rail-card">
+      <section className="rail-card glass-beam">
         <button type="button" className="rail-h rail-toggle" onClick={() => setDirOpen((v) => !v)} aria-expanded={dirOpen}>
           <FoldersIcon size={ICON_MD} />
           <span>工作目录</span>

@@ -33,8 +33,9 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 @keyframes glass-beam-spin {
   to { --glass-beam-angle: 360deg; }
 }
+/* 注意:不设 position——会盖掉 Kumo Dialog 的 fixed 居中(settings 曾整窗下移/裁切)。
+   宿主须自带 relative/fixed/absolute,::after 才能贴边。 */
 .glass-beam {
-  position: relative;
   isolation: isolate;
 }
 .glass-beam::after {
@@ -132,6 +133,7 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
    注意:本文件未分层,同元素上不要写会盖过 Kumo utility 的属性(position 等);
    .settings-close 的 absolute 依赖面板 transform 形成的包含块,无需 position:relative */
 .settings-modal {
+  /* 定位交给 Kumo(fixed + translate 居中);此处禁写 position */
   width: min(760px, calc(100vw - 2 * var(--s-6)));
   height: min(520px, calc(100vh - 2 * var(--s-8)));
   display: flex; overflow: hidden;
@@ -154,7 +156,11 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 }
 .settings-nav-item:hover { background: var(--sand); }
 .settings-nav-item.is-active { background: var(--vellum); color: var(--ink); font-weight: var(--w-medium); }
-.settings-body { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: var(--s-6); overflow-y: auto; }
+.settings-body {
+  flex: 1; min-width: 0; min-height: 0;
+  display: flex; flex-direction: column;
+  padding: var(--s-6); overflow-y: auto;
+}
 .settings-close {
   position: absolute;
   top: 4px;
@@ -197,7 +203,11 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .mp-head .settings-h { margin: 0; }
 /* 「添加模型 / 删除 / 保存」按钮已迁移 Kumo Button(controls 逐步归 Kumo) */
 /* 第一屏:供应商大卡片 */
-.mpc-list { display: flex; flex-direction: column; gap: var(--s-3); overflow-y: auto; }
+.mpc-list {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column; gap: var(--s-3);
+  overflow-y: auto;
+}
 .mpc-card {
   display: flex; align-items: center; gap: var(--s-3);
   border: 1px solid var(--sand); border-radius: var(--radius-lg);
@@ -412,6 +422,7 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 }
 .composer-beam { width: 100%; display: block; }
 .ask-user-card {
+  position: relative;
   display: flex; flex-direction: column; gap: var(--s-3);
   max-height: min(42vh, 420px);
   padding: var(--s-4);
@@ -702,6 +713,27 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .bubble { max-width: 92%; white-space: pre-wrap; line-height: var(--lh-body-lg); }
 .bubble-user { align-self: flex-end; background: var(--vellum); padding: 10px 14px; border-radius: var(--radius-lg); box-shadow: var(--shadow-1); }
 .bubble-assistant { align-self: stretch; font-family: var(--font-serif); font-size: var(--t-body-lg); }
+
+/* 用户超长 prompt:默认折(~5 行预览);阈值见 CollapsibleUserText */
+.msg-fold { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.msg-fold-body {
+  white-space: pre-wrap; line-height: var(--lh-body-lg);
+  overflow-wrap: anywhere;
+}
+.msg-fold-body.is-collapsed {
+  max-height: 7.5rem; /* ≈5 行 @ lh 1.5 */
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+}
+.msg-fold-toggle {
+  align-self: flex-start;
+  margin: 0; padding: 0;
+  border: none; background: none;
+  color: var(--ink-mute); font: inherit; font-size: var(--t-caption);
+  font-weight: var(--w-medium); cursor: pointer;
+}
+.msg-fold-toggle:hover { color: var(--ink-soft); }
 .bubble-error {
   align-self: flex-start; background: var(--danger-bg); color: var(--danger);
   border: 1px solid var(--danger-line);
@@ -995,21 +1027,15 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   flex: 0 0 var(--rail-w, 320px); min-width: 0;
   margin: var(--s-2);
   display: flex; flex-direction: column; gap: var(--s-3);
-  padding: var(--s-3);
   overflow-y: auto;
-  border: 1px solid var(--sand-deep);
-  border-radius: var(--radius-lg);
-  background: var(--paper);
-  box-shadow: var(--shadow-2);
-  backdrop-filter: blur(20px) saturate(1.2);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
 }
 .rail-card {
-  background: var(--vellum); border: 1px solid var(--sand);
-  border-radius: var(--radius-md); box-shadow: var(--shadow-1);
+  position: relative;
+  background: var(--card); border: 1px solid var(--sand-deep);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-2);
   padding: var(--s-4);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
 }
 .rail-h {
   display: flex; align-items: center; gap: var(--s-2);

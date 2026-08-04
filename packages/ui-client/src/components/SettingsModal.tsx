@@ -88,7 +88,7 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
 
   return (
     <Dialog.Root open onOpenChange={(o: boolean) => { if (!o) onClose() }}>
-      <Dialog className="settings-modal glass-beam p-0" aria-label="设置">
+      <Dialog className="settings-modal p-0" aria-label="设置">
         <nav className="settings-nav">
           <div className="settings-nav-title">设置</div>
           <button className={`settings-nav-item ${pane === 'model' ? 'is-active' : ''}`} onClick={() => { setPane('model'); setView('list') }}>模型</button>
@@ -229,7 +229,7 @@ function DemoModelSettings({ client, onClose }: { client: AgentClient; onClose: 
 
   return (
     <Dialog.Root open onOpenChange={(o: boolean) => { if (!o) onClose() }}>
-      <Dialog className="settings-modal glass-beam p-0" aria-label="设置">
+      <Dialog className="settings-modal p-0" aria-label="设置">
         <div className="settings-body">
           <button type="button" className="settings-close" aria-label="关闭" onClick={onClose}><CloseIcon size={18} /></button>
           <form className="mp-editor" onSubmit={save}>

@@ -18,6 +18,7 @@
 | `theme-celadon.css` | Kumo 青瓷主题(tokens.css 在 Kumo 变量合同上的派生物,light-dark 双值) |
 | `scripts/check-theme-celadon.mjs` | 主题覆盖校验(`npm run check:theme`);升级 kumo 后必跑 |
 | `appCopy.ts` / `settingsCopy.ts` / `greeting.ts` | 文案与问候(简体中文,不用 emoji) |
+| `msgFold.ts` | 用户气泡折叠阈值(9 行 / 750 字);供 CollapsibleUserText 与测试 |
 | `components/` `components/widget/` `aura/` | 见各自 CLAUDE.md;widget=对话/阅读器网页沙箱 |
 
 ## 设计纪律(违者打回)

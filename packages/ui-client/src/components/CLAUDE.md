@@ -19,6 +19,7 @@
 - `PlanCard.tsx` — 复杂任务计划卡(`update_plan`→`kind:'plan'`):标题+k/n+步骤;全完成折叠绿勾;与 ProcessRow 职责分离(见 `doc/plan-card.md`)
 - `AskUserDialog.tsx` — `ask_user` 输入框上方悬浮问询卡(无遮罩);由 `useAgent.pendingAsk` 驱动(见 `doc/ask-user.md`)
 - `ComposerCard.tsx` — 对话输入暗玻璃岛(`border-beam` + @/pills/send);像素试点,见 `doc/ui-design.md` §0
+- `CollapsibleUserText.tsx` — 用户超长 prompt 默认折叠(>9 行或 >750 字);底渐隐 + 展开/收起;助手消息不折
 - `ThinkingIndicator.tsx` — 模型等待态:CSS 3×3 Dot Matrix 对角波 +「思考中」;不引 motion;reduced-motion 压成 opacity pulse
 - `Markdown.tsx` — .md 文档与纯文本段渲染:GFM + KaTeX + 代码高亮 + ` ```mermaid ` → MermaidBlock
 - `MermaidBlock.tsx` — mermaid.js 动态加载;securityLevel=strict;主题读青瓷 token;悬停工具条放大/复制源码;失败回退源码
@@ -29,7 +30,7 @@
 ## 规则
 
 - 组件只消费 token 与 `styles.css` 既有 class;新视觉模式先进 `doc/ui-design.md` §3 再落地。
-- 全窗 Glass 实验(分支 `experiment/glass-ui`):浮卡可挂 `.glass-beam`;回退见 `doc/ui-design.md` §0。
+- 全窗 Glass 实验(分支 `experiment/glass-ui`):浮卡可挂 `.glass-beam`(宿主须自带 position);回退见 `doc/ui-design.md` §0。
 - 文案不内联,进 `appCopy.ts` / `settingsCopy.ts`。
 - ⚠ styles.css 未分层:同一元素上混用自有 class 与 Kumo 组件时,别写会盖过其 utility 的属性
-  (教训:.settings-modal 的 position:relative 曾压掉 Dialog 的 fixed 居中)。
+  (教训:`.glass-beam{position:relative}` 与 `.settings-modal` 的 position 曾压掉 Kumo Dialog 的 `fixed` 居中 → 设置页下移裁切;设置弹窗禁挂 glass-beam)。
