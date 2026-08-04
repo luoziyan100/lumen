@@ -8,9 +8,9 @@
 
 | 成员 | 职责 |
 |---|---|
-| `App.tsx` | 布局与装配:标题栏 / 侧栏(项目 p-* + 最近平铺) / 对话 / 工作区轨 / 阅读器 / 弹窗;历史不进「默认」文件夹 |
+| `App.tsx` | 布局与装配:标题栏 / 侧栏(项目 p-* + 最近平铺) / 对话 / ComposerCard 暗玻璃岛 / 工作区轨 / 阅读器 / 弹窗;历史不进「默认」文件夹 |
 | `agent-client.ts` | 浏览器侧 WS 客户端;含 listProjects/createProject/upload scope;⚠ 协议类型手工内联 |
-| `useAgent.ts` | 事件流 → ChatItem(`msg`/`process`/`plan`/`compaction`);`update_plan`→PlanItem;跨项目 selectConversation(forProjectId) |
+| `useAgent.ts` | 事件流 → ChatItem(`msg`/`process`/`plan`/`compaction`);`update_plan`→PlanItem;`ask_user`→pendingAsk;跨项目 selectConversation(forProjectId) |
 | `useWorkspace.ts` | 资产列表(shared+session)+ 打开的资产(驱动阅读器) |
 | `tokens.css` | **设计系统唯一真源**(青瓷 v2):表面三级 / 语义五色 / 阴影 0–3 / 字体分工;头注释即规范 |
 | `styles.css` | 形态 A 布局与组件样式;只消费 token,禁硬编码颜色 |

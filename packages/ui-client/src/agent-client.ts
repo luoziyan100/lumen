@@ -1,11 +1,17 @@
 /**
  * [INPUT]: agent-service WS/HTTP 协议(messages 真源的浏览器侧内联副本);
  *          运行时读 window.__LUMEN_WS__/__LUMEN_TOKEN__(Tauri 注入,可晚于首屏)
- * [OUTPUT]: AgentClient —— connect/submit/continue/archiveTask/listProjects/createProject/设置与资产
+ * [OUTPUT]: AgentClient —— connect/submit/continue/archiveTask/answerUser/listProjects/createProject/设置与资产
  * [POS]: UI 唯一出站口;connect 每次解析端点并把 localhost→127.0.0.1(防 IPv6 假死);
- *        send 在 WS 非 OPEN 时必须失败,continue/archive 等 ok/error 回执
+ *        send 在 WS 非 OPEN 时必须失败,continue/archive/answer_user 等 ok/error 回执
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md;改消息格式须三处同步
  */
+
+/** ask_user 作答(与 service AnswerUserPayload 同构) */
+export interface AnswerUserPayload {
+  answers: Record<string, { selected: string[]; note?: string }>
+  skipped?: boolean
+}
 export interface TaskEvent {
   id: string
   task_id: string
@@ -243,6 +249,29 @@ export class AgentClient {
     const ack = this.expectAck()
     try {
       this.send({ type: 'archive_task', taskId, ...(projectId ? { projectId } : {}) })
+    } catch (e) {
+      this.rejectPendingAck(e instanceof Error ? e : new Error(String(e)))
+    }
+    return ack
+  }
+
+  /** 解开挂起的 ask_user;等 ok/error */
+  answerUser(
+    taskId: string,
+    toolCallId: string,
+    payload: AnswerUserPayload,
+    projectId?: string,
+  ): Promise<void> {
+    const ack = this.expectAck()
+    try {
+      this.send({
+        type: 'answer_user',
+        taskId,
+        toolCallId,
+        answers: payload.answers ?? {},
+        ...(payload.skipped ? { skipped: true } : {}),
+        ...(projectId ? { projectId } : {}),
+      })
     } catch (e) {
       this.rejectPendingAck(e instanceof Error ? e : new Error(String(e)))
     }

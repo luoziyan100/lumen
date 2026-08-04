@@ -1,13 +1,14 @@
 /**
- * [INPUT]: AgentClient 的事件流 / submit·continue·subscribe
- * [OUTPUT]: useAgent → items/running/send/stop/selectConversation(forProjectId);ChatItem 归约
- * [POS]: UI 对话状态核;跨项目切换时同步 projectIdRef;空 model_step→error;update_plan→PlanItem
+ * [INPUT]: AgentClient 的事件流 / submit·continue·subscribe·answerUser
+ * [OUTPUT]: useAgent → items/running/pendingAsk/send/stop/answerAsk/selectConversation;ChatItem 归约
+ * [POS]: UI 对话状态核;跨项目切换时同步 projectIdRef;空 model_step→error;update_plan→PlanItem;
+ *        ask_user→pendingAsk 驱动悬浮 Dialog(见 doc/ask-user.md)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * user 也走事件流,不在前端乐观插入。taskId 按项目键存 localStorage。
  */
 import { useEffect, useRef, useState } from 'react'
-import type { AgentClient, ImageData, TaskEvent } from './agent-client'
+import type { AgentClient, AnswerUserPayload, ImageData, TaskEvent } from './agent-client'
 
 export interface ChatMsg { kind: 'msg'; id: string; role: 'user' | 'assistant' | 'error'; content: string; images?: ImageData[] }
 export interface ProcStep { id: string; name: string; done: boolean; label: string }
@@ -18,11 +19,23 @@ export interface PlanStep { id: string; label: string; status: PlanStepStatus }
 export interface PlanItem { kind: 'plan'; id: string; title: string; steps: PlanStep[] }
 export type ChatItem = ChatMsg | ProcessItem | CompactionMark | PlanItem
 
+export interface AskUserOption { label: string; description?: string }
+export interface AskUserQuestion {
+  id: string
+  header?: string
+  question: string
+  options: AskUserOption[]
+}
+export interface PendingAsk {
+  toolCallId: string
+  questions: AskUserQuestion[]
+}
+
 const VERB: Record<string, string> = {
   search_papers: '检索文献', openalex_search: '检索文献', web_search: '网页搜索',
   extract_pdf: '读取 PDF', fetch_url: '抓取网页', read_url: '抓取网页',
   write_file: '写入文件', read_file: '读取文件', list_files: '浏览工作区', grep: '检索内文',
-  run_code: '运行代码', update_plan: '更新计划',
+  run_code: '运行代码', update_plan: '更新计划', ask_user: '询问用户',
 }
 const verb = (name: string): string => VERB[name] ?? name
 const PLAN_STATUSES = new Set<PlanStepStatus>(['pending', 'in_progress', 'done'])
@@ -81,20 +94,56 @@ function upsertPlan(prev: ChatItem[], eventId: string, plan: { title: string; st
   return [...prev, item]
 }
 
+/** 从 tool_call.args 解析 ask_user 题目(UI 侧宽松校验) */
+export function parseAskUserQuestions(args: unknown): AskUserQuestion[] | null {
+  const raw = typeof args === 'string' ? safeParse(args) : (args && typeof args === 'object' ? args as Record<string, unknown> : null)
+  if (!raw || !Array.isArray(raw.questions) || raw.questions.length === 0) return null
+  const out: AskUserQuestion[] = []
+  for (let i = 0; i < raw.questions.length && i < 3; i++) {
+    const q = raw.questions[i]
+    if (!q || typeof q !== 'object') continue
+    const row = q as { id?: unknown; header?: unknown; question?: unknown; options?: unknown }
+    const question = String(row.question ?? '').trim()
+    if (!question || !Array.isArray(row.options) || row.options.length < 2) continue
+    const options: AskUserOption[] = []
+    for (const opt of row.options) {
+      if (!opt || typeof opt !== 'object') continue
+      const orow = opt as { label?: unknown; description?: unknown }
+      const label = String(orow.label ?? '').trim()
+      if (!label) continue
+      const description = orow.description != null ? String(orow.description).trim() : ''
+      options.push(description ? { label, description } : { label })
+    }
+    if (options.length < 2) continue
+    const header = row.header != null ? String(row.header).trim() : ''
+    out.push({
+      id: String(row.id ?? `q${i + 1}`).trim() || `q${i + 1}`,
+      question,
+      options,
+      ...(header ? { header } : {}),
+    })
+  }
+  return out.length ? out : null
+}
+
 export function useAgent(client: AgentClient, projectId: string, connected: boolean) {
   const [items, setItems] = useState<ChatItem[]>([])
   const [running, setRunning] = useState(false)
+  const [pendingAsk, setPendingAsk] = useState<PendingAsk | null>(null)
   const [taskId, setTaskId] = useState<string | null>(null) // 给 UI 高亮当前会话
   const [ctxUsage, setCtxUsage] = useState<number | null>(null) // 上下文水位 0-1(context_usage 事件)
   const taskIdRef = useRef<string | null>(null)
   const projectIdRef = useRef(projectId)
   projectIdRef.current = projectId
   const seenEventIds = useRef<Set<string>>(new Set()) // 已归约过的事件 id:回放与实时交错时保证幂等
+  const openAskIds = useRef<Set<string>>(new Set()) // 回放时跟踪未配对的 ask_user toolCallId
 
   function switchTo(id: string | null, forProjectId = projectIdRef.current): void {
     taskIdRef.current = id
     seenEventIds.current = new Set()
+    openAskIds.current = new Set()
     setCtxUsage(null)
+    setPendingAsk(null)
     setTaskId(id)
     const key = `lumen:taskId:${forProjectId}`
     if (id) localStorage.setItem(key, id)
@@ -107,12 +156,38 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
       if (event.task_id !== taskIdRef.current) return
       if (seenEventIds.current.has(event.id)) return // 重复送达(如运行中再次 attach 的回放)只算一次
       seenEventIds.current.add(event.id)
-      setItems((prev) => reduce(prev, event, safeParse(event.payload_json)))
+      const payload = safeParse(event.payload_json)
+      setItems((prev) => reduce(prev, event, payload))
       if (event.kind === 'context_usage') {
-        const r = safeParse(event.payload_json).ratio
+        const r = payload.ratio
         if (typeof r === 'number') setCtxUsage(r)
       }
-      if (event.kind === 'reply' || event.kind === 'error') setRunning(false)
+      if (event.kind === 'tool_call' && String(payload.name ?? '') === 'ask_user') {
+        const toolCallId = String(payload.id ?? '')
+        const questions = parseAskUserQuestions(payload.args)
+        if (toolCallId && questions) {
+          openAskIds.current.add(toolCallId)
+          setPendingAsk({ toolCallId, questions })
+        }
+      }
+      if (event.kind === 'tool_result' && String(payload.name ?? '') === 'ask_user') {
+        const toolCallId = String(payload.id ?? '')
+        if (toolCallId) openAskIds.current.delete(toolCallId)
+        setPendingAsk((cur) => (cur && cur.toolCallId === toolCallId ? null : cur))
+        if (!openAskIds.current.size) setPendingAsk(null)
+      }
+      if (event.kind === 'reply' || event.kind === 'error') {
+        setRunning(false)
+        openAskIds.current = new Set()
+        setPendingAsk(null)
+      }
+      if (event.kind === 'status_change') {
+        const to = String(payload.to ?? '')
+        if (['canceled', 'failed', 'done', 'interrupted'].includes(to)) {
+          openAskIds.current = new Set()
+          setPendingAsk(null)
+        }
+      }
     })
     const offClose = client.onClose((code) => {
       if (code === 4401) setItems((prev) => [...prev, { kind: 'msg', id: `c-${Date.now()}`, role: 'error', content: '连接被拒:未授权(刷新页面重试)。' }])
@@ -179,9 +254,22 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
       if (taskIdRef.current) client.cancel(taskIdRef.current, projectIdRef.current)
     } catch { /* 已断线则本地收尾即可 */ }
     setRunning(false)
+    setPendingAsk(null)
+    openAskIds.current = new Set()
   }
 
-  return { items, running, send, stop, newConversation, selectConversation, taskId, ctxUsage }
+  /** 提交 / 跳过 ask_user 作答 */
+  async function answerAsk(payload: AnswerUserPayload): Promise<void> {
+    const tid = taskIdRef.current
+    const ask = pendingAsk
+    if (!tid || !ask) return
+    await client.answerUser(tid, ask.toolCallId, payload, projectIdRef.current)
+  }
+
+  return {
+    items, running, pendingAsk, send, stop, answerAsk,
+    newConversation, selectConversation, taskId, ctxUsage,
+  }
 }
 
 /** 纯函数归约:同一个 event 进来,prev → next。 */
@@ -260,6 +348,10 @@ function reduce(prev: ChatItem[], event: TaskEvent, p: Record<string, unknown>):
 /** 完成态摘要:能可靠数出条目就显示「命中 N」,否则降级为「完成」。 */
 function summarize(name: string, llmContent: string): string {
   const v = verb(name)
+  if (name === 'ask_user') {
+    if (llmContent.includes('跳过')) return `${v} · 已跳过`
+    return `${v} · 已回答`
+  }
   if (name === 'extract_pdf') {
     const n = llmContent.length
     return `读取 PDF · ${n >= 1000 ? `${Math.round(n / 1000)}k 字` : `${n} 字`}`

@@ -1,7 +1,7 @@
 /**
- * [INPUT]: Project / Task;icons;SIDEBAR_*_COPY;useResizable;Kumo DropdownMenu
- * [OUTPUT]: Sidebar —— 项目树 + 最近;次要点击(双指点按/右键)弹出复制 ID / 软归档
- * [POS]: 左栏;contextmenu 自绘菜单并 preventDefault 挡系统 Look Up——对标 Cursor/Codex
+ * [INPUT]: Project / Task;icons;SIDEBAR_*_COPY;useResizable;Kumo DropdownMenu;MarqueeTitle
+ * [OUTPUT]: Sidebar —— 项目树 + 最近;次要点击复制/归档;标题溢出悬停跑马灯
+ * [POS]: 左栏;Trigger 必须 render=<button>(防首子被提升);会话名 hover marquee
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useEffect, useState, type MouseEvent } from 'react'
@@ -11,6 +11,7 @@ import {
   AccountIcon, ArchiveGlyph, ChatIcon, CheckIcon, ChevronIcon, CopyGlyph, FolderIcon, GearIcon,
   NewProjectIcon, PlusIcon, SearchIcon, ICON_MD, ICON_SM,
 } from './icons'
+import { MarqueeTitle } from './MarqueeTitle'
 import { SIDEBAR_ACCOUNT_COPY, SIDEBAR_PROJECT_COPY } from '../appCopy'
 import { useResizable } from '../useResizable'
 
@@ -101,9 +102,9 @@ export function Sidebar({
             if (!open) setMenuTaskId(null)
           }}
         >
+          {/* Kumo Trigger:唯一子节点会被提升为 render——闲置会话无 sb-dot 时必须显式 button,否则槽宽/跑马灯链断裂 */}
           <DropdownMenu.Trigger
-            className="sb-item"
-            title={`${task.goal}\n${task.id}\n${SIDEBAR_PROJECT_COPY.secondaryClickHint}`}
+            render={<button type="button" className="sb-item" />}
             onClick={(e) => {
               e.preventDefault()
               if (menuTaskId && menuTaskId !== task.id) setMenuTaskId(null)
@@ -117,7 +118,7 @@ export function Sidebar({
               setMenuTaskId(task.id)
             }}
           >
-            <span className="sb-item-title">{task.goal}</span>
+            <MarqueeTitle text={task.goal} className="sb-item-title" />
             {task.status === 'running' && <span className="sb-dot" />}
           </DropdownMenu.Trigger>
           <DropdownMenu.Content align="start" side="bottom" sideOffset={4} className="sb-task-menu">

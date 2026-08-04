@@ -1,10 +1,12 @@
 /**
  * [INPUT]: Thread / ModelPort / Tool / Limits / ToolContext
  * [OUTPUT]: runAgent —— 唯一的 agent 循环
- * [POS]: agent-core 的内核。main 与 worker（spawn 递归）共用同一份实现
+ * [POS]: agent-core 的内核。main 与 worker（spawn 递归）共用同一份实现。
+ *        每次 tool.run 前写入 ctx.toolCallId(ask_user pending 键)。
  *
  * 铁律：每个 tool_call 的结果必回灌进同一条线程，再连同完整线程喂回模型。
  * 模型每一轮都从 thread.forModel() 取最新线程——所以上一轮的 tool_result 必然被看见。
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { Thread, ForModelOptions } from './thread.ts'
 import type { ModelPort } from './model-port.ts'
@@ -90,10 +92,13 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
         result = { llmContent: `error: unknown tool "${call.name}"` }
       } else {
         try {
+          ctx.toolCallId = call.id
           result = await tool.run(call.arguments, ctx, signal)
         } catch (error) {
           if (isAbort(error)) return { status: 'aborted', reply: '', thread }
           result = { llmContent: `error: ${errorMessage(error)}` } // recovery：错误进线程，循环继续
+        } finally {
+          ctx.toolCallId = undefined
         }
       }
 

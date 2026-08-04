@@ -8,7 +8,7 @@ old_lumen 的教训:50 个绿测试没拦住致命 bug,因为全用替身绕过�
 2. **不变式测试**(`invariants/`):铁律钉成断言——第 N 轮 tool_result 出现在第 N+1 轮 forModel() 里;压缩不丢存在事实;**同一组断言对 main 和 spawn 出的 worker 各跑一遍**。
 3. **录制-重放**(`replay/`):fixture 为真实线格式,重放进默认内核路径跑端到端;详见 `replay/README.md`。
 4. **协议契约**(`service/`):断开→重连→subscribe 回放,事件不丢不重;token 鉴权 4401。
-5. **交叉矩阵**:spawn×resume、cancel/crash×resume、长任务×上下文折叠……特性两两交叉显式钉测试。
+5. **交叉矩阵**:spawn×resume、cancel/crash×resume、ask_user×cancel、长任务×上下文折叠……特性两两交叉显式钉测试。
 
 目录镜像 src:`adapters/ client/ invariants/ replay/ research/ runtime/ service/ storage/ workspace/`;共享脚手架在 `helpers/`(scripted-model 仅限单元级,禁入端到端)。
 

@@ -260,7 +260,9 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 /* 会话行禁选字:避免次要点击时带选区 → 否则 WKWebView 弹 macOS Look Up/翻译 */
 .sb-item-row,
 .sb-item,
-.sb-item-title {
+.sb-item-title,
+.sb-marquee,
+.sb-marquee-text {
   -webkit-user-select: none;
   user-select: none;
 }
@@ -273,11 +275,16 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .sb-item-draft .sb-item-title { color: var(--ink-mute); font-style: italic; }
 .sb-item-draft.is-active .sb-item-title { color: var(--ink); font-style: normal; }
 
-/* 创建项目弹框 */
-.create-proj-modal {
+/* 创建项目:悬浮卡(无遮罩,背景保持可读) */
+.create-proj-card {
+  position: fixed; z-index: var(--z-popover);
+  top: 18vh; left: 50%; transform: translateX(-50%);
   width: min(420px, calc(100vw - 32px));
   padding: var(--s-5);
   display: flex; flex-direction: column; gap: var(--s-4);
+  border: 1px solid var(--sand-deep); border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: 0 8px 28px -10px rgba(66, 56, 42, .22), var(--shadow-2);
 }
 .create-proj-head { display: flex; align-items: center; gap: var(--s-3); }
 .create-proj-title { flex: 1; margin: 0; font-size: var(--t-title); font-weight: var(--w-medium); color: var(--ink); }
@@ -323,6 +330,93 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 }
 .create-proj-clear:hover { color: var(--ink-soft); }
 .create-proj-actions { display: flex; justify-content: flex-end; gap: var(--s-2); }
+
+/* ask_user + composer 暗岛:贴输入区上方;dock 带环境光晕 */
+.composer-dock {
+  position: absolute; z-index: 6; bottom: var(--s-5); left: 0; right: 0;
+  display: flex; flex-direction: column; gap: var(--s-2);
+  max-width: var(--chat-max); width: calc(100% - 2 * var(--s-6)); margin: 0 auto;
+  pointer-events: none;
+}
+.composer-dock > * { pointer-events: auto; }
+.composer-dock::before {
+  content: '';
+  position: absolute; z-index: -1;
+  left: 6%; right: 6%; bottom: -22px; height: 88px;
+  background:
+    radial-gradient(ellipse 55% 70% at 30% 50%, rgba(56, 220, 190, 0.34), transparent 70%),
+    radial-gradient(ellipse 50% 70% at 72% 40%, rgba(140, 100, 255, 0.28), transparent 70%),
+    radial-gradient(ellipse 40% 55% at 50% 80%, rgba(255, 200, 80, 0.12), transparent 70%);
+  filter: blur(20px);
+  pointer-events: none;
+}
+.chat-empty .composer-dock {
+  position: relative; z-index: auto; bottom: auto; margin: var(--s-3) auto var(--s-10);
+}
+.composer-beam { width: 100%; display: block; }
+.ask-user-card {
+  display: flex; flex-direction: column; gap: var(--s-3);
+  max-height: min(42vh, 420px);
+  padding: var(--s-4);
+  border: 1px solid var(--sand-deep); border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: 0 8px 28px -10px rgba(66, 56, 42, .22), var(--shadow-2);
+  overflow: hidden;
+}
+.ask-user-head { display: flex; align-items: flex-start; gap: var(--s-3); flex: none; }
+.ask-user-title {
+  flex: 1; margin: 0; font-size: var(--t-body); font-weight: var(--w-medium);
+  color: var(--ink); line-height: 1.35;
+}
+.ask-user-x {
+  flex: none; width: 28px; height: 28px; border: none; border-radius: var(--radius-md);
+  background: none; color: var(--ink-mute); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.ask-user-x:hover { background: var(--sand); color: var(--ink); }
+.ask-user-body {
+  display: flex; flex-direction: column; gap: var(--s-3);
+  overflow: auto; min-height: 0;
+}
+.ask-user-q { display: flex; flex-direction: column; gap: var(--s-2); }
+.ask-user-q-head {
+  color: var(--ink-mute); font-size: var(--t-caption); font-weight: var(--w-medium);
+}
+.ask-user-q-text {
+  margin: 0; color: var(--ink-soft); font-size: var(--t-body-sm); line-height: 1.45;
+}
+.ask-user-opts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ask-user-opt {
+  width: 100%; display: flex; align-items: flex-start; gap: var(--s-3);
+  padding: 9px 11px; border: 1px solid var(--sand-deep); border-radius: var(--radius-md);
+  background: var(--paper); color: var(--ink-soft); font: inherit; font-size: var(--t-body-sm);
+  text-align: left; cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.ask-user-opt:hover { background: var(--sand); }
+.ask-user-opt.is-active {
+  border-color: var(--ember);
+  background: color-mix(in srgb, var(--ember) 8%, var(--paper));
+  color: var(--ink);
+}
+.ask-user-opt-n {
+  flex: none; width: 22px; height: 22px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--sand); color: var(--ink-mute); font-size: var(--t-caption); font-weight: var(--w-medium);
+}
+.ask-user-opt.is-active .ask-user-opt-n { background: var(--ember); color: var(--paper); }
+.ask-user-opt-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ask-user-opt-label { color: inherit; }
+.ask-user-opt-desc { color: var(--ink-mute); font-size: var(--t-caption); line-height: 1.4; }
+.ask-user-note {
+  width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px 10px;
+  border: 1px solid var(--sand-deep); border-radius: var(--radius-md);
+  background: var(--paper); color: var(--ink); font: inherit; font-size: var(--t-body-sm);
+  resize: vertical; outline: none;
+}
+.ask-user-note:focus { border-color: var(--ember); }
+.ask-user-actions { display: flex; justify-content: flex-end; gap: var(--s-2); flex: none; }
+
 .sb-item {
   display: flex; align-items: center; gap: var(--s-2);
   padding: 7px 10px 7px 8px; border: none; border-radius: var(--radius-md);
@@ -332,7 +426,44 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 }
 .sb-item:hover { background: var(--sand); }
 .sb-item.is-active { background: var(--vellum); color: var(--ink); }
-.sb-item-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-item-title { flex: 1; min-width: 0; }
+/*
+ * 会话标题溢出跑马灯(第一性原理):
+ * 1) 槽必须有确定窄宽(button.sb-item 为 flex 子项 + min-width:0)
+ * 2) Kumo Trigger 若只有一个子节点会把它提升为 render——闲置会话无 sb-dot 时
+ *    MarqueeTitle 被提升,button/槽宽链断裂。Sidebar 必须 render=<button class="sb-item"/>.
+ * 3) 位移用 JS 测得的 px(--sb-marquee-shift);开滚靠 .is-overflow.is-hot(指针进槽),
+ *    不赌祖先 :hover / keyframes 内 cqi 的时序。
+ */
+.sb-marquee {
+  display: block; flex: 1; min-width: 0; overflow: hidden;
+  position: relative;
+}
+.sb-marquee-text {
+  display: inline-block; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  vertical-align: bottom;
+}
+.sb-marquee.is-overflow.is-hot .sb-marquee-text,
+.sb-item-row.is-menu-open .sb-marquee.is-overflow .sb-marquee-text {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  animation: sb-marquee var(--sb-marquee-dur, 5s) linear infinite;
+}
+@keyframes sb-marquee {
+  0%, 5% { transform: translateX(0); }
+  90%, 100% { transform: translateX(calc(-1 * var(--sb-marquee-shift, 0px))); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sb-marquee.is-overflow.is-hot .sb-marquee-text,
+  .sb-item-row.is-menu-open .sb-marquee.is-overflow .sb-marquee-text {
+    animation: none;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
 .sb-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ember); flex: none; animation: proc-pulse 1.2s ease-in-out infinite; }
 .sb-new-proj {
   margin-top: var(--s-2); padding: 8px 10px; border: none; border-radius: var(--radius-md);
@@ -409,6 +540,9 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   padding: var(--s-6) calc((100% - min(var(--chat-max), 100% - 2 * var(--s-8))) / 2) 190px;
   display: flex; flex-direction: column; gap: var(--s-4);
   width: 100%;
+}
+.chat.has-ask-user .messages {
+  padding-bottom: min(52vh, 560px);
 }
 .chat-empty .messages-empty { padding-bottom: var(--s-6); }
 
@@ -559,39 +693,88 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .msg-copy:hover { color: var(--ink); background: var(--sand); }
 .msg-copy.is-copied { color: var(--ember); opacity: 1; }
 
-/* ---- Composer:一体化输入卡片;会话态浮在全幅对话上方,空态封面回文档流(2026-07-10 owner 定) ---- */
+/* ---- Composer:Border Beam 暗玻璃像素试点(2026-08-04;见 doc/ui-design.md §0) ----
+   局部变量挂在 .composer-card,不污染全局暖纸 token */
 .composer-card {
-  position: absolute; z-index: 6; bottom: var(--s-5); left: 0; right: 0;
-  display: flex; flex-direction: column; gap: var(--s-2);
-  max-width: var(--chat-max); width: calc(100% - 2 * var(--s-6)); margin: 0 auto;
-  padding: var(--s-3) var(--s-4);
-  border: 1px solid var(--sand-deep); border-radius: var(--radius-lg);
-  background: var(--card);
-  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
-  box-shadow: 0 8px 28px -10px rgba(66, 56, 42, .28), var(--shadow-2);
+  --c-fg: rgba(245, 246, 248, 0.92);
+  --c-fg-soft: rgba(220, 224, 230, 0.62);
+  --c-fg-mute: rgba(200, 206, 214, 0.42);
+  --c-line: rgba(255, 255, 255, 0.10);
+  --c-fill: rgba(255, 255, 255, 0.06);
+  --c-fill-hot: rgba(255, 255, 255, 0.11);
+  position: relative; z-index: auto;
+  display: flex; flex-direction: column; gap: 10px;
+  width: 100%; margin: 0;
+  padding: 14px 16px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  background:
+    linear-gradient(165deg, rgba(48, 50, 56, 0.72) 0%, rgba(22, 23, 27, 0.82) 55%, rgba(16, 17, 20, 0.88) 100%);
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 18px 48px -18px rgba(0, 0, 0, 0.55),
+    0 8px 24px -12px rgba(40, 20, 80, 0.28);
+  color: var(--c-fg);
+  transition: box-shadow var(--dur-fast) var(--ease-out);
 }
-.chat-empty .composer-card { position: relative; z-index: auto; bottom: auto; margin: var(--s-3) auto var(--s-10); box-shadow: var(--shadow-2); }
-.composer-card:focus-within { border-color: var(--ember-soft); box-shadow: 0 0 0 3px var(--focus-ring), var(--shadow-2); }
+.composer-card:focus-within {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 18px 48px -18px rgba(0, 0, 0, 0.58),
+    0 0 0 1px rgba(120, 200, 255, 0.12),
+    0 10px 36px -10px rgba(56, 180, 220, 0.28);
+}
+.composer-top { display: flex; align-items: center; }
+.composer-at {
+  width: 32px; height: 32px; flex: none; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--c-line); border-radius: 50%;
+  background: var(--c-fill); color: var(--c-fg-soft);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.composer-at:hover:not(:disabled) {
+  background: var(--c-fill-hot); color: var(--c-fg); border-color: rgba(255, 255, 255, 0.18);
+}
+.composer-at:disabled { opacity: 0.4; cursor: default; }
 .composer-input {
-  border: none; background: none; font: inherit; color: var(--ink);
-  padding: var(--s-1) var(--s-1) 0; width: 100%;
+  border: none; background: none; font: inherit; color: var(--c-fg);
+  padding: 2px 4px 0; width: 100%; min-height: 52px;
   box-sizing: border-box; display: block; resize: none;
   max-height: 168px; overflow-y: auto; line-height: 1.5;
+  font-size: 15px;
 }
+.composer-input::placeholder { color: var(--c-fg-mute); }
 .composer-input:focus { outline: none; }
-.composer-bar { display: flex; align-items: center; gap: var(--s-2); }
+.composer-input:disabled { opacity: 0.55; }
 .composer-spacer { flex: 1; }
-/* image-7:输入行下方分隔线 + 控制行(模型落右下角) */
-.composer-div { height: 1px; background: var(--sand); margin: var(--s-1) 0 0; }
-.composer-foot { display: flex; align-items: center; gap: var(--s-2); }
-.composer-model {
-  display: inline-flex; align-items: center; gap: 7px;
-  height: 30px; padding: 0 10px; border: none; border-radius: var(--radius-md);
-  background: none; color: var(--ink-mute); font: inherit; font-size: var(--t-body-sm); font-weight: var(--w-medium);
-  cursor: pointer; transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+.composer-foot {
+  display: flex; align-items: center; gap: 8px;
+  padding-top: 2px;
 }
-.composer-model:hover { background: var(--sand); color: var(--ink-soft); }
-.composer-model-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ember); flex: none; }
+.composer-pills { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.composer-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 11px;
+  border: 1px solid var(--c-line); border-radius: 9999px;
+  background: var(--c-fill); color: var(--c-fg-soft);
+  font: inherit; font-size: 12px; font-weight: var(--w-medium);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.composer-pill:hover:not(:disabled) {
+  background: var(--c-fill-hot); color: var(--c-fg); border-color: rgba(255, 255, 255, 0.16);
+}
+.composer-pill:disabled {
+  opacity: 0.45; cursor: default;
+}
+.composer-pill-label {
+  max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.composer-card .ctx-meter { color: var(--c-fg-soft); }
+.composer-card .ctx-meter-high { color: #f0a090; }
 .icon-btn {
   width: 30px; height: 30px; border: none; border-radius: var(--radius-md);
   background: none; color: var(--ink-soft); font-size: 18px; line-height: 1;
@@ -612,86 +795,65 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   height: 22px;
   flex: none;
 }
-/* 发送/停止圆钮:苹果风——微渐变 + 外投影 + 内高光/内阴影,悬停微抬、按压回弹(owner 定 2026-07-10) */
+/* 发送/停止:参考图深色圆钮 + 浅色箭头(暗玻璃试点) */
 .composer-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; flex: none; padding: 0;
-  border: none; border-radius: 50%; cursor: pointer; color: #fff;
-  transition: transform var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out), filter var(--dur-fast) var(--ease-out);
+  border: 1px solid rgba(255, 255, 255, 0.10); border-radius: 50%; cursor: pointer;
+  color: rgba(236, 238, 242, 0.92);
+  background: rgba(255, 255, 255, 0.10);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
 .composer-btn:disabled { cursor: default; }
-.composer-btn-send {
-  background: linear-gradient(180deg, #a3cdb6 0%, #88bd9d 52%, #79b28f 100%);
-  box-shadow:
-    0 1px 1.5px rgba(66, 56, 42, .12),
-    0 4px 10px -3px rgba(47, 107, 78, .30),
-    inset 0 1px 0 rgba(255, 255, 255, .36),
-    inset 0 -1.5px 2px rgba(0, 0, 0, .13);
-}
 .composer-btn-send:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow:
-    0 2px 3px rgba(66, 56, 42, .18),
-    0 9px 20px -4px rgba(47, 107, 78, .52),
-    inset 0 1px 0 rgba(255, 255, 255, .34),
-    inset 0 -1.5px 2px rgba(0, 0, 0, .20);
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
 }
-.composer-btn-send:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow:
-    0 1px 2px rgba(66, 56, 42, .22),
-    inset 0 2px 5px rgba(0, 0, 0, .30),
-    inset 0 1px 0 rgba(255, 255, 255, .12);
-}
+.composer-btn-send:active:not(:disabled) { transform: scale(0.96); }
 .composer-btn-send:disabled {
-  background: linear-gradient(180deg, #c3d2c9, #b2c4ba);
-  color: rgba(255, 255, 255, .85);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), inset 0 -1px 2px rgba(0, 0, 0, .08);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(220, 224, 230, 0.28);
+  border-color: rgba(255, 255, 255, 0.06);
 }
 .composer-btn-stop {
-  background: linear-gradient(180deg, #ecb3a1 0%, #dc9c83 52%, #cd8a71 100%);
-  box-shadow:
-    0 1px 1.5px rgba(66, 56, 42, .12),
-    0 4px 10px -3px rgba(168, 69, 47, .30),
-    inset 0 1px 0 rgba(255, 255, 255, .34),
-    inset 0 -1.5px 2px rgba(0, 0, 0, .15);
+  background: rgba(220, 120, 90, 0.28);
+  border-color: rgba(240, 160, 130, 0.35);
+  color: #fff;
 }
 .composer-btn-stop:hover {
-  transform: translateY(-1px);
-  box-shadow:
-    0 2px 3px rgba(66, 56, 42, .18),
-    0 9px 20px -4px rgba(168, 69, 47, .52),
-    inset 0 1px 0 rgba(255, 255, 255, .32),
-    inset 0 -1.5px 2px rgba(0, 0, 0, .22);
+  background: rgba(220, 120, 90, 0.40);
+  border-color: rgba(240, 160, 130, 0.5);
 }
-.composer-btn-stop:active { transform: translateY(0); box-shadow: 0 1px 2px rgba(66, 56, 42, .22), inset 0 2px 5px rgba(0, 0, 0, .32); }
-.stop-square { width: 11px; height: 11px; background: #fff; border-radius: 2.5px; }
+.composer-btn-stop:active { transform: scale(0.96); }
+.stop-square { width: 11px; height: 11px; background: currentColor; border-radius: 2.5px; }
 
-/* 待发送图片 chips(粘贴进来的,卡内) */
-.attach-row { display: flex; gap: var(--s-2); flex-wrap: wrap; padding: var(--s-1) var(--s-1) 0; }
+/* 待发送图片 chips(粘贴进来的,暗玻璃卡内) */
+.attach-row { display: flex; gap: var(--s-2); flex-wrap: wrap; padding: 0 4px; }
 .attach-chip { position: relative; display: inline-block; }
-.attach-chip img { height: 52px; border-radius: var(--radius-sm); border: 1px solid var(--sand-deep); display: block; }
+.attach-chip img { height: 52px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 255, 255, 0.14); display: block; }
 .attach-chip button {
   position: absolute; top: -6px; right: -6px; width: 18px; height: 18px;
-  border: none; border-radius: 50%; background: var(--ink); color: var(--paper);
+  border: none; border-radius: 50%; background: rgba(20, 22, 26, 0.92); color: rgba(245, 246, 248, 0.9);
   font-size: 12px; line-height: 1; cursor: pointer; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 
-/* 待发送文件 chips:先暂存可反悔,发送时才入工作区 */
-.file-row { display: flex; gap: var(--s-2); flex-wrap: wrap; padding: var(--s-1) var(--s-1) 0; }
+/* 待发送文件 chips:先暂存可反悔,发送时才入工作区(暗玻璃面) */
+.file-row { display: flex; gap: var(--s-2); flex-wrap: wrap; padding: 0 4px; }
 .file-chip {
   display: inline-flex; align-items: center; gap: 6px; max-width: 260px;
-  padding: 5px 9px; border: 1px solid var(--sand-deep); border-radius: var(--radius-md);
-  background: var(--paper-deep); color: var(--ink-soft); font-size: var(--t-body-sm);
+  padding: 5px 9px; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.06); color: rgba(230, 234, 240, 0.82); font-size: var(--t-body-sm);
 }
 .file-chip svg { flex: none; }
 .file-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-chip button {
   display: inline-flex; align-items: center; justify-content: center;
   width: 16px; height: 16px; border: none; border-radius: 50%; flex: none;
-  background: none; color: var(--ink-mute); cursor: pointer; padding: 0;
+  background: none; color: rgba(200, 206, 214, 0.55); cursor: pointer; padding: 0;
 }
-.file-chip button:hover { background: var(--sand); color: var(--ink); }
+.file-chip button:hover { background: rgba(255, 255, 255, 0.10); color: rgba(245, 246, 248, 0.95); }
 
 /* 消息里的图片 */
 .msg-images { display: flex; gap: var(--s-2); flex-wrap: wrap; margin-bottom: var(--s-2); }

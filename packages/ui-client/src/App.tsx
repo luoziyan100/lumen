@@ -1,11 +1,11 @@
 /**
- * [INPUT]: AgentClient;useAgent;useWorkspace;Sidebar;TurnPreviewRail;UtilityRail
- * [OUTPUT]: App —— 形态 A 装配;项目树(p-*) + 最近平铺历史;轮次轨;PlanCard/ProcessRow/ThinkingIndicator
+ * [INPUT]: AgentClient;useAgent;useWorkspace;Sidebar;TurnPreviewRail;UtilityRail;AskUserDialog;ComposerCard
+ * [OUTPUT]: App —— 形态 A 装配;项目树(p-*) + 最近平铺历史;轮次轨;PlanCard/ProcessRow/ThinkingIndicator;
+ *           ask_user 悬浮问询;composer 暗玻璃像素试点
  * [POS]: ui-client 根组件;storage project_id ≠ 用户项目;历史不分类进「默认」
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { Button } from '@cloudflare/kumo/components/button'
 import { Toasty, useKumoToastManager } from '@cloudflare/kumo/components/toast'
 import { Tooltip, TooltipProvider } from '@cloudflare/kumo/components/tooltip'
 import { AgentClient, type ImageData, type Project, type Task } from './agent-client'
@@ -13,9 +13,11 @@ import { useAgent } from './useAgent'
 import { useWorkspace } from './useWorkspace'
 import { Sidebar } from './components/Sidebar'
 import { CreateProjectModal, type CreateProjectPayload } from './components/CreateProjectModal'
+import { AskUserDialog } from './components/AskUserDialog'
+import { ComposerCard } from './components/ComposerCard'
 import { SearchModal } from './components/SearchModal'
 import { SettingsModal } from './components/SettingsModal'
-import { CheckIcon, CloseIcon, CopyIcon, PanelIcon, PdfIcon, PlusIcon, RailIcon, SendIcon } from './components/icons'
+import { CheckIcon, CopyIcon, PanelIcon, RailIcon } from './components/icons'
 import { UtilityRail } from './components/UtilityRail'
 import { ReaderPane } from './components/ReaderPane'
 import { ProcessRow } from './components/ProcessRow'
@@ -25,7 +27,9 @@ import { TurnPreviewRail } from './components/TurnPreviewRail'
 import { buildTurnRailItems, msgAnchorId } from './components/turnRail'
 import { AssistantContent } from './components/widget/AssistantContent'
 import { getTimeGreeting } from './greeting'
-import { APP_BRAND_COPY, APP_NAV_ICON_BUTTON, APP_TITLEBAR_WORKSPACE_TOGGLE } from './appCopy'
+import {
+  APP_BRAND_COPY, APP_NAV_ICON_BUTTON, APP_TITLEBAR_WORKSPACE_TOGGLE,
+} from './appCopy'
 
 // 默认必须 127.0.0.1:service 只绑 IPv4;localhost 常解析到 ::1 → 永远「服务未连接」
 const w = window as { __LUMEN_WS__?: string; __LUMEN_TOKEN__?: string }
@@ -97,7 +101,11 @@ function AppInner() {
     if (!IS_DEMO) localStorage.setItem('lumen:projectId', id)
   }
 
-  const { items, running, send, stop, newConversation, selectConversation, taskId, ctxUsage } = useAgent(client, projectId, connected)
+  const {
+    items, running, pendingAsk, send, stop, answerAsk,
+    newConversation, selectConversation, taskId, ctxUsage,
+  } = useAgent(client, projectId, connected)
+  const [askBusy, setAskBusy] = useState(false)
   const ws = useWorkspace(client, projectId, taskId, connected)
   // 工作目录:默认收起;当前会话有产物(上传文件/模型写出报告)才自动展开——纯问答保持收起(owner 定 2026-07-10)
   const [drawer, setDrawer] = useState(false)
@@ -385,7 +393,8 @@ function AppInner() {
 
   async function submit(): Promise<void> {
     const t = input.trim()
-    if ((!t && attachments.length === 0 && pendingFiles.length === 0) || running || uploading) return
+    // ask_user 挂起时禁普通发送——作答走 Dialog,避免与 running continue 打架
+    if ((!t && attachments.length === 0 && pendingFiles.length === 0) || running || uploading || pendingAsk) return
     const images = attachments
     const files = pendingFiles
     const text = t || (files.length ? `(上传了 ${files.length} 个文件)` : '(见图)')
@@ -560,7 +569,7 @@ function AppInner() {
             onCreate={handleCreateProject}
           />
         )}
-        <main className={`chat ${showReader ? 'chat-with-reader' : ''} ${isEmpty ? 'chat-empty' : ''}`}>
+        <main className={`chat ${showReader ? 'chat-with-reader' : ''} ${isEmpty ? 'chat-empty' : ''}${pendingAsk ? ' has-ask-user' : ''}`}>
           <div className="chat-stage">
             {!isEmpty && (
               <TurnPreviewRail
@@ -614,76 +623,68 @@ function AppInner() {
                 }
                 return <div key={it.id} id={msgAnchorId(it.id)} className={`bubble bubble-${it.role}`}>{it.content}</div>
               })}
-              {running && !lastRunning && <ThinkingIndicator />}
+              {running && !lastRunning && !pendingAsk && <ThinkingIndicator />}
             </div>
           </div>
-          <form className="composer-card" onSubmit={onSubmit}>
-            {attachments.length > 0 && (
-              <div className="attach-row">
-                {attachments.map((im, i) => (
-                  <span key={i} className="attach-chip">
-                    <img src={`data:${im.mediaType};base64,${im.base64}`} alt="待发送图片" />
-                    <button type="button" aria-label="移除图片" onClick={() => setAttachments((prev) => prev.filter((_, j) => j !== i))}><CloseIcon size={12} /></button>
-                  </span>
-                ))}
-              </div>
+          <div className="composer-dock">
+            {pendingAsk && (
+              <AskUserDialog
+                questions={pendingAsk.questions}
+                busy={askBusy}
+                onSubmit={async (payload) => {
+                  setAskBusy(true)
+                  try {
+                    await answerAsk(payload)
+                  } catch (err) {
+                    toast.add({
+                      variant: 'error',
+                      title: '提交失败',
+                      description: err instanceof Error ? err.message : '请重试',
+                    })
+                  } finally {
+                    setAskBusy(false)
+                  }
+                }}
+                onSkip={async () => {
+                  setAskBusy(true)
+                  try {
+                    await answerAsk({ answers: {}, skipped: true })
+                  } catch (err) {
+                    toast.add({
+                      variant: 'error',
+                      title: '跳过失败',
+                      description: err instanceof Error ? err.message : '请重试',
+                    })
+                  } finally {
+                    setAskBusy(false)
+                  }
+                }}
+              />
             )}
-            {pendingFiles.length > 0 && (
-              <div className="file-row">
-                {pendingFiles.map((f, i) => (
-                  <span key={`${f.name}-${i}`} className="file-chip" title={f.name}>
-                    <PdfIcon size={14} />
-                    <span className="file-chip-name">{f.name}</span>
-                    <button type="button" aria-label="移除文件" onClick={() => setPendingFiles((prev) => prev.filter((_, j) => j !== i))}><CloseIcon size={12} /></button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <textarea
-              ref={taRef}
-              className="composer-input"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={onComposerKey}
-              onPaste={onPaste}
-              placeholder="问点什么,或粘贴图片、让它去研究…"
-              rows={1}
-            />
-            <div className="composer-bar">
-              <Tooltip content={uploading ? '上传中…' : '添加文件'} render={
-                <Button
-                  type="button"
-                  variant="ghost"
-                  shape="square"
-                  aria-label="添加文件"
-                  disabled={uploading}
-                  onClick={() => fileRef.current?.click()}
-                ><PlusIcon /></Button>
-              } />
-              <span className="composer-spacer" />
-              {running
-                ? <Tooltip content="停止" render={<button type="button" className="composer-btn composer-btn-stop" aria-label="停止" onClick={stop}><span className="stop-square" /></button>} />
-                : <Tooltip content="发送" render={<button type="submit" className="composer-btn composer-btn-send" aria-label="发送" disabled={(!input.trim() && attachments.length === 0 && pendingFiles.length === 0) || uploading}><SendIcon /></button>} />}
-            </div>
-            <div className="composer-div" />
-            <div className="composer-foot">
-              {typeof ctxUsage === 'number' && ctxUsage >= 0.6 && (
-                <span className={ctxUsage >= 0.85 ? 'ctx-meter ctx-meter-high' : 'ctx-meter'} title="当前会话的上下文占用">上下文 {Math.round(ctxUsage * 100)}%</span>
-              )}
-              <span className="composer-spacer" />
-              <button type="button" className="composer-model" onClick={() => setSettingsOpen(true)} title="模型设置">
-                <span className="composer-model-dot" />{modelLabel || '选择模型'}
-              </button>
-            </div>
-            <input
-              ref={fileRef}
-              type="file"
-              multiple
-              accept=".pdf,.md,.txt,.tex,.csv,.json,.html,.png,.jpg,.jpeg,.webp,.gif,.docx,.pptx,.epub"
-              hidden
-              onChange={onPickFiles}
-            />
-          </form>
+          <ComposerCard
+            input={input}
+            onInputChange={setInput}
+            onSubmit={(e) => { void onSubmit(e) }}
+            onKeyDown={onComposerKey}
+            onPaste={onPaste}
+            taRef={taRef}
+            fileRef={fileRef}
+            onPickFiles={onPickFiles}
+            onAttachClick={() => fileRef.current?.click()}
+            attachments={attachments}
+            onRemoveAttachment={(i) => setAttachments((prev) => prev.filter((_, j) => j !== i))}
+            pendingFiles={pendingFiles}
+            onRemoveFile={(i) => setPendingFiles((prev) => prev.filter((_, j) => j !== i))}
+            running={running}
+            onStop={stop}
+            uploading={uploading}
+            pendingAsk={!!pendingAsk}
+            modelLabel={modelLabel}
+            onOpenModel={() => setSettingsOpen(true)}
+            ctxUsage={ctxUsage}
+            canSend={!pendingAsk && !uploading && !!(input.trim() || attachments.length || pendingFiles.length)}
+          />
+          </div>
         </main>
 
         {showReader && ws.open && <ReaderPane open={ws.open} pdfUrl={(p) => client.pdfUrl(projectId, p, taskId ?? undefined)} onClose={ws.close} />}

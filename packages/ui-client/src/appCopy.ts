@@ -33,7 +33,6 @@ export const SIDEBAR_PROJECT_COPY = {
   copySessionId: '复制会话 ID',
   copiedSessionId: '已复制会话 ID',
   archiveChat: '归档对话',
-  secondaryClickHint: '双指点按或右键：复制 / 归档',
 } as const
 
 export const CREATE_PROJECT_COPY = {
@@ -47,6 +46,17 @@ export const CREATE_PROJECT_COPY = {
   folderPaste: '或粘贴路径…',
   cancel: '取消',
   submit: '创建项目',
+} as const
+
+/** ask_user 悬浮问询(见 doc/ask-user.md) */
+export const ASK_USER_COPY = {
+  title: '需要你的选择',
+  questionN: '问题 ',
+  otherLabel: '其他，并补充说明',
+  notePlaceholder: '补充说明…',
+  skip: '跳过',
+  submit: '确认',
+  waitingHint: '等待你的选择…',
 } as const
 
 export const WORKSPACE_SCOPE_COPY = {

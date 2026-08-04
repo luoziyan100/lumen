@@ -1,7 +1,7 @@
 /** 图标唯一入口:一律 @phosphor-icons/react(Kumo 同源家族),经此单点 re-export。
  *  规范见 doc/ui-design.md「§3.1 图标规范」:三档尺寸 + weight 全站统一 regular;
  *  禁手写 SVG / 字符凑图标(← › × ＋) / emoji / 绕过本文件直接 import phosphor。 */
-import { Archive, ArrowUp, ArrowsOut, CaretLeft, CaretRight, ChatCircle, Check, Copy, File, FileCode, FileCsv, FileDoc, FileHtml, FileImage, FilePdf, FilePpt, FileText, FileZip, FolderSimple, Gear, MagnifyingGlass, Plus, SidebarSimple, User, X } from '@phosphor-icons/react'
+import { Archive, ArrowUp, ArrowsOut, At, CaretDown, CaretLeft, CaretRight, ChatCircle, Check, Copy, File, FileCode, FileCsv, FileDoc, FileHtml, FileImage, FilePdf, FilePpt, FileText, FileZip, FolderSimple, Gear, MagnifyingGlass, Plus, SidebarSimple, User, X } from '@phosphor-icons/react'
 
 // 尺寸三档:行内(列表/标签内) / 按钮内 / 导航按钮
 export const ICON_SM = 16
@@ -64,6 +64,16 @@ export function PlusIcon({ size = ICON_MD }: { size?: number }) {
 
 export function SendIcon({ size = ICON_MD }: { size?: number }) {
   return <ArrowUp size={size} />
+}
+
+/** composer 左上角 @:添加文件(Border Beam 暗玻璃试点形制) */
+export function AtIcon({ size = ICON_MD }: { size?: number }) {
+  return <At size={size} />
+}
+
+/** pill 下拉示意:CaretDown */
+export function ChevronDownIcon({ size = ICON_SM }: { size?: number }) {
+  return <CaretDown size={size} />
 }
 
 export function GearIcon({ size = ICON_MD }: { size?: number }) {

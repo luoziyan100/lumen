@@ -78,6 +78,22 @@ export class LumenClient {
     this.send({ type: 'archive_task', taskId })
   }
 
+  /** 解开挂起的 ask_user */
+  answerUser(
+    taskId: string,
+    toolCallId: string,
+    answers: Record<string, { selected: string[]; note?: string }>,
+    opts?: { skipped?: boolean },
+  ): void {
+    this.send({
+      type: 'answer_user',
+      taskId,
+      toolCallId,
+      answers,
+      ...(opts?.skipped ? { skipped: true } : {}),
+    })
+  }
+
   resume(taskId: string): void {
     this.send({ type: 'resume', taskId })
   }

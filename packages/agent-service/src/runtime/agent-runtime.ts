@@ -1,8 +1,11 @@
 /**
- * [INPUT]: core（runAgent/Thread/spawn）、storage（TaskStore/session/budget/resume）、workspace（FsWorkspace）
- * [OUTPUT]: AgentRuntime —— 把内核、存储、工作区、worker 角色拼成可执行、可订阅、可恢复的任务运行时
+ * [INPUT]: core（runAgent/Thread/spawn）、storage（TaskStore/session/budget/resume）、workspace（FsWorkspace）;
+ *          ask-user-tools 的 AskUserAnswer / AskUserWaiter
+ * [OUTPUT]: AgentRuntime —— 把内核、存储、工作区、worker 角色拼成可执行、可订阅、可恢复的任务运行时;
+ *           answerUser 解开 ask_user 挂起
  * [POS]: §4 运行环境。一个任务 = 一次 runAgent；emit 同时落 task_events + session jsonl + 通知订阅者（WS）；
- *        imageBridge 在 DeepSeek 路径去 image_url 并插 [[image:img-N]] 桩
+ *        imageBridge 在 DeepSeek 路径去 image_url 并插 [[image:img-N]] 桩;
+ *        pendingAsk 按 taskId+toolCallId 挂起(见 doc/ask-user.md)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { Thread, type ForModelOptions } from '../core/thread.ts'
@@ -26,6 +29,11 @@ import { LUMEN_PERSONA } from '../agents/persona.ts'
 import { createMemoryTools, readMemoryIndex } from '../tools/env/memory-tools.ts'
 import type { ImageStore } from '../tools/env/image-store.ts'
 import { withImageSanitize } from '../tools/env/vision-tools.ts'
+import type {
+  AskUserAnswer,
+  AskUserQuestion,
+  AskUserWaiter,
+} from '../tools/env/ask-user-tools.ts'
 
 export interface RuntimeContextInfo {
   currentDate: string
@@ -93,13 +101,66 @@ export function defaultSystemPrompt(info: RuntimeContextInfo): string {
 
 export { sanitizeWorkspaceId } from '../storage/workspace-id.ts'
 
+type PendingAsk = {
+  resolve: (answer: AskUserAnswer) => void
+  reject: (err: unknown) => void
+}
+
 export class AgentRuntime {
   private readonly cfg: AgentRuntimeConfig
   private readonly listeners = new Map<string, Set<Listener>>()
   private readonly running = new Map<string, { controller: AbortController; promise: Promise<void> }>()
+  /** ask_user 挂起:key = taskId\\0toolCallId */
+  private readonly pendingAsks = new Map<string, PendingAsk>()
 
   constructor(config: AgentRuntimeConfig) {
     this.cfg = config
+  }
+
+  private askKey(taskId: string, toolCallId: string): string {
+    return `${taskId}\0${toolCallId}`
+  }
+
+  /** UI 经 answer_user 解开挂起的 ask_user;无 pending 返回 false */
+  answerUser(taskId: string, toolCallId: string, answer: AskUserAnswer): boolean {
+    const key = this.askKey(taskId, toolCallId)
+    const entry = this.pendingAsks.get(key)
+    if (!entry) return false
+    this.pendingAsks.delete(key)
+    entry.resolve(answer)
+    return true
+  }
+
+  private rejectPendingAsks(taskId: string, err: unknown): void {
+    const prefix = `${taskId}\0`
+    for (const [key, entry] of this.pendingAsks) {
+      if (!key.startsWith(prefix)) continue
+      this.pendingAsks.delete(key)
+      entry.reject(err)
+    }
+  }
+
+  private makeAskUserWaiter(taskId: string): AskUserWaiter {
+    return (toolCallId: string, _questions: AskUserQuestion[], signal?: AbortSignal) => {
+      return new Promise<AskUserAnswer>((resolve, reject) => {
+        const key = this.askKey(taskId, toolCallId)
+        const prev = this.pendingAsks.get(key)
+        if (prev) {
+          prev.reject(new Error('ask_user replaced by a newer request with the same toolCallId'))
+        }
+        const onAbort = (): void => {
+          if (!this.pendingAsks.has(key)) return
+          this.pendingAsks.delete(key)
+          reject(new DOMException('The operation was aborted.', 'AbortError'))
+        }
+        if (signal?.aborted) {
+          onAbort()
+          return
+        }
+        this.pendingAsks.set(key, { resolve, reject })
+        signal?.addEventListener('abort', onAbort, { once: true })
+      })
+    }
   }
 
   /** 发一条 user 事件(进 DB + 实时 notify 已订阅的客户端)。submit/continue 共用,
@@ -159,6 +220,7 @@ export class AgentRuntime {
   }
 
   cancel(taskId: string): void {
+    this.rejectPendingAsks(taskId, new DOMException('The operation was aborted.', 'AbortError'))
     this.running.get(taskId)?.controller.abort()
   }
 
@@ -441,7 +503,11 @@ export class AgentRuntime {
       spawn,
       emit,
       workspace,
-      deps: { model, imageStore: this.cfg.imageBridge?.store },
+      deps: {
+        model,
+        imageStore: this.cfg.imageBridge?.store,
+        askUser: this.makeAskUserWaiter(task.id),
+      },
     }
     const memoryTools = createMemoryTools(this.memoryDir(task.project_id)) // 跨会话记忆:仅主 agent,worker 不带
     const mains = [...this.cfg.mainTools, ...memoryTools]
@@ -491,6 +557,7 @@ export class AgentRuntime {
       appendSessionEntry(this.cfg.sessionDir, { type: 'error', task_id: task.id, timestamp: new Date().toISOString(), error: message })
       this.endSession(task.id, 'failed', Date.now() - startedAt)
     } finally {
+      this.rejectPendingAsks(task.id, new DOMException('The operation was aborted.', 'AbortError'))
       this.running.delete(task.id)
     }
   }

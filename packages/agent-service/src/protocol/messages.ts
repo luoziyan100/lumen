@@ -1,7 +1,8 @@
 /**
  * [INPUT]: storage 的 Task / TaskEvent / Project
  * [OUTPUT]: WS 协议消息类型（client→server / server→client）
- * [POS]: §4 agent↔UI 协议。UI 发命令，service 推事件流；shared 包将复用这些类型
+ * [POS]: §4 agent↔UI 协议。UI 发命令，service 推事件流；shared 包将复用这些类型。
+ *        answer_user 解开 ask_user 挂起(见 doc/ask-user.md)
  */
 import type { Task, TaskEvent } from '../storage/task-store.ts'
 import type { Project } from '../storage/project-store.ts'
@@ -19,6 +20,12 @@ export interface ConnModelConfig {
   baseUrl?: string
 }
 
+/** ask_user 作答载荷(与 tools/env/ask-user-tools.AskUserAnswer 同构) */
+export interface AnswerUserPayload {
+  answers: Record<string, { selected: string[]; note?: string }>
+  skipped?: boolean
+}
+
 export type ClientMessage =
   | { type: 'submit'; projectId: string; userText: string; images?: ImageData[] }
   | { type: 'continue'; taskId: string; userText: string; images?: ImageData[]; projectId?: string }
@@ -27,6 +34,7 @@ export type ClientMessage =
   | { type: 'cancel'; taskId: string; projectId?: string }
   | { type: 'archive_task'; taskId: string; projectId?: string }
   | { type: 'resume'; taskId: string; projectId?: string }
+  | { type: 'answer_user'; taskId: string; toolCallId: string; answers: AnswerUserPayload['answers']; skipped?: boolean; projectId?: string }
   | { type: 'list'; projectId?: string }
   | { type: 'list_projects' }
   | { type: 'create_project'; name: string; sourcePath?: string }
