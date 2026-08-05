@@ -1,6 +1,7 @@
 /**
  * [OUTPUT]: 内核公共类型——消息 / 工具调用 / 用量 / 工具 schema / 事件
- * [POS]: agent-core 的类型基座；内核只认这些结构，不认任何具体 provider / 工具
+ * [POS]: agent-core 的类型基座；含 ephemeral text_delta / tool_call_start
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 
 export type Role = 'system' | 'user' | 'assistant' | 'tool_result'
@@ -38,6 +39,8 @@ export interface ToolSpec {
 }
 
 export type AgentEventKind =
+  | 'text_delta' // ephemeral:正文增量,不入库
+  | 'tool_call_start' // ephemeral:工具名尽早露出,不入库
   | 'model_step'
   | 'tool_call'
   | 'tool_result'

@@ -605,13 +605,21 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 }
 .chat-empty .chat-stage { flex: 0 0 auto; }
 .messages {
+  /* 底垫 = 输入卡让位 + 可继续下滚的空白(对标 Cursor,末行不必顶死在卡沿) */
+  --messages-composer-pad: 168px;
+  --messages-scroll-slack: min(42vh, 380px);
   flex: 1; overflow-y: auto;
-  padding: var(--s-6) calc((100% - min(var(--chat-max), 100% - 2 * var(--s-8))) / 2) 190px;
+  /* 流式增高时禁浏览器 overflow-anchor,避免锚在 user prompt 上把视口钉死 */
+  overflow-anchor: none;
+  padding:
+    var(--s-6)
+    calc((100% - min(var(--chat-max), 100% - 2 * var(--s-8))) / 2)
+    calc(var(--messages-composer-pad) + var(--messages-scroll-slack));
   display: flex; flex-direction: column; gap: var(--s-4);
   width: 100%;
 }
 .chat.has-ask-user .messages {
-  padding-bottom: min(52vh, 560px);
+  --messages-composer-pad: min(46vh, 480px);
 }
 .chat-empty .messages-empty { padding-bottom: var(--s-6); }
 

@@ -8,11 +8,12 @@
 ## 成员
 
 - `agent-runtime.ts` — 任务生命周期:submit/continue/cancel/answerUser;listProjects/createProject;listAssets(shared+session);
-  makeWorkspace 挂载 sharedRoot;事件写 task_events 并推订阅者;resume 只回放 main 线程;
+  makeWorkspace 挂载 sharedRoot;durable 事件写 task_events 并推订阅者;resume 只回放 main 线程;
+  ephemeral(`text_delta`/`tool_call_start`)只 notify(seq=-1),UI 靠 model_step 定稿可重放复原;
   可选 imageBridge:DeepSeek 等 chat 前去图插桩,look_at_image 读同一 ImageStore;
   pendingAsk 按 taskId+toolCallId 挂起 ask_user(见 `doc/ask-user.md`)
 
 ## 规则
 
-- 事件先落库再推送;任何旁路直推(不落库)都会破坏断线重连的「不丢不重」。
+- durable 事件先落库再推送;ephemeral 流式增量是唯一旁路(不占 seq、不入 jsonl)。
 - 新特性落地前列交叉矩阵(spawn×resume、cancel×resume、ask_user×cancel、长任务×折叠……),对应测试在 `tests/runtime/` 与 `tests/invariants/`。

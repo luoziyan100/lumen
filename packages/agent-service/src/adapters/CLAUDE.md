@@ -6,8 +6,11 @@
 
 ## 成员
 
-- `claude.ts` — Claude Messages API:请求构造 / 响应解析 / fetch transport / createClaudeAdapter
-- `openai.ts` — OpenAI 兼容端点(含 DeepSeek 等):同上 + 录制重放支持;DeepSeek V4 关闭 thinking、抬高 max_tokens、空正文抛错
+- `claude.ts` — Claude Messages API:整包 + SSE streamTransport / createClaudeAdapter
+- `claude-sse.ts` — Anthropic SSE 纯函数拼装(可 fixture 单测)
+- `openai.ts` — OpenAI 兼容端点:整包 + SSE;DeepSeek V4 关 thinking、抬 max_tokens、空正文抛错
+- `openai-sse.ts` — OpenAI SSE 纯函数拼装 + consumeSseDataStream
+- `stream-coalesce.ts` — text_delta 按字数/时延合并,压 WS 洪水
 - `record-replay.ts` — 录制 / 重放 transport:测试基座,fixture 为真实线格式
 - `retry.ts` — postJsonWithRetry:单次超时 + 指数退避(claude/openai 共用的可靠性层)
 - `index.ts` — 出口

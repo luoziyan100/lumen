@@ -1,8 +1,8 @@
 /**
  * [INPUT]: db.ts 的 DB
- * [OUTPUT]: TaskStore —— tasks / task_events 持久化（事件流是 runtime 的 source of truth）
- * [POS]: §存储层。语义搬自 old_lumen services/tasks.ts；seq 在事务内单调自增;
- *        archived_at 软归档,list 默认排除
+ * [OUTPUT]: TaskStore / EPHEMERAL_EVENT_KINDS —— tasks / task_events 持久化
+ * [POS]: §存储层。事件流是 runtime 的 source of truth;seq 事务内单调自增;
+ *        ephemeral kind 由 runtime 旁路不入库;archived_at 软归档
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { DB } from './db.ts'
@@ -26,6 +26,8 @@ export type TaskEventKind =
   | 'status_change'
   | 'user'
   | 'context_init'
+  | 'text_delta' // live-only:runtime 不入库
+  | 'tool_call_start' // live-only:runtime 不入库
   | 'model_step'
   | 'tool_call'
   | 'tool_result'
@@ -35,6 +37,9 @@ export type TaskEventKind =
   | 'budget_extension'
   | 'compaction'
   | 'context_usage'
+
+/** 高频/可重放冗余:只广播不落库 */
+export const EPHEMERAL_EVENT_KINDS = new Set<string>(['text_delta', 'tool_call_start'])
 
 export interface TaskEvent {
   id: string

@@ -2,6 +2,7 @@
  * [INPUT]: AgentClient 的事件流 / submit·continue·subscribe·answerUser
  * [OUTPUT]: useAgent → items/running/pendingAsk/send/stop/answerAsk/selectConversation;ChatItem 归约
  * [POS]: UI 对话状态核;跨项目切换时同步 projectIdRef;空 model_step→error;update_plan→PlanItem;
+ *        text_delta 累积 streaming 泡,model_step 定稿替换;tool_call_start 尽早开 process;
  *        ask_user→pendingAsk 驱动悬浮 Dialog(见 doc/ask-user.md)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
@@ -10,7 +11,15 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AgentClient, AnswerUserPayload, ImageData, TaskEvent } from './agent-client'
 
-export interface ChatMsg { kind: 'msg'; id: string; role: 'user' | 'assistant' | 'error'; content: string; images?: ImageData[] }
+export interface ChatMsg {
+  kind: 'msg'
+  id: string
+  role: 'user' | 'assistant' | 'error'
+  content: string
+  images?: ImageData[]
+  /** 真流式中:text_delta 累积;model_step 定稿后清除 */
+  streaming?: boolean
+}
 export interface ProcStep { id: string; name: string; done: boolean; label: string }
 export interface ProcessItem { kind: 'process'; id: string; steps: ProcStep[]; running: boolean }
 export interface CompactionMark { kind: 'compaction'; id: string }
@@ -157,7 +166,7 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
       if (seenEventIds.current.has(event.id)) return // 重复送达(如运行中再次 attach 的回放)只算一次
       seenEventIds.current.add(event.id)
       const payload = safeParse(event.payload_json)
-      setItems((prev) => reduce(prev, event, payload))
+      setItems((prev) => reduceChatItems(prev, event, payload))
       if (event.kind === 'context_usage') {
         const r = payload.ratio
         if (typeof r === 'number') setCtxUsage(r)
@@ -272,18 +281,63 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
   }
 }
 
-/** 纯函数归约:同一个 event 进来,prev → next。 */
-function reduce(prev: ChatItem[], event: TaskEvent, p: Record<string, unknown>): ChatItem[] {
+/** 纯函数归约:同一个 event 进来,prev → next。导出供单测。 */
+export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<string, unknown>): ChatItem[] {
   switch (event.kind) {
     case 'user': {
       const images = Array.isArray(p.images) ? (p.images as ImageData[]) : undefined
       return [...prev, { kind: 'msg', id: event.id, role: 'user', content: String(p.content ?? ''), ...(images?.length ? { images } : {}) }]
     }
+    case 'text_delta': {
+      const text = String(p.text ?? '')
+      if (!text) return prev
+      const last = prev[prev.length - 1]
+      if (last?.kind === 'msg' && last.role === 'assistant' && last.streaming) {
+        return [...prev.slice(0, -1), { ...last, content: last.content + text }]
+      }
+      return [...prev, { kind: 'msg', id: event.id, role: 'assistant', content: text, streaming: true }]
+    }
+    case 'tool_call_start': {
+      const name = String(p.name ?? 'tool')
+      if (name === 'update_plan') return prev // 计划等完整 tool_call
+      const id = String(p.id ?? event.id)
+      const step: ProcStep = { id, name, done: false, label: `${verb(name)}…` }
+      const last = prev[prev.length - 1]
+      if (last?.kind === 'process' && last.running) {
+        if (last.steps.some((s) => s.id === id)) return prev
+        return [...prev.slice(0, -1), { ...last, steps: [...last.steps, step] }]
+      }
+      return [...prev, { kind: 'process', id: `proc-${id}`, steps: [step], running: true }]
+    }
     case 'model_step': {
       const content = typeof p.content === 'string' ? p.content.trim() : ''
+      const tools = Array.isArray(p.toolCalls) ? p.toolCalls : []
+      let streamingIdx = -1
+      for (let i = prev.length - 1; i >= 0; i -= 1) {
+        const it = prev[i]
+        if (it?.kind === 'msg' && it.role === 'assistant' && it.streaming) {
+          streamingIdx = i
+          break
+        }
+      }
+      if (streamingIdx >= 0) {
+        const next = prev.slice()
+        if (content) {
+          next[streamingIdx] = { kind: 'msg', id: event.id, role: 'assistant', content }
+        } else if (tools.length === 0) {
+          next[streamingIdx] = {
+            kind: 'msg',
+            id: event.id,
+            role: 'error',
+            content: '模型返回了空回复（常见于思考模式耗尽输出额度）。请重试，或在设置中换模型。',
+          }
+        } else {
+          next.splice(streamingIdx, 1) // 纯工具轮:丢掉半成品泡
+        }
+        return next
+      }
       if (content) return [...prev, { kind: 'msg', id: event.id, role: 'assistant', content }]
       // 空正文且无工具:历史上会被静默丢掉 → 用户只看见自己的气泡(DeepSeek V4 思考烧光额度)
-      const tools = Array.isArray(p.toolCalls) ? p.toolCalls : []
       if (tools.length === 0) {
         return [...prev, {
           kind: 'msg',
@@ -304,6 +358,7 @@ function reduce(prev: ChatItem[], event: TaskEvent, p: Record<string, unknown>):
       const step: ProcStep = { id, name, done: false, label: `${verb(name)}…` }
       const last = prev[prev.length - 1]
       if (last && last.kind === 'process' && last.running) {
+        if (last.steps.some((s) => s.id === id)) return prev // tool_call_start 已占位
         return [...prev.slice(0, -1), { ...last, steps: [...last.steps, step] }]
       }
       return [...prev, { kind: 'process', id: `proc-${id}`, steps: [step], running: true }]

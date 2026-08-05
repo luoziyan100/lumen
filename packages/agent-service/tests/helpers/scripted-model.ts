@@ -3,8 +3,8 @@
  * ScriptedModel 记录每次被调用时收到的 messages —— 这正是验证"tool_result 回灌"的钩子。
  * 这是 old_lumen 测试结构上做不到的事（它把替身注入到了循环内部，绕过了真实内核）。
  */
-import type { ModelPort, ModelResponse } from '../../src/core/model-port.ts'
-import type { Message, ToolCall } from '../../src/core/types.ts'
+import type { ChatHandlers, ModelPort, ModelResponse } from '../../src/core/model-port.ts'
+import type { Message, ToolCall, ToolSpec } from '../../src/core/types.ts'
 import type { Tool, ToolContext } from '../../src/core/tool.ts'
 
 export class ScriptedModel implements ModelPort {
@@ -17,11 +17,22 @@ export class ScriptedModel implements ModelPort {
     this.script = script
   }
 
-  async chat(messages: Message[]): Promise<ModelResponse> {
+  async chat(
+    messages: Message[],
+    _tools?: ToolSpec[],
+    _signal?: AbortSignal,
+    handlers?: ChatHandlers,
+  ): Promise<ModelResponse> {
     this.calls.push(messages.map((m) => ({ ...m })))
     const response = this.script[this.index]
     this.index += 1
     if (!response) throw new Error(`ScriptedModel: 第 #${this.index} 次调用没有脚本响应`)
+    // 可选模拟流式:整段正文一次 delta + 工具名预告(测试 handlers 透传)
+    const text = response.message.content
+    if (text && handlers?.onTextDelta) handlers.onTextDelta(text)
+    for (const tc of response.toolCalls) {
+      handlers?.onToolCallStart?.(tc.id, tc.name)
+    }
     return response
   }
 }

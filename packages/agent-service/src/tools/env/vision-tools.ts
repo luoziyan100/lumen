@@ -1,10 +1,10 @@
 /**
  * [INPUT]: ImageStore;OpenAI transport;硅基 VL chat/completions
  * [OUTPUT]: createLookAtImageTool / withImageSanitize / shouldStripImagesForModel / visionEnv
- * [POS]: 识图工具 look_at_image;DeepSeek 路径强制去图桩后再 chat
+ * [POS]: 识图工具 look_at_image;DeepSeek 路径强制去图桩后再 chat;包装层透传 ChatHandlers
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import type { ModelPort, ModelResponse } from '../../core/model-port.ts'
+import type { ChatHandlers, ModelPort, ModelResponse } from '../../core/model-port.ts'
 import type { Message, ToolSpec } from '../../core/types.ts'
 import type { Tool, ToolResult } from '../../core/tool.ts'
 import {
@@ -50,9 +50,14 @@ export function withImageSanitize(
   taskId: string,
 ): ModelPort {
   return {
-    async chat(messages: Message[], tools: ToolSpec[], signal?: AbortSignal): Promise<ModelResponse> {
+    async chat(
+      messages: Message[],
+      tools: ToolSpec[],
+      signal?: AbortSignal,
+      handlers?: ChatHandlers,
+    ): Promise<ModelResponse> {
       const cleaned = stripImagesForModel(messages, store, taskId)
-      return model.chat(cleaned, tools, signal)
+      return model.chat(cleaned, tools, signal, handlers)
     },
   }
 }

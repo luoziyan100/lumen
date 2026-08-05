@@ -6,6 +6,7 @@
  *
  * 铁律：每个 tool_call 的结果必回灌进同一条线程，再连同完整线程喂回模型。
  * 模型每一轮都从 thread.forModel() 取最新线程——所以上一轮的 tool_result 必然被看见。
+ * chat handlers 推 ephemeral text_delta / tool_call_start;定稿仍靠 model_step + tool_call。
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { Thread, ForModelOptions } from './thread.ts'
@@ -59,7 +60,14 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
 
     let response
     try {
-      response = await model.chat(thread.forModel(input.forModelOptions), specs, signal)
+      response = await model.chat(thread.forModel(input.forModelOptions), specs, signal, {
+        onTextDelta: (text) => {
+          void emit({ kind: 'text_delta', agentRole: ctx.agentRole, payload: { text } })
+        },
+        onToolCallStart: (id, name) => {
+          void emit({ kind: 'tool_call_start', agentRole: ctx.agentRole, payload: { id, name } })
+        },
+      })
     } catch (error) {
       if (isAbort(error)) return { status: 'aborted', reply: '', thread }
       await emit({ kind: 'error', agentRole: ctx.agentRole, payload: { error: errorMessage(error) } })

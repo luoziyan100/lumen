@@ -1,15 +1,25 @@
 /**
- * [INPUT]: core 的 Message / ToolSpec / ModelPort / ModelResponse
- * [OUTPUT]: buildOpenAIRequest / parseOpenAIResponse / resolveOpenAIMaxTokens / createOpenAIFetchTransport / createOpenAIAdapter + 录制重放
+ * [INPUT]: core 的 Message / ToolSpec / ModelPort / ModelResponse / ChatHandlers
+ * [OUTPUT]: buildOpenAIRequest / parseOpenAIResponse / resolveOpenAIMaxTokens /
+ *           createOpenAIFetchTransport / createOpenAIStreamFetchTransport / createOpenAIAdapter + 录制重放
  * [POS]: ModelPort 的 OpenAI-Chat-Completions 实现（兼容第三方代理）
  *
  * 同 claude.ts：请求构造与响应解析是纯函数，网络是可注入 transport，录制-重放走真实解析路径。
+ * 有 ChatHandlers 时走 SSE(streamTransport);无则整包(重放零改语义)。
  * DeepSeek V4 默认开启 thinking：推理与正文共享 max_tokens；额度被隐式推理烧光时
  * HTTP 200 + content="" + finish_reason=length——适配器必须抬高额度、关掉 agent 环上的思考，并把空回复变成可观测错误。
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import type { ModelPort, ModelResponse } from '../core/model-port.ts'
+import type { ChatHandlers, ModelPort, ModelResponse } from '../core/model-port.ts'
 import type { Message, ToolCall, ToolSpec } from '../core/types.ts'
 import { postJsonWithRetry, type RetryOptions } from './retry.ts'
+import { createTextDeltaCoalescer } from './stream-coalesce.ts'
+import {
+  applyOpenAISseData,
+  consumeSseDataStream,
+  createOpenAIStreamAccum,
+  finalizeOpenAIStreamAccum,
+} from './openai-sse.ts'
 
 type OAToolCall = { id: string; type: 'function'; function: { name: string; arguments: string } }
 type OAContentPart =
@@ -64,6 +74,13 @@ export function resolveOpenAIMaxTokens(model: string, requested = 4096): number 
 }
 
 export type OpenAITransport = (request: OpenAIRequest, signal?: AbortSignal) => Promise<OpenAIResponseBody>
+
+/** 流式 transport:边收边调 handlers(已 coalesce),返回与整包同构的 body */
+export type OpenAIStreamTransport = (
+  request: OpenAIRequest,
+  signal: AbortSignal | undefined,
+  handlers: ChatHandlers | undefined,
+) => Promise<OpenAIResponseBody>
 
 function asObject(raw: string): Record<string, unknown> | null {
   try {
@@ -207,29 +224,81 @@ export function createOpenAIFetchTransport(options: OpenAIFetchTransportOptions)
     )) as OpenAIResponseBody
 }
 
+/** 生产流式:stream:true + SSE;瞬时失败不重试首包后字节(避免重复 delta) */
+export function createOpenAIStreamFetchTransport(options: OpenAIFetchTransportOptions): OpenAIStreamTransport {
+  const url = `${options.baseUrl.replace(/\/$/, '')}${options.path ?? '/v1/chat/completions'}`
+  const doFetch = options.retry?.fetchImpl ?? fetch
+  const timeoutMs = options.retry?.timeoutMs ?? 600_000
+  return async (request, signal, handlers) => {
+    if (signal?.aborted) throw new DOMException('This operation was aborted', 'AbortError')
+    const attemptSignal = AbortSignal.any([
+      ...(signal ? [signal] : []),
+      AbortSignal.timeout(timeoutMs),
+    ])
+    const response = await doFetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${options.apiKey}` },
+      body: JSON.stringify({ ...request, stream: true }),
+      signal: attemptSignal,
+    })
+    if (!response.ok) {
+      const text = await response.text().catch(() => '')
+      throw new Error(`OpenAI stream failed (${response.status}): ${text}`)
+    }
+    if (!response.body) throw new Error('OpenAI stream: empty body')
+
+    const accum = createOpenAIStreamAccum()
+    const coalesce = createTextDeltaCoalescer(handlers)
+    const streamHandlers: ChatHandlers = {
+      onTextDelta: coalesce.push,
+      onToolCallStart: handlers?.onToolCallStart,
+    }
+    await consumeSseDataStream(
+      response.body,
+      (data) => applyOpenAISseData(accum, data, streamHandlers),
+      attemptSignal,
+    )
+    coalesce.flush()
+    return finalizeOpenAIStreamAccum(accum)
+  }
+}
+
 export interface OpenAIAdapterOptions {
   transport: OpenAITransport
+  /** 有 handlers 时优先;缺省则 handlers 被忽略、走整包 */
+  streamTransport?: OpenAIStreamTransport
   model?: string
   maxTokens?: number
+}
+
+function assertNonEmptyOpenAI(parsed: ModelResponse, body: OpenAIResponseBody): void {
+  const content = (parsed.message.content ?? '').trim()
+  const finish = body.choices?.[0]?.finish_reason
+  if (!content && parsed.toolCalls.length === 0) {
+    const hint = finish === 'length'
+      ? '模型把输出额度花在了隐式思考上，没有留下正文（finish_reason=length）。请重试；若仍空，在设置里换模型。'
+      : '模型返回了空回复（无正文、无工具调用）。请重试或在设置里换模型。'
+    throw new Error(hint)
+  }
 }
 
 export function createOpenAIAdapter(options: OpenAIAdapterOptions): ModelPort {
   const model = options.model ?? 'claude-sonnet-4-6'
   const maxTokens = resolveOpenAIMaxTokens(model, options.maxTokens ?? 4096)
   return {
-    async chat(messages: Message[], tools: ToolSpec[], signal?: AbortSignal): Promise<ModelResponse> {
+    async chat(
+      messages: Message[],
+      tools: ToolSpec[],
+      signal?: AbortSignal,
+      handlers?: ChatHandlers,
+    ): Promise<ModelResponse> {
       const request = buildOpenAIRequest(messages, tools, model, maxTokens)
-      const body = await options.transport(request, signal)
+      const body =
+        handlers && options.streamTransport
+          ? await options.streamTransport(request, signal, handlers)
+          : await options.transport(request, signal)
       const parsed = parseOpenAIResponse(body)
-      const content = (parsed.message.content ?? '').trim()
-      const finish = body.choices?.[0]?.finish_reason
-      // 空正文 + 无工具 = 对用户不可见的「成功」;V4 思考烧光额度时的典型形态
-      if (!content && parsed.toolCalls.length === 0) {
-        const hint = finish === 'length'
-          ? '模型把输出额度花在了隐式思考上，没有留下正文（finish_reason=length）。请重试；若仍空，在设置里换模型。'
-          : '模型返回了空回复（无正文、无工具调用）。请重试或在设置里换模型。'
-        throw new Error(hint)
-      }
+      assertNonEmptyOpenAI(parsed, body)
       return parsed
     },
   }

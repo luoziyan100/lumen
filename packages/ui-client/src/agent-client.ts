@@ -12,6 +12,10 @@ export interface AnswerUserPayload {
   answers: Record<string, { selected: string[]; note?: string }>
   skipped?: boolean
 }
+/**
+ * 任务事件。kind 含 durable(model_step/tool_call/…)与 ephemeral:
+ * text_delta / tool_call_start —— 仅 live 推送(seq 常为 -1),不入重放。
+ */
 export interface TaskEvent {
   id: string
   task_id: string

@@ -54,7 +54,8 @@
 - `create_task` 建**草稿任务**:有会话、未起跑(支持先上传文件再开聊)
 - `submit` 起跑:系统提示词 + 用户消息构成初始线程,进内核循环
 - `continue` 续跑:从事件表重建线程(见存储层)后追加新消息继续
-- 内核发出的每个事件(model_step / tool_call / tool_result / reply / status_change / error)都持久化并广播给订阅的客户端
+- durable 事件(model_step / tool_call / tool_result / reply / status_change / error …)持久化并广播
+- ephemeral 事件(`text_delta` / `tool_call_start`)仅 live 广播(不占 seq、不入 SQLite/jsonl);断线重放只靠 durable,UI 用 `model_step` 定稿复原正文
 - 资产视图:项目工作区文件列表,过滤 `cache/` 与 `sessions/`,只展示用户要的交付物
 
 ## 存储(storage/)
@@ -80,11 +81,11 @@ WebSocket + JSON:
 | 资产 | `list_assets` · `read_asset`(shared + 当前会话;`scope` 标注) |
 | 设置 | `get_settings` · `update_settings` |
 
-UI 状态是事件流的纯函数:界面不持有私有真相,重放同一批事件必然得到同一个界面。`client/agent-client.ts`(LumenClient)是类型化客户端,浏览器与 Node 测试共用。
+UI 状态是事件流的纯函数:对 durable 子集重放必然得到同一界面;live 会话额外叠加 ephemeral 增量,由随后的 `model_step` 定稿替换 streaming 泡。`client/agent-client.ts`(LumenClient)是类型化客户端,浏览器与 Node 测试共用。
 
 ## 模型接入(adapters/)
 
-- `claude.ts`(Anthropic Messages API)与 `openai.ts`(OpenAI 兼容:DeepSeek、各类中转端点)
+- `claude.ts` / `openai.ts`:有 `ChatHandlers` 时走 SSE 真流式(coalesce 后回调),否则整包(录制-重放零改语义)
 - `retry.ts` 统一重试;`record-replay.ts` 录制/回放网络字节——验收测试的请求构造、响应解析与循环全走真实路径
 - 内核经由 ModelPort 使用模型,对提供商无感知;切换模型 = 换 profile,不动代码
 

@@ -4,7 +4,7 @@
  */
 export * from './types.ts'
 export { Thread, type ForModelOptions } from './thread.ts'
-export type { ModelPort, ModelResponse } from './model-port.ts'
+export type { ModelPort, ModelResponse, ChatHandlers } from './model-port.ts'
 export type {
   Tool,
   ToolContext,

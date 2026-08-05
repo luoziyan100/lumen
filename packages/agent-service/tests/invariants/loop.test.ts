@@ -144,6 +144,47 @@ test('多工具并发回灌：一轮里多个 tool_call 的结果都进线程', 
   assert.equal(second.find((m) => m.toolCallId === 'b')?.content, 'R_B')
 })
 
+test('流式：handlers 先推 text_delta，再落 durable model_step', async () => {
+  const kinds: string[] = []
+  const model = new ScriptedModel([assistantReply('逐字')])
+  const result = await runAgent({
+    thread: new Thread([{ role: 'user', content: 'hi' }]),
+    model,
+    tools: [],
+    limits: DEFAULT_LIMITS,
+    ctx: noopCtx({
+      emit: (e) => { kinds.push(e.kind) },
+    }),
+  })
+  assert.equal(result.status, 'done')
+  const deltaIdx = kinds.indexOf('text_delta')
+  const stepIdx = kinds.indexOf('model_step')
+  assert.ok(deltaIdx >= 0, '应有 text_delta')
+  assert.ok(stepIdx > deltaIdx, 'model_step 必须在 text_delta 之后')
+  assert.ok(kinds.includes('reply'))
+})
+
+test('流式：tool_call_start 早于 durable tool_call', async () => {
+  const kinds: string[] = []
+  const model = new ScriptedModel([
+    assistantToolCall('t1', 'search'),
+    assistantReply('ok'),
+  ])
+  await runAgent({
+    thread: new Thread([{ role: 'user', content: 'go' }]),
+    model,
+    tools: [fixedTool('search', 'R')],
+    limits: DEFAULT_LIMITS,
+    ctx: noopCtx({
+      emit: (e) => { kinds.push(e.kind) },
+    }),
+  })
+  const startIdx = kinds.indexOf('tool_call_start')
+  const callIdx = kinds.indexOf('tool_call')
+  assert.ok(startIdx >= 0)
+  assert.ok(callIdx > startIdx)
+})
+
 test('墙钟预算：超过 maxSeconds 后循环以 exhausted 收场，不再调模型', async () => {
   const slowTool = {
     spec: { name: 'slow', description: 'slow', parameters: { type: 'object', properties: {} } },

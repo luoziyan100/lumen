@@ -2,15 +2,21 @@
  * [INPUT]: AgentClient;useAgent;useWorkspace;Sidebar;TurnPreviewRail;UtilityRail;AskUserDialog;ComposerCard;CollapsibleUserText
  * [OUTPUT]: App —— 形态 A 装配;项目树(p-*) + 最近平铺历史;轮次轨;PlanCard/ProcessRow/ThinkingIndicator;
  *           ask_user 悬浮问询;composer 暗玻璃;用户超长 prompt 折叠
- * [POS]: ui-client 根组件;storage project_id ≠ 用户项目;历史不分类进「默认」
+ * [POS]: ui-client 根组件;storage project_id ≠ 用户项目;历史不分类进「默认」;
+ *        对话列 useStickToBottom:流式贴底,用户上滚松手
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Toasty, useKumoToastManager } from '@cloudflare/kumo/components/toast'
 import { Tooltip, TooltipProvider } from '@cloudflare/kumo/components/tooltip'
 import { AgentClient, type ImageData, type Project, type Task } from './agent-client'
-import { useAgent } from './useAgent'
+import { useAgent, type ChatItem } from './useAgent'
+import { useStickToBottom } from './useStickToBottom'
 import { useWorkspace } from './useWorkspace'
+
+function isEmptyChat(items: ChatItem[], running: boolean): boolean {
+  return items.length === 0 && !running
+}
 import { Sidebar } from './components/Sidebar'
 import { CreateProjectModal, type CreateProjectPayload } from './components/CreateProjectModal'
 import { AskUserDialog } from './components/AskUserDialog'
@@ -185,7 +191,7 @@ function AppInner() {
     newConversation(target)
     setDraftProjectId(target.startsWith('p-') ? target : null)
     ws.close()
-    requestAnimationFrame(() => taRef.current?.focus())
+    requestAnimationFrame(() => taRef.current?.focus({ preventScroll: true }))
   }
 
   function selectProject(pid: string): void {
@@ -224,7 +230,7 @@ function AppInner() {
           ? `「${p.name}」已绑定本地文件夹；可在项目下新建对话。`
           : `「${p.name}」已创建；可在项目行右侧 + 新建对话。`,
       })
-      requestAnimationFrame(() => taRef.current?.focus())
+      requestAnimationFrame(() => taRef.current?.focus({ preventScroll: true }))
     } catch (err) {
       toast.add({
         variant: 'error',
@@ -425,6 +431,7 @@ function AppInner() {
     setInput('')
     setAttachments([])
     setPendingFiles([])
+    pinMessagesRef.current() // 新一轮输出默认贴底跟随
     await send(text, images.length ? images : undefined)
   }
   async function onSubmit(e: FormEvent): Promise<void> {
@@ -465,7 +472,23 @@ function AppInner() {
 
   const turnRailItems = useMemo(() => buildTurnRailItems(items), [items])
   const messagesRef = useRef<HTMLDivElement>(null)
+  const pinMessagesRef = useRef<() => void>(() => {})
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null)
+
+  // 流式增高时贴底;用户上滚超过阈值则松手,不再强拉回 prompt
+  const stickContentKey = useMemo(() => {
+    const last = items[items.length - 1]
+    if (!last) return `0:${running}`
+    if (last.kind === 'msg') return `${items.length}:${last.id}:${last.content.length}:${running}`
+    if (last.kind === 'process') {
+      return `${items.length}:${last.id}:${last.steps.length}:${last.running}:${running}`
+    }
+    return `${items.length}:${last.id}:${running}`
+  }, [items, running])
+  const { pin: pinMessages } = useStickToBottom(messagesRef, stickContentKey, {
+    enabled: !isEmptyChat(items, running),
+  })
+  pinMessagesRef.current = pinMessages
 
   // 视口内最靠上的用户轮 → rail 选中态(与悬停预览分离)
   useEffect(() => {
@@ -514,7 +537,7 @@ function AppInner() {
   const lastItem = items[items.length - 1]
   const lastRunning = lastItem?.kind === 'process' && lastItem.running
   const showReader = ws.open != null
-  const isEmpty = items.length === 0 && !running
+  const isEmpty = isEmptyChat(items, running)
 
   return (
     <div className="app">
@@ -588,7 +611,7 @@ function AppInner() {
                 if (it.kind === 'plan') return <PlanCard key={it.id} plan={it} />
                 if (it.kind === 'process') return <ProcessRow key={it.id} block={it} />
                 if (it.role === 'assistant') {
-                  const streamingWidget = running && !finalAssistantIds.has(it.id)
+                  const streamingWidget = Boolean(it.streaming) || (running && !finalAssistantIds.has(it.id))
                   if (!finalAssistantIds.has(it.id)) {
                     return (
                       <div key={it.id} id={msgAnchorId(it.id)} className="bubble bubble-assistant">

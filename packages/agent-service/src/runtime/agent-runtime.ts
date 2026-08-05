@@ -3,8 +3,8 @@
  *          ask-user-tools 的 AskUserAnswer / AskUserWaiter
  * [OUTPUT]: AgentRuntime —— 把内核、存储、工作区、worker 角色拼成可执行、可订阅、可恢复的任务运行时;
  *           answerUser 解开 ask_user 挂起
- * [POS]: §4 运行环境。一个任务 = 一次 runAgent；emit 同时落 task_events + session jsonl + 通知订阅者（WS）；
- *        imageBridge 在 DeepSeek 路径去 image_url 并插 [[image:img-N]] 桩;
+ * [POS]: §4 运行环境。一个任务 = 一次 runAgent；durable emit 落 task_events + session jsonl + WS;
+ *        text_delta/tool_call_start 仅 notify(不入库);imageBridge DeepSeek 去图插桩;
  *        pendingAsk 按 taskId+toolCallId 挂起(见 doc/ask-user.md)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
@@ -15,7 +15,7 @@ import type { ModelPort } from '../core/model-port.ts'
 import type { AgentEvent, ImageData } from '../core/types.ts'
 import type { Tool, ToolContext } from '../core/tool.ts'
 import type { Limits } from '../core/limits.ts'
-import { TaskStore, type Task, type TaskEvent } from '../storage/task-store.ts'
+import { EPHEMERAL_EVENT_KINDS, TaskStore, type Task, type TaskEvent } from '../storage/task-store.ts'
 import type { ProjectStore } from '../storage/project-store.ts'
 import { ensureProjectDirs } from '../storage/project-store.ts'
 import { sanitizeWorkspaceId } from '../storage/workspace-id.ts'
@@ -470,6 +470,20 @@ export class AgentRuntime {
 
   private makeEmit(taskId: string): (event: AgentEvent) => void {
     return (event: AgentEvent) => {
+      // 流式增量:只推订阅者,不占 seq / 不写库——重放靠 model_step 定稿即可复原 UI
+      if (EPHEMERAL_EVENT_KINDS.has(event.kind)) {
+        const live: TaskEvent = {
+          id: globalThis.crypto.randomUUID(),
+          task_id: taskId,
+          seq: -1,
+          kind: event.kind,
+          payload_json: JSON.stringify(event.payload ?? {}),
+          agent_role: event.agentRole,
+          created_at: new Date().toISOString(),
+        }
+        this.notify(taskId, live)
+        return
+      }
       const stored = this.cfg.store.appendEvent(taskId, event.kind, event.payload, event.agentRole)
       for (const entry of toSessionEntries(taskId, event)) appendSessionEntry(this.cfg.sessionDir, entry)
       this.notify(taskId, stored)

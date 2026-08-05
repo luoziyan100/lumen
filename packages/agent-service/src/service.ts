@@ -27,8 +27,8 @@ import { createResearchTools, createUnpdfEngine, createTavilyWebSearch } from '.
 import { createPlanTools } from './tools/env/plan-tools.ts'
 import { createAskUserTools } from './tools/env/ask-user-tools.ts'
 import { buildRoles } from './agents/roles.ts'
-import { createClaudeAdapter, createFetchTransport } from './adapters/claude.ts'
-import { createOpenAIAdapter, createOpenAIFetchTransport } from './adapters/openai.ts'
+import { createClaudeAdapter, createClaudeStreamFetchTransport, createFetchTransport } from './adapters/claude.ts'
+import { createOpenAIAdapter, createOpenAIFetchTransport, createOpenAIStreamFetchTransport } from './adapters/openai.ts'
 import type { ModelPort } from './core/model-port.ts'
 import { withGuard } from './core/guard.ts'
 import { resolveContextWindow } from './storage/context-budget.ts'
@@ -85,9 +85,21 @@ export function createService(config: ServiceConfig = {}): Service {
   // 从一份模型配置构建 ModelPort(demo 连接级 key、本地 settings 共用同一条路径)
   function buildFromConfig(cfg: { provider: 'anthropic' | 'openai'; model: string; apiKey: string; baseUrl?: string }): ModelPort {
     if (!cfg.apiKey) return errorModel('未提供 API key。')
-    return cfg.provider === 'openai'
-      ? createOpenAIAdapter({ transport: createOpenAIFetchTransport({ apiKey: cfg.apiKey, baseUrl: cfg.baseUrl ?? 'https://api.openai.com' }), model: cfg.model })
-      : createClaudeAdapter({ transport: createFetchTransport({ apiKey: cfg.apiKey, baseUrl: cfg.baseUrl }), model: cfg.model })
+    if (cfg.provider === 'openai') {
+      const baseUrl = cfg.baseUrl ?? 'https://api.openai.com'
+      const fetchOpts = { apiKey: cfg.apiKey, baseUrl }
+      return createOpenAIAdapter({
+        transport: createOpenAIFetchTransport(fetchOpts),
+        streamTransport: createOpenAIStreamFetchTransport(fetchOpts),
+        model: cfg.model,
+      })
+    }
+    const fetchOpts = { apiKey: cfg.apiKey, baseUrl: cfg.baseUrl }
+    return createClaudeAdapter({
+      transport: createFetchTransport(fetchOpts),
+      streamTransport: createClaudeStreamFetchTransport(fetchOpts),
+      model: cfg.model,
+    })
   }
   const connModelFactory = config.buildModel ?? buildFromConfig
   function buildModel(): ModelPort {
@@ -100,7 +112,9 @@ export function createService(config: ServiceConfig = {}): Service {
   // 测试注入 modelPort 时视为固定(不随设置切换)。
   // demo 模式:全局无 key(每连接自带);本地:全局 buildModel。测试可注入 modelPort。
   const modelRef = { current: config.modelPort ?? (demo ? errorModel('demo 模式:请在右下角「设置」填入你自己的 API key。') : buildModel()) }
-  const model: ModelPort = { chat: (messages, tools, signal) => modelRef.current.chat(messages, tools, signal) }
+  const model: ModelPort = {
+    chat: (messages, tools, signal, handlers) => modelRef.current.chat(messages, tools, signal, handlers),
+  }
   const applySettings = (patch: Parameters<SettingsStore['update']>[0]) => {
     const pub = settings.update(patch)
     if (!config.modelPort) modelRef.current = buildModel()

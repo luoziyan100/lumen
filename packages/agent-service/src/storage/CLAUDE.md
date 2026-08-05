@@ -7,7 +7,7 @@
 ## 成员
 
 - `db.ts` — openDatabase:打开 SQLite 并跑**纯增量** migration
-- `task-store.ts` — TaskStore:tasks / task_events(事件流 = runtime 的 source of truth);`archived_at` 软归档,list 排除
+- `task-store.ts` — TaskStore:tasks / task_events;`EPHEMERAL_EVENT_KINDS`(text_delta/tool_call_start,runtime 不入库);`archived_at` 软归档
 - `project-store.ts` — ProjectStore:一等项目名册 + `shared/` 目录播种;default 零感知
 - `workspace-id.ts` — sanitizeWorkspaceId:工作区路径段消毒(防 `..` / 分隔符)
 - `resume.ts` — rebuildThread:从持久化事件重建可续跑线程

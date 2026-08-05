@@ -1,14 +1,23 @@
 /**
- * [INPUT]: core 的 Message / ToolSpec / ModelPort / ModelResponse
- * [OUTPUT]: buildClaudeRequest / parseClaudeResponse / createFetchTransport / createClaudeAdapter
+ * [INPUT]: core 的 Message / ToolSpec / ModelPort / ModelResponse / ChatHandlers
+ * [OUTPUT]: buildClaudeRequest / parseClaudeResponse / createFetchTransport /
+ *           createClaudeStreamFetchTransport / createClaudeAdapter
  * [POS]: ModelPort 的 Anthropic 实现。解析逻辑搬自 old_lumen 并核实；网络层换成 Node fetch + 可注入 transport
  *
  * 拆分原则：请求构造与响应解析是纯函数，网络是可注入的 transport。
- * 这样录制-重放能复用真实的构造 + 解析路径，只把网络字节换成录制内容（见 record-replay.ts）。
+ * 有 ChatHandlers 时走 SSE;无则整包(录制-重放零改语义)。
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import type { ModelPort, ModelResponse } from '../core/model-port.ts'
+import type { ChatHandlers, ModelPort, ModelResponse } from '../core/model-port.ts'
 import type { Message, ToolCall, ToolSpec } from '../core/types.ts'
 import { postJsonWithRetry, type RetryOptions } from './retry.ts'
+import { createTextDeltaCoalescer } from './stream-coalesce.ts'
+import { consumeSseDataStream } from './openai-sse.ts'
+import {
+  applyClaudeSseData,
+  createClaudeStreamAccum,
+  finalizeClaudeStreamAccum,
+} from './claude-sse.ts'
 
 // ---- Anthropic Messages API 线格式 ----
 type ClaudeRole = 'user' | 'assistant'
@@ -31,6 +40,7 @@ export interface ClaudeRequest {
   system?: string
   tools: ClaudeTool[]
   messages: ClaudeMessage[]
+  stream?: boolean
 }
 
 export interface ClaudeResponseBody {
@@ -41,6 +51,12 @@ export interface ClaudeResponseBody {
 
 /** transport 只负责"发请求收原始 body"，是唯一可被替换的网络缝 */
 export type ClaudeTransport = (request: ClaudeRequest, signal?: AbortSignal) => Promise<ClaudeResponseBody>
+
+export type ClaudeStreamTransport = (
+  request: ClaudeRequest,
+  signal: AbortSignal | undefined,
+  handlers: ChatHandlers | undefined,
+) => Promise<ClaudeResponseBody>
 
 function objectFromUnknown(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
@@ -149,8 +165,52 @@ export function createFetchTransport(options: FetchTransportOptions): ClaudeTran
     )) as ClaudeResponseBody
 }
 
+/** 生产流式:stream:true + Anthropic SSE */
+export function createClaudeStreamFetchTransport(options: FetchTransportOptions): ClaudeStreamTransport {
+  const baseUrl = options.baseUrl ?? 'https://api.anthropic.com'
+  const doFetch = options.retry?.fetchImpl ?? fetch
+  const timeoutMs = options.retry?.timeoutMs ?? 600_000
+  return async (request, signal, handlers) => {
+    if (signal?.aborted) throw new DOMException('This operation was aborted', 'AbortError')
+    const attemptSignal = AbortSignal.any([
+      ...(signal ? [signal] : []),
+      AbortSignal.timeout(timeoutMs),
+    ])
+    const response = await doFetch(`${baseUrl}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': options.apiKey,
+        'anthropic-version': options.version ?? '2023-06-01',
+      },
+      body: JSON.stringify({ ...request, stream: true }),
+      signal: attemptSignal,
+    })
+    if (!response.ok) {
+      const text = await response.text().catch(() => '')
+      throw new Error(`Claude stream failed (${response.status}): ${text}`)
+    }
+    if (!response.body) throw new Error('Claude stream: empty body')
+
+    const accum = createClaudeStreamAccum()
+    const coalesce = createTextDeltaCoalescer(handlers)
+    const streamHandlers: ChatHandlers = {
+      onTextDelta: coalesce.push,
+      onToolCallStart: handlers?.onToolCallStart,
+    }
+    await consumeSseDataStream(
+      response.body,
+      (data) => applyClaudeSseData(accum, data, streamHandlers),
+      attemptSignal,
+    )
+    coalesce.flush()
+    return finalizeClaudeStreamAccum(accum)
+  }
+}
+
 export interface ClaudeAdapterOptions {
   transport: ClaudeTransport
+  streamTransport?: ClaudeStreamTransport
   model?: string
   maxTokens?: number
 }
@@ -159,9 +219,17 @@ export function createClaudeAdapter(options: ClaudeAdapterOptions): ModelPort {
   const model = options.model ?? 'claude-sonnet-4-6'
   const maxTokens = options.maxTokens ?? 4096
   return {
-    async chat(messages: Message[], tools: ToolSpec[], signal?: AbortSignal): Promise<ModelResponse> {
+    async chat(
+      messages: Message[],
+      tools: ToolSpec[],
+      signal?: AbortSignal,
+      handlers?: ChatHandlers,
+    ): Promise<ModelResponse> {
       const request = buildClaudeRequest(messages, tools, model, maxTokens)
-      const body = await options.transport(request, signal)
+      const body =
+        handlers && options.streamTransport
+          ? await options.streamTransport(request, signal, handlers)
+          : await options.transport(request, signal)
       return parseClaudeResponse(body)
     },
   }
