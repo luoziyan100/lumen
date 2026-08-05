@@ -40,6 +40,8 @@ export type ClientMessage =
   | { type: 'list'; projectId?: string }
   | { type: 'list_projects' }
   | { type: 'create_project'; name: string; sourcePath?: string }
+  | { type: 'rename_project'; projectId: string; name: string }
+  | { type: 'archive_project'; projectId: string }
   | { type: 'list_assets'; projectId: string; taskId?: string }
   | { type: 'read_asset'; projectId: string; path: string; taskId?: string }
   | { type: 'get_settings' }
@@ -53,6 +55,7 @@ export type ServerMessage =
   | { type: 'tasks'; tasks: Task[] }
   | { type: 'projects'; projects: Project[] }
   | { type: 'project_created'; project: Project }
+  | { type: 'project_updated'; project: Project }
   | { type: 'assets'; assets: WorkspaceAsset[] }
   | { type: 'asset'; path: string; content: string }
   | { type: 'settings'; settings: PublicSettings }

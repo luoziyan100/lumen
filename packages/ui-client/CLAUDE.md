@@ -10,10 +10,10 @@
 |---|---|
 | `App.tsx` | 布局与装配;断线重连前 `ensureAgentService`;可见性恢复再推一把 |
 | `ensureAgent.ts` | Tauri invoke:`ensure_agent_service` + `launchd_status/install/uninstall` |
-| `agent-client.ts` | 浏览器侧 WS 客户端;含 listProjects/createProject/upload scope;⚠ 协议类型手工内联 |
+| `agent-client.ts` | 浏览器侧 WS 客户端;含 listProjects/createProject/renameProject/archiveProject/upload scope;⚠ 协议类型手工内联 |
 | `useAgent.ts` | 事件流 → ChatItem;`text_delta` 累积 streaming 泡 / `model_step` 定稿;`tool_call_start` 尽早过程行;`ask_user`→pendingAsk |
-| `useStickToBottom.ts` | 对话列贴底跟随;用户上滚松手;配合 `.messages { overflow-anchor: none }` |
-| `useWorkspace.ts` | 资产列表(shared+session)+ 打开的资产(驱动阅读器) |
+| `useStickToBottom.ts` | 对话列贴底跟随;上滑即松钉(可生成中自由滚);回滞再钉;松钉出「回到最新」;配合 `.messages { overflow-anchor: none }` |
+| `useWorkspace.ts` | 资产列表:无会话仅 shared;有会话 shared+session;切新对话乐观清 session 防串味 |
 | `tokens.css` | **设计系统唯一真源**(青瓷 v2):表面三级 / 语义五色 / 阴影 0–3 / 字体分工;头注释即规范 |
 | `styles.css` | 形态 A 布局与组件样式;只消费 token,禁硬编码颜色 |
 | `kumo.css` | 控件层样式入口:Tailwind v4(**刻意不含 preflight**)+ @cloudflare/kumo + 青瓷主题 |

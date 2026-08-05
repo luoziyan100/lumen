@@ -33,6 +33,9 @@ export const SIDEBAR_PROJECT_COPY = {
   copySessionId: '复制会话 ID',
   copiedSessionId: '已复制会话 ID',
   archiveChat: '归档对话',
+  renameProject: '重命名',
+  archiveProject: '归档项目',
+  renamePlaceholder: '项目名称',
 } as const
 
 export const CREATE_PROJECT_COPY = {
@@ -92,7 +95,8 @@ export const WORKSPACE_DRAWER_COPY = {
   internalCollapseGlyph: '',
 } as const
 
-/** 对话流等待态(Dot Matrix + 文案) */
+/** 对话流等待态 / 滚动跳转 */
 export const APP_STATUS_COPY = {
   thinking: '思考中',
+  jumpToLatest: '回到最新',
 } as const

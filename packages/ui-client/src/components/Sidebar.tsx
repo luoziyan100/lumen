@@ -1,15 +1,15 @@
 /**
  * [INPUT]: Project / Task;icons;SIDEBAR_*_COPY;useResizable;Kumo DropdownMenu;MarqueeTitle
- * [OUTPUT]: Sidebar —— 项目树 + 最近;次要点击复制/归档;标题溢出悬停跑马灯
+ * [OUTPUT]: Sidebar —— 项目树 + 最近;双指点按:会话复制/归档、项目重命名/归档;标题溢出悬停跑马灯
  * [POS]: 左栏;Trigger 必须 render=<button>(防首子被提升);会话名 hover marquee
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import { useEffect, useState, type MouseEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
 import type { Project, Task } from '../agent-client'
 import {
   AccountIcon, ArchiveGlyph, ChatIcon, CheckIcon, ChevronIcon, CopyGlyph, FolderIcon, GearIcon,
-  NewProjectIcon, PlusIcon, SearchIcon, ICON_MD, ICON_SM,
+  NewProjectIcon, PlusIcon, RenameGlyph, SearchIcon, ICON_MD, ICON_SM,
 } from './icons'
 import { MarqueeTitle } from './MarqueeTitle'
 import { SIDEBAR_ACCOUNT_COPY, SIDEBAR_PROJECT_COPY } from '../appCopy'
@@ -48,6 +48,8 @@ interface SidebarProps {
   onSelect: (task: Task) => void
   onSelectProject: (projectId: string) => void
   onArchive: (task: Task) => void
+  onRenameProject: (project: Project, name: string) => Promise<void> | void
+  onArchiveProject: (project: Project) => void
   onSettings: () => void
 }
 
@@ -70,6 +72,8 @@ export function Sidebar({
   onSelect,
   onSelectProject,
   onArchive,
+  onRenameProject,
+  onArchiveProject,
   onSettings,
 }: SidebarProps) {
   const { width, handleProps } = useResizable({ edge: 'right', min: 220, max: 420, fallback: 300, storageKey: 'lumen:sbWidth' })
@@ -79,11 +83,57 @@ export function Sidebar({
   const [copiedId, setCopiedId] = useState<string | null>(null)
   /** 次要点击打开的浮层菜单所挂会话;单击主按钮不打开 */
   const [menuTaskId, setMenuTaskId] = useState<string | null>(null)
+  /** 项目行双指菜单 */
+  const [menuProjectId, setMenuProjectId] = useState<string | null>(null)
+  /** 行内重命名中的项目 */
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
+  const renameRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!renamingId) return
+    const el = renameRef.current
+    if (!el) return
+    el.focus()
+    el.select()
+  }, [renamingId])
 
   async function onCopySessionId(taskId: string): Promise<void> {
     await copyText(taskId)
     setCopiedId(taskId)
     window.setTimeout(() => setCopiedId((cur) => (cur === taskId ? null : cur)), 1400)
+  }
+
+  function closeMenus(): void {
+    setMenuTaskId(null)
+    setMenuProjectId(null)
+  }
+
+  function beginRename(proj: Project): void {
+    closeMenus()
+    setRenamingId(proj.id)
+    setRenameDraft(proj.name)
+  }
+
+  async function commitRename(proj: Project): Promise<void> {
+    const next = renameDraft.trim()
+    setRenamingId(null)
+    if (!next || next === proj.name) return
+    await onRenameProject(proj, next)
+  }
+
+  function cancelRename(): void {
+    setRenamingId(null)
+  }
+
+  function onRenameKey(e: KeyboardEvent<HTMLInputElement>, proj: Project): void {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      void commitRename(proj)
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      cancelRename()
+    }
   }
 
   function renderTaskRow(task: Task, flat?: boolean) {
@@ -107,7 +157,7 @@ export function Sidebar({
             render={<button type="button" className="sb-item" />}
             onClick={(e) => {
               e.preventDefault()
-              if (menuTaskId && menuTaskId !== task.id) setMenuTaskId(null)
+              closeMenus()
               onSelect(task)
             }}
             onContextMenu={(e) => {
@@ -115,13 +165,14 @@ export function Sidebar({
               e.preventDefault()
               e.stopPropagation()
               window.getSelection()?.removeAllRanges()
+              setMenuProjectId(null)
               setMenuTaskId(task.id)
             }}
           >
             <MarqueeTitle text={task.goal} className="sb-item-title" />
             {task.status === 'running' && <span className="sb-dot" />}
           </DropdownMenu.Trigger>
-          <DropdownMenu.Content align="start" side="bottom" sideOffset={4} className="sb-task-menu">
+          <DropdownMenu.Content align="start" side="bottom" sideOffset={4} className="sb-task-menu glass-card">
             <DropdownMenu.Item
               icon={copied ? undefined : CopyGlyph}
               onClick={() => { void onCopySessionId(task.id) }}
@@ -136,7 +187,7 @@ export function Sidebar({
               icon={ArchiveGlyph}
               variant="danger"
               onClick={() => {
-                setMenuTaskId(null)
+                closeMenus()
                 onArchive(task)
               }}
             >
@@ -169,7 +220,8 @@ export function Sidebar({
   }
 
   function onProjectRowClick(p: Project): void {
-    setMenuTaskId(null)
+    closeMenus()
+    if (renamingId) return
     onSelectProject(p.id)
     if (!expanded.has(p.id)) toggle(p.id)
   }
@@ -182,21 +234,21 @@ export function Sidebar({
   function onPlus(e: MouseEvent, projectId: string): void {
     e.preventDefault()
     e.stopPropagation()
-    setMenuTaskId(null)
+    closeMenus()
     onNewChat(projectId)
   }
 
   return (
     <aside className="sidebar" style={{ '--sidebar-w': `${width}px` } as React.CSSProperties}>
       <nav className="sb-nav">
-        <button type="button" className="sb-navrow" disabled={!connected} onClick={() => { setMenuTaskId(null); onNewChat(activeProjectId) }}>
+        <button type="button" className="sb-navrow" disabled={!connected} onClick={() => { closeMenus(); onNewChat(activeProjectId) }}>
           <span className="sb-navrow-ic"><ChatIcon size={ICON_MD} /></span>{SIDEBAR_PROJECT_COPY.newChat}
         </button>
-        <button type="button" className="sb-navrow" disabled={!connected} onClick={() => { setMenuTaskId(null); onSearch() }}>
+        <button type="button" className="sb-navrow" disabled={!connected} onClick={() => { closeMenus(); onSearch() }}>
           <span className="sb-navrow-ic"><SearchIcon size={ICON_MD} /></span>{SIDEBAR_PROJECT_COPY.search}
         </button>
         {canCreateProject && (
-          <button type="button" className="sb-navrow" disabled={!connected} onClick={() => { setMenuTaskId(null); onOpenCreateProject() }}>
+          <button type="button" className="sb-navrow" disabled={!connected} onClick={() => { closeMenus(); onOpenCreateProject() }}>
             <span className="sb-navrow-ic"><NewProjectIcon size={ICON_MD} /></span>{SIDEBAR_PROJECT_COPY.newProject}
           </button>
         )}
@@ -223,9 +275,11 @@ export function Sidebar({
               const active = proj.id === activeProjectId
               const label = projectLabel(proj)
               const showSess = open && (hasDraft || tasks.length > 0)
+              const menuOpen = menuProjectId === proj.id
+              const renaming = renamingId === proj.id
               return (
                 <div key={proj.id} className={`sb-folder ${active ? 'is-active-proj' : ''}`}>
-                  <div className="sb-folder-row">
+                  <div className={`sb-folder-row${menuOpen ? ' is-menu-open' : ''}`}>
                     <button
                       type="button"
                       className="sb-folder-ic"
@@ -236,20 +290,68 @@ export function Sidebar({
                       <span className="sb-folder-ic-folder" aria-hidden><FolderIcon size={ICON_MD} /></span>
                       <span className="sb-folder-ic-chev" aria-hidden><ChevronIcon open={open} /></span>
                     </button>
-                    <button
-                      type="button"
-                      className="sb-folder-main"
-                      title={proj.source_path ? `${label}\n${proj.source_path}` : label}
-                      onClick={() => onProjectRowClick(proj)}
-                    >
-                      <span className="sb-folder-name">{label}</span>
-                    </button>
+                    {renaming ? (
+                      <input
+                        ref={renameRef}
+                        className="sb-folder-rename"
+                        value={renameDraft}
+                        maxLength={64}
+                        aria-label={SIDEBAR_PROJECT_COPY.renameProject}
+                        placeholder={SIDEBAR_PROJECT_COPY.renamePlaceholder}
+                        onChange={(e) => setRenameDraft(e.target.value)}
+                        onKeyDown={(e) => onRenameKey(e, proj)}
+                        onBlur={() => { void commitRename(proj) }}
+                      />
+                    ) : (
+                      <DropdownMenu
+                        open={menuOpen}
+                        onOpenChange={(openMenu) => {
+                          if (!openMenu) setMenuProjectId(null)
+                        }}
+                      >
+                        <DropdownMenu.Trigger
+                          render={<button type="button" className="sb-folder-main" />}
+                          title={proj.source_path ? `${label}\n${proj.source_path}` : label}
+                          onClick={(e) => {
+                            e.preventDefault()
+                            onProjectRowClick(proj)
+                          }}
+                          onContextMenu={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            window.getSelection()?.removeAllRanges()
+                            setMenuTaskId(null)
+                            setMenuProjectId(proj.id)
+                          }}
+                        >
+                          <span className="sb-folder-name">{label}</span>
+                        </DropdownMenu.Trigger>
+                        <DropdownMenu.Content align="start" side="bottom" sideOffset={4} className="sb-task-menu glass-card">
+                          <DropdownMenu.Item
+                            icon={RenameGlyph}
+                            onClick={() => beginRename(proj)}
+                          >
+                            {SIDEBAR_PROJECT_COPY.renameProject}
+                          </DropdownMenu.Item>
+                          <DropdownMenu.Item
+                            icon={ArchiveGlyph}
+                            variant="danger"
+                            onClick={() => {
+                              closeMenus()
+                              onArchiveProject(proj)
+                            }}
+                          >
+                            {SIDEBAR_PROJECT_COPY.archiveProject}
+                          </DropdownMenu.Item>
+                        </DropdownMenu.Content>
+                      </DropdownMenu>
+                    )}
                     <button
                       type="button"
                       className="sb-folder-plus"
                       title={SIDEBAR_PROJECT_COPY.newChatInProject}
                       aria-label={SIDEBAR_PROJECT_COPY.newChatInProject}
-                      disabled={!connected}
+                      disabled={!connected || renaming}
                       onClick={(e) => onPlus(e, proj.id)}
                     >
                       <PlusIcon size={14} />
@@ -261,7 +363,7 @@ export function Sidebar({
                         <button
                           type="button"
                           className={`sb-item sb-item-draft ${draftActive ? 'is-active' : ''}`}
-                          onClick={() => { setMenuTaskId(null); onNewChat(proj.id) }}
+                          onClick={() => { closeMenus(); onNewChat(proj.id) }}
                           title={SIDEBAR_PROJECT_COPY.draftChat}
                         >
                           <span className="sb-item-title">{SIDEBAR_PROJECT_COPY.draftChat}</span>

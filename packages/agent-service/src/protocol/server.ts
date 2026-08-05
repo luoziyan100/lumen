@@ -227,6 +227,25 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
           send({ type: 'error', message: e instanceof Error ? e.message : 'create_project 失败' })
         }
         break
+      case 'rename_project':
+        if (demo) { send({ type: 'error', message: 'demo 模式不支持重命名项目' }); break }
+        try {
+          const updated = runtime.renameProject(message.projectId, message.name)
+          if (!updated) send({ type: 'error', message: 'rename failed: 项目不存在或不可改' })
+          else send({ type: 'project_updated', project: updated })
+        } catch (e) {
+          send({ type: 'error', message: e instanceof Error ? e.message : 'rename_project 失败' })
+        }
+        break
+      case 'archive_project':
+        if (demo) { send({ type: 'error', message: 'demo 模式不支持归档项目' }); break }
+        {
+          const archived = runtime.archiveProject(message.projectId)
+          send(archived
+            ? { type: 'ok' }
+            : { type: 'error', message: 'archive failed: 项目不存在或不可归档' })
+        }
+        break
       case 'list_assets':
         void runtime.listAssets(message.projectId, message.taskId).then((assets) => send({ type: 'assets', assets }))
         break

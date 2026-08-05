@@ -7,7 +7,7 @@
 
 ## 成员
 
-- `agent-runtime.ts` — 任务生命周期:submit/continue/cancel/answerUser;listProjects/createProject;listAssets(shared+session);
+- `agent-runtime.ts` — 任务生命周期:submit/continue/cancel/answerUser;listProjects/createProject/renameProject/archiveProject;listAssets(无 taskId 仅 shared;有 taskId=shared+session);
   makeWorkspace 挂载 sharedRoot;durable 事件写 task_events 并推订阅者;resume 只回放 main 线程;
   ephemeral(`text_delta`/`tool_call_start`)只 notify(seq=-1),UI 靠 model_step 定稿可重放复原;
   可选 imageBridge:DeepSeek 等 chat 前去图插桩,look_at_image 读同一 ImageStore;

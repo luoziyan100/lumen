@@ -4,7 +4,7 @@
 
 ## 成员
 
-- `Sidebar.tsx` — Cursor 式:项目区仅 `p-*`;点 + 才出临时「新建对话」;「最近」平铺;次要点击复制 ID/归档;标题用 MarqueeTitle
+- `Sidebar.tsx` — Cursor 式:项目区仅 `p-*`;双指点按项目→重命名/归档、会话→复制 ID/归档;点 + 才出临时「新建对话」;「最近」平铺;标题用 MarqueeTitle
 - `MarqueeTitle.tsx` — 会话标题溢出悬停跑马灯;≤72 字;探针测宽→`--sb-marquee-shift`;`.is-hot` 开滚;须在 Trigger 的显式 `button.sb-item` 内
 - `turnRail.ts` — `buildTurnRailItems`:ChatItem→用户轮次(一问+随后助手答);过程行不占刻度
 - `TurnPreviewRail.tsx` — 对话列左侧轮次轨(≥4 轮);空闲极短刻度、悬停鱼眼+预览;窄栏/阅读器开时隐藏;点刻度滚到 `msg-<id>`
@@ -31,7 +31,7 @@
 ## 规则
 
 - 组件只消费 token 与 `styles.css` 既有 class;新视觉模式先进 `doc/ui-design.md` §3 再落地。
-- 全窗 Glass 实验(分支 `experiment/glass-ui`):光边只挂输入卡(`border-beam`)与右轨工作区卡(`.glass-beam`);对话列全幅无壳,侧栏/阅读器/弹层不加光边。回退见 `doc/ui-design.md` §0。
+- 全窗 Glass 实验(分支 `experiment/glass-ui`):光边只挂输入卡(`border-beam`)与右轨工作区卡(`.glass-beam`);`.glass-card` 给侧栏双指菜单与设置模型卡(毛玻璃+反射高光);对话列全幅无壳;设置 Dialog **根**禁挂 glass-beam/glass-card(会毁 fixed 居中)。回退见 `doc/ui-design.md` §0。
 - 文案不内联,进 `appCopy.ts` / `settingsCopy.ts`。
 - ⚠ styles.css 未分层:同一元素上混用自有 class 与 Kumo 组件时,别写会盖过其 utility 的属性
   (教训:`.glass-beam{position:relative}` 与 `.settings-modal` 的 position 曾压掉 Kumo Dialog 的 `fixed` 居中 → 设置页下移裁切;设置弹窗禁挂 glass-beam)。

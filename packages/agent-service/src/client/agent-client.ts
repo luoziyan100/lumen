@@ -21,6 +21,7 @@ export class LumenClient {
   private pendingTasks: ((tasks: Task[]) => void) | null = null
   private pendingProjects: ((projects: Project[]) => void) | null = null
   private pendingProjectCreated: ((project: Project) => void) | null = null
+  private pendingProjectUpdated: ((project: Project) => void) | null = null
   private pendingAssets: ((assets: WorkspaceAsset[]) => void) | null = null
   private pendingAsset: ((content: string) => void) | null = null
 
@@ -119,6 +120,17 @@ export class LumenClient {
     })
   }
 
+  renameProject(projectId: string, name: string): Promise<Project> {
+    return new Promise((resolve) => {
+      this.pendingProjectUpdated = resolve
+      this.send({ type: 'rename_project', projectId, name })
+    })
+  }
+
+  archiveProject(projectId: string): void {
+    this.send({ type: 'archive_project', projectId })
+  }
+
   listAssets(projectId: string, taskId?: string): Promise<WorkspaceAsset[]> {
     return new Promise((resolve) => {
       this.pendingAssets = resolve
@@ -159,6 +171,10 @@ export class LumenClient {
       case 'project_created':
         this.pendingProjectCreated?.(message.project)
         this.pendingProjectCreated = null
+        break
+      case 'project_updated':
+        this.pendingProjectUpdated?.(message.project)
+        this.pendingProjectUpdated = null
         break
       case 'assets':
         this.pendingAssets?.(message.assets)

@@ -181,4 +181,61 @@ test('双项目:会话 list 隔离;shared 上传仅本项目可见', async (t: T
 
   const bytes = await r.service.runtime.readAssetBytes(a, 'shared/papers/paper.pdf', taskA)
   assert.ok(bytes && bytes[0] === 0x25)
+
+  // 无 taskId = 新对话:只见 shared,不见会话产物
+  bufs.get(ws)!.msgs.length = 0
+  const bare = until(ws, (m) => m.type === 'assets')
+  ws.send(JSON.stringify({ type: 'list_assets', projectId: a }))
+  const bareAssets = ((await bare).find((m) => m.type === 'assets') as {
+    assets: Array<{ path: string; scope?: string }>
+  }).assets
+  assert.ok(bareAssets.every((x) => x.scope === 'shared' || x.path.startsWith('shared/')),
+    '无 taskId 不得冒充 session 文件')
+  assert.ok(bareAssets.some((x) => x.path === 'shared/papers/paper.pdf'))
+})
+
+test('rename_project / archive_project:改名可见,归档后 list 排除', async (t: TestContext) => {
+  const r = await rig(t)
+  const ws = await connect(r)
+  await until(ws, (m) => m.type === 'hello')
+
+  const created = until(ws, (m) => m.type === 'project_created')
+  ws.send(JSON.stringify({ type: 'create_project', name: '旧名' }))
+  const proj = ((await created).find((m) => m.type === 'project_created') as {
+    project: { id: string; name: string }
+  }).project
+
+  const renamed = until(ws, (m) => m.type === 'project_updated')
+  ws.send(JSON.stringify({ type: 'rename_project', projectId: proj.id, name: '新名' }))
+  const updated = ((await renamed).find((m) => m.type === 'project_updated') as {
+    project: { id: string; name: string }
+  }).project
+  assert.equal(updated.id, proj.id)
+  assert.equal(updated.name, '新名')
+
+  bufs.get(ws)!.msgs.length = 0
+  const listed = until(ws, (m) => m.type === 'projects')
+  ws.send(JSON.stringify({ type: 'list_projects' }))
+  const projects = ((await listed).find((m) => m.type === 'projects') as {
+    projects: Array<{ id: string; name: string }>
+  }).projects
+  assert.ok(projects.some((p) => p.id === proj.id && p.name === '新名'))
+
+  const archived = until(ws, (m) => m.type === 'ok')
+  ws.send(JSON.stringify({ type: 'archive_project', projectId: proj.id }))
+  await archived
+
+  bufs.get(ws)!.msgs.length = 0
+  const listed2 = until(ws, (m) => m.type === 'projects')
+  ws.send(JSON.stringify({ type: 'list_projects' }))
+  const again = ((await listed2).find((m) => m.type === 'projects') as {
+    projects: Array<{ id: string }>
+  }).projects
+  assert.ok(!again.some((p) => p.id === proj.id), '归档后不得再出现在 list_projects')
+
+  // default 不可归档
+  const bad = until(ws, (m) => m.type === 'error')
+  ws.send(JSON.stringify({ type: 'archive_project', projectId: 'default' }))
+  const err = ((await bad).find((m) => m.type === 'error') as { message: string }).message
+  assert.match(err, /archive failed/)
 })

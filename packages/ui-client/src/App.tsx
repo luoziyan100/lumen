@@ -3,7 +3,7 @@
  * [OUTPUT]: App —— 形态 A 装配;项目树(p-*) + 最近平铺历史;轮次轨;PlanCard/ProcessRow/ThinkingIndicator;
  *           ask_user 悬浮问询;composer 暗玻璃;用户超长 prompt 折叠
  * [POS]: ui-client 根组件;storage project_id ≠ 用户项目;历史不分类进「默认」;
- *        对话列 useStickToBottom:流式贴底,用户上滚松手
+ *        对话列 useStickToBottom:流式贴底;上滑松手可自由阅读;松钉后出「回到最新」
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
@@ -25,7 +25,7 @@ import { CollapsibleUserText } from './components/CollapsibleUserText'
 import { ComposerCard } from './components/ComposerCard'
 import { SearchModal } from './components/SearchModal'
 import { SettingsModal } from './components/SettingsModal'
-import { CheckIcon, CopyIcon, PanelIcon, RailIcon } from './components/icons'
+import { ArrowDownIcon, CheckIcon, CopyIcon, PanelIcon, RailIcon } from './components/icons'
 import { UtilityRail } from './components/UtilityRail'
 import { ReaderPane } from './components/ReaderPane'
 import { ProcessRow } from './components/ProcessRow'
@@ -36,7 +36,7 @@ import { buildTurnRailItems, msgAnchorId } from './components/turnRail'
 import { AssistantContent } from './components/widget/AssistantContent'
 import { getTimeGreeting } from './greeting'
 import {
-  APP_BRAND_COPY, APP_NAV_ICON_BUTTON, APP_TITLEBAR_WORKSPACE_TOGGLE,
+  APP_BRAND_COPY, APP_NAV_ICON_BUTTON, APP_STATUS_COPY, APP_TITLEBAR_WORKSPACE_TOGGLE,
 } from './appCopy'
 
 // 默认必须 127.0.0.1:service 只绑 IPv4;localhost 常解析到 ::1 → 永远「服务未连接」
@@ -193,6 +193,45 @@ function AppInner() {
       toast.add({
         variant: 'error',
         title: '归档失败',
+        description: err instanceof Error ? err.message : '请重试',
+      })
+    }
+  }
+
+  async function renameProject(proj: Project, name: string): Promise<void> {
+    try {
+      const updated = await client.renameProject(proj.id, name)
+      setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+    } catch (err) {
+      toast.add({
+        variant: 'error',
+        title: '重命名失败',
+        description: err instanceof Error ? err.message : '请重试',
+      })
+    }
+  }
+
+  /** 软归档项目:侧栏消失;若正看着该项目则切到空态 */
+  async function archiveProject(proj: Project): Promise<void> {
+    try {
+      await client.archiveProject(proj.id)
+      setProjects((prev) => prev.filter((p) => p.id !== proj.id))
+      setTasksByProject((prev) => {
+        const next = { ...prev }
+        delete next[proj.id]
+        return next
+      })
+      if (draftProjectId === proj.id) setDraftProjectId(null)
+      if (projectId === proj.id) {
+        const fallback = 'default'
+        persistProjectId(fallback)
+        newConversation(fallback)
+        ws.close()
+      }
+    } catch (err) {
+      toast.add({
+        variant: 'error',
+        title: '归档项目失败',
         description: err instanceof Error ? err.message : '请重试',
       })
     }
@@ -499,7 +538,7 @@ function AppInner() {
     }
     return `${items.length}:${last.id}:${running}`
   }, [items, running])
-  const { pin: pinMessages } = useStickToBottom(messagesRef, stickContentKey, {
+  const { pin: pinMessages, pinned: messagesPinned } = useStickToBottom(messagesRef, stickContentKey, {
     enabled: !isEmptyChat(items, running),
   })
   pinMessagesRef.current = pinMessages
@@ -598,6 +637,8 @@ function AppInner() {
             onSelect={pickConversation}
             onSelectProject={selectProject}
             onArchive={(t) => { void archiveConversation(t) }}
+            onRenameProject={(p, name) => renameProject(p, name)}
+            onArchiveProject={(p) => { void archiveProject(p) }}
             onSettings={() => setSettingsOpen(true)}
           />
         )}
@@ -665,6 +706,17 @@ function AppInner() {
               })}
               {running && !lastRunning && !pendingAsk && <ThinkingIndicator />}
             </div>
+            {!isEmpty && !messagesPinned && (
+              <button
+                type="button"
+                className="jump-latest"
+                onClick={() => pinMessages()}
+                aria-label={APP_STATUS_COPY.jumpToLatest}
+                title={APP_STATUS_COPY.jumpToLatest}
+              >
+                <ArrowDownIcon size={18} />
+              </button>
+            )}
           </div>
           <div className="composer-dock">
             {pendingAsk && (

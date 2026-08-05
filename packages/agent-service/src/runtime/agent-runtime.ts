@@ -254,11 +254,22 @@ export class AgentRuntime {
     return this.cfg.projects.createProject({ name, sourcePath })
   }
 
+  renameProject(id: string, name: string): import('../storage/project-store.ts').Project | null {
+    if (!this.cfg.projects) throw new Error('projects 不可用')
+    return this.cfg.projects.renameProject(id, name)
+  }
+
+  /** 软归档项目;禁 default */
+  archiveProject(id: string): boolean {
+    if (!this.cfg.projects) return false
+    return this.cfg.projects.archiveProject(id)
+  }
+
   listEvents(taskId: string, afterSeq?: number): TaskEvent[] {
     return this.cfg.store.listEvents(taskId, afterSeq)
   }
 
-  /** 列资产:有 taskId 时 = 会话产物 + 项目 shared/;无 taskId 时 = 项目根(含 shared,不含 sessions) */
+  /** 列资产:有 taskId = shared/ + 该会话目录;无 taskId(新对话) = 仅 shared/,本会话为空 */
   async listAssets(projectId: string, taskId?: string): Promise<WorkspaceAsset[]> {
     const classify = (paths: string[], scope: 'shared' | 'session'): WorkspaceAsset[] => {
       const base = (p: string): string => p.split('/').pop() ?? p
@@ -277,20 +288,19 @@ export class AgentRuntime {
       return assets
     }
 
-    if (taskId) {
-      const sessionWs = this.makeWorkspace(projectId, taskId)
-      const sessionRaw = (await sessionWs.glob('**/*').catch(() => [] as string[]))
-        .filter((p) => !p.startsWith('cache/') && !p.startsWith('shared/'))
-      const sharedWs = this.makeProjectRootWorkspace(projectId)
-      const sharedRaw = (await sharedWs.glob('shared/**/*').catch(() => [] as string[]))
-      return [...classify(sharedRaw, 'shared'), ...classify(sessionRaw, 'session')]
+    const sharedWs = this.makeProjectRootWorkspace(projectId)
+    const sharedRaw = (await sharedWs.glob('shared/**/*').catch(() => [] as string[]))
+    const shared = classify(sharedRaw, 'shared')
+
+    if (!taskId) {
+      // 新对话/草稿:本会话尚无目录,绝不能把项目根遗留 papers/docs 冒充成 session
+      return shared
     }
 
-    const ws = this.makeProjectRootWorkspace(projectId)
-    const raw = await ws.glob('**/*').catch(() => [] as string[])
-    const all = raw.filter((p) => !p.startsWith('sessions/') && !p.startsWith('cache/'))
-    return classify(all, all.some((p) => p.startsWith('shared/')) ? 'shared' : 'session')
-      .map((a) => ({ ...a, scope: a.path.startsWith('shared/') ? 'shared' as const : 'session' as const }))
+    const sessionWs = this.makeWorkspace(projectId, taskId)
+    const sessionRaw = (await sessionWs.glob('**/*').catch(() => [] as string[]))
+      .filter((p) => !p.startsWith('cache/') && !p.startsWith('shared/'))
+    return [...shared, ...classify(sessionRaw, 'session')]
   }
 
   /** 读一个文本资产(.md)。PDF 二进制走 HTTP /pdf,不经这里。shared/ 路径走项目根 */
