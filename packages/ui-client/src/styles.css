@@ -33,6 +33,53 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 @keyframes glass-beam-spin {
   to { --glass-beam-angle: 360deg; }
 }
+
+/* ---- Glass Card:毛玻璃 + 双边反射(侧栏菜单 / 模型卡)
+   借样例 blur/inset 高光结构;色值走青瓷 token,禁样例暖奶油硬编码。
+   注意:勿挂到 Kumo Dialog 根(会写 position:relative 毁 fixed 居中);挂内容卡即可。 ---- */
+.glass-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--card) 78%, transparent);
+  backdrop-filter: blur(14px) saturate(1.28);
+  -webkit-backdrop-filter: blur(14px) saturate(1.28);
+  border: 1px solid color-mix(in srgb, var(--sand-deep) 55%, rgba(255, 255, 255, 0.28));
+  box-shadow:
+    var(--shadow-2),
+    inset 0 0 90px color-mix(in srgb, var(--ember) 6%, transparent),
+    inset 0 0 3px 1px rgba(255, 255, 255, 0.14);
+}
+.glass-card::before {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 1;
+  background: linear-gradient(to left top, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 52%);
+}
+.glass-card::after {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 1;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.055) 0%, rgba(255, 255, 255, 0) 100%);
+}
+.glass-card > * {
+  position: relative;
+  z-index: 2;
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass-card {
+    background: var(--paper-solid);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .glass-card::before,
+  .glass-card::after { display: none; }
+}
+
 /* 注意:不设 position——会盖掉 Kumo Dialog 的 fixed 居中(settings 曾整窗下移/裁切)。
    宿主须自带 relative/fixed/absolute,::after 才能贴边。 */
 .glass-beam {
@@ -210,11 +257,18 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 }
 .mpc-card {
   display: flex; align-items: center; gap: var(--s-3);
-  border: 1px solid var(--sand); border-radius: var(--radius-lg);
-  background: var(--paper); padding: var(--s-2) var(--s-4) var(--s-2) 0;
-  transition: border-color var(--dur-fast) var(--ease-out);
+  border-radius: var(--radius-lg);
+  padding: var(--s-2) var(--s-4) var(--s-2) 0;
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
-.mpc-card.is-active { border-color: var(--ember-soft); }
+.mpc-card.is-active {
+  border-color: color-mix(in srgb, var(--ember-soft) 75%, rgba(255, 255, 255, 0.35));
+  box-shadow:
+    var(--shadow-2),
+    inset 0 0 90px color-mix(in srgb, var(--ember) 10%, transparent),
+    inset 0 0 3px 1px rgba(255, 255, 255, 0.16),
+    0 0 0 1px color-mix(in srgb, var(--ember) 28%, transparent);
+}
 .mpc-main {
   flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;
   padding: var(--s-3) var(--s-4); border: none; background: none;
@@ -224,9 +278,18 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .mpc-name { color: var(--ink); font-weight: var(--w-semi); font-size: var(--t-body-lg); transition: color var(--dur-fast) var(--ease-out); }
 .mpc-url { color: var(--ink-soft); font-size: var(--t-body-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mpc-model { color: var(--ink-mute); font-size: var(--t-body-sm); font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mp-active { flex: none; color: var(--moss, #5a7a5a); font-size: var(--t-body-sm); padding: 2px 8px; }
-.mp-enable { flex: none; padding: 5px 12px; border: 1px solid var(--sand-deep); border-radius: var(--radius-md); background: none; color: var(--ink-soft); font: inherit; font-size: var(--t-body-sm); cursor: pointer; }
-.mp-enable:hover { background: var(--sand); }
+.mp-active { flex: none; color: var(--moss); font-size: var(--t-body-sm); padding: 2px 8px; }
+.mp-enable {
+  flex: none; padding: 5px 12px;
+  border: 1px solid color-mix(in srgb, var(--sand-deep) 60%, rgba(255, 255, 255, 0.22));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--vellum) 80%, transparent);
+  color: var(--ink-soft); font: inherit; font-size: var(--t-body-sm); cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.mp-enable:hover { background: var(--sand-deep); color: var(--ink); }
 /* 第二屏:编辑表单 */
 .mp-editor { display: flex; flex-direction: column; flex: 1; }
 .mp-back { border: none; background: none; color: var(--ink-soft); font: inherit; font-size: var(--t-body-sm); cursor: pointer; padding: 4px 8px; border-radius: var(--radius-md); }
@@ -273,13 +336,22 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   padding-left: 4px;
 }
 .sb-folder-row:hover { background: var(--sand); }
+.sb-folder-row.is-menu-open { background: var(--sand); }
 .sb-folder.is-active-proj > .sb-folder-row { background: color-mix(in srgb, var(--vellum) 55%, transparent); }
+.sb-folder.is-active-proj > .sb-folder-row.is-menu-open { background: color-mix(in srgb, var(--vellum) 55%, transparent); }
 .sb-folder-main {
   flex: 1; min-width: 0; height: 32px; padding: 0 4px 0 0; border: none; background: none;
   display: flex; align-items: center; gap: var(--s-2);
   color: var(--ink); font: inherit; font-size: var(--t-body-sm); font-weight: var(--w-medium);
   text-align: left; cursor: pointer;
 }
+.sb-folder-rename {
+  flex: 1; min-width: 0; height: 26px; margin: 3px 4px 3px 0; padding: 0 6px;
+  border: 1px solid var(--sand-deep); border-radius: var(--radius-sm);
+  background: var(--paper); color: var(--ink); font: inherit; font-size: var(--t-body-sm);
+  outline: none;
+}
+.sb-folder-rename:focus { border-color: var(--ember); }
 /* Cursor:常态文件夹;悬停该行 → 同一槽位换成 chevron */
 .sb-folder-ic {
   flex: none; position: relative; width: 28px; height: 32px;
@@ -333,6 +405,15 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 }
 .sb-item-row.is-menu-open { background: var(--sand); }
 .sb-item-row.is-menu-open.is-active { background: var(--vellum); }
+/* 双指菜单:盖过 Kumo overlay 底,吃 aurora 透出玻璃感 */
+.sb-task-menu.glass-card {
+  min-width: 172px;
+  padding: 6px;
+  border-radius: var(--radius-lg);
+  /* 压住 Kumo bg-kumo-overlay */
+  background: color-mix(in srgb, var(--card) 72%, transparent) !important;
+  color: var(--ink);
+}
 .sb-task-menu-copied {
   display: inline-flex; align-items: center; gap: 6px;
   color: var(--ember);
@@ -622,6 +703,35 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   --messages-composer-pad: min(46vh, 480px);
 }
 .chat-empty .messages-empty { padding-bottom: var(--s-6); }
+
+/* 松钉后跳回最新(对标 Claude ↓) */
+.jump-latest {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  bottom: 108px;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: var(--radius-full);
+  border: 1px solid color-mix(in srgb, var(--sand-deep) 55%, rgba(255, 255, 255, 0.28));
+  background: color-mix(in srgb, var(--card) 82%, transparent);
+  color: var(--ink);
+  cursor: pointer;
+  box-shadow: var(--shadow-2);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.jump-latest:hover {
+  background: var(--sand-deep);
+  color: var(--ember);
+}
+.jump-latest:active { transform: translateX(-50%) scale(0.96); }
 
 /* 轮次 PreviewRail:空闲极短刻度;悬停才鱼眼拉长 + 预览卡 */
 .turn-rail {

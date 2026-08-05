@@ -139,7 +139,7 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
               </div>
               <div className="mpc-list">
                 {settings.profiles.map((p) => (
-                  <div key={p.id} className={`mpc-card ${isActive(p.id) ? 'is-active' : ''}`}>
+                  <div key={p.id} className={`mpc-card glass-card ${isActive(p.id) ? 'is-active' : ''}`}>
                     <button className="mpc-main" onClick={() => openEditor(p)} title="点击配置">
                       <span className="mpc-name">{p.name}</span>
                       <span className="mpc-url">{p.baseUrl || (p.provider === 'anthropic' ? 'https://api.anthropic.com' : '未设置 Base URL')}</span>
