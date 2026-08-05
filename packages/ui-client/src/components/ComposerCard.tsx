@@ -1,15 +1,23 @@
 /**
- * [INPUT]: border-beam;icons;ASK_USER_COPY;ImageData;父级传入的输入/附件/运行态
- * [OUTPUT]: ComposerCard —— Border Beam 暗玻璃对话输入卡(像素试点)
+ * [INPUT]: border-beam;icons;ASK_USER_COPY;ImageData;父级传入的输入/附件/运行态/可选模型列表
+ * [OUTPUT]: ComposerCard —— Border Beam 暗玻璃对话输入卡;模型芯片下拉选用(设置只登记接入)
  * [POS]: 贴 composer-dock;仅改输入岛,不染暖纸消息流;见 doc/ui-design.md §0
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react'
 import { BorderBeam } from 'border-beam'
+import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
 import { Tooltip } from '@cloudflare/kumo/components/tooltip'
 import type { ImageData } from '../agent-client'
 import { ASK_USER_COPY } from '../appCopy'
-import { AtIcon, ChevronDownIcon, CloseIcon, PdfIcon, SendIcon } from './icons'
+import { AtIcon, CheckIcon, ChevronDownIcon, CloseIcon, GearGlyph, PdfIcon, SendIcon } from './icons'
+
+/** composer 芯片可选的一条模型(跨供应商扁平) */
+export type ComposerModelOption = {
+  profileId: string
+  modelId: string
+  profileName: string
+}
 
 export function ComposerCard({
   input,
@@ -30,7 +38,11 @@ export function ComposerCard({
   uploading,
   pendingAsk,
   modelLabel,
-  onOpenModel,
+  modelOptions,
+  selectedProfileId,
+  selectedModelId,
+  onSelectModel,
+  onManageModels,
   ctxUsage,
   canSend,
 }: {
@@ -52,7 +64,11 @@ export function ComposerCard({
   uploading: boolean
   pendingAsk: boolean
   modelLabel: string
-  onOpenModel: () => void
+  modelOptions: ComposerModelOption[]
+  selectedProfileId: string | null
+  selectedModelId: string
+  onSelectModel: (opt: ComposerModelOption) => void
+  onManageModels: () => void
   ctxUsage: number | null | undefined
   canSend: boolean
 }) {
@@ -128,24 +144,37 @@ export function ComposerCard({
 
         <div className="composer-foot">
           <div className="composer-pills">
-            <button
-              type="button"
-              className="composer-pill"
-              onClick={onOpenModel}
-              title="模型设置"
-            >
-              <span className="composer-pill-label">{shortModel || 'Agent'}</span>
-              <ChevronDownIcon size={12} />
-            </button>
-            <button
-              type="button"
-              className="composer-pill"
-              disabled
-              title="即将支持"
-            >
-              <span className="composer-pill-label">Auto</span>
-              <ChevronDownIcon size={12} />
-            </button>
+            <DropdownMenu>
+              <DropdownMenu.Trigger
+                render={<button type="button" className="composer-pill" />}
+                title="选择模型"
+                aria-label="选择模型"
+              >
+                <span className="composer-pill-label">{shortModel || '选择模型'}</span>
+                <ChevronDownIcon size={12} />
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content align="start" side="top" sideOffset={6} className="composer-model-menu glass-card">
+                {modelOptions.length === 0 && (
+                  <div className="composer-model-menu-empty">尚未接入模型 ID,先去管理配置</div>
+                )}
+                {modelOptions.map((opt) => {
+                  const selected = opt.profileId === selectedProfileId && opt.modelId === selectedModelId
+                  return (
+                    <DropdownMenu.Item
+                      key={`${opt.profileId}::${opt.modelId}`}
+                      onClick={() => onSelectModel(opt)}
+                    >
+                      {selected && <CheckIcon size={14} />}
+                      <span>{opt.modelId}</span>
+                      <span className="composer-model-menu-meta">{opt.profileName}</span>
+                    </DropdownMenu.Item>
+                  )
+                })}
+                <DropdownMenu.Item icon={GearGlyph} onClick={onManageModels}>
+                  管理模型配置…
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu>
             {typeof ctxUsage === 'number' && ctxUsage >= 0.6 && (
               <span
                 className={ctxUsage >= 0.85 ? 'ctx-meter ctx-meter-high' : 'ctx-meter'}

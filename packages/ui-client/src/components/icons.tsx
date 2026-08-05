@@ -1,7 +1,7 @@
 /** 图标唯一入口:一律 @phosphor-icons/react(Kumo 同源家族),经此单点 re-export。
  *  规范见 doc/ui-design.md「§3.1 图标规范」:三档尺寸 + weight 全站统一 regular;
  *  禁手写 SVG / 字符凑图标(← › × ＋) / emoji / 绕过本文件直接 import phosphor。 */
-import { Archive, ArrowDown, ArrowUp, ArrowsOut, At, CaretDown, CaretLeft, CaretRight, ChatCircle, Check, Copy, File, FileCode, FileCsv, FileDoc, FileHtml, FileImage, FilePdf, FilePpt, FileText, FileZip, FolderSimple, Gear, MagnifyingGlass, PencilSimple, Plus, SidebarSimple, User, X } from '@phosphor-icons/react'
+import { Archive, ArrowDown, ArrowUp, ArrowsOut, At, CaretDown, CaretLeft, CaretRight, ChatCircle, Check, Copy, File, FileCode, FileCsv, FileDoc, FileHtml, FileImage, FilePdf, FilePpt, FileText, FileZip, FolderSimple, Gear, MagnifyingGlass, Minus, PencilSimple, Play, Plus, SidebarSimple, Trash, User, X } from '@phosphor-icons/react'
 
 // 尺寸三档:行内(列表/标签内) / 按钮内 / 导航按钮
 export const ICON_SM = 16
@@ -65,6 +65,21 @@ export function FoldersIcon({ size = ICON_MD }: { size?: number }) {
 
 export function PlusIcon({ size = ICON_MD }: { size?: number }) {
   return <Plus size={size} />
+}
+
+/** 设置表单:删掉一行模型 ID */
+export function MinusIcon({ size = ICON_MD }: { size?: number }) {
+  return <Minus size={size} />
+}
+
+/** 供应商卡悬停:启用 */
+export function PlayIcon({ size = ICON_SM }: { size?: number }) {
+  return <Play size={size} />
+}
+
+/** 供应商卡悬停:删除 */
+export function TrashIcon({ size = ICON_SM }: { size?: number }) {
+  return <Trash size={size} />
 }
 
 export function SendIcon({ size = ICON_MD }: { size?: number }) {
@@ -142,7 +157,7 @@ export function RenameIcon({ size = ICON_SM }: { size?: number }) {
 }
 
 /** Kumo DropdownMenu.Item 的 icon= 要 phosphor 组件引用 */
-export { Archive as ArchiveGlyph, Copy as CopyGlyph, PencilSimple as RenameGlyph }
+export { Archive as ArchiveGlyph, Copy as CopyGlyph, Gear as GearGlyph, PencilSimple as RenameGlyph }
 
 /** 流程图放大查看 */
 export function ExpandIcon({ size = ICON_SM }: { size?: number }) {

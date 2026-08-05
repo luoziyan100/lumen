@@ -13,7 +13,7 @@
 - `resume.ts` — rebuildThread:从持久化事件重建可续跑线程
 - `budget.ts` — 多维预算:从 task_events 计算用量(event-sourced),支持扩展预算
 - `session-file.ts` — session jsonl:LLM 视角 trace(append/read/list)
-- `settings.ts` — SettingsStore:模型 profile 列表(多配置单启用)+ 自定义指令;对外只回 key 掩码
+- `settings.ts` — SettingsStore:供应商 profile(多配置单启用)+ 每卡 `models[]`/`activeModel`(旧 `model` 读盘迁移)+ 自定义指令;对外只回 key 掩码
 - `evidence-index.ts` — EvidenceIndex:工作区产物之上的结构化索引(去重/范围查询;**尚未接进 service 工具**)
 - `index.ts` — 出口
 

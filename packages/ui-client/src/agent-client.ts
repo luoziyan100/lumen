@@ -69,6 +69,11 @@ export interface PublicModelProfile {
   name: string
   provider: 'anthropic' | 'openai'
   baseUrl: string
+  /** 该供应商下的模型 ID 列表 */
+  models: string[]
+  /** 启用本卡时生效的模型 ID */
+  activeModel: string
+  /** = activeModel,兼容芯片文案 */
   model: string
   hasApiKey: boolean
   apiKeyMasked: string
@@ -86,7 +91,9 @@ export interface SettingsPatch {
     provider?: 'anthropic' | 'openai'
     baseUrl?: string
     apiKey?: string // 非空才替换
-    model?: string
+    models?: string[]
+    activeModel?: string
+    model?: string // 兼容旧单字段
   }
   deleteProfileId?: string
   activeProfileId?: string

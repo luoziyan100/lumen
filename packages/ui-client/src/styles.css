@@ -227,14 +227,39 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 }
 .settings-close:hover { background: var(--sand); color: var(--ink-soft); }
 .settings-h { margin: 0 0 var(--s-4); font-size: var(--t-display-sm); font-weight: var(--w-semi); }
-.set-row { display: flex; align-items: center; gap: var(--s-4); margin-bottom: var(--s-4); }
+.set-row { display: flex; align-items: center; gap: var(--s-3); margin-bottom: var(--s-4); }
 .set-label { flex: 0 0 84px; color: var(--ink-soft); font-size: var(--t-body-sm); }
+.set-control { flex: 1; min-width: 0; }
+.set-row input.set-control,
 .set-row input {
   flex: 1; min-width: 0; padding: 8px 12px;
   border: 1px solid var(--sand-deep); border-radius: var(--radius-md);
   font: inherit; font-size: var(--t-body-sm); background: var(--paper); color: var(--ink);
 }
 .set-row input:focus { outline: none; border-color: var(--ember-soft); }
+/* 全行同等缩短:右侧 trail(−/+) 槽,右缘一条线 */
+.set-row-trail {
+  flex: none; width: 56px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: flex-end;
+}
+.set-row-icon {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; padding: 0;
+  border: none; border-radius: var(--radius-md);
+  background: transparent; color: var(--ink-mute);
+  opacity: 0; pointer-events: none;
+  cursor: pointer;
+  transition: opacity var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+}
+.set-row-model:hover .set-row-icon,
+.set-row-model:focus-within .set-row-icon {
+  opacity: 1; pointer-events: auto;
+}
+.set-row-icon:hover { color: var(--ember); background: var(--sand); }
+.set-row-icon:focus-visible {
+  opacity: 1; pointer-events: auto;
+  outline: 2px solid var(--ember-soft); outline-offset: 1px;
+}
 .set-hint { color: var(--ink-mute); font-size: var(--t-body-sm); line-height: 1.6; margin: 0 0 var(--s-4); }
 .set-textarea {
   width: 100%; resize: vertical; padding: 10px 12px;
@@ -246,7 +271,7 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .settings-foot { margin-top: auto; padding-top: var(--s-4); display: flex; align-items: center; justify-content: flex-end; gap: var(--s-3); }
 
 /* 模型配置列表 */
-.mp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--s-3); padding-right: 40px; }
+.mp-head { flex: none; display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--s-3); padding-right: 40px; }
 .mp-head .settings-h { margin: 0; }
 /* 「添加模型 / 删除 / 保存」按钮已迁移 Kumo Button(controls 逐步归 Kumo) */
 /* 第一屏:供应商大卡片 */
@@ -254,14 +279,16 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   flex: 1; min-height: 0;
   display: flex; flex-direction: column; gap: var(--s-3);
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .mpc-card {
+  flex: none; /* 禁 shrink:否则卡被挤扁而不出滚动条 */
   display: flex; align-items: center; gap: var(--s-3);
   border-radius: var(--radius-lg);
   padding: var(--s-2) var(--s-4) var(--s-2) 0;
   transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
-.mpc-card.is-active {
+.mpc-card.is-in-use {
   border-color: color-mix(in srgb, var(--ember-soft) 75%, rgba(255, 255, 255, 0.35));
   box-shadow:
     var(--shadow-2),
@@ -277,8 +304,63 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .mpc-main:hover .mpc-name { color: var(--ember); }
 .mpc-name { color: var(--ink); font-weight: var(--w-semi); font-size: var(--t-body-lg); transition: color var(--dur-fast) var(--ease-out); }
 .mpc-url { color: var(--ink-soft); font-size: var(--t-body-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mpc-model { color: var(--ink-mute); font-size: var(--t-body-sm); font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mpc-model {
+  color: var(--ink-mute); font-size: var(--t-body-sm); font-family: var(--font-mono);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-height: 1.25em; /* 无模型 ID 时仍占一行,卡片高度对齐 */
+}
 .mp-active { flex: none; color: var(--moss); font-size: var(--t-body-sm); padding: 2px 8px; }
+/* 供应商卡右侧:闲时「使用中」/悬停露出启用+删除 */
+.mpc-aside {
+  flex: none; width: 112px; height: 32px;
+  position: relative;
+  display: flex; align-items: center; justify-content: flex-end;
+  padding-right: var(--s-2);
+}
+.mpc-aside-idle,
+.mpc-aside-hot {
+  display: flex; align-items: center; justify-content: flex-end; gap: 4px;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.mpc-aside-idle { width: 100%; }
+.mpc-aside-hot {
+  position: absolute; inset: 0;
+  opacity: 0; pointer-events: none;
+}
+.mpc-card:hover .mpc-aside-idle,
+.mpc-card:focus-within .mpc-aside-idle { opacity: 0; }
+.mpc-card:hover .mpc-aside-hot,
+.mpc-card:focus-within .mpc-aside-hot { opacity: 1; pointer-events: auto; }
+.mpc-act {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  height: 28px; padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--sand-deep) 60%, rgba(255, 255, 255, 0.18));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--vellum) 85%, transparent);
+  color: var(--ink-soft); font: inherit; font-size: var(--t-body-sm);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.mpc-act:hover { background: var(--sand-deep); color: var(--ink); }
+.mpc-act-enable {
+  border-color: color-mix(in srgb, var(--ember-soft) 55%, transparent);
+  color: var(--ember);
+}
+.mpc-act-enable:hover {
+  background: color-mix(in srgb, var(--ember) 18%, transparent);
+  color: var(--ember);
+}
+.mpc-act-danger {
+  width: 28px; padding: 0;
+  color: var(--ink-mute);
+}
+.mpc-act-danger:hover {
+  color: var(--danger);
+  border-color: var(--danger-line);
+  background: var(--danger-bg);
+}
 .mp-enable {
   flex: none; padding: 5px 12px;
   border: 1px solid color-mix(in srgb, var(--sand-deep) 60%, rgba(255, 255, 255, 0.22));
@@ -958,6 +1040,16 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 }
 .composer-pill-label {
   max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.composer-model-menu.glass-card {
+  min-width: 220px; max-width: min(320px, 90vw); max-height: min(360px, 50vh);
+  overflow-y: auto;
+}
+.composer-model-menu-meta {
+  color: var(--ink-mute); font-size: var(--t-body-sm); margin-left: 6px;
+}
+.composer-model-menu-empty {
+  padding: 10px 12px; color: var(--ink-mute); font-size: var(--t-body-sm);
 }
 .composer-card .ctx-meter { color: var(--c-fg-soft); }
 .composer-card .ctx-meter-high { color: #f0a090; }

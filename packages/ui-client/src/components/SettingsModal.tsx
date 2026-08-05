@@ -1,9 +1,9 @@
 /**
- * 设置弹窗:左导航(模型 / 提示词)。
- * 模型页两级导航:第一屏 = 供应商大卡片列表(名称+URL+启用态);点卡片 → 第二屏该配置的表单(可返回)。
- * key 纪律:输入留空 = 保持;服务端只回掩码。保存/启用即热生效。
+ * 设置弹窗:左导航(模型 / 提示词 / 常驻)。
+ * 模型页 = 接入目录:供应商卡 + 卡内多模型 ID;不负责「当前用哪个」(由 composer 芯片下拉决定)。
+ * 列表区 mpc-list 自滚动(卡 flex:none,禁被挤扁)。全行统一 trail 对齐。
  */
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import { Dialog } from '@cloudflare/kumo/components/dialog'
 import { Select } from '@cloudflare/kumo/components/select'
@@ -16,24 +16,63 @@ import {
   launchdUninstall,
   type LaunchdStatus,
 } from '../ensureAgent'
-import { BackIcon, CloseIcon, PlusIcon } from './icons'
+import { BackIcon, CloseIcon, MinusIcon, PlayIcon, PlusIcon, TrashIcon } from './icons'
 
 type Pane = 'model' | 'prompt' | 'service'
 type ModelView = 'list' | 'edit'
 
-const EMPTY_FORM = { name: '', provider: 'openai' as 'anthropic' | 'openai', baseUrl: '', apiKey: '', model: '' }
+type ProfileForm = {
+  name: string
+  provider: 'anthropic' | 'openai'
+  baseUrl: string
+  apiKey: string
+  models: string[]
+}
 
-export function SettingsModal({ client, onClose }: { client: AgentClient; onClose: () => void }) {
+const EMPTY_FORM: ProfileForm = {
+  name: '',
+  provider: 'openai',
+  baseUrl: '',
+  apiKey: '',
+  models: [''],
+}
+
+function modelsFromProfile(p: PublicModelProfile): string[] {
+  if (p.models?.length) return [...p.models]
+  if (p.model) return [p.model]
+  return ['']
+}
+
+function profileModelsLabel(p: PublicModelProfile): string {
+  const ids = (p.models?.length ? p.models : (p.model ? [p.model] : [])).map((s) => s.trim()).filter(Boolean)
+  const base = ids.length ? ids.join(' · ') : '未填模型 ID'
+  return p.hasApiKey ? base : `${base} · 未配置 Key`
+}
+
+export function SettingsModal({
+  client,
+  onClose,
+  activeProfileId,
+  onChanged,
+}: {
+  client: AgentClient
+  onClose: () => void
+  /** 仅作列表「使用中」示意;选用权在 composer */
+  activeProfileId?: string | null
+  /** 启用/删除后通知外层刷新芯片 */
+  onChanged?: () => void
+}) {
   const [pane, setPane] = useState<Pane>('model')
   const [view, setView] = useState<ModelView>('list')
   const [settings, setSettings] = useState<PublicSettings | null>(null)
   const [saved, setSaved] = useState('')
 
-  const [selId, setSelId] = useState<string | null>(null) // null = 新建
-  const [form, setForm] = useState(EMPTY_FORM)
+  const [selId, setSelId] = useState<string | null>(null)
+  const [form, setForm] = useState<ProfileForm>(EMPTY_FORM)
   const [instructions, setInstructions] = useState('')
   const [launchd, setLaunchd] = useState<LaunchdStatus | null>(null)
   const [launchdBusy, setLaunchdBusy] = useState(false)
+  const modelInputRefs = useRef<(HTMLInputElement | null)[]>([])
   const tauri = isTauriShell()
 
   useEffect(() => {
@@ -55,42 +94,81 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
 
   function openEditor(p: PublicModelProfile | null): void {
     setSelId(p?.id ?? null)
-    setForm(p
-      ? { name: p.name, provider: p.provider, baseUrl: p.baseUrl, apiKey: '', model: p.model }
-      : EMPTY_FORM)
+    if (!p) {
+      setForm(EMPTY_FORM)
+    } else {
+      setForm({
+        name: p.name,
+        provider: p.provider,
+        baseUrl: p.baseUrl,
+        apiKey: '',
+        models: modelsFromProfile(p),
+      })
+    }
     setView('edit')
   }
 
   async function saveProfile(e: FormEvent): Promise<void> {
     e.preventDefault()
+    const cleaned = form.models.map((s) => s.trim()).filter(Boolean)
+    // 不在此处决定 activeModel:若已有仍属本列表则保留,否则取首项(供尚未在芯片选过时的回退)
+    const prev = selId ? settings?.profiles.find((p) => p.id === selId) : undefined
+    const keep = prev?.activeModel && cleaned.includes(prev.activeModel) ? prev.activeModel : (cleaned[0] ?? '')
     const next = await client.updateSettings({
       upsertProfile: {
         ...(selId ? { id: selId } : {}),
         name: form.name,
         provider: form.provider,
         baseUrl: form.baseUrl,
-        model: form.model,
+        models: cleaned,
+        activeModel: keep,
         ...(form.apiKey.trim() ? { apiKey: form.apiKey.trim() } : {}),
       },
     })
     setSettings(next)
-    if (!selId) {
-      const mine = next.profiles[next.profiles.length - 1]
-      setSelId(mine?.id ?? null)
+    const mine = selId
+      ? next.profiles.find((p) => p.id === selId)
+      : next.profiles[next.profiles.length - 1]
+    if (mine) {
+      setSelId(mine.id)
+      const models = modelsFromProfile(mine)
+      setForm({
+        name: mine.name,
+        provider: mine.provider,
+        baseUrl: mine.baseUrl,
+        apiKey: '',
+        models: models.length ? models : [''],
+      })
     }
-    setForm((f) => ({ ...f, apiKey: '' }))
     flash('已保存')
+  }
+
+  function addModelRow(): void {
+    const nextIdx = form.models.length
+    setForm((f) => ({ ...f, models: [...f.models, ''] }))
+    requestAnimationFrame(() => {
+      modelInputRefs.current[nextIdx]?.focus()
+    })
+  }
+
+  function removeModelRow(index: number): void {
+    setForm((f) => {
+      if (f.models.length <= 1) return { ...f, models: [''] }
+      return { ...f, models: f.models.filter((_, i) => i !== index) }
+    })
   }
 
   async function activate(id: string): Promise<void> {
     const next = await client.updateSettings({ activeProfileId: id })
     setSettings(next)
+    onChanged?.()
     flash('已启用')
   }
 
   async function removeProfile(id: string): Promise<void> {
     const next = await client.updateSettings({ deleteProfileId: id })
     setSettings(next)
+    onChanged?.()
     setView('list')
     flash('已删除')
   }
@@ -109,9 +187,8 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
   }
 
   const selected = settings?.profiles.find((p) => p.id === selId)
-  const isActive = (id: string): boolean => settings?.activeProfileId === id
+  const inUseId = activeProfileId ?? settings?.activeProfileId ?? null
 
-  // demo 模式(公网,自带 Key):走独立简化组件,key 只存浏览器、不落服务端(hooks 已全部执行,顺序稳定)
   if (client.demo) return <DemoModelSettings client={client} onClose={onClose} />
 
   return (
@@ -127,10 +204,8 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
         <div className="settings-body">
           <button type="button" className="settings-close" aria-label="关闭" onClick={onClose}><CloseIcon size={18} /></button>
 
-          {/* 设置未就绪时给出加载态,绝不留空白(此前并发 getSettings 覆盖过 pending 导致白屏) */}
           {pane === 'model' && !settings && <p className="set-hint">加载中…</p>}
 
-          {/* ---- 模型:第一屏 供应商卡片列表 ---- */}
           {pane === 'model' && settings && view === 'list' && (
             <>
               <div className="mp-head">
@@ -138,62 +213,133 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
                 <Button type="button" variant="outline" size="sm" onClick={() => openEditor(null)}><PlusIcon size={16} />添加模型</Button>
               </div>
               <div className="mpc-list">
-                {settings.profiles.map((p) => (
-                  <div key={p.id} className={`mpc-card glass-card ${isActive(p.id) ? 'is-active' : ''}`}>
-                    <button className="mpc-main" onClick={() => openEditor(p)} title="点击配置">
-                      <span className="mpc-name">{p.name}</span>
-                      <span className="mpc-url">{p.baseUrl || (p.provider === 'anthropic' ? 'https://api.anthropic.com' : '未设置 Base URL')}</span>
-                      <span className="mpc-model">{p.model}{p.hasApiKey ? '' : ' · 未配置 Key'}</span>
-                    </button>
-                    {isActive(p.id)
-                      ? <span className="mp-active">启用中</span>
-                      : <button className="mp-enable" onClick={() => activate(p.id)}>启用</button>}
-                  </div>
-                ))}
+                {settings.profiles.map((p) => {
+                  const inUse = inUseId === p.id
+                  const canDelete = settings.profiles.length > 1
+                  return (
+                    <div key={p.id} className={`mpc-card glass-card ${inUse ? 'is-in-use' : ''}`}>
+                      <button type="button" className="mpc-main" onClick={() => openEditor(p)} title="点击配置">
+                        <span className="mpc-name">{p.name}</span>
+                        <span className="mpc-url">{p.baseUrl || (p.provider === 'anthropic' ? 'https://api.anthropic.com' : '未设置 Base URL')}</span>
+                        <span className="mpc-model">{profileModelsLabel(p)}</span>
+                      </button>
+                      <div className="mpc-aside">
+                        <div className="mpc-aside-idle">
+                          {inUse && <span className="mp-active">使用中</span>}
+                        </div>
+                        <div className="mpc-aside-hot">
+                          {!inUse && (
+                            <button
+                              type="button"
+                              className="mpc-act mpc-act-enable"
+                              title="启用此供应商"
+                              onClick={(e) => { e.stopPropagation(); void activate(p.id) }}
+                            >
+                              <PlayIcon size={14} />
+                              <span>启用</span>
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              type="button"
+                              className="mpc-act mpc-act-danger"
+                              title="删除此供应商"
+                              aria-label={`删除 ${p.name}`}
+                              onClick={(e) => { e.stopPropagation(); void removeProfile(p.id) }}
+                            >
+                              <TrashIcon size={16} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
               {saved && <span className="set-saved">{saved}</span>}
             </>
           )}
 
-          {/* ---- 模型:第二屏 单配置表单 ---- */}
           {pane === 'model' && settings && view === 'edit' && (
             <form className="mp-editor" onSubmit={saveProfile}>
               <div className="mp-head">
                 <button type="button" className="mp-back" onClick={() => setView('list')}><BackIcon size={16} />返回</button>
                 <h2 className="settings-h mp-edit-title">{selId ? (selected?.name || '编辑配置') : '新建模型配置'}</h2>
-                {selId && !isActive(selId) && (
-                  <button type="button" className="mp-enable" onClick={() => activate(selId)}>启用</button>
-                )}
-                {selId && isActive(selId) && <span className="mp-active">启用中</span>}
               </div>
-              <label className="set-row">
+
+              <div className="set-row">
                 <span className="set-label">名称</span>
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="DeepSeek / Claude 官方 / GPT …" />
-              </label>
+                <input className="set-control" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="DeepSeek / Claude 官方 / GPT …" />
+                <span className="set-row-trail" aria-hidden />
+              </div>
               <div className="set-row">
                 <span className="set-label">接口协议</span>
                 <Select
                   aria-label="接口协议"
                   size="sm"
-                  className="min-w-0 flex-1"
+                  className="set-control min-w-0"
                   value={form.provider}
                   onValueChange={(v) => setForm({ ...form, provider: (v ?? 'openai') as 'anthropic' | 'openai' })}
                   items={{ anthropic: 'Anthropic(官方 Claude API)', openai: 'OpenAI 兼容(DeepSeek / 代理等)' }}
                 />
+                <span className="set-row-trail" aria-hidden />
               </div>
-              <label className="set-row">
+              <div className="set-row">
                 <span className="set-label">Base URL</span>
-                <input value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} placeholder={form.provider === 'openai' ? 'https://api.deepseek.com' : 'https://api.anthropic.com'} />
-              </label>
-              <label className="set-row">
+                <input className="set-control" value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} placeholder={form.provider === 'openai' ? 'https://api.deepseek.com' : 'https://api.anthropic.com'} />
+                <span className="set-row-trail" aria-hidden />
+              </div>
+              <div className="set-row">
                 <span className="set-label">API Key</span>
-                <input type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} placeholder={selected?.hasApiKey ? `${selected.apiKeyMasked}(留空保持不变)` : '粘贴该服务的 API Key'} autoComplete="off" />
-              </label>
-              <label className="set-row">
-                <span className="set-label">模型 ID</span>
-                <input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} placeholder="deepseek-chat / claude-sonnet-4-6 …" />
-              </label>
-              <p className="set-hint">每个配置的 Key 独立,不互相借用。保存/启用即刻生效于下一条消息。</p>
+                <input className="set-control" type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} placeholder={selected?.hasApiKey ? `${selected.apiKeyMasked}(留空保持不变)` : '粘贴该服务的 API Key'} autoComplete="off" />
+                <span className="set-row-trail" aria-hidden />
+              </div>
+
+              {form.models.map((mid, i) => {
+                const isLast = i === form.models.length - 1
+                return (
+                  <div key={i} className="set-row set-row-model">
+                    <span className="set-label">{i === 0 ? '模型 ID' : ''}</span>
+                    <input
+                      className="set-control"
+                      ref={(el) => { modelInputRefs.current[i] = el }}
+                      value={mid}
+                      onChange={(e) => {
+                        const models = [...form.models]
+                        models[i] = e.target.value
+                        setForm({ ...form, models })
+                      }}
+                      placeholder="deepseek-chat / claude-sonnet-4-6 …"
+                    />
+                    <span className="set-row-trail">
+                      {form.models.length > 1 && (
+                        <button
+                          type="button"
+                          className="set-row-icon"
+                          title="移除此模型 ID"
+                          aria-label="移除此模型 ID"
+                          onClick={() => removeModelRow(i)}
+                        >
+                          <MinusIcon size={16} />
+                        </button>
+                      )}
+                      {isLast && (
+                        <button
+                          type="button"
+                          className="set-row-icon set-row-add"
+                          title="再加一个模型 ID"
+                          aria-label="再加一个模型 ID"
+                          onClick={addModelRow}
+                        >
+                          <PlusIcon size={16} />
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                )
+              })}
+
+              <p className="set-hint">此处只登记可接入的模型;对话里用哪个在输入框旁芯片选择。Key 不跨卡借用。</p>
               <div className="settings-foot">
                 {saved && <span className="set-saved">{saved}</span>}
                 {selId && (settings.profiles.length > 1) && (
@@ -204,7 +350,6 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
             </form>
           )}
 
-          {/* ---- 系统提示词 ---- */}
           {pane === 'prompt' && (
             <form
               className="mp-editor"
@@ -231,7 +376,6 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
             </form>
           )}
 
-          {/* ---- 后台常驻 LaunchAgent ---- */}
           {pane === 'service' && (
             <div className="mp-editor">
               <h2 className="settings-h">{BACKGROUND_SERVICE_COPY.title}</h2>
@@ -270,7 +414,6 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
 
 const DEMO_MODEL_KEY = 'lumen:demoModel'
 
-/** demo 模式设置:自带 Key,只存本浏览器本次会话(sessionStorage,关标签页即清),随请求直连模型厂商,本站服务器不保存 */
 function DemoModelSettings({ client, onClose }: { client: AgentClient; onClose: () => void }) {
   const [form, setForm] = useState(() => {
     const base = { provider: 'openai' as 'anthropic' | 'openai', baseUrl: '', apiKey: '', model: '' }
@@ -283,7 +426,7 @@ function DemoModelSettings({ client, onClose }: { client: AgentClient; onClose: 
     e.preventDefault()
     const cfg = { provider: form.provider, model: form.model.trim(), apiKey: form.apiKey.trim(), baseUrl: form.baseUrl.trim() || undefined }
     sessionStorage.setItem(DEMO_MODEL_KEY, JSON.stringify(cfg))
-    client.setModel(cfg) // 立即生效于当前连接
+    client.setModel(cfg)
     setSaved('已保存并启用')
     setTimeout(() => setSaved(''), 1800)
   }
@@ -298,16 +441,26 @@ function DemoModelSettings({ client, onClose }: { client: AgentClient; onClose: 
             <p className="set-hint">你的 API Key 只临时存在<strong>你自己浏览器的本次会话</strong>里(关闭标签页即清除),聊天时随请求直连模型厂商——本站服务器不保存、不经手你的 Key。</p>
             <div className="set-row">
               <span className="set-label">接口协议</span>
-              <Select aria-label="接口协议" size="sm" className="min-w-0 flex-1" value={form.provider}
+              <Select aria-label="接口协议" size="sm" className="set-control min-w-0" value={form.provider}
                 onValueChange={(v) => setForm({ ...form, provider: (v ?? 'openai') as 'anthropic' | 'openai' })}
                 items={{ anthropic: 'Anthropic(官方 Claude)', openai: 'OpenAI 兼容(DeepSeek / 代理)' }} />
+              <span className="set-row-trail" aria-hidden />
             </div>
-            <label className="set-row"><span className="set-label">Base URL</span>
-              <input value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} placeholder={form.provider === 'openai' ? 'https://api.deepseek.com' : 'https://api.anthropic.com'} /></label>
-            <label className="set-row"><span className="set-label">API Key</span>
-              <input type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} placeholder="粘贴你自己的 API Key" autoComplete="off" /></label>
-            <label className="set-row"><span className="set-label">模型 ID</span>
-              <input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} placeholder="deepseek-chat / claude-sonnet-4-6 …" /></label>
+            <div className="set-row">
+              <span className="set-label">Base URL</span>
+              <input className="set-control" value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} placeholder={form.provider === 'openai' ? 'https://api.deepseek.com' : 'https://api.anthropic.com'} />
+              <span className="set-row-trail" aria-hidden />
+            </div>
+            <div className="set-row">
+              <span className="set-label">API Key</span>
+              <input className="set-control" type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} placeholder="粘贴你自己的 API Key" autoComplete="off" />
+              <span className="set-row-trail" aria-hidden />
+            </div>
+            <div className="set-row">
+              <span className="set-label">模型 ID</span>
+              <input className="set-control" value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} placeholder="deepseek-chat / claude-sonnet-4-6 …" />
+              <span className="set-row-trail" aria-hidden />
+            </div>
             <div className="settings-foot">
               {saved && <span className="set-saved">{saved}</span>}
               <Button type="submit" variant="primary" size="sm">保存并启用</Button>

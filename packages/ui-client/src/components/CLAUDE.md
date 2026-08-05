@@ -10,7 +10,7 @@
 - `TurnPreviewRail.tsx` — 对话列左侧轮次轨(≥4 轮);空闲极短刻度、悬停鱼眼+预览;窄栏/阅读器开时隐藏;点刻度滚到 `msg-<id>`
 - `CreateProjectModal.tsx` — 创建项目悬浮卡(无遮罩):名称 + 可选本机源文件夹(Tauri pick / 粘贴路径)
 - `SearchModal.tsx` — 会话搜索(⌘K):Kumo CommandPalette,内部过滤,↑↓/↵ 键盘导航
-- `SettingsModal.tsx` — 设置:模型 profiles / 系统提示词 / **后台常驻 LaunchAgent** 开关;外壳 Kumo Dialog
+- `SettingsModal.tsx` — 设置:供应商接入目录(卡内多模型 ID;列表自滚动;悬停启用/删除)/系统提示词/LaunchAgent;选用权在 composer 芯片
 - `UtilityRail.tsx` — 右轨:进度 + 工作目录(共享区 / 本会话,按 Asset.scope);可上传到共享区;左缘拖拽调宽
 - `ReaderPane.tsx` — 右分屏阅读器:doc 衬线正文 / PDF / HTML 沙箱
 - `PdfViewer.tsx` — pdf.js 竖向连续滚动渲染(锁 4.10.38)
@@ -19,7 +19,7 @@
 - `ProcessRow.tsx` — 可折叠过程块(Kumo Collapsible):左侧 `StatusOrb` 按焦点工具态(`orbStateFromSteps`);完成态 `paused` 仍保留形态差异;与 ThinkingIndicator 的 breathing 分离
 - `PlanCard.tsx` — 复杂任务计划卡(`update_plan`→`kind:'plan'`):标题+k/n+步骤;全完成折叠绿勾;与 ProcessRow 职责分离(见 `doc/plan-card.md`)
 - `AskUserDialog.tsx` — `ask_user` 输入框上方悬浮问询卡(无遮罩);由 `useAgent.pendingAsk` 驱动(见 `doc/ask-user.md`)
-- `ComposerCard.tsx` — 对话输入暗玻璃岛(`border-beam` + @/pills/send);像素试点,见 `doc/ui-design.md` §0
+- `ComposerCard.tsx` — 对话输入暗玻璃岛;模型芯片 DropdownMenu 扁平选 ID,「管理模型配置…」才进设置;见 `doc/ui-design.md` §0
 - `CollapsibleUserText.tsx` — 用户超长 prompt 默认折叠(>9 行或 >750 字);底渐隐 + 展开/收起;助手消息不折
 - `ThinkingIndicator.tsx` — 模型等待态(尚无过程行/轮间):`StatusOrb` breathing +「思考中」;侧栏 sb-dot 仍脉冲点
 - `Markdown.tsx` — .md 文档与纯文本段渲染:GFM + KaTeX + 代码高亮 + ` ```mermaid ` → MermaidBlock

@@ -22,7 +22,7 @@ import { Sidebar } from './components/Sidebar'
 import { CreateProjectModal, type CreateProjectPayload } from './components/CreateProjectModal'
 import { AskUserDialog } from './components/AskUserDialog'
 import { CollapsibleUserText } from './components/CollapsibleUserText'
-import { ComposerCard } from './components/ComposerCard'
+import { ComposerCard, type ComposerModelOption } from './components/ComposerCard'
 import { SearchModal } from './components/SearchModal'
 import { SettingsModal } from './components/SettingsModal'
 import { ArrowDownIcon, CheckIcon, CopyIcon, PanelIcon, RailIcon } from './components/icons'
@@ -378,19 +378,47 @@ function AppInner() {
     [tasksByProject],
   )
 
-  // 当前激活模型:输入卡底部显示。getSettings 走共享 pendingSettings 解析器,
-  // 不能和设置弹窗的 getSettings 并发(会互相覆盖 → 弹窗那次永远 pending,模型页变空白)。
-  // 所以:连上时取一次;弹窗关闭后(它的 getSettings 早已 resolve)再刷新一次。
+  // 当前选用模型:composer 芯片下拉决定;设置页只登记接入列表。
+  // getSettings 走共享 pendingSettings,不能与设置弹窗并发。
   const [modelLabel, setModelLabel] = useState('')
+  const [modelOptions, setModelOptions] = useState<ComposerModelOption[]>([])
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
+  const [selectedModelId, setSelectedModelId] = useState('')
   const refreshModel = useCallback(() => {
     client.getSettings().then((s) => {
+      const opts: ComposerModelOption[] = []
+      for (const p of s.profiles) {
+        const ids = (p.models?.length ? p.models : (p.model ? [p.model] : []))
+          .map((m) => m.trim()).filter(Boolean)
+        for (const modelId of ids) {
+          opts.push({ profileId: p.id, modelId, profileName: p.name })
+        }
+      }
+      setModelOptions(opts)
       const active = s.profiles.find((p) => p.id === s.activeProfileId)
-      // 芯片显「模型 ID」(如 deepseek-v4-pro / claude-opus-4-8),而非 profile 显示名(如「模型 2」);
-      // 模型 ID 未填时才退回显示名(owner 定 2026-07-06)
-      setModelLabel(active ? (active.model || active.name) : '')
+      const mid = active ? (active.activeModel || active.model || '') : ''
+      setSelectedProfileId(active?.id ?? null)
+      setSelectedModelId(mid)
+      setModelLabel(active ? (mid || active.name) : '')
     }).catch(() => {})
   }, [client])
   useEffect(() => { if (connected) refreshModel() }, [connected, refreshModel])
+
+  async function selectModel(opt: ComposerModelOption): Promise<void> {
+    try {
+      await client.updateSettings({
+        activeProfileId: opt.profileId,
+        upsertProfile: { id: opt.profileId, activeModel: opt.modelId },
+      })
+      setSelectedProfileId(opt.profileId)
+      setSelectedModelId(opt.modelId)
+      setModelLabel(opt.modelId)
+      // 列表顺序可能变了,完整刷新一次
+      refreshModel()
+    } catch {
+      // 失败时保持原选中,不打断输入
+    }
+  }
 
   // 开屏即欢迎页;仅当上次的会话此刻仍在后台运行时,自动接回它的现场(一次性判断)
   const restoreTried = useRef(false)
@@ -772,7 +800,11 @@ function AppInner() {
             uploading={uploading}
             pendingAsk={!!pendingAsk}
             modelLabel={modelLabel}
-            onOpenModel={() => setSettingsOpen(true)}
+            modelOptions={modelOptions}
+            selectedProfileId={selectedProfileId}
+            selectedModelId={selectedModelId}
+            onSelectModel={(opt) => { void selectModel(opt) }}
+            onManageModels={() => setSettingsOpen(true)}
             ctxUsage={ctxUsage}
             canSend={!pendingAsk && !uploading && !!(input.trim() || attachments.length || pendingFiles.length)}
           />
@@ -792,7 +824,14 @@ function AppInner() {
       </div>
 
       <SearchModal open={searchOpen} onOpenChange={setSearchOpen} conversations={convs} onSelect={pickConversation} />
-      {settingsOpen && <SettingsModal client={client} onClose={() => { setSettingsOpen(false); refreshModel() }} />}
+      {settingsOpen && (
+        <SettingsModal
+          client={client}
+          activeProfileId={selectedProfileId}
+          onChanged={refreshModel}
+          onClose={() => { setSettingsOpen(false); refreshModel() }}
+        />
+      )}
     </div>
   )
 }
