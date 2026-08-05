@@ -1,9 +1,10 @@
 /**
  * [INPUT]: AgentClient 的事件流 / submit·continue·subscribe·answerUser
- * [OUTPUT]: useAgent → items/running/pendingAsk/send/stop/answerAsk/selectConversation;ChatItem 归约
+ * [OUTPUT]: useAgent → items/running/pendingAsk/send/stop/answerAsk/selectConversation;ChatItem 归约;
+ *           sealRunningProcesses(正文/终态封口过程块)
  * [POS]: UI 对话状态核;跨项目切换时同步 projectIdRef;空 model_step→error;update_plan→PlanItem;
- *        text_delta 累积 streaming 泡,model_step 定稿替换;tool_call_start 尽早开 process;
- *        ask_user→pendingAsk 驱动悬浮 Dialog(见 doc/ask-user.md)
+ *        text_delta 累积 streaming 泡并封口 running process;model_step 有正文时同封;
+ *        tool_call_start 尽早开 process;ask_user→pendingAsk 驱动悬浮 Dialog(见 doc/ask-user.md)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * user 也走事件流,不在前端乐观插入。taskId 按项目键存 localStorage。
@@ -281,6 +282,12 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
   }
 }
 
+/** 助手开口或轮次终态:把所有还在跑的过程块封口(避免旧块永远 running→虚线圈 breathing) */
+export function sealRunningProcesses(items: ChatItem[]): ChatItem[] {
+  if (!items.some((it) => it.kind === 'process' && it.running)) return items
+  return items.map((it) => (it.kind === 'process' && it.running ? { ...it, running: false } : it))
+}
+
 /** 纯函数归约:同一个 event 进来,prev → next。导出供单测。 */
 export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<string, unknown>): ChatItem[] {
   switch (event.kind) {
@@ -291,11 +298,13 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
     case 'text_delta': {
       const text = String(p.text ?? '')
       if (!text) return prev
-      const last = prev[prev.length - 1]
+      // 正文开始 = 上一截工具叙事结束;封口后才挂 streaming 泡
+      const sealed = sealRunningProcesses(prev)
+      const last = sealed[sealed.length - 1]
       if (last?.kind === 'msg' && last.role === 'assistant' && last.streaming) {
-        return [...prev.slice(0, -1), { ...last, content: last.content + text }]
+        return [...sealed.slice(0, -1), { ...last, content: last.content + text }]
       }
-      return [...prev, { kind: 'msg', id: event.id, role: 'assistant', content: text, streaming: true }]
+      return [...sealed, { kind: 'msg', id: event.id, role: 'assistant', content: text, streaming: true }]
     }
     case 'tool_call_start': {
       const name = String(p.name ?? 'tool')
@@ -312,16 +321,18 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
     case 'model_step': {
       const content = typeof p.content === 'string' ? p.content.trim() : ''
       const tools = Array.isArray(p.toolCalls) ? p.toolCalls : []
+      // 有正文才封口过程块;纯工具轮保持 running 以便续挂 steps
+      const base = content ? sealRunningProcesses(prev) : prev
       let streamingIdx = -1
-      for (let i = prev.length - 1; i >= 0; i -= 1) {
-        const it = prev[i]
+      for (let i = base.length - 1; i >= 0; i -= 1) {
+        const it = base[i]
         if (it?.kind === 'msg' && it.role === 'assistant' && it.streaming) {
           streamingIdx = i
           break
         }
       }
       if (streamingIdx >= 0) {
-        const next = prev.slice()
+        const next = base.slice()
         if (content) {
           next[streamingIdx] = { kind: 'msg', id: event.id, role: 'assistant', content }
         } else if (tools.length === 0) {
@@ -336,17 +347,17 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
         }
         return next
       }
-      if (content) return [...prev, { kind: 'msg', id: event.id, role: 'assistant', content }]
+      if (content) return [...base, { kind: 'msg', id: event.id, role: 'assistant', content }]
       // 空正文且无工具:历史上会被静默丢掉 → 用户只看见自己的气泡(DeepSeek V4 思考烧光额度)
       if (tools.length === 0) {
-        return [...prev, {
+        return [...base, {
           kind: 'msg',
           id: event.id,
           role: 'error',
           content: '模型返回了空回复（常见于思考模式耗尽输出额度）。请重试，或在设置中换模型。',
         }]
       }
-      return prev
+      return base
     }
     case 'tool_call': {
       const name = String(p.name ?? 'tool')
@@ -375,20 +386,13 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
         ? { ...it, steps: it.steps.map((s) => (s.id === id ? { ...s, done: true, label } : s)) }
         : it)
     }
-    case 'reply': {
-      const last = prev[prev.length - 1]
-      return last && last.kind === 'process' && last.running
-        ? [...prev.slice(0, -1), { ...last, running: false }]
-        : prev
-    }
+    case 'reply':
+      return sealRunningProcesses(prev)
     case 'status_change': {
-      // 取消/失败等终态:把还在呼吸的过程块收尾,别留一个永远脉动的点
+      // 取消/失败等终态:把还在跑的过程块全部收尾
       const to = String(p.to ?? '')
       if (!['canceled', 'failed', 'done', 'interrupted'].includes(to)) return prev
-      const last = prev[prev.length - 1]
-      return last && last.kind === 'process' && last.running
-        ? [...prev.slice(0, -1), { ...last, running: false }]
-        : prev
+      return sealRunningProcesses(prev)
     }
     case 'compaction':
       // 确定性压缩标记(方案 B):旧细节归档,给一条弱分隔线

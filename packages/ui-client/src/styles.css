@@ -734,7 +734,7 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 }
 .bubble-status { align-self: flex-start; color: var(--ink-mute); font-size: var(--t-body-sm); }
 
-/* ---- 思考/过程态:thinking-orbs(StatusOrb 64→20 缩显) ---- */
+/* ---- 思考/过程态:thinking-orbs(StatusOrb 原生 size=20) ---- */
 .think-status {
   display: inline-flex; align-items: center; gap: var(--s-3);
   padding: 4px 0;
