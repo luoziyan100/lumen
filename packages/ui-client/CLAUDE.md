@@ -8,7 +8,8 @@
 
 | 成员 | 职责 |
 |---|---|
-| `App.tsx` | 布局与装配:标题栏 / 侧栏(项目 p-* + 最近平铺) / 对话 / ComposerCard 暗玻璃岛 / 工作区轨 / 阅读器 / 弹窗;历史不进「默认」文件夹 |
+| `App.tsx` | 布局与装配;断线重连前 `ensureAgentService`;可见性恢复再推一把 |
+| `ensureAgent.ts` | Tauri invoke:`ensure_agent_service` + `launchd_status/install/uninstall` |
 | `agent-client.ts` | 浏览器侧 WS 客户端;含 listProjects/createProject/upload scope;⚠ 协议类型手工内联 |
 | `useAgent.ts` | 事件流 → ChatItem;`text_delta` 累积 streaming 泡 / `model_step` 定稿;`tool_call_start` 尽早过程行;`ask_user`→pendingAsk |
 | `useStickToBottom.ts` | 对话列贴底跟随;用户上滚松手;配合 `.messages { overflow-anchor: none }` |

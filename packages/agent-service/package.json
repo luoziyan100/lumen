@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "test": "node --experimental-strip-types --test tests/*/*.test.ts",
-    "dev": "LUMEN_PORT=8787 node --experimental-strip-types src/service.ts"
+    "dev": "LUMEN_PORT=8787 node --experimental-strip-types src/service.ts",
+    "launchd:install": "node --experimental-strip-types scripts/launchd-cli.ts install",
+    "launchd:uninstall": "node --experimental-strip-types scripts/launchd-cli.ts uninstall",
+    "launchd:status": "node --experimental-strip-types scripts/launchd-cli.ts status"
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0",

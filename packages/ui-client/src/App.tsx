@@ -10,6 +10,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { Toasty, useKumoToastManager } from '@cloudflare/kumo/components/toast'
 import { Tooltip, TooltipProvider } from '@cloudflare/kumo/components/tooltip'
 import { AgentClient, type ImageData, type Project, type Task } from './agent-client'
+import { ensureAgentService } from './ensureAgent'
 import { useAgent, type ChatItem } from './useAgent'
 import { useStickToBottom } from './useStickToBottom'
 import { useWorkspace } from './useWorkspace'
@@ -70,28 +71,41 @@ function AppInner() {
   const toast = useKumoToastManager()
   const client = useMemo(() => new AgentClient(SERVICE_URL, SERVICE_TOKEN), [])
   const [connected, setConnected] = useState(false)
-  // 连接生命周期:断线必须把 connected 打回 false 并自动重连——否则 UI 假在线,send 静默失败
+  // 连接生命周期:断线必须把 connected 打回 false 并自动重连——否则 UI 假在线,send 静默失败。
+  // 睡眠常弄死 Node sidecar:重连前先请壳 ensure;可见性恢复时再推一把。
   useEffect(() => {
     let live = true
     let retry: ReturnType<typeof setTimeout> | null = null
-    const connect = (): void => {
-      client.connect()
-        .then(() => { if (live) setConnected(true) })
-        .catch(() => {
-          if (!live) return
-          setConnected(false)
-          retry = setTimeout(connect, 1200)
-        })
+    const connect = (askShell = false): void => {
+      void (async () => {
+        if (askShell) await ensureAgentService()
+        if (!live) return
+        client.connect()
+          .then(() => { if (live) setConnected(true) })
+          .catch(() => {
+            if (!live) return
+            setConnected(false)
+            retry = setTimeout(() => connect(true), 1200)
+          })
+      })()
     }
     const offClose = client.onClose(() => {
       if (!live) return
       setConnected(false)
-      retry = setTimeout(connect, 800)
+      retry = setTimeout(() => connect(true), 800)
     })
-    connect()
+    const onVisible = (): void => {
+      if (document.visibilityState !== 'visible' || !live) return
+      if (!client.connected) connect(true)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    connect(true)
     return () => {
       live = false
       offClose()
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
       if (retry) clearTimeout(retry)
       client.close()
     }

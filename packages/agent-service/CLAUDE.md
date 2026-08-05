@@ -18,10 +18,11 @@
 | `tools/` | L1 环境原语(env/) + L2 研究桥接(research/) |
 | `workspace/` | FsWorkspace 沙箱文件系统 |
 
-顶层文件:`service.ts`(createService 工厂 + headless main)、`supervisor.ts`(子进程拉起 + portfile 契约)。
+顶层文件:`service.ts`(createService 工厂 + headless main)、`supervisor.ts`(子进程拉起 + portfile 契约)、`launchd.ts`(用户级 LaunchAgent 渲染/安装/卸载)、`scripts/launchd-cli.ts`。
 
 ## 纪律
 
 - 运行时依赖极简(现仅 better-sqlite3 / unpdf / ws);新增依赖须在本文档记一行理由。
 - 测试用 node:test,零框架;纪律见 `tests/CLAUDE.md`(禁全 mock、录制-重放、不变式、交叉矩阵)。
 - API key 只走 `.env`(gitignored)与 SettingsStore,不入库不入代码。
+- 本机常驻:`npm run launchd:install`(→ `~/Library/LaunchAgents/com.lumen.agent-service.plist`,KeepAlive);卸载 `launchd:uninstall`;状态 `launchd:status`;手工验收见 `launchd/README.md`。

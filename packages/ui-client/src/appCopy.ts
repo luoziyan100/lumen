@@ -23,7 +23,7 @@ export const SIDEBAR_PROJECT_COPY = {
   emptyRecent: '还没有对话。',
   empty: '还没有项目。',
   offline: '服务未连接',
-  offlineHint: 'agent-service 不在线。桌面版请刷新窗口以补拉;确认 127.0.0.1:8787 已监听(勿依赖 localhost/IPv6)。',
+  offlineHint: 'agent-service 不在线。已开常驻时稍候 launchd 会拉回;否则点回窗口或 Cmd+R。确认 127.0.0.1:8787 已监听(勿依赖 localhost/IPv6)。',
   /** 点项目行 + 后出现的临时项;发消息成真会话,未发言离开则消失 */
   draftChat: '新建对话',
   newChatInProject: '在此项目新建会话',

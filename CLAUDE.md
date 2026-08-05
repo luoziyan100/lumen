@@ -37,7 +37,7 @@ Lumen 是独立研究者的论文研究 agent:**无头 Node agent 服务 + Tauri
 - WS 协议类型在 `agent-service/src/protocol/messages.ts` 与 `ui-client/src/agent-client.ts` **各一份、手工同步**
   (`@lumen/shared` 未建,详见 `packages/agent-service/src/protocol/CLAUDE.md`)。改消息格式必须两处一起改。
 - `better-sqlite3` 是 native 依赖:Tauri sidecar 打包时需匹配 Node ABI(M7 前留意)。
-- macOS 上不要用 nohup 起常驻进程;service 生命周期走 supervisor / Tauri sidecar。
+- macOS 上不要用 nohup 起常驻进程;正式常驻走 **LaunchAgent**(`npm run launchd:install -w packages/agent-service`);开发可用 Tauri sidecar / `supervisor.ts`。
 - ui-client 的 Tailwind `@source` 指向**仓库根** node_modules(workspace 依赖提升);升级 `@cloudflare/kumo` 后必跑
   `npm run check:theme -w packages/ui-client`(青瓷主题对 Kumo 变量合同的覆盖校验)。
 

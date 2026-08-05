@@ -58,6 +58,12 @@
 - ephemeral 事件(`text_delta` / `tool_call_start`)仅 live 广播(不占 seq、不入 SQLite/jsonl);断线重放只靠 durable,UI 用 `model_step` 定稿复原正文
 - 资产视图:项目工作区文件列表,过滤 `cache/` 与 `sessions/`,只展示用户要的交付物
 
+### 进程生命周期(本机)
+
+- **生产路径(推荐)**:用户级 LaunchAgent `com.lumen.agent-service`(`KeepAlive` + `RunAtLoad`)托管 Node `service.ts`;登录即起,崩溃/睡眠后由 launchd 拉回。安装:`npm run launchd:install -w packages/agent-service` 或桌面 App 首次启动/设置「后台服务」。
+- **开发兜底**:未装 Agent 时 Tauri 壳可临时 spawn sidecar;Cmd+Q 只杀壳自有 Child,不杀 LaunchAgent。
+- `supervisor.ts` — Node 侧无头验证「子进程 → portfile → 可连 → 停」;与壳探测契约同构。
+
 ## 存储(storage/)
 
 **事件溯源**是持久化的根:

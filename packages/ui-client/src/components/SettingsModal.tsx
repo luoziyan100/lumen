@@ -8,10 +8,17 @@ import { Button } from '@cloudflare/kumo/components/button'
 import { Dialog } from '@cloudflare/kumo/components/dialog'
 import { Select } from '@cloudflare/kumo/components/select'
 import type { AgentClient, PublicSettings, PublicModelProfile } from '../agent-client'
-import { SYSTEM_PROMPT_COPY } from '../settingsCopy'
+import { BACKGROUND_SERVICE_COPY, SYSTEM_PROMPT_COPY } from '../settingsCopy'
+import {
+  isTauriShell,
+  launchdInstall,
+  launchdStatus,
+  launchdUninstall,
+  type LaunchdStatus,
+} from '../ensureAgent'
 import { BackIcon, CloseIcon, PlusIcon } from './icons'
 
-type Pane = 'model' | 'prompt'
+type Pane = 'model' | 'prompt' | 'service'
 type ModelView = 'list' | 'edit'
 
 const EMPTY_FORM = { name: '', provider: 'openai' as 'anthropic' | 'openai', baseUrl: '', apiKey: '', model: '' }
@@ -25,6 +32,9 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
   const [selId, setSelId] = useState<string | null>(null) // null = 新建
   const [form, setForm] = useState(EMPTY_FORM)
   const [instructions, setInstructions] = useState('')
+  const [launchd, setLaunchd] = useState<LaunchdStatus | null>(null)
+  const [launchdBusy, setLaunchdBusy] = useState(false)
+  const tauri = isTauriShell()
 
   useEffect(() => {
     client.getSettings().then((s) => {
@@ -32,6 +42,11 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
       setInstructions(s.userInstructions)
     })
   }, [client])
+
+  useEffect(() => {
+    if (pane !== 'service') return
+    void launchdStatus().then(setLaunchd)
+  }, [pane])
 
   function flash(text: string): void {
     setSaved(text)
@@ -80,6 +95,19 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
     flash('已删除')
   }
 
+  async function toggleLaunchd(on: boolean): Promise<void> {
+    setLaunchdBusy(true)
+    try {
+      const next = on ? await launchdInstall() : await launchdUninstall()
+      setLaunchd(next)
+      flash(on ? '已开启常驻' : '已关闭常驻')
+    } catch (e) {
+      flash(e instanceof Error ? e.message : '操作失败')
+    } finally {
+      setLaunchdBusy(false)
+    }
+  }
+
   const selected = settings?.profiles.find((p) => p.id === selId)
   const isActive = (id: string): boolean => settings?.activeProfileId === id
 
@@ -93,6 +121,7 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
           <div className="settings-nav-title">设置</div>
           <button className={`settings-nav-item ${pane === 'model' ? 'is-active' : ''}`} onClick={() => { setPane('model'); setView('list') }}>模型</button>
           <button className={`settings-nav-item ${pane === 'prompt' ? 'is-active' : ''}`} onClick={() => setPane('prompt')}>{SYSTEM_PROMPT_COPY.nav}</button>
+          <button className={`settings-nav-item ${pane === 'service' ? 'is-active' : ''}`} onClick={() => setPane('service')}>{BACKGROUND_SERVICE_COPY.nav}</button>
         </nav>
 
         <div className="settings-body">
@@ -200,6 +229,38 @@ export function SettingsModal({ client, onClose }: { client: AgentClient; onClos
                 <Button type="submit" variant="primary" size="sm">保存</Button>
               </div>
             </form>
+          )}
+
+          {/* ---- 后台常驻 LaunchAgent ---- */}
+          {pane === 'service' && (
+            <div className="mp-editor">
+              <h2 className="settings-h">{BACKGROUND_SERVICE_COPY.title}</h2>
+              <p className="set-hint">{BACKGROUND_SERVICE_COPY.hint}</p>
+              {!tauri && <p className="set-hint">{BACKGROUND_SERVICE_COPY.unavailable}</p>}
+              {tauri && (
+                <>
+                  <p className="set-hint">
+                    {launchd?.plistInstalled ? BACKGROUND_SERVICE_COPY.on : BACKGROUND_SERVICE_COPY.off}
+                    {' · '}
+                    {launchd?.portfileAlive
+                      ? `${BACKGROUND_SERVICE_COPY.alive}${launchd.port ? ` (:${launchd.port})` : ''}`
+                      : BACKGROUND_SERVICE_COPY.dead}
+                  </p>
+                  <div className="settings-foot">
+                    {saved && <span className="set-saved">{saved}</span>}
+                    {launchd?.plistInstalled ? (
+                      <Button type="button" variant="secondary-destructive" size="sm" disabled={launchdBusy} onClick={() => { void toggleLaunchd(false) }}>
+                        {BACKGROUND_SERVICE_COPY.disable}
+                      </Button>
+                    ) : (
+                      <Button type="button" variant="primary" size="sm" disabled={launchdBusy} onClick={() => { void toggleLaunchd(true) }}>
+                        {BACKGROUND_SERVICE_COPY.enable}
+                      </Button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
       </Dialog>
