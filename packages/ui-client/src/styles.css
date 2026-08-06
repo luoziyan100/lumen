@@ -237,6 +237,11 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   font: inherit; font-size: var(--t-body-sm); background: var(--paper); color: var(--ink);
 }
 .set-row input:focus { outline: none; border-color: var(--ember-soft); }
+/* 已存 Key 的掩码展示:当 value 用,不用 password placeholder(WebKit 常不显) */
+.set-row input.set-key-masked {
+  color: var(--ink-soft);
+  cursor: text;
+}
 /* 全行同等缩短:右侧 trail(−/+) 槽,右缘一条线 */
 .set-row-trail {
   flex: none; width: 56px; height: 28px;
@@ -993,6 +998,21 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
     0 18px 48px -18px rgba(0, 0, 0, 0.58),
     0 0 0 1px rgba(120, 200, 255, 0.12),
     0 10px 36px -10px rgba(56, 180, 220, 0.28);
+}
+.composer-card.is-drop-target {
+  border-color: color-mix(in srgb, var(--ember-soft) 70%, var(--sand-deep));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--ember) 35%, transparent),
+    inset 0 0 48px color-mix(in srgb, var(--ember) 10%, transparent),
+    var(--shadow-3);
+}
+.composer-drop-hint {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--card) 72%, var(--ember-tint));
+  color: var(--ember); font-size: var(--t-body-sm); font-weight: var(--w-medium);
+  pointer-events: none;
 }
 .composer-top { display: flex; align-items: center; }
 .composer-at {

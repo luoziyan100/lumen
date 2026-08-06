@@ -277,10 +277,13 @@ fn main() {
             let script = conn_script().unwrap_or_else(|| {
                 String::from("/* agent-service 未就绪:前端将显示未连接 */")
             });
+            // 默认 Tauri 原生拖放会截走 OS 文件 drop,前端 HTML5 onDrop 永不触发;
+            // 关掉后交给 ComposerCard 的 drag/drop(与 @ 选文件同路径)。
             WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("Lumen")
                 .inner_size(1080.0, 760.0)
                 .min_inner_size(720.0, 480.0)
+                .disable_drag_drop_handler()
                 .initialization_script(&script)
                 .build()?;
             Ok(())

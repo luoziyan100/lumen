@@ -23,6 +23,7 @@ import { CreateProjectModal, type CreateProjectPayload } from './components/Crea
 import { AskUserDialog } from './components/AskUserDialog'
 import { CollapsibleUserText } from './components/CollapsibleUserText'
 import { ComposerCard, type ComposerModelOption } from './components/ComposerCard'
+import { filterComposerFiles } from './composerAccept'
 import { SearchModal } from './components/SearchModal'
 import { SettingsModal } from './components/SettingsModal'
 import { ArrowDownIcon, CheckIcon, CopyIcon, PanelIcon, RailIcon } from './components/icons'
@@ -532,9 +533,13 @@ function AppInner() {
   // 选中的文件先暂存在输入卡(像图片一样可 ❌ 反悔),发送时才建会话、入工作区(2026-07-09 客户定)
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   function onPickFiles(e: ChangeEvent<HTMLInputElement>): void {
-    const files = Array.from(e.target.files ?? [])
+    const files = filterComposerFiles(e.target.files)
     e.target.value = '' // 允许重选同名文件
     if (files.length) setPendingFiles((prev) => [...prev, ...files])
+  }
+  function onAddFiles(files: File[]): void {
+    const ok = filterComposerFiles(files)
+    if (ok.length) setPendingFiles((prev) => [...prev, ...ok])
   }
 
   // 每轮只给"最终输出"配复制:该 assistant 消息之后、到下一条 user 之前再无 assistant;
@@ -790,6 +795,7 @@ function AppInner() {
             taRef={taRef}
             fileRef={fileRef}
             onPickFiles={onPickFiles}
+            onAddFiles={onAddFiles}
             onAttachClick={() => fileRef.current?.click()}
             attachments={attachments}
             onRemoveAttachment={(i) => setAttachments((prev) => prev.filter((_, j) => j !== i))}

@@ -19,6 +19,7 @@
 | `kumo.css` | 控件层样式入口:Tailwind v4(**刻意不含 preflight**)+ @cloudflare/kumo + 青瓷主题 |
 | `theme-celadon.css` | Kumo 青瓷主题(tokens.css 在 Kumo 变量合同上的派生物,light-dark 双值) |
 | `scripts/check-theme-celadon.mjs` | 主题覆盖校验(`npm run check:theme`);升级 kumo 后必跑 |
+| `composerAccept.ts` | composer 附件扩展名白名单;`filterComposerFiles` 供点选/拖放共用 |
 | `appCopy.ts` / `settingsCopy.ts` / `greeting.ts` | 文案与问候(简体中文,不用 emoji) |
 | `msgFold.ts` | 用户气泡折叠阈值(9 行 / 750 字);供 CollapsibleUserText 与测试 |
 | `orbState.ts` | tool / 过程步 → `thinking-orbs` 九态;等待态 `ORB_THINKING=breathing`(与工具态分离) |

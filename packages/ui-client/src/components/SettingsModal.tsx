@@ -69,6 +69,8 @@ export function SettingsModal({
 
   const [selId, setSelId] = useState<string | null>(null)
   const [form, setForm] = useState<ProfileForm>(EMPTY_FORM)
+  /** Key 框聚焦中:闲时用掩码当可见值(WebKit password 常不显 placeholder) */
+  const [keyFocused, setKeyFocused] = useState(false)
   const [instructions, setInstructions] = useState('')
   const [launchd, setLaunchd] = useState<LaunchdStatus | null>(null)
   const [launchdBusy, setLaunchdBusy] = useState(false)
@@ -94,6 +96,7 @@ export function SettingsModal({
 
   function openEditor(p: PublicModelProfile | null): void {
     setSelId(p?.id ?? null)
+    setKeyFocused(false)
     if (!p) {
       setForm(EMPTY_FORM)
     } else {
@@ -132,6 +135,7 @@ export function SettingsModal({
     if (mine) {
       setSelId(mine.id)
       const models = modelsFromProfile(mine)
+      setKeyFocused(false)
       setForm({
         name: mine.name,
         provider: mine.provider,
@@ -188,6 +192,8 @@ export function SettingsModal({
 
   const selected = settings?.profiles.find((p) => p.id === selId)
   const inUseId = activeProfileId ?? settings?.activeProfileId ?? null
+  // 已存 Key 且未在改:把掩码填进 value(text),避免 password+空值在 WebKit 里像「没保存」
+  const keyShowingMask = Boolean(selected?.hasApiKey && !form.apiKey && !keyFocused)
 
   if (client.demo) return <DemoModelSettings client={client} onClose={onClose} />
 
@@ -291,7 +297,18 @@ export function SettingsModal({
               </div>
               <div className="set-row">
                 <span className="set-label">API Key</span>
-                <input className="set-control" type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} placeholder={selected?.hasApiKey ? `${selected.apiKeyMasked}(留空保持不变)` : '粘贴该服务的 API Key'} autoComplete="off" />
+                <input
+                  className={`set-control${keyShowingMask ? ' set-key-masked' : ''}`}
+                  type={keyShowingMask ? 'text' : 'password'}
+                  value={keyShowingMask ? (selected?.apiKeyMasked ?? '') : form.apiKey}
+                  onFocus={() => setKeyFocused(true)}
+                  onBlur={() => setKeyFocused(false)}
+                  onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
+                  placeholder={selected?.hasApiKey ? '留空保持不变' : '粘贴该服务的 API Key'}
+                  autoComplete="off"
+                  spellCheck={false}
+                  readOnly={keyShowingMask}
+                />
                 <span className="set-row-trail" aria-hidden />
               </div>
 

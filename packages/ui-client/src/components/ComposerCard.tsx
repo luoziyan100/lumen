@@ -1,15 +1,16 @@
 /**
- * [INPUT]: border-beam;icons;ASK_USER_COPY;ImageData;父级传入的输入/附件/运行态/可选模型列表
- * [OUTPUT]: ComposerCard —— Border Beam 暗玻璃对话输入卡;模型芯片下拉选用(设置只登记接入)
+ * [INPUT]: border-beam;icons;ASK_USER_COPY;ImageData;composerAccept;父级传入的输入/附件/运行态/可选模型列表
+ * [OUTPUT]: ComposerCard —— Border Beam 暗玻璃对话输入卡;模型芯片下拉;拖放文件进 pending(与 @ 同源白名单)
  * [POS]: 贴 composer-dock;仅改输入岛,不染暖纸消息流;见 doc/ui-design.md §0
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import { type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react'
+import { useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react'
 import { BorderBeam } from 'border-beam'
 import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
 import { Tooltip } from '@cloudflare/kumo/components/tooltip'
 import type { ImageData } from '../agent-client'
 import { ASK_USER_COPY } from '../appCopy'
+import { COMPOSER_ACCEPT, dragHasFiles, filterComposerFiles } from '../composerAccept'
 import { AtIcon, CheckIcon, ChevronDownIcon, CloseIcon, GearGlyph, PdfIcon, SendIcon } from './icons'
 
 /** composer 芯片可选的一条模型(跨供应商扁平) */
@@ -28,6 +29,7 @@ export function ComposerCard({
   taRef,
   fileRef,
   onPickFiles,
+  onAddFiles,
   onAttachClick,
   attachments,
   onRemoveAttachment,
@@ -54,6 +56,8 @@ export function ComposerCard({
   taRef: RefObject<HTMLTextAreaElement | null>
   fileRef: RefObject<HTMLInputElement | null>
   onPickFiles: (e: ChangeEvent<HTMLInputElement>) => void
+  /** 拖放入库:与 @ 选文件同一条 pendingFiles 路径 */
+  onAddFiles: (files: File[]) => void
   onAttachClick: () => void
   attachments: ImageData[]
   onRemoveAttachment: (index: number) => void
@@ -73,6 +77,42 @@ export function ComposerCard({
   canSend: boolean
 }) {
   const shortModel = shortenModel(modelLabel)
+  const dropBlocked = uploading || pendingAsk
+  const [dragOver, setDragOver] = useState(false)
+  const dragDepth = useRef(0)
+
+  function onDragEnter(e: DragEvent<HTMLFormElement>): void {
+    if (dropBlocked || !dragHasFiles(e.dataTransfer)) return
+    e.preventDefault()
+    e.stopPropagation()
+    dragDepth.current += 1
+    setDragOver(true)
+  }
+
+  function onDragLeave(e: DragEvent<HTMLFormElement>): void {
+    if (!dragHasFiles(e.dataTransfer) && dragDepth.current === 0) return
+    e.preventDefault()
+    e.stopPropagation()
+    dragDepth.current = Math.max(0, dragDepth.current - 1)
+    if (dragDepth.current === 0) setDragOver(false)
+  }
+
+  function onDragOver(e: DragEvent<HTMLFormElement>): void {
+    if (dropBlocked || !dragHasFiles(e.dataTransfer)) return
+    e.preventDefault()
+    e.stopPropagation()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+
+  function onDrop(e: DragEvent<HTMLFormElement>): void {
+    e.preventDefault()
+    e.stopPropagation()
+    dragDepth.current = 0
+    setDragOver(false)
+    if (dropBlocked) return
+    const files = filterComposerFiles(e.dataTransfer.files)
+    if (files.length) onAddFiles(files)
+  }
 
   return (
     <BorderBeam
@@ -86,7 +126,19 @@ export function ComposerCard({
       saturation={1.4}
       duration={2.8}
     >
-      <form className="composer-card" onSubmit={onSubmit}>
+      <form
+        className={`composer-card${dragOver ? ' is-drop-target' : ''}`}
+        onSubmit={onSubmit}
+        onDragEnter={onDragEnter}
+        onDragLeave={onDragLeave}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+      >
+        {dragOver && (
+          <div className="composer-drop-hint" aria-hidden>
+            松手添加文件
+          </div>
+        )}
         <div className="composer-top">
           <Tooltip
             content={uploading ? '上传中…' : '添加文件'}
@@ -137,7 +189,7 @@ export function ComposerCard({
           onChange={(e) => onInputChange(e.target.value)}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
-          placeholder={pendingAsk ? ASK_USER_COPY.waitingHint : '问点什么,或粘贴图片、让它去研究…'}
+          placeholder={pendingAsk ? ASK_USER_COPY.waitingHint : '问点什么,或拖入文件、粘贴图片…'}
           rows={2}
           disabled={pendingAsk}
         />
@@ -220,7 +272,7 @@ export function ComposerCard({
           ref={fileRef}
           type="file"
           multiple
-          accept=".pdf,.md,.txt,.tex,.csv,.json,.html,.png,.jpg,.jpeg,.webp,.gif,.docx,.pptx,.epub"
+          accept={COMPOSER_ACCEPT}
           hidden
           onChange={onPickFiles}
         />

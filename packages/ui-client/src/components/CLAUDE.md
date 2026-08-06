@@ -19,7 +19,7 @@
 - `ProcessRow.tsx` — 可折叠过程块(Kumo Collapsible):左侧 `StatusOrb` 按焦点工具态(`orbStateFromSteps`);完成态 `paused` 仍保留形态差异;与 ThinkingIndicator 的 breathing 分离
 - `PlanCard.tsx` — 复杂任务计划卡(`update_plan`→`kind:'plan'`):标题+k/n+步骤;全完成折叠绿勾;与 ProcessRow 职责分离(见 `doc/plan-card.md`)
 - `AskUserDialog.tsx` — `ask_user` 输入框上方悬浮问询卡(无遮罩);由 `useAgent.pendingAsk` 驱动(见 `doc/ask-user.md`)
-- `ComposerCard.tsx` — 对话输入暗玻璃岛;模型芯片 DropdownMenu 扁平选 ID,「管理模型配置…」才进设置;见 `doc/ui-design.md` §0
+- `ComposerCard.tsx` — 对话输入暗玻璃岛;模型芯片 DropdownMenu;拖放文件进 pending(与 @ 同源白名单);见 `doc/ui-design.md` §0
 - `CollapsibleUserText.tsx` — 用户超长 prompt 默认折叠(>9 行或 >750 字);底渐隐 + 展开/收起;助手消息不折
 - `ThinkingIndicator.tsx` — 模型等待态(尚无过程行/轮间):`StatusOrb` breathing +「思考中」;侧栏 sb-dot 仍脉冲点
 - `Markdown.tsx` — .md 文档与纯文本段渲染:GFM + KaTeX + 代码高亮 + ` ```mermaid ` → MermaidBlock
