@@ -2,7 +2,8 @@
  * [INPUT]: receiver/sanitize;宿主 onSendMessage;collectThemeVars/hostChromeIsDark
  * [OUTPUT]: WidgetFrame —— 沙箱 iframe + 高度同步(策略见 height.ts)
  * [POS]: widget/ 渲染核心;被 AssistantContent 与 HtmlViewer 消费;
- *       暗壳内容岛浅档 + color-scheme:light,防 WKWebView 洗灰
+ *       暗壳内容岛浅档 + color-scheme:light,防 WKWebView 洗灰;
+ *       fillHeight(阅读器)经 THEME.fillHeight 开岛内滚动,对话跟高仍 overflow:hidden
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * 高度铁律见 height.ts:终态可收缩,否则进出阅读器后底部留白。
@@ -83,6 +84,8 @@ export function WidgetFrame({
       type: WIDGET_THEME,
       vars: collectThemeVars(document.documentElement),
       isDark,
+      // 阅读器 fillHeight:岛内 overflow:auto;对话跟高模式保持 hidden
+      fillHeight: Boolean(fillHeight),
     }, '*')
   }
 
@@ -141,7 +144,12 @@ export function WidgetFrame({
       const win = iframeRef.current?.contentWindow
       if (!win || !readyRef.current) return
       // 复用已装内容触发 _h:发一个空 theme 乒乓不如再 finalize 当前码轻
-      win.postMessage({ type: WIDGET_THEME, vars: collectThemeVars(document.documentElement), isDark }, '*')
+      win.postMessage({
+        type: WIDGET_THEME,
+        vars: collectThemeVars(document.documentElement),
+        isDark,
+        fillHeight: Boolean(fillHeight),
+      }, '*')
     })
     ro.observe(body)
     return () => ro.disconnect()
@@ -160,13 +168,12 @@ export function WidgetFrame({
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [widgetCode, isStreaming])
 
-  // 主题变化推送
+  // 主题 / fillHeight 变化推送
   useEffect(() => {
     const iframe = iframeRef.current
     if (!iframe?.contentWindow || !readyRef.current) return
-    const vars = collectThemeVars(document.documentElement)
-    iframe.contentWindow.postMessage({ type: WIDGET_THEME, vars, isDark }, '*')
-  }, [isDark])
+    pushTheme(iframe.contentWindow)
+  }, [isDark, fillHeight])
 
   const style: CSSProperties = fillHeight
     ? { height: '100%', width: '100%' }

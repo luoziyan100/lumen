@@ -11,6 +11,7 @@
 | `core/` | agent 内核:唯一循环 runAgent,只增线程,端口注入,不认识外界 |
 | `adapters/` | ModelPort 实现:Claude / OpenAI 兼容 / 录制-重放 / 重试 |
 | `agents/` | 人格剧本(persona)与 worker 角色定义(roles) |
+| `skills/` | Skills 发现/解析/激活(系统性工作流包;`run_skill` 经 tools 注入) |
 | `client/` | LumenClient:类型化 WS 客户端(Node 22+ 与浏览器通用) |
 | `protocol/` | WS 协议:消息类型 + server(⚠ 与 ui-client 手工同步,见其文档) |
 | `runtime/` | AgentRuntime:把内核/存储/工作区/角色拼成可执行、可订阅、可恢复的任务运行时 |

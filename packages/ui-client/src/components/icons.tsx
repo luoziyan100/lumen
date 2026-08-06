@@ -1,7 +1,7 @@
 /** 图标唯一入口:一律 @phosphor-icons/react(Kumo 同源家族),经此单点 re-export。
  *  规范见 doc/ui-design.md「§3.1 图标规范」:三档尺寸 + weight 全站统一 regular;
  *  禁手写 SVG / 字符凑图标(← › × ＋) / emoji / 绕过本文件直接 import phosphor。 */
-import { Archive, ArrowDown, ArrowUp, ArrowsOut, At, CaretDown, CaretLeft, CaretRight, ChatCircle, Check, Copy, File, FileCode, FileCsv, FileDoc, FileHtml, FileImage, FilePdf, FilePpt, FileText, FileZip, FolderSimple, Gear, MagnifyingGlass, Minus, PencilSimple, Play, Plus, SidebarSimple, Trash, User, X } from '@phosphor-icons/react'
+import { Archive, ArrowDown, ArrowUp, ArrowsOut, At, CaretDown, CaretLeft, CaretRight, ChatCircle, Check, Copy, File, FileCode, FileCsv, FileDoc, FileHtml, FileImage, FilePdf, FilePpt, FileText, FileZip, FolderOpen, FolderSimple, Gear, MagnifyingGlass, Minus, PencilSimple, Play, Plus, SidebarSimple, Trash, User, X } from '@phosphor-icons/react'
 
 // 尺寸三档:行内(列表/标签内) / 按钮内 / 导航按钮
 export const ICON_SM = 16
@@ -36,9 +36,14 @@ export function NewProjectIcon({ size = ICON_MD }: { size?: number }) {
   return <Plus size={size} />
 }
 
-/** 项目行:文件夹图标(Cursor 式侧栏) */
-export function FolderIcon({ size = ICON_MD }: { size?: number }) {
-  return <FolderSimple size={size} />
+/** 项目行:折叠=FolderSimple / 展开=FolderOpen;交叉淡入由 .folder-glyph CSS 驱动(不引 framer) */
+export function FolderIcon({ size = ICON_MD, open = false }: { size?: number; open?: boolean }) {
+  return (
+    <span className={`folder-glyph${open ? ' is-open' : ''}`} style={{ width: size, height: size }} aria-hidden>
+      <span className="folder-glyph-closed"><FolderSimple size={size} /></span>
+      <span className="folder-glyph-open"><FolderOpen size={size} /></span>
+    </span>
+  )
 }
 
 /* 以下两枚为 owner 指定的具体图标(非 phosphor 库内),经此单点收口:

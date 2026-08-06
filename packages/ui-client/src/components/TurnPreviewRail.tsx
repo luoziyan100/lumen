@@ -1,7 +1,7 @@
 /**
  * [INPUT]: turnRail 的 TurnRailItem;宿主 onSelectTurn(滚到锚点)
- * [OUTPUT]: TurnPreviewRail —— 竖轨鱼眼刻度 + 悬停预览卡(CSS,无 motion)
- * [POS]: 对话列左侧浮层;空闲刻度极短(防伸进正文);窄栏/阅读器开时 CSS 隐藏
+ * [OUTPUT]: TurnPreviewRail —— 竖轨圆点(鱼眼缩放) + 悬停预览卡(CSS,无 motion)
+ * [POS]: 对话列左侧浮层;空闲点极小(防抢眼);窄栏/阅读器开时 CSS 隐藏
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useState, type KeyboardEvent } from 'react'
@@ -32,15 +32,15 @@ export function TurnPreviewRail({
 
   function scaleFor(index: number): number {
     if (displayedIndex < 0) {
-      // 空闲:全体极短(对标 Codex),当前轮略醒一点,绝不伸进正文
-      if (activeId && turns[index]?.id === activeId) return 0.42
-      return 0.28
+      // 空闲:全体小圆点;当前轮略大
+      if (activeId && turns[index]?.id === activeId) return 0.72
+      return 0.5
     }
     const d = Math.abs(index - displayedIndex)
     if (d === 0) return 1
-    if (d === 1) return 0.62
-    if (d === 2) return 0.4
-    return 0.28
+    if (d === 1) return 0.78
+    if (d === 2) return 0.62
+    return 0.5
   }
 
   return (
@@ -84,7 +84,7 @@ export function TurnPreviewRail({
               <span
                 aria-hidden="true"
                 className="turn-rail-tick"
-                style={{ transform: `scaleX(${scale})` }}
+                style={{ transform: `scale(${scale})` }}
               />
             </button>
           )

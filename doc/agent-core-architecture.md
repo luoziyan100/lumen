@@ -41,11 +41,30 @@
 ## 工具(tools/)
 
 - **研究**:`extract_pdf`(PDF → 文本,产物进会话 `cache/`)、`search_papers` / `get_citations`(OpenAlex 检索与引文,期刊分级参与排序)、`search_web`、`fetch_url`
-- **环境**:`read_file` / `write_file` / `edit_file` / `list_dir` / `grep` / `glob`(全部限定在工作区内)、`run_code`(沙箱执行)
+- **环境**:`read_file` / `write_file` / `edit_file` / `list_dir` / `grep` / `glob`(全部限定在工作区内)、`run_code`(沙箱执行;可读 Skills 根以跑包内脚本)
 - **记忆**:`read_memory` / `write_memory` —— 项目级跨会话记忆:`memory/` 目录一条事实一个文件 + `MEMORY.md` 索引开局注入系统提示词;对用户完全透明
+- **Skills**:`run_skill` —— 可运行工作流包(`.lumen/skills/<name>/SKILL.md` + 可选 `scripts/`);catalog 开局注入;激活正文回灌线程;脚本经 `run_code`+Seatbelt,**不是**第二套 memory(见下文 Skills 专节)
 - **计划**:`update_plan` —— 复杂任务的结构化进度契约;结果回灌线程并写 `drafts/plan.md`;UI 以 PlanCard 投影(见 `doc/plan-card.md`)
 
 约定:工具结果一律回灌线程;长交付物(报告、笔记)写成工作区文件,对话里只留指针。
+
+### Skills(系统性能力包)
+
+Skill ≠ Memory。Skill 是可**启动**的研究工作流;Memory 是长期事实。
+
+```
+~/.lumen/skills/<name>/           ← 用户全局
+~/.lumen/workspaces/<id>/skills/  ← 与 memory/ 并列
+<source_path>/.lumen/skills/      ← 可进 git 的源码树
+```
+
+优先级:源码树 > 工作区 > 用户。包布局:`SKILL.md` + 可选 `scripts/` / `references/` / `assets/`。
+
+运行:`formatSkillCatalog` → systemPrompt「可运行的 Skills」段 → 模型 `run_skill` → tool_result(`Skill activated` + playbook,`${LUMEN_SKILL_DIR}` 已展开) → 模型用现有工具落地;包内脚本走 `run_code` 同一 Seatbelt(技能根只读放行,写仍限工作区)。
+
+不做(v1):host `` !` ``、skill 特权提权、独立 Skill VM、slash UI、自动扫 `.claude`。
+
+过程稿:`briefs/archive/skills.md`。
 
 ## 运行时(runtime/)
 
@@ -103,6 +122,7 @@ UI 状态是事件流的纯函数:对 durable 子集重放必然得到同一界�
 ~/.lumen/workspaces/<projectId>/
   shared/{papers,docs,notes}/   ← 项目级共享(同项目多会话可读;agent 会话 cwd 下只读挂载 shared/)
   memory/                       ← 跨会话记忆(索引 + 事实文件)
+  skills/                       ← 项目级 Skills 包(与 memory 并列;语义是工作流不是事实)
   sessions/<taskId>/            ← 会话私有 scratch(聊天线程永不跨会话共享)
 ```
 

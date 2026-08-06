@@ -2,7 +2,7 @@
  * [INPUT]: sanitize.ts 的 CDN_WHITELIST;宿主注入的 CSS 变量块
  * [OUTPUT]: buildReceiverSrcdoc —— receiver HTML(供 emit 成 public/ 同源页;勿再当 srcdoc)
  * [POS]: widget/ 沙箱壳 —— CSP + 高度同步 + 链接拦截 + __widgetSendMessage;
- *       主题变量见 themeVars.ts
+ *       主题变量见 themeVars.ts;THEME.fillHeight 切岛内滚动(阅读器)vs hidden(对话跟高)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * 为何不 srcdoc:父页 CSP(script-src 'self')会继承进 srcdoc,掐死本页内联 bootstrap,
@@ -38,7 +38,7 @@ export function buildReceiverSrcdoc(styleBlock: string, isDark: boolean): string
 
   const receiverScript = `(function(){
 var root=document.getElementById('__root');
-var _t=null,_first=true,_lastH=0;
+var _t=null,_first=true,_lastH=0,_fill=false;
 function _h(){
   if(_t)clearTimeout(_t);
   _t=setTimeout(function(){
@@ -50,6 +50,14 @@ function _h(){
 }
 var _ro=new ResizeObserver(_h);
 _ro.observe(root);
+
+/* 对话内:overflow hidden + 宿主跟高;阅读器 fillHeight:钉视口 → 必须在岛内滚动 */
+function setFillScroll(on){
+  _fill=!!on;
+  var r=document.documentElement,b=document.body;
+  r.style.overflow=b.style.overflow=_fill?'auto':'hidden';
+  r.style.height=b.style.height=_fill?'100%':'';
+}
 
 function applyHtml(html){root.innerHTML=html;_h();}
 
@@ -109,6 +117,7 @@ window.addEventListener('message',function(e){
         /* only:禁止 WKWebView/系统暗色把浅档文档自动换皮(丢 inline 颜色) */
         r.style.colorScheme=e.data.isDark?'only dark':'only light';
       }
+      if(typeof e.data.fillHeight==='boolean')setFillScroll(e.data.fillHeight);
       setTimeout(_h,100);
       break;
   }

@@ -1,6 +1,6 @@
 /**
  * [INPUT]: db.ts 的 DB;sanitizeWorkspaceId;node:fs
- * [OUTPUT]: Project / ProjectStore —— 一等项目 CRUD + 重命名/软归档 + 可选源文件夹 + shared/ 播种
+ * [OUTPUT]: Project / ProjectStore —— 一等项目 CRUD + 重命名/软归档 + 可选源文件夹 + shared/memory/skills 播种
  * [POS]: storage/ 项目实体;用户项目 id=p-*;default 为隐形历史桶(UI 不展示为项目,禁归档)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
@@ -29,11 +29,11 @@ function now(): string {
   return new Date().toISOString()
 }
 
-/** 项目工作区目录树:shared + memory + sessions 占位 */
+/** 项目工作区目录树:shared + memory + skills + sessions 占位 */
 export function ensureProjectDirs(workspacesDir: string, projectId: string): void {
   const pid = sanitizeWorkspaceId(projectId)
   const root = path.join(workspacesDir, pid)
-  for (const sub of ['shared/papers', 'shared/docs', 'shared/notes', 'memory', 'sessions']) {
+  for (const sub of ['shared/papers', 'shared/docs', 'shared/notes', 'memory', 'skills', 'sessions']) {
     mkdirSync(path.join(root, sub), { recursive: true })
   }
 }

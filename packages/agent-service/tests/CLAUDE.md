@@ -10,6 +10,6 @@ old_lumen 的教训:50 个绿测试没拦住致命 bug,因为全用替身绕过�
 4. **协议契约**(`service/`):断开→重连→subscribe 回放,事件不丢不重;token 鉴权 4401。
 5. **交叉矩阵**:spawn×resume、cancel/crash×resume、ask_user×cancel、长任务×上下文折叠……特性两两交叉显式钉测试。
 
-目录镜像 src:`adapters/ client/ invariants/ replay/ research/ runtime/ service/ storage/ workspace/`;共享脚手架在 `helpers/`(scripted-model 仅限单元级,禁入端到端)。
+目录镜像 src:`adapters/ client/ invariants/ replay/ research/ runtime/ service/ skills/ storage/ workspace/`;共享脚手架在 `helpers/`(scripted-model 仅限单元级,禁入端到端)。
 
 跑法:`npm test`(node --experimental-strip-types --test)。验收底线:每个里程碑至少一条真实/重放路径的端到端用例。

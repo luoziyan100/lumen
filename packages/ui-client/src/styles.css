@@ -439,7 +439,7 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   outline: none;
 }
 .sb-folder-rename:focus { border-color: var(--ember); }
-/* Cursor:常态文件夹;悬停该行 → 同一槽位换成 chevron */
+/* Cursor:常态文件夹(折叠闭/展开开);悬停该行 → 同一槽位换成 chevron */
 .sb-folder-ic {
   flex: none; position: relative; width: 28px; height: 32px;
   border: none; background: none; padding: 0; cursor: pointer;
@@ -450,10 +450,30 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .sb-folder-ic-chev {
   position: absolute; inset: 0;
   display: inline-flex; align-items: center; justify-content: center;
+  transition: opacity var(--dur-fast) var(--ease-out);
 }
 .sb-folder-ic-chev { opacity: 0; }
 .sb-folder-row:hover .sb-folder-ic-folder { opacity: 0; }
 .sb-folder-row:hover .sb-folder-ic-chev { opacity: 1; }
+/* 闭↔开文件夹:叠层交叉淡入(与 FoldersIcon 同派:CSS 驱动) */
+.folder-glyph {
+  position: relative; display: inline-flex; flex: none;
+}
+.folder-glyph-closed,
+.folder-glyph-open {
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.folder-glyph-open {
+  position: absolute; inset: 0;
+  opacity: 0; transform: translateY(1px) scale(0.92);
+}
+.folder-glyph.is-open .folder-glyph-closed {
+  opacity: 0; transform: translateY(-1px) scale(0.92);
+}
+.folder-glyph.is-open .folder-glyph-open {
+  opacity: 1; transform: none;
+}
 .sb-folder-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sb-folder-plus {
   flex: none; display: inline-flex; align-items: center; justify-content: center;
@@ -820,10 +840,10 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 }
 .jump-latest:active { transform: translateX(-50%) scale(0.96); }
 
-/* 轮次 PreviewRail:空闲极短刻度;悬停才鱼眼拉长 + 预览卡 */
+/* 轮次 PreviewRail:空闲小圆点;悬停鱼眼放大 + 预览卡 */
 .turn-rail {
   --turn-rail-w: 22px;
-  --turn-tick-w: 14px;
+  --turn-tick: 7px;
   position: absolute; left: 6px; top: 50%;
   transform: translateY(-50%);
   z-index: var(--z-sticky);
@@ -840,7 +860,8 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 }
 .turn-rail-nav::-webkit-scrollbar { display: none; }
 .turn-rail-hit {
-  display: flex; align-items: center; width: var(--turn-rail-w); height: 1.5rem;
+  display: flex; align-items: center; justify-content: center;
+  width: var(--turn-rail-w); height: 1.5rem;
   border: none; background: none; padding: 0;
   cursor: pointer; color: var(--ink-faint);
 }
@@ -850,9 +871,10 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   border-radius: var(--radius-sm);
 }
 .turn-rail-tick {
-  display: block; height: 2px; width: var(--turn-tick-w);
-  background: currentColor; border-radius: 1px;
-  transform-origin: left center;
+  display: block;
+  width: var(--turn-tick); height: var(--turn-tick);
+  background: currentColor; border-radius: 50%;
+  transform-origin: center center;
   transition: transform var(--dur-base) var(--ease-out), color var(--dur-fast) var(--ease-out);
 }
 .turn-rail-hit.is-hot { color: var(--ink); }
@@ -1222,7 +1244,7 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 /* ---- 右侧工具轨(持久;卡片浮在暖纸画布上,替代原 toggle 抽屉)---- */
 .rail {
   position: relative;
-  flex: 0 0 var(--rail-w, 320px); min-width: 0;
+  flex: 0 0 var(--rail-w, 280px); min-width: 0;
   margin: var(--s-2);
   display: flex; flex-direction: column; gap: var(--s-3);
   overflow-y: auto;
@@ -1476,7 +1498,15 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .hiddenCanvasElement { position: absolute; top: 0; left: 0; width: 0; height: 0; display: none; }
 
 /* HTML artifact / 对话 widget:网页沙箱 */
-.html-body { padding: 0; height: 100%; }
+/* HTML 阅读器:宿主不滚(iframe 钉满高);滚动在 receiver 岛内(fillHeight→overflow:auto) */
+.html-body {
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 .ws-tag-html { color: var(--ember); border-color: rgba(47, 107, 78, 0.4); }
 
 .assistant-content { display: flex; flex-direction: column; gap: var(--s-3); }
@@ -1487,8 +1517,18 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   background: var(--card);
   overflow: hidden;
 }
-.widget-frame-fill { height: 100%; margin: 0; border: none; border-radius: 0; display: flex; flex-direction: column; }
-.widget-frame-fill .widget-frame-body { flex: 1; min-height: 0; }
+.widget-frame-fill {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+}
+.widget-frame-fill .widget-frame-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.widget-frame-fill .widget-iframe { flex: 1; min-height: 0; height: auto !important; }
 .widget-frame-title {
   padding: 8px 12px;
   font-family: var(--font-sans);

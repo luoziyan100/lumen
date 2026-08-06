@@ -287,7 +287,7 @@ export function Sidebar({
                       aria-label={open ? '折叠' : '展开'}
                       onClick={(e) => onToggleIcon(e, proj.id)}
                     >
-                      <span className="sb-folder-ic-folder" aria-hidden><FolderIcon size={ICON_MD} /></span>
+                      <span className="sb-folder-ic-folder" aria-hidden><FolderIcon size={ICON_MD} open={open} /></span>
                       <span className="sb-folder-ic-chev" aria-hidden><ChevronIcon open={open} /></span>
                     </button>
                     {renaming ? (

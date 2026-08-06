@@ -49,7 +49,7 @@ export function UtilityRail({ assets, onOpen, items, running, onUploadShared }: 
     ? [...items].reverse().find((it): it is ProcessItem => it.kind === 'process' && it.running)
     : undefined
   const [dirOpen, setDirOpen] = useState(true)
-  const { width, handleProps } = useResizable({ edge: 'left', min: 260, max: 480, fallback: 320, storageKey: 'lumen:railWidth' })
+  const { width, handleProps } = useResizable({ edge: 'left', min: 240, max: 480, fallback: 280, storageKey: 'lumen:railWidth.v2' })
   const sharedFileRef = useRef<HTMLInputElement>(null)
   const shared = assets.filter(isShared)
   const session = assets.filter((a) => !isShared(a))

@@ -64,6 +64,8 @@ export interface ToolContext {
   deps: Record<string, unknown>
   /** 当前正在执行的 tool_call id;由 loop 在 run 前注入(ask_user 等挂起工具用) */
   toolCallId?: string
+  /** Seatbelt 额外只读根(skills 目录);run_code 注入 */
+  skillReadRoots?: string[]
 }
 
 export interface Tool {

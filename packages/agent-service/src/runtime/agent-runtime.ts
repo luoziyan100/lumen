@@ -27,6 +27,13 @@ import { FsWorkspace } from '../workspace/fs-workspace.ts'
 import { readdirSync } from 'node:fs'
 import { LUMEN_PERSONA } from '../agents/persona.ts'
 import { createMemoryTools, readMemoryIndex } from '../tools/env/memory-tools.ts'
+import { createSkillTools } from '../tools/env/skill-tools.ts'
+import {
+  buildDiscoverRoots,
+  discoverSkills,
+  formatSkillCatalog,
+  skillReadRoots,
+} from '../skills/index.ts'
 import type { ImageStore } from '../tools/env/image-store.ts'
 import { withImageSanitize } from '../tools/env/vision-tools.ts'
 import type {
@@ -388,22 +395,47 @@ export class AgentRuntime {
 
   private systemPrompt(projectId?: string): string {
     const info = this.cfg.contextInfo?.() ?? { currentDate: new Date().toISOString().slice(0, 10), localPaperCount: 0 }
-    const base = (this.cfg.buildSystemPrompt ?? defaultSystemPrompt)(info)
-    // 工作区"房间地图"已写进 persona L3(静态、稳定)。动态注入暂时关掉:
-    // 裸列文件名既占 context 又会随文件膨胀;以后可让 workspaceDigest 改成注入"非文件名"的信息
-    // (论文标题/摘要、数量统计等)再在此启用。projectId 先留着接口。
-    // 跨会话记忆(CC 范式,owner 拍板 2026-07-15):索引常驻开局,正文按需 read_memory
+    let base = (this.cfg.buildSystemPrompt ?? defaultSystemPrompt)(info)
+    // 跨会话记忆(CC 范式):索引常驻开局,正文按需 read_memory —— 与 Skills 分家
     const memory = projectId ? readMemoryIndex(this.memoryDir(projectId)) : ''
-    if (!memory) return base
-    return base + '\n\n# 跨会话记忆(索引)\n' +
-      '以下是你此前为本项目记下的长期记忆,一行一条。需要正文用 read_memory(文件名);' +
-      '遇到值得长期记住的事实(用户偏好/纠正/项目约定,而非对话内容本身)用 write_memory 记录并同步更新 MEMORY.md。' +
-      '记忆对用户完全可见。\n' + memory
+    if (memory) {
+      base += '\n\n# 跨会话记忆(索引)\n' +
+        '以下是你此前为本项目记下的长期记忆,一行一条。需要正文用 read_memory(文件名);' +
+        '遇到值得长期记住的事实(用户偏好/纠正/项目约定,而非对话内容本身)用 write_memory 记录并同步更新 MEMORY.md。' +
+        '记忆对用户完全可见。\n' + memory
+    }
+    // 可运行 Skills:catalog 常驻,正文按需 run_skill —— 不是记忆
+    if (projectId) {
+      const catalog = formatSkillCatalog(this.skillsForProject(projectId))
+      if (catalog) base += '\n\n' + catalog
+    }
+    return base
   }
 
   /** 项目级记忆目录(跨会话):workspaces/<project>/memory */
   private memoryDir(projectId: string): string {
     return this.cfg.workspacesDir + '/' + sanitizeWorkspaceId(projectId) + '/memory'
+  }
+
+  private skillsForProject(projectId: string) {
+    const pid = sanitizeWorkspaceId(projectId)
+    const source = this.cfg.projects?.getProject(pid)?.source_path
+    const roots = buildDiscoverRoots({
+      workspacesDir: this.cfg.workspacesDir,
+      projectId: pid,
+      sourcePath: source,
+    })
+    return discoverSkills(roots)
+  }
+
+  private skillReadRootsForProject(projectId: string): string[] {
+    const pid = sanitizeWorkspaceId(projectId)
+    const source = this.cfg.projects?.getProject(pid)?.source_path
+    return skillReadRoots(buildDiscoverRoots({
+      workspacesDir: this.cfg.workspacesDir,
+      projectId: pid,
+      sourcePath: source,
+    }))
   }
 
   /** [暂未启用,保留待改造] 原本列工作区文件清单注入 systemPrompt;现"房间地图"已进 persona L3。
@@ -527,6 +559,7 @@ export class AgentRuntime {
       spawn,
       emit,
       workspace,
+      skillReadRoots: this.skillReadRootsForProject(task.project_id),
       deps: {
         model,
         imageStore: this.cfg.imageBridge?.store,
@@ -534,7 +567,8 @@ export class AgentRuntime {
       },
     }
     const memoryTools = createMemoryTools(this.memoryDir(task.project_id)) // 跨会话记忆:仅主 agent,worker 不带
-    const mains = [...this.cfg.mainTools, ...memoryTools]
+    const skillTools = createSkillTools(this.skillsForProject(task.project_id))
+    const mains = [...this.cfg.mainTools, ...memoryTools, ...skillTools]
     const baseTools = this.cfg.roles && Object.keys(this.cfg.roles).length ? [...mains, spawnTool] : mains
     // 大结果落盘(方案 B):启用预算时,超限工具输出全文进会话 cache/tool-results/,上下文只留预览+路径
     const tools = this.cfg.contextBudget?.window

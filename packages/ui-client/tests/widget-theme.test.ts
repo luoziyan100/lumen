@@ -6,6 +6,7 @@
  */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { collectThemeVars, hostChromeIsDark, LIGHT_DOC_VARS } from '../src/components/widget/themeVars.ts'
 
 function withComputedStyle(impl: (el: Element) => Partial<CSSStyleDeclaration>, run: () => void) {
@@ -56,5 +57,19 @@ describe('widget theme under dark chrome', () => {
       assert.notEqual(vars['--color-text-primary'], '#E8EAEE')
       assert.equal(vars['--color-background-primary'], '#fffeff')
     })
+  })
+})
+
+describe('receiver fillHeight 滚动契约', () => {
+  it('默认 overflow:hidden;脚本含 fillHeight → setFillScroll', () => {
+    // 读源模板(避免 node 直引 receiver→sanitize 无扩展名)
+    const src = readFileSync(
+      new URL('../src/components/widget/receiver.ts', import.meta.url),
+      'utf8',
+    )
+    assert.match(src, /html,body\{[^}]*overflow:hidden/)
+    assert.match(src, /fillHeight/)
+    assert.match(src, /setFillScroll/)
+    assert.match(src, /overflow=.*auto/)
   })
 })

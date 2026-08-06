@@ -7,11 +7,11 @@
 - `Sidebar.tsx` — Cursor 式:项目区仅 `p-*`;双指点按项目→重命名/归档、会话→复制 ID/归档;点 + 才出临时「新建对话」;「最近」平铺;标题用 MarqueeTitle
 - `MarqueeTitle.tsx` — 会话标题溢出悬停跑马灯;≤72 字;探针测宽→`--sb-marquee-shift`;`.is-hot` 开滚;须在 Trigger 的显式 `button.sb-item` 内
 - `turnRail.ts` — `buildTurnRailItems`:ChatItem→用户轮次(一问+随后助手答);过程行不占刻度
-- `TurnPreviewRail.tsx` — 对话列左侧轮次轨(≥4 轮);空闲极短刻度、悬停鱼眼+预览;窄栏/阅读器开时隐藏;点刻度滚到 `msg-<id>`
+- `TurnPreviewRail.tsx` — 对话列左侧轮次轨(≥4 轮);空闲小圆点、悬停鱼眼放大+预览;窄栏/阅读器开时隐藏;点圆点滚到 `msg-<id>`
 - `CreateProjectModal.tsx` — 创建项目悬浮卡(无遮罩):名称 + 可选本机源文件夹(Tauri pick / 粘贴路径)
 - `SearchModal.tsx` — 会话搜索(⌘K):Kumo CommandPalette,内部过滤,↑↓/↵ 键盘导航
 - `SettingsModal.tsx` — 设置:供应商接入目录(卡内多模型 ID;列表自滚动;悬停启用/删除)/系统提示词/LaunchAgent;选用权在 composer 芯片
-- `UtilityRail.tsx` — 右轨:进度 + 工作目录(共享区 / 本会话,按 Asset.scope);可上传到共享区;左缘拖拽调宽
+- `UtilityRail.tsx` — 右轨:进度 + 工作目录(共享区 / 本会话);默认宽 ~280;左缘拖拽调宽(双击复位)
 - `ReaderPane.tsx` — 右分屏阅读器:doc 衬线正文 / PDF / HTML 沙箱
 - `PdfViewer.tsx` — pdf.js 竖向连续滚动渲染(锁 4.10.38)
 - `HtmlViewer.tsx` — 工作区 HTML 预览:复用 `widget/WidgetFrame`(allow-scripts + CSP,无 same-origin)
@@ -26,7 +26,7 @@
 - `MermaidBlock.tsx` — mermaid.js 动态加载;securityLevel=strict;主题读青瓷 token;悬停工具条放大/复制源码;失败回退源码
 - `widget/` — 对话网页沙箱(`show-widget` 围栏 → iframe);见 `widget/CLAUDE.md`
 - `hljs-celadon.css` — highlight.js 青瓷主题:消费 tokens.css 的 --code-* 语法色板
-- `icons.tsx` — **图标唯一入口**:re-export @phosphor-icons/react(Kumo 同源家族)并统一缺省尺寸;组件不得绕过它直接 import phosphor;不用 emoji
+- `icons.tsx` — **图标唯一入口**:re-export @phosphor-icons/react(Kumo 同源家族)并统一缺省尺寸;组件不得绕过它直接 import phosphor;不用 emoji;`FolderIcon` 接受 `open` → FolderSimple/FolderOpen 交叉淡入(侧栏项目展开态)
 
 ## 规则
 

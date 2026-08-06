@@ -25,8 +25,8 @@ export const runCodeTool: Tool = {
   spec: {
     name: 'run_code',
     description:
-      '在本会话的沙箱工作区里执行一段代码(node 或 python)。工作目录=工作区根,只能读写工作区内文件;' +
-      '无网络;默认 60 秒超时。适合:数据处理、格式转换、批量读写工作区文件、验证一段算法。' +
+      '在本会话的沙箱工作区里执行一段代码(node 或 python)。工作目录=工作区根,只能写工作区内文件;' +
+      '可读已放行的 Skills 目录(跑包内 scripts);无网络;默认 60 秒超时。适合:数据处理、格式转换、批量读写工作区文件、验证一段算法、执行 Skill 脚本。' +
       '需要联网取数据时改用检索/抓取工具,再用 run_code 处理落盘文件。',
     parameters: {
       type: 'object',
@@ -61,7 +61,9 @@ export const runCodeTool: Tool = {
     }
 
     const runtimeCmd = language === 'python' ? 'python3' : process.execPath
-    const { cmd, args: fullArgs, sandboxed } = sandboxedCommand(runtimeCmd, [script], cwd)
+    const { cmd, args: fullArgs, sandboxed } = sandboxedCommand(runtimeCmd, [script], cwd, {
+      skillReadRoots: ctx.skillReadRoots,
+    })
 
     return await new Promise<ToolResult>((resolve) => {
       const child = spawn(cmd, fullArgs, {

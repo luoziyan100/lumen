@@ -11,7 +11,8 @@
   makeWorkspace 挂载 sharedRoot;durable 事件写 task_events 并推订阅者;resume 只回放 main 线程;
   ephemeral(`text_delta`/`tool_call_start`)只 notify(seq=-1),UI 靠 model_step 定稿可重放复原;
   可选 imageBridge:DeepSeek 等 chat 前去图插桩,look_at_image 读同一 ImageStore;
-  pendingAsk 按 taskId+toolCallId 挂起 ask_user(见 `doc/ask-user.md`)
+  pendingAsk 按 taskId+toolCallId 挂起 ask_user(见 `doc/ask-user.md`);
+  Skills:catalog 注入 systemPrompt + `run_skill` / skillReadRoots 进 Seatbelt(见 `doc/agent-core-architecture.md` Skills 专节)
 
 ## 规则
 
