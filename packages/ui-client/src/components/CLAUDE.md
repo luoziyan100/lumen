@@ -4,8 +4,8 @@
 
 ## 成员
 
-- `Sidebar.tsx` — Cursor 式:项目区仅 `p-*`;双指点按项目→重命名/归档、会话→复制 ID/归档;点 + 才出临时「新建对话」;「最近」平铺;标题用 MarqueeTitle
-- `MarqueeTitle.tsx` — 会话标题溢出悬停跑马灯;≤72 字;探针测宽→`--sb-marquee-shift`;`.is-hot` 开滚;须在 Trigger 的显式 `button.sb-item` 内
+- `Sidebar.tsx` — Cursor 式:项目区仅 `p-*`;双指点按项目→重命名/归档、会话→重命名/复制 ID/归档;点 + 才出临时「新建对话」;「最近」平铺;标题用 MarqueeTitle;行内重命名写 `title`(≠ goal)
+- `MarqueeTitle.tsx` — 溢出悬停无缝单向走马灯:双份文案 + track `translateX(-50%)`;闲置 ellipsis;禁 alternate/瞬切
 - `turnRail.ts` — `buildTurnRailItems`:ChatItem→用户轮次(一问+随后助手答);过程行不占刻度
 - `TurnPreviewRail.tsx` — 对话列左侧轮次轨(≥4 轮);空闲小圆点、悬停鱼眼放大+预览;窄栏/阅读器开时隐藏;点圆点滚到 `msg-<id>`
 - `CreateProjectModal.tsx` — 创建项目悬浮卡(无遮罩):名称 + 可选本机源文件夹(Tauri pick / 粘贴路径)

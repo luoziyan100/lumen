@@ -21,6 +21,8 @@
 | `scripts/check-theme-celadon.mjs` | 主题覆盖校验(`npm run check:theme`);升级 kumo 后必跑 |
 | `composerAccept.ts` | 附件宽准入(`filterComposerFiles`);扩展名不挡门,落盘分类在 service `saveUpload` |
 | `skillSlash.ts` | composer `/token` 解析(`parseSlashFilter`) |
+| `marqueeDuration.ts` | 侧栏跑马灯恒定 px/s 时长 |
+| `displayTaskTitle.ts` | 侧栏/搜索展示名:`title ?? goal` |
 | `pickSkillPath.ts` | Tauri 选 Skill 文件夹 / SKILL.md |
 | `appCopy.ts` / `settingsCopy.ts` / `greeting.ts` | 文案与问候(简体中文,不用 emoji);含 `SKILLS_COPY` |
 | `msgFold.ts` | 用户气泡折叠阈值(9 行 / 750 字);供 CollapsibleUserText 与测试 |

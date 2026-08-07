@@ -439,6 +439,15 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   outline: none;
 }
 .sb-folder-rename:focus { border-color: var(--ember); }
+.sb-item-rename {
+  flex: 1; min-width: 0; height: 26px; margin: 3px 6px; padding: 0 6px;
+  border: 1px solid var(--sand-deep); border-radius: var(--radius-sm);
+  background: var(--paper); color: var(--ink); font: inherit; font-size: var(--t-body-sm);
+  outline: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.sb-item-rename:focus { border-color: var(--ember); }
 /* Cursor:常态文件夹(折叠闭/展开开);悬停该行 → 同一槽位换成 chevron */
 .sb-folder-ic {
   flex: none; position: relative; width: 28px; height: 32px;
@@ -520,6 +529,13 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   /* 压住 Kumo bg-kumo-overlay */
   background: color-mix(in srgb, var(--card) 72%, transparent) !important;
   color: var(--ink);
+}
+.sb-task-menu [data-slot="separator"],
+.sb-task-menu [role="separator"] {
+  margin: 4px 0;
+  height: 1px;
+  background: color-mix(in srgb, var(--sand-deep) 70%, transparent);
+  border: none;
 }
 .sb-task-menu-copied {
   display: inline-flex; align-items: center; gap: 6px;
@@ -686,12 +702,12 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .sb-item.is-active { background: var(--vellum); color: var(--ink); }
 .sb-item-title { flex: 1; min-width: 0; }
 /*
- * 会话标题溢出跑马灯(第一性原理):
+ * 会话标题溢出跑马灯(第一性原理 · 业界双份无缝轨):
  * 1) 槽必须有确定窄宽(button.sb-item 为 flex 子项 + min-width:0)
- * 2) Kumo Trigger 若只有一个子节点会把它提升为 render——闲置会话无 sb-dot 时
- *    MarqueeTitle 被提升,button/槽宽链断裂。Sidebar 必须 render=<button class="sb-item"/>.
- * 3) 位移用 JS 测得的 px(--sb-marquee-shift);开滚靠 .is-overflow.is-hot(指针进槽),
- *    不赌祖先 :hover / keyframes 内 cqi 的时序。
+ * 2) Kumo Trigger 单子提升坑:Sidebar 必须 render=<button class="sb-item"/>
+ * 3) 闲置:单行 ellipsis;热态:两段相同文案首尾相接,track translateX(0→-50%)
+ *    循环时第二段正好落在第一段起点 → 接缝不可见。禁止 alternate / 禁止瞬切回 0。
+ * 4) 时长 = (一段宽含 gap) / px/s,与 cycle 同构。
  */
 .sb-marquee {
   display: block; flex: 1; min-width: 0; overflow: hidden;
@@ -702,24 +718,26 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   vertical-align: bottom;
 }
-.sb-marquee.is-overflow.is-hot .sb-marquee-text,
-.sb-item-row.is-menu-open .sb-marquee.is-overflow .sb-marquee-text {
-  max-width: none;
-  overflow: visible;
-  text-overflow: clip;
-  animation: sb-marquee var(--sb-marquee-dur, 5s) linear infinite;
+.sb-marquee-track {
+  display: flex;
+  width: max-content;
+  will-change: transform;
+}
+.sb-marquee-seg {
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding-right: 32px; /* = MARQUEE_GAP_PX */
+}
+.sb-marquee.is-overflow.is-hot .sb-marquee-track {
+  animation: sb-marquee var(--sb-marquee-dur, 8s) linear infinite;
 }
 @keyframes sb-marquee {
-  0%, 5% { transform: translateX(0); }
-  90%, 100% { transform: translateX(calc(-1 * var(--sb-marquee-shift, 0px))); }
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .sb-marquee.is-overflow.is-hot .sb-marquee-text,
-  .sb-item-row.is-menu-open .sb-marquee.is-overflow .sb-marquee-text {
+  .sb-marquee.is-overflow.is-hot .sb-marquee-track {
     animation: none;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 }
 .sb-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ember); flex: none; animation: proc-pulse 1.2s ease-in-out infinite; }

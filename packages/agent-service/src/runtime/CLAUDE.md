@@ -7,13 +7,15 @@
 
 ## 成员
 
-- `agent-runtime.ts` — 任务生命周期:submit/continue/cancel/answerUser;listProjects/createProject/renameProject/archiveProject;listAssets(无 taskId 仅 shared;有 taskId=shared+session);
+- `agent-runtime.ts` — 任务生命周期:submit/continue/cancel/answerUser/renameTaskTitle;listProjects/createProject/renameProject/archiveProject;listAssets(无 taskId 仅 shared;有 taskId=shared+session);
   makeWorkspace 挂载 sharedRoot;durable 事件写 task_events 并推订阅者;resume 只回放 main 线程;
   ephemeral(`text_delta`/`tool_call_start`)只 notify(seq=-1),UI 靠 model_step 定稿可重放复原;
   可选 imageBridge:DeepSeek 等 chat 前去图插桩,look_at_image 读同一 ImageStore;
   pendingAsk 按 taskId+toolCallId 挂起 ask_user(见 `doc/ask-user.md`);
   Skills:catalog 注入 systemPrompt + `run_skill` / skillReadRoots 进 Seatbelt;`listSkills`/`installSkill`/`uninstallSkill`/`activateSkillOnTask`(见 `doc/agent-core-architecture.md` Skills 专节);
-  `saveUpload` 宽准入按表示归位:pdf→papers/ 文本与源码→docs/ 图→images/ 其余 opaque→uploads/
+  `saveUpload` 宽准入按表示归位:pdf→papers/ 文本与源码→docs/ 图→images/ 其余 opaque→uploads/;
+  侧栏 `title`:非空 reply / done 兜底异步生成 + list 懒补;`onTaskUpdated` → WS `task_updated`
+- `task-title.ts` — 抽摘 user/非空 assistant、清洗短标题、shouldBackfillTitle
 
 ## 规则
 

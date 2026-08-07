@@ -5,6 +5,7 @@
 import { useMemo, useState } from 'react'
 import { CommandPalette } from '@cloudflare/kumo/components/command-palette'
 import type { Task } from '../agent-client'
+import { displayTaskTitle } from '../displayTaskTitle'
 
 interface ConvItem { id: string; title: string; task: Task }
 interface ConvGroup { id: string; label: string; items: ConvItem[] }
@@ -19,11 +20,16 @@ export function SearchModal({ open, onOpenChange, conversations, onSelect }: {
 
   const groups = useMemo<ConvGroup[]>(() => {
     const q = query.trim().toLowerCase()
-    const shown = q ? conversations.filter((t) => t.goal.toLowerCase().includes(q)) : conversations
+    const shown = q
+      ? conversations.filter((t) => {
+        const title = displayTaskTitle(t).toLowerCase()
+        return title.includes(q) || t.goal.toLowerCase().includes(q)
+      })
+      : conversations
     return [{
       id: 'conversations',
       label: '会话',
-      items: shown.map((t) => ({ id: t.id, title: t.goal, task: t })),
+      items: shown.map((t) => ({ id: t.id, title: displayTaskTitle(t), task: t })),
     }]
   }, [conversations, query])
 

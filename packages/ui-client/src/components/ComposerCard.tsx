@@ -275,7 +275,7 @@ export function ComposerCard({
           onChange={(e) => onInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onPaste={onPaste}
-          placeholder={pendingAsk ? ASK_USER_COPY.waitingHint : '问点什么,/ 唤起 Skills,或拖入文件…'}
+          placeholder={pendingAsk ? ASK_USER_COPY.waitingHint : '问点什么…'}
           rows={2}
           disabled={pendingAsk}
         />

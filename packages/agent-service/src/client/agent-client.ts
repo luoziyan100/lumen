@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 协议消息类型、全局 WebSocket（Node 22+ 与浏览器都内置）
- * [OUTPUT]: LumenClient —— 连接 agent-service 的类型化 WS 客户端(含 Skills list/install/uninstall/activate)
+ * [OUTPUT]: LumenClient —— 连接 agent-service 的类型化 WS 客户端(含 renameTask/Skills list/install/uninstall/activate)
  * [POS]: §4 agent↔UI 协议的客户端侧。ui-client 浏览器副本在 packages/ui-client(手工同步);
  *        本文件供 Node 无头测试。断线重连后对已知任务 subscribe(afterSeq) 拉齐。
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md;改消息格式须同步 ui-client agent-client
@@ -81,6 +81,11 @@ export class LumenClient {
 
   archiveTask(taskId: string): void {
     this.send({ type: 'archive_task', taskId })
+  }
+
+  /** 人手改侧栏标题(写 title,不动 goal) */
+  renameTask(taskId: string, title: string): void {
+    this.send({ type: 'rename_task', taskId, title })
   }
 
   /** 解开挂起的 ask_user */

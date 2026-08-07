@@ -30,12 +30,14 @@ export const SIDEBAR_PROJECT_COPY = {
   newProject: '新建项目',
   namePlaceholder: '项目名称',
   /** 次要点击(触控板双指点按 / 鼠标右键)后露出 */
+  renameChat: '重命名',
   copySessionId: '复制会话 ID',
   copiedSessionId: '已复制会话 ID',
   archiveChat: '归档对话',
   renameProject: '重命名',
   archiveProject: '归档项目',
   renamePlaceholder: '项目名称',
+  renameChatPlaceholder: '会话名称',
 } as const
 
 export const CREATE_PROJECT_COPY = {

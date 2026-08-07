@@ -1,12 +1,13 @@
 /**
  * [INPUT]: Project / Task;icons;SIDEBAR_*_COPY;useResizable;Kumo DropdownMenu;MarqueeTitle
- * [OUTPUT]: Sidebar —— 项目树 + 最近;双指点按:会话复制/归档、项目重命名/归档;标题溢出悬停跑马灯
- * [POS]: 左栏;Trigger 必须 render=<button>(防首子被提升);会话名 hover marquee
+ * [OUTPUT]: Sidebar —— 项目树 + 最近;双指点按:会话重命名/复制/归档、项目重命名/归档;标题溢出悬停跑马灯
+ * [POS]: 左栏;Trigger 必须 render=<button>(防首子被提升);会话名 hover marquee;行内重命名写 title≠goal
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
 import type { Project, Task } from '../agent-client'
+import { displayTaskTitle } from '../displayTaskTitle'
 import {
   AccountIcon, ArchiveGlyph, ChatIcon, CheckIcon, ChevronIcon, CopyGlyph, FolderIcon, GearIcon,
   NewProjectIcon, PlusIcon, RenameGlyph, SearchIcon, ICON_MD, ICON_SM,
@@ -30,6 +31,10 @@ async function copyText(text: string): Promise<void> {
   }
 }
 
+type RenameTarget =
+  | { kind: 'project'; id: string }
+  | { kind: 'task'; id: string }
+
 interface SidebarProps {
   connected: boolean
   /** 仅用户显式创建的项目(p-*),不含 default/孤儿桶 */
@@ -48,6 +53,7 @@ interface SidebarProps {
   onSelect: (task: Task) => void
   onSelectProject: (projectId: string) => void
   onArchive: (task: Task) => void
+  onRenameTask: (task: Task, title: string) => Promise<void> | void
   onRenameProject: (project: Project, name: string) => Promise<void> | void
   onArchiveProject: (project: Project) => void
   onSettings: () => void
@@ -72,6 +78,7 @@ export function Sidebar({
   onSelect,
   onSelectProject,
   onArchive,
+  onRenameTask,
   onRenameProject,
   onArchiveProject,
   onSettings,
@@ -85,18 +92,18 @@ export function Sidebar({
   const [menuTaskId, setMenuTaskId] = useState<string | null>(null)
   /** 项目行双指菜单 */
   const [menuProjectId, setMenuProjectId] = useState<string | null>(null)
-  /** 行内重命名中的项目 */
-  const [renamingId, setRenamingId] = useState<string | null>(null)
+  /** 行内重命名中的项目或会话 */
+  const [renaming, setRenaming] = useState<RenameTarget | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
   const renameRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (!renamingId) return
+    if (!renaming) return
     const el = renameRef.current
     if (!el) return
     el.focus()
     el.select()
-  }, [renamingId])
+  }, [renaming])
 
   async function onCopySessionId(taskId: string): Promise<void> {
     await copyText(taskId)
@@ -109,27 +116,50 @@ export function Sidebar({
     setMenuProjectId(null)
   }
 
-  function beginRename(proj: Project): void {
+  function beginRenameProject(proj: Project): void {
     closeMenus()
-    setRenamingId(proj.id)
+    setRenaming({ kind: 'project', id: proj.id })
     setRenameDraft(proj.name)
   }
 
-  async function commitRename(proj: Project): Promise<void> {
+  function beginRenameTask(task: Task): void {
+    closeMenus()
+    setRenaming({ kind: 'task', id: task.id })
+    setRenameDraft(displayTaskTitle(task))
+  }
+
+  async function commitRenameProject(proj: Project): Promise<void> {
     const next = renameDraft.trim()
-    setRenamingId(null)
+    setRenaming(null)
     if (!next || next === proj.name) return
     await onRenameProject(proj, next)
   }
 
-  function cancelRename(): void {
-    setRenamingId(null)
+  async function commitRenameTask(task: Task): Promise<void> {
+    const next = renameDraft.trim()
+    setRenaming(null)
+    if (!next || next === displayTaskTitle(task)) return
+    await onRenameTask(task, next)
   }
 
-  function onRenameKey(e: KeyboardEvent<HTMLInputElement>, proj: Project): void {
+  function cancelRename(): void {
+    setRenaming(null)
+  }
+
+  function onRenameProjectKey(e: KeyboardEvent<HTMLInputElement>, proj: Project): void {
     if (e.key === 'Enter') {
       e.preventDefault()
-      void commitRename(proj)
+      void commitRenameProject(proj)
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      cancelRename()
+    }
+  }
+
+  function onRenameTaskKey(e: KeyboardEvent<HTMLInputElement>, task: Task): void {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      void commitRenameTask(task)
     } else if (e.key === 'Escape') {
       e.preventDefault()
       cancelRename()
@@ -139,6 +169,28 @@ export function Sidebar({
   function renderTaskRow(task: Task, flat?: boolean) {
     const copied = copiedId === task.id
     const menuOpen = menuTaskId === task.id
+    const renamingThis = renaming?.kind === 'task' && renaming.id === task.id
+    if (renamingThis) {
+      return (
+        <div
+          key={task.id}
+          className={`sb-item-row${flat ? ' sb-item-flat' : ''}${task.id === activeTaskId ? ' is-active' : ''}`}
+          data-task-row={task.id}
+        >
+          <input
+            ref={renameRef}
+            className="sb-item-rename"
+            value={renameDraft}
+            maxLength={40}
+            aria-label={SIDEBAR_PROJECT_COPY.renameChat}
+            placeholder={SIDEBAR_PROJECT_COPY.renameChatPlaceholder}
+            onChange={(e) => setRenameDraft(e.target.value)}
+            onKeyDown={(e) => onRenameTaskKey(e, task)}
+            onBlur={() => { void commitRenameTask(task) }}
+          />
+        </div>
+      )
+    }
     return (
       <div
         key={task.id}
@@ -161,7 +213,7 @@ export function Sidebar({
               onSelect(task)
             }}
             onContextMenu={(e) => {
-              // 双指点按 / 右键:挡系统菜单,开我们的复制/归档
+              // 双指点按 / 右键:挡系统菜单,开我们的重命名/复制/归档
               e.preventDefault()
               e.stopPropagation()
               window.getSelection()?.removeAllRanges()
@@ -169,10 +221,16 @@ export function Sidebar({
               setMenuTaskId(task.id)
             }}
           >
-            <MarqueeTitle text={task.goal} className="sb-item-title" />
+            <MarqueeTitle text={displayTaskTitle(task)} className="sb-item-title" forceRoll={menuOpen} />
             {task.status === 'running' && <span className="sb-dot" />}
           </DropdownMenu.Trigger>
           <DropdownMenu.Content align="start" side="bottom" sideOffset={4} className="sb-task-menu glass-card">
+            <DropdownMenu.Item
+              icon={RenameGlyph}
+              onClick={() => beginRenameTask(task)}
+            >
+              {SIDEBAR_PROJECT_COPY.renameChat}
+            </DropdownMenu.Item>
             <DropdownMenu.Item
               icon={copied ? undefined : CopyGlyph}
               onClick={() => { void onCopySessionId(task.id) }}
@@ -183,6 +241,7 @@ export function Sidebar({
                 SIDEBAR_PROJECT_COPY.copySessionId
               )}
             </DropdownMenu.Item>
+            <DropdownMenu.Separator />
             <DropdownMenu.Item
               icon={ArchiveGlyph}
               variant="danger"
@@ -221,7 +280,7 @@ export function Sidebar({
 
   function onProjectRowClick(p: Project): void {
     closeMenus()
-    if (renamingId) return
+    if (renaming) return
     onSelectProject(p.id)
     if (!expanded.has(p.id)) toggle(p.id)
   }
@@ -276,7 +335,7 @@ export function Sidebar({
               const label = projectLabel(proj)
               const showSess = open && (hasDraft || tasks.length > 0)
               const menuOpen = menuProjectId === proj.id
-              const renaming = renamingId === proj.id
+              const renamingThis = renaming?.kind === 'project' && renaming.id === proj.id
               return (
                 <div key={proj.id} className={`sb-folder ${active ? 'is-active-proj' : ''}`}>
                   <div className={`sb-folder-row${menuOpen ? ' is-menu-open' : ''}`}>
@@ -290,7 +349,7 @@ export function Sidebar({
                       <span className="sb-folder-ic-folder" aria-hidden><FolderIcon size={ICON_MD} open={open} /></span>
                       <span className="sb-folder-ic-chev" aria-hidden><ChevronIcon open={open} /></span>
                     </button>
-                    {renaming ? (
+                    {renamingThis ? (
                       <input
                         ref={renameRef}
                         className="sb-folder-rename"
@@ -299,8 +358,8 @@ export function Sidebar({
                         aria-label={SIDEBAR_PROJECT_COPY.renameProject}
                         placeholder={SIDEBAR_PROJECT_COPY.renamePlaceholder}
                         onChange={(e) => setRenameDraft(e.target.value)}
-                        onKeyDown={(e) => onRenameKey(e, proj)}
-                        onBlur={() => { void commitRename(proj) }}
+                        onKeyDown={(e) => onRenameProjectKey(e, proj)}
+                        onBlur={() => { void commitRenameProject(proj) }}
                       />
                     ) : (
                       <DropdownMenu
@@ -329,7 +388,7 @@ export function Sidebar({
                         <DropdownMenu.Content align="start" side="bottom" sideOffset={4} className="sb-task-menu glass-card">
                           <DropdownMenu.Item
                             icon={RenameGlyph}
-                            onClick={() => beginRename(proj)}
+                            onClick={() => beginRenameProject(proj)}
                           >
                             {SIDEBAR_PROJECT_COPY.renameProject}
                           </DropdownMenu.Item>
@@ -351,7 +410,7 @@ export function Sidebar({
                       className="sb-folder-plus"
                       title={SIDEBAR_PROJECT_COPY.newChatInProject}
                       aria-label={SIDEBAR_PROJECT_COPY.newChatInProject}
-                      disabled={!connected || renaming}
+                      disabled={!connected || renamingThis}
                       onClick={(e) => onPlus(e, proj.id)}
                     >
                       <PlusIcon size={14} />

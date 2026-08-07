@@ -2,7 +2,7 @@
 
 > [PROTOCOL] 成员或职责变更时:先更新本文档,再动代码;**改任何消息格式,必须同步下方「同步债」两处并跑 ws 契约测试**。
 
-职责:agent-service 与 UI 之间的单 WebSocket 协议:UI 发 submit/continue/subscribe/cancel/archive_task/answer_user/list/list_projects/create_project/rename_project/archive_project/`list_skills`/`install_skill`/`uninstall_skill`/`activate_skill`/设置类消息,service 推事件流(event/tasks/projects/project_created/project_updated/assets/skills/settings/ok/error)。事件流是 task_events 的实时投影;断线靠 subscribe 回放拉齐。`answer_user` 解开 `ask_user` 挂起(见 `doc/ask-user.md`)。`activate_skill` 与 `run_skill` 同构回灌 playbook 后续跑。
+职责:agent-service 与 UI 之间的单 WebSocket 协议:UI 发 submit/continue/subscribe/cancel/archive_task/rename_task/answer_user/list/list_projects/create_project/rename_project/archive_project/`list_skills`/`install_skill`/`uninstall_skill`/`activate_skill`/设置类消息,service 推事件流(event/tasks/projects/project_created/project_updated/task_updated/assets/skills/settings/ok/error)。事件流是 task_events 的实时投影;断线靠 subscribe 回放拉齐。`answer_user` 解开 `ask_user` 挂起(见 `doc/ask-user.md`)。`activate_skill` 与 `run_skill` 同构回灌 playbook 后续跑。`rename_task` / 自动生成均只写侧栏 `title`(≠ goal);`task_updated` 推侧栏刷新。
 
 ## 成员
 

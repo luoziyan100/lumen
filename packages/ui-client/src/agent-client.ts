@@ -1,9 +1,9 @@
 /**
  * [INPUT]: agent-service WS/HTTP 协议(messages 真源的浏览器侧内联副本);
  *          运行时读 window.__LUMEN_WS__/__LUMEN_TOKEN__(Tauri 注入,可晚于首屏)
- * [OUTPUT]: AgentClient —— connect/submit/continue/archiveTask/answerUser/listProjects/…/listSkills/installSkill/uninstallSkill/activateSkill/设置与资产
+ * [OUTPUT]: AgentClient —— connect/submit/continue/archiveTask/renameTask/answerUser/listProjects/…/listSkills/installSkill/uninstallSkill/activateSkill/设置与资产
  * [POS]: UI 唯一出站口;connect 每次解析端点并把 localhost→127.0.0.1(防 IPv6 假死);
- *        send 在 WS 非 OPEN 时必须失败,continue/archive/answer_user/rename·archive_project/Skills 等 ok/error 回执
+ *        send 在 WS 非 OPEN 时必须失败,continue/archive/rename_task/answer_user/rename·archive_project/Skills 等 ok/error 回执
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md;改消息格式须三处同步
  */
 
@@ -28,6 +28,8 @@ export interface Task {
   id: string
   project_id: string
   goal: string
+  /** 侧栏短名;缺省则 UI 用 goal */
+  title?: string | null
   status: string
   created_at?: string
 }
@@ -119,6 +121,7 @@ type ServerMessage =
   | { type: 'projects'; projects: Project[] }
   | { type: 'project_created'; project: Project }
   | { type: 'project_updated'; project: Project }
+  | { type: 'task_updated'; task: Task }
   | { type: 'assets'; assets: Asset[] }
   | { type: 'asset'; path: string; content: string }
   | { type: 'skills'; skills: SkillInfo[] }
@@ -145,6 +148,7 @@ export class AgentClient {
   private ws: WebSocket | null = null
   private readonly handlers = new Set<(e: TaskEvent) => void>()
   private readonly closeHandlers = new Set<(code: number, reason: string) => void>()
+  private readonly taskUpdatedHandlers = new Set<(t: Task) => void>()
   private pendingCreated: ((id: string) => void) | null = null
   private pendingTasks: ((tasks: Task[]) => void) | null = null
   private pendingProjects: { resolve: (p: Project[]) => void; reject: (e: Error) => void } | null = null
@@ -227,6 +231,11 @@ export class AgentClient {
     return () => this.handlers.delete(handler)
   }
 
+  onTaskUpdated(handler: (t: Task) => void): () => void {
+    this.taskUpdatedHandlers.add(handler)
+    return () => this.taskUpdatedHandlers.delete(handler)
+  }
+
   submit(projectId: string, userText: string, images?: ImageData[]): Promise<string> {
     return new Promise((resolve, reject) => {
       try {
@@ -277,6 +286,17 @@ export class AgentClient {
     const ack = this.expectAck()
     try {
       this.send({ type: 'archive_task', taskId, ...(projectId ? { projectId } : {}) })
+    } catch (e) {
+      this.rejectPendingAck(e instanceof Error ? e : new Error(String(e)))
+    }
+    return ack
+  }
+
+  /** 人手改侧栏标题(写 title);等 ok/error;成功时另有 task_updated */
+  renameTask(taskId: string, title: string, projectId?: string): Promise<void> {
+    const ack = this.expectAck()
+    try {
+      this.send({ type: 'rename_task', taskId, title, ...(projectId ? { projectId } : {}) })
     } catch (e) {
       this.rejectPendingAck(e instanceof Error ? e : new Error(String(e)))
     }
@@ -563,6 +583,9 @@ export class AgentClient {
       case 'project_updated':
         this.pendingProjectUpdated?.resolve(message.project)
         this.pendingProjectUpdated = null
+        break
+      case 'task_updated':
+        for (const h of this.taskUpdatedHandlers) h(message.task)
         break
       case 'assets':
         this.pendingAssets?.(message.assets)

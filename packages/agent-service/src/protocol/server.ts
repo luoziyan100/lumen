@@ -1,7 +1,7 @@
 /**
  * [INPUT]: ws、AgentRuntime、协议消息类型
  * [OUTPUT]: startServer —— 把 AgentRuntime 暴露为 localhost WebSocket 服务
- * [POS]: §4 服务边界。一条连接可 submit/subscribe/cancel/resume/answer_user/list，service 推 event 流
+ * [POS]: §4 服务边界。一条连接可 submit/subscribe/cancel/resume/archive_task/rename_task/answer_user/list，service 推 event 流
  *
  * 断线重连用 subscribe.afterSeq 拉齐遗漏事件（事件 seq 单调，不丢不重）。
  * 鉴权：浏览器对 ws://127.0.0.1 没有跨源限制，任意网页都能发起连接——
@@ -131,12 +131,22 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
   }
   send({ type: 'hello', demo })
 
+  const offTaskMeta = runtime.onTaskUpdated((task) => {
+    send({ type: 'task_updated', task })
+  })
+
   // 回放与订阅解耦:UI 每次点进会话都清屏、靠回放重建,回放不能因"已订阅"跳过
   // (曾致看过的会话再点回去一片空白);监听器仍按连接去重,新事件不会推两遍。
   const subscribe = (taskId: string, afterSeq?: number, replay = true): void => {
     if (replay) for (const event of runtime.listEvents(taskId, afterSeq)) send({ type: 'event', event })
     if (!unsubs.has(taskId)) unsubs.set(taskId, runtime.subscribe(taskId, (event) => send({ type: 'event', event })))
   }
+
+  ws.on('close', () => {
+    offTaskMeta()
+    for (const off of unsubs.values()) off()
+    unsubs.clear()
+  })
 
   ws.on('message', (raw: unknown) => {
     let message: ClientMessage
@@ -188,6 +198,17 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
           : { type: 'error', message: 'archive failed: task 不存在' })
         break
       }
+      case 'rename_task': {
+        if (!ownsTask(message.taskId, message.projectId)) { send({ type: 'error', message: 'forbidden' }); break }
+        try {
+          const updated = runtime.renameTaskTitle(message.taskId, message.title)
+          if (!updated) send({ type: 'error', message: 'rename failed: task 不存在' })
+          else send({ type: 'ok', taskId: message.taskId })
+        } catch (e) {
+          send({ type: 'error', message: e instanceof Error ? e.message : 'rename_task 失败' })
+        }
+        break
+      }
       case 'answer_user': {
         if (!ownsTask(message.taskId, message.projectId)) { send({ type: 'error', message: 'forbidden' }); break }
         const answered = runtime.answerUser(message.taskId, message.toolCallId, {
@@ -206,12 +227,14 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
           send({ type: 'ok', taskId: message.taskId })
         })
         break
-      case 'list':
+      case 'list': {
         // demo:必须带 projectId,否则空列表(防漏列全库会话)
         if (demo && !message.projectId) { send({ type: 'tasks', tasks: [] }); break }
-        send({ type: 'tasks', tasks: runtime.listTasks(message.projectId) })
+        const tasks = runtime.listTasks(message.projectId)
+        send({ type: 'tasks', tasks })
+        runtime.enqueueTitleBackfill(tasks, connModel)
         break
-      case 'list_projects':
+      }      case 'list_projects':
         // demo:不暴露全库项目名册;访客 UI 用本地 visitor id 合成单项目
         if (demo) { send({ type: 'projects', projects: [] }); break }
         send({ type: 'projects', projects: runtime.listProjects() })
@@ -305,10 +328,5 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
       default:
         send({ type: 'error', message: 'unknown message type' })
     }
-  })
-
-  ws.on('close', () => {
-    for (const unsub of unsubs.values()) unsub()
-    unsubs.clear()
   })
 }

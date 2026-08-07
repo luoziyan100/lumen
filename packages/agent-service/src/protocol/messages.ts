@@ -1,10 +1,10 @@
 /**
  * [INPUT]: storage 的 Task / TaskEvent / Project
- * [OUTPUT]: WS 协议消息类型（client→server / server→client;含 Skills list/install/uninstall/activate）
+ * [OUTPUT]: WS 协议消息类型（client→server / server→client;含 rename_task / Skills list/install/uninstall/activate）
  * [POS]: §4 agent↔UI 协议。UI 发命令，service 推事件流；shared 包将复用这些类型。
  *        事件 kind 含 ephemeral text_delta / tool_call_start(仅 notify,不入库,见 runtime makeEmit);
  *        answer_user 解开 ask_user 挂起(见 doc/ask-user.md);
- *        activate_skill 与 run_skill 同构回灌 playbook
+ *        rename_task 只写侧栏 title(≠ goal);activate_skill 与 run_skill 同构回灌 playbook
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md;改格式须同步 ui-client agent-client
  */
 import type { Task, TaskEvent } from '../storage/task-store.ts'
@@ -38,6 +38,7 @@ export type ClientMessage =
   | { type: 'subscribe'; taskId: string; afterSeq?: number; projectId?: string }
   | { type: 'cancel'; taskId: string; projectId?: string }
   | { type: 'archive_task'; taskId: string; projectId?: string }
+  | { type: 'rename_task'; taskId: string; title: string; projectId?: string }
   | { type: 'resume'; taskId: string; projectId?: string }
   | { type: 'answer_user'; taskId: string; toolCallId: string; answers: AnswerUserPayload['answers']; skipped?: boolean; projectId?: string }
   | { type: 'list'; projectId?: string }
@@ -63,6 +64,7 @@ export type ServerMessage =
   | { type: 'projects'; projects: Project[] }
   | { type: 'project_created'; project: Project }
   | { type: 'project_updated'; project: Project }
+  | { type: 'task_updated'; task: Task }
   | { type: 'assets'; assets: WorkspaceAsset[] }
   | { type: 'asset'; path: string; content: string }
   | { type: 'skills'; skills: SkillInfo[] }

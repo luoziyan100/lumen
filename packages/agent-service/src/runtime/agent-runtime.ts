@@ -3,7 +3,8 @@
  *          ask-user-tools 的 AskUserAnswer / AskUserWaiter
  * [OUTPUT]: AgentRuntime —— 把内核、存储、工作区、worker 角色拼成可执行、可订阅、可恢复的任务运行时;
  *           answerUser 解开 ask_user 挂起;
- *           listSkills/installSkill/uninstallSkill/activateSkillOnTask(与 run_skill 同构回灌)
+ *           listSkills/installSkill/uninstallSkill/activateSkillOnTask(与 run_skill 同构回灌);
+ *           侧栏 task.title 异步生成(≠ goal;见 task-title.ts);renameTaskTitle 人手改 title
  * [POS]: §4 运行环境。一个任务 = 一次 runAgent；durable emit 落 task_events + session jsonl + WS;
  *        text_delta/tool_call_start 仅 notify(不入库);imageBridge DeepSeek 去图插桩;
  *        pendingAsk 按 taskId+toolCallId 挂起(见 doc/ask-user.md);Skills 人机入口见宪法专节
@@ -47,6 +48,11 @@ import type {
   AskUserQuestion,
   AskUserWaiter,
 } from '../tools/env/ask-user-tools.ts'
+import {
+  extractTitleSource,
+  generateTaskTitle,
+  shouldBackfillTitle,
+} from './task-title.ts'
 
 export interface RuntimeContextInfo {
   currentDate: string
@@ -162,6 +168,12 @@ export class AgentRuntime {
   private readonly running = new Map<string, { controller: AbortController; promise: Promise<void> }>()
   /** ask_user 挂起:key = taskId\\0toolCallId */
   private readonly pendingAsks = new Map<string, PendingAsk>()
+  /** 侧栏 title 变更广播(WS task_updated) */
+  private readonly taskMetaListeners = new Set<(task: Task) => void>()
+  /** 正在生成/已失败跳过的 taskId,防 list 风暴 */
+  private readonly titleInflight = new Set<string>()
+  private titleBackfillActive = 0
+  private readonly titleBackfillQueue: Array<{ taskId: string; model?: ModelPort }> = []
 
   constructor(config: AgentRuntimeConfig) {
     this.cfg = config
@@ -376,6 +388,19 @@ export class AgentRuntime {
     return this.cfg.store.archiveTask(taskId)
   }
 
+  /** 人手改侧栏标题(写 title,不动 goal);成功则广播 task_updated */
+  renameTaskTitle(taskId: string, title: string): Task | null {
+    const task = this.cfg.store.getTask(taskId)
+    if (!task) return null
+    const next = title.trim().replace(/\s+/g, ' ')
+    if (!next) throw new Error('标题不能为空')
+    if (next.length > 40) throw new Error('标题最多 40 字')
+    if (!this.cfg.store.updateTaskTitle(taskId, next)) return null
+    const updated = this.cfg.store.getTask(taskId)
+    if (updated) this.emitTaskUpdated(updated)
+    return updated
+  }
+
   isRunning(taskId: string): boolean {
     return this.running.has(taskId)
   }
@@ -387,6 +412,64 @@ export class AgentRuntime {
 
   listTasks(projectId?: string): Task[] {
     return this.cfg.store.listTasks(projectId)
+  }
+
+  /** 订阅侧栏元数据变更(title);返回 unsubscribe */
+  onTaskUpdated(listener: (task: Task) => void): () => void {
+    this.taskMetaListeners.add(listener)
+    return () => { this.taskMetaListeners.delete(listener) }
+  }
+
+  /** list 后懒补长 goal 且无 title 的会话 */
+  enqueueTitleBackfill(tasks: Task[], model?: ModelPort): void {
+    for (const t of tasks) {
+      if (!shouldBackfillTitle(t)) continue
+      if (this.titleInflight.has(t.id)) continue
+      this.titleBackfillQueue.push({ taskId: t.id, model })
+    }
+    void this.pumpTitleBackfill()
+  }
+
+  /** 有非空助手正文时尝试生成 title(异步,不挡主循环) */
+  scheduleTitleIfNeeded(taskId: string, model?: ModelPort): Promise<void> {
+    const task = this.cfg.store.getTask(taskId)
+    if (!task) return Promise.resolve()
+    if (task.title != null && String(task.title).trim() !== '') return Promise.resolve()
+    if (this.titleInflight.has(taskId)) return Promise.resolve()
+    const source = extractTitleSource(this.cfg.store.listEvents(taskId))
+    if (!source) return Promise.resolve()
+    this.titleInflight.add(taskId)
+    const port = model ?? this.cfg.model
+    return generateTaskTitle(port, source, task.goal)
+      .then((title) => {
+        if (!title) return
+        const latest = this.cfg.store.getTask(taskId)
+        if (!latest) return
+        if (latest.title != null && String(latest.title).trim() !== '') return
+        if (!this.cfg.store.updateTaskTitle(taskId, title)) return
+        const updated = this.cfg.store.getTask(taskId)
+        if (updated) this.emitTaskUpdated(updated)
+      })
+      .finally(() => {
+        this.titleInflight.delete(taskId)
+      })
+  }
+
+  private emitTaskUpdated(task: Task): void {
+    for (const listener of this.taskMetaListeners) listener(task)
+  }
+
+  private async pumpTitleBackfill(): Promise<void> {
+    if (this.titleBackfillActive >= 1) return
+    const job = this.titleBackfillQueue.shift()
+    if (!job) return
+    this.titleBackfillActive++
+    try {
+      await this.scheduleTitleIfNeeded(job.taskId, job.model)
+    } finally {
+      this.titleBackfillActive--
+      void this.pumpTitleBackfill()
+    }
   }
 
   listProjects(): import('../storage/project-store.ts').Project[] {
@@ -648,7 +731,7 @@ export class AgentRuntime {
     return this.makeWorkspace(projectId, taskId)
   }
 
-  private makeEmit(taskId: string): (event: AgentEvent) => void {
+  private makeEmit(taskId: string, modelForTitle?: ModelPort): (event: AgentEvent) => void {
     return (event: AgentEvent) => {
       // 流式增量:只推订阅者,不占 seq / 不写库——重放靠 model_step 定稿即可复原 UI
       if (EPHEMERAL_EVENT_KINDS.has(event.kind)) {
@@ -667,6 +750,13 @@ export class AgentRuntime {
       const stored = this.cfg.store.appendEvent(taskId, event.kind, event.payload, event.agentRole)
       for (const entry of toSessionEntries(taskId, event)) appendSessionEntry(this.cfg.sessionDir, entry)
       this.notify(taskId, stored)
+      // 首条非空 reply → 异步起侧栏短标题
+      if (event.kind === 'reply') {
+        const reply = typeof (event.payload as { reply?: unknown } | undefined)?.reply === 'string'
+          ? (event.payload as { reply: string }).reply.trim()
+          : ''
+        if (reply) void this.scheduleTitleIfNeeded(taskId, modelForTitle)
+      }
     }
   }
 
@@ -681,7 +771,7 @@ export class AgentRuntime {
       ? withImageSanitize(rawModel, this.cfg.imageBridge.store, task.id)
       : rawModel
     const startedAt = Date.now()
-    const emit = this.makeEmit(task.id)
+    const emit = this.makeEmit(task.id, modelOverride ?? rawModel)
     const budget = mergeBudget(this.cfg.budget)
     const limits: Limits = { maxSteps: budget.maxSteps, maxDepth: this.cfg.maxDepth ?? 3, maxSeconds: budget.maxSeconds }
     const workspace = this.makeWorkspace(task.project_id, task.id)
@@ -746,6 +836,10 @@ export class AgentRuntime {
       this.notifyStatus(task.id)
       this.emitContextUsage(task.id) // 水位事件(方案 B):UI 仪表用
       this.endSession(task.id, status, Date.now() - startedAt)
+      // done/interrupted 兜底:空 reply 先结束时此处再试一次
+      if (status === 'done' || status === 'interrupted') {
+        void this.scheduleTitleIfNeeded(task.id, modelOverride)
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       this.cfg.store.updateTaskStatus(task.id, 'failed', message)

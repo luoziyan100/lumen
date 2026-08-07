@@ -13,6 +13,8 @@ export interface Task {
   id: string
   project_id: string
   goal: string
+  /** 侧栏短名(总结);NULL=尚未生成,UI 回退 goal。≠ goal(首句/resume 兜底) */
+  title?: string | null
   status: TaskStatus
   last_error: string | null
   created_at: string
@@ -70,6 +72,7 @@ export class TaskStore {
     listTasks: ReturnType<DB['prepare']>
     listAllTasks: ReturnType<DB['prepare']>
     updateTask: ReturnType<DB['prepare']>
+    updateTaskTitle: ReturnType<DB['prepare']>
     archiveTask: ReturnType<DB['prepare']>
     touchTask: ReturnType<DB['prepare']>
     insertEvent: ReturnType<DB['prepare']>
@@ -94,6 +97,7 @@ export class TaskStore {
         'SELECT * FROM tasks WHERE archived_at IS NULL ORDER BY created_at DESC',
       ),
       updateTask: db.prepare('UPDATE tasks SET status=?, last_error=?, finished_at=?, updated_at=? WHERE id=?'),
+      updateTaskTitle: db.prepare('UPDATE tasks SET title=?, updated_at=? WHERE id=?'),
       archiveTask: db.prepare(
         'UPDATE tasks SET archived_at = COALESCE(archived_at, ?), updated_at = ? WHERE id = ?',
       ),
@@ -158,6 +162,15 @@ export class TaskStore {
     const finishedAt = FINISHED.includes(status) ? ts : null
     this.stmts.updateTask.run(status, lastError, finishedAt, ts, id)
     this.appendEvent(id, 'status_change', { to: status, error: lastError })
+  }
+
+  /** 侧栏短标题;不改 goal */
+  updateTaskTitle(id: string, title: string): boolean {
+    const task = this.getTask(id)
+    if (!task) return false
+    const ts = now()
+    this.stmts.updateTaskTitle.run(title, ts, id)
+    return true
   }
 
   appendEvent(taskId: string, kind: TaskEventKind | string, payload: unknown, agentRole?: string): TaskEvent {

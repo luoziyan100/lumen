@@ -89,7 +89,7 @@ Skill ≠ Memory。Skill 是可**启动**的研究工作流;Memory 是长期事�
 
 **事件溯源**是持久化的根:
 
-- `db.ts` / `task-store.ts` — SQLite(`~/.lumen/lumen.sqlite`):`tasks` 与 `task_events`(按 seq 有序的全量事件)
+- `db.ts` / `task-store.ts` — SQLite(`~/.lumen/lumen.sqlite`):`tasks`(含 `goal` 首句原文与可选 `title` 侧栏短名)与 `task_events`(按 seq 有序的全量事件);`title ≠ goal`,resume 兜底仍用 goal
 - `resume.ts` · rebuildThread — 从事件重建可续跑线程,悬空 tool_call 自动修复;任何会话任意时刻可恢复
 - `settings.ts` — 模型 profiles(provider / baseUrl / model / apiKey),界面内增改切换
 - `budget.ts` — 基于事件的用量计量(token usage 随 model_step 入库)
@@ -104,7 +104,7 @@ WebSocket + JSON:
 |---|---|
 | 项目 | `list_projects` · `create_project`(一等 Project;demo 模式禁用以免串访客) |
 | 任务 | `create_task` · `submit` · `continue` · `cancel` · `resume` · `list` |
-| 事件流 | `subscribe`(附事件重放;客户端按事件 id 去重) |
+| 事件流 | `subscribe`(附事件重放;客户端按事件 id 去重);`task_updated`(侧栏 title 写回) |
 | 资产 | `list_assets` · `read_asset`(shared + 当前会话;`scope` 标注) |
 | Skills | `list_skills` · `install_skill` · `uninstall_skill` · `activate_skill`(显式激活=run_skill 同构回灌) |
 | 设置 | `get_settings` · `update_settings` |

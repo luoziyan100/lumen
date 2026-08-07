@@ -120,6 +120,24 @@ function AppInner() {
   /** 项目行 + 后的临时「新建对话」;发言落库后清掉,未发言离开也清掉 */
   const [draftProjectId, setDraftProjectId] = useState<string | null>(null)
 
+  // 侧栏短标题异步写回
+  useEffect(() => {
+    return client.onTaskUpdated((task) => {
+      setTasksByProject((prev) => {
+        const pid = task.project_id
+        const list = prev[pid]
+        if (!list) {
+          return { ...prev, [pid]: [task] }
+        }
+        const i = list.findIndex((t) => t.id === task.id)
+        if (i < 0) return { ...prev, [pid]: [task, ...list] }
+        const next = list.slice()
+        next[i] = { ...list[i]!, ...task }
+        return { ...prev, [pid]: next }
+      })
+    })
+  }, [client])
+
   function persistProjectId(id: string): void {
     setProjectId(id)
     if (!IS_DEMO) localStorage.setItem('lumen:projectId', id)
@@ -219,6 +237,19 @@ function AppInner() {
     try {
       const updated = await client.renameProject(proj.id, name)
       setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+    } catch (err) {
+      toast.add({
+        variant: 'error',
+        title: '重命名失败',
+        description: err instanceof Error ? err.message : '请重试',
+      })
+    }
+  }
+
+  /** 人手改侧栏短标题(写 title,不动 goal);成功另有 task_updated 回灌 */
+  async function renameConversation(task: Task, title: string): Promise<void> {
+    try {
+      await client.renameTask(task.id, title, task.project_id)
     } catch (err) {
       toast.add({
         variant: 'error',
@@ -737,6 +768,7 @@ function AppInner() {
             onSelect={pickConversation}
             onSelectProject={selectProject}
             onArchive={(t) => { void archiveConversation(t) }}
+            onRenameTask={(t, title) => renameConversation(t, title)}
             onRenameProject={(p, name) => renameProject(p, name)}
             onArchiveProject={(p) => { void archiveProject(p) }}
             onSettings={() => setSettingsOpen(true)}
