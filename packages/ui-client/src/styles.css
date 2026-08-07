@@ -1049,6 +1049,96 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   background: var(--c-fill-hot); color: var(--c-fg); border-color: rgba(255, 255, 255, 0.18);
 }
 .composer-at:disabled { opacity: 0.4; cursor: default; }
+
+/* Skills 斜杠浮层(composer 内绝对定位,向上展开) */
+.skill-slash-menu {
+  position: absolute; left: 12px; right: 12px; bottom: calc(100% + 8px);
+  z-index: 6; max-height: min(42vh, 320px); overflow: auto;
+  padding: 8px; border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--sand-deep) 55%, rgba(255, 255, 255, 0.2));
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  box-shadow: var(--shadow-2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}
+.skill-slash-hint {
+  padding: 4px 8px 6px; font-size: var(--t-meta); color: var(--c-fg-mute);
+}
+.skill-slash-list { list-style: none; margin: 0; padding: 0; }
+.skill-slash-item {
+  width: 100%; display: grid; grid-template-columns: 18px 1fr; gap: 2px 10px;
+  align-items: start; text-align: left;
+  padding: 8px 10px; border: none; border-radius: var(--radius-md);
+  background: transparent; color: var(--c-fg); cursor: pointer;
+  font: inherit;
+}
+.skill-slash-item svg { grid-row: 1 / span 2; margin-top: 2px; color: var(--c-fg-soft); }
+.skill-slash-item.is-active,
+.skill-slash-item:hover { background: var(--c-fill-hot); }
+.skill-slash-name { font-size: var(--t-body-sm); font-weight: var(--w-medium); }
+.skill-slash-desc {
+  grid-column: 2; font-size: var(--t-meta); color: var(--c-fg-mute);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.skill-slash-empty { padding: 10px; color: var(--c-fg-mute); font-size: var(--t-body-sm); }
+.skill-slash-sep { height: 1px; margin: 6px 4px; background: var(--c-line); }
+.skill-slash-manage { grid-template-columns: 18px 1fr; }
+
+/* Manage Skills 弹窗 */
+.skills-manage-modal {
+  width: min(520px, 92vw); max-height: min(72vh, 640px);
+  display: flex; flex-direction: column; overflow: hidden;
+  border-radius: var(--radius-lg); background: var(--paper); color: var(--ink);
+  border: 1px solid var(--sand);
+}
+.skills-manage-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: var(--s-3);
+  padding: var(--s-4) var(--s-4) var(--s-2);
+}
+.skills-manage-title { margin: 0; font-size: var(--t-title); font-weight: var(--w-semibold); }
+.skills-manage-hint { margin: 4px 0 0; font-size: var(--t-meta); color: var(--ink-soft); }
+.skills-manage-toolbar {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-3);
+  padding: var(--s-2) var(--s-4);
+}
+.skills-scope-seg {
+  display: inline-flex; border: 1px solid var(--sand); border-radius: var(--radius-md); overflow: hidden;
+}
+.skills-scope-seg button {
+  border: none; background: transparent; padding: 6px 10px; font: inherit; font-size: var(--t-body-sm);
+  color: var(--ink-soft); cursor: pointer;
+}
+.skills-scope-seg button.is-on { background: var(--sand); color: var(--ink); }
+.skills-add-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--sand-deep); border-radius: var(--radius-md);
+  background: var(--card); padding: 6px 10px; font: inherit; font-size: var(--t-body-sm);
+  cursor: pointer; color: var(--ink);
+}
+.skills-manage-err {
+  margin: 0 var(--s-4); padding: 8px 10px; border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--danger, #b54) 12%, transparent);
+  color: var(--danger, #a43); font-size: var(--t-body-sm);
+}
+.skills-manage-list {
+  list-style: none; margin: 0; padding: var(--s-2) var(--s-4) var(--s-4);
+  overflow: auto; flex: 1;
+}
+.skills-manage-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 8px; border-bottom: 1px solid var(--sand);
+}
+.skills-manage-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.skills-manage-name { font-weight: var(--w-medium); }
+.skills-manage-desc { font-size: var(--t-meta); color: var(--ink-soft); }
+.skills-manage-layer { font-size: var(--t-meta); color: var(--ink-mute, var(--ink-soft)); }
+.skills-manage-empty { padding: 24px 8px; color: var(--ink-soft); text-align: center; }
+.skills-uninstall {
+  border: none; background: transparent; color: var(--ink-soft); cursor: pointer; padding: 4px;
+  border-radius: var(--radius-sm);
+}
+.skills-uninstall:hover { color: var(--danger, #a43); background: var(--sand); }
+
 .composer-input {
   border: none; background: none; font: inherit; color: var(--c-fg);
   padding: 2px 4px 0; width: 100%; min-height: 52px;

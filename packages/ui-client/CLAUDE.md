@@ -10,17 +10,19 @@
 |---|---|
 | `App.tsx` | 布局与装配;断线重连前 `ensureAgentService`;可见性恢复再推一把 |
 | `ensureAgent.ts` | Tauri invoke:`ensure_agent_service` + `launchd_status/install/uninstall` |
-| `agent-client.ts` | 浏览器侧 WS 客户端;含 listProjects/createProject/renameProject/archiveProject/upload scope;⚠ 协议类型手工内联 |
+| `agent-client.ts` | 浏览器侧 WS 客户端;含 listProjects/createProject/…/listSkills/installSkill/uninstallSkill/activateSkill;⚠ 协议类型手工内联 |
 | `useAgent.ts` | 事件流 → ChatItem;`text_delta` 累积 streaming 泡 / `model_step` 定稿;`tool_call_start` 尽早过程行;`ask_user`→pendingAsk |
-| `useStickToBottom.ts` | 对话列贴底跟随;上滑即松钉(可生成中自由滚);回滞再钉;松钉出「回到最新」;配合 `.messages { overflow-anchor: none }` |
+| `useStickToBottom.ts` | 对话列贴底跟随;上滑即松钉;回滞再钉;高度回缩不追(抑流式振荡);松钉出「回到最新」;`.messages { overflow-anchor: none }` |
 | `useWorkspace.ts` | 资产列表:无会话仅 shared;有会话 shared+session;切新对话乐观清 session 防串味 |
 | `tokens.css` | **设计系统唯一真源**(青瓷 v2):表面三级 / 语义五色 / 阴影 0–3 / 字体分工;头注释即规范 |
 | `styles.css` | 形态 A 布局与组件样式;只消费 token,禁硬编码颜色 |
 | `kumo.css` | 控件层样式入口:Tailwind v4(**刻意不含 preflight**)+ @cloudflare/kumo + 青瓷主题 |
 | `theme-celadon.css` | Kumo 青瓷主题(tokens.css 在 Kumo 变量合同上的派生物,light-dark 双值) |
 | `scripts/check-theme-celadon.mjs` | 主题覆盖校验(`npm run check:theme`);升级 kumo 后必跑 |
-| `composerAccept.ts` | composer 附件扩展名白名单;`filterComposerFiles` 供点选/拖放共用 |
-| `appCopy.ts` / `settingsCopy.ts` / `greeting.ts` | 文案与问候(简体中文,不用 emoji) |
+| `composerAccept.ts` | 附件宽准入(`filterComposerFiles`);扩展名不挡门,落盘分类在 service `saveUpload` |
+| `skillSlash.ts` | composer `/token` 解析(`parseSlashFilter`) |
+| `pickSkillPath.ts` | Tauri 选 Skill 文件夹 / SKILL.md |
+| `appCopy.ts` / `settingsCopy.ts` / `greeting.ts` | 文案与问候(简体中文,不用 emoji);含 `SKILLS_COPY` |
 | `msgFold.ts` | 用户气泡折叠阈值(9 行 / 750 字);供 CollapsibleUserText 与测试 |
 | `orbState.ts` | tool / 过程步 → `thinking-orbs` 九态;等待态 `ORB_THINKING=breathing`(与工具态分离) |
 | `components/` `components/widget/` `aura/` | 见各自 CLAUDE.md;widget=对话/阅读器网页沙箱 |

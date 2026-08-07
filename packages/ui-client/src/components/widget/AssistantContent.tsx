@@ -1,7 +1,8 @@
 /**
  * [INPUT]: parseShowWidget / WidgetFrame / Markdown
  * [OUTPUT]: AssistantContent —— 文本段(Markdown/mermaid) + show-widget 段交错渲染
- * [POS]: widget/ 与对话气泡的接合点;mermaid 走 Markdown,不经沙箱
+ * [POS]: widget/ 与对话气泡的接合点;mermaid 走 Markdown,不经沙箱;
+ *        流式时 Markdown deferMath,避免半截公式高度抖动牵动贴底
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { Markdown } from '../Markdown'
@@ -21,10 +22,11 @@ export function AssistantContent({
 }) {
   const segments = parseShowWidgets(content)
   if (!segments.length) return null
+  const deferMath = Boolean(isStreaming)
 
   // 无 widget:走纯 Markdown(保持原路径)
   if (segments.length === 1 && segments[0]!.kind === 'text') {
-    return <Markdown>{segments[0]!.text}</Markdown>
+    return <Markdown deferMath={deferMath}>{segments[0]!.text}</Markdown>
   }
 
   return (
@@ -33,7 +35,11 @@ export function AssistantContent({
         if (seg.kind === 'text') {
           const t = seg.text.trim()
           if (!t) return null
-          return <Markdown key={`t-${i}`}>{seg.text}</Markdown>
+          return (
+            <Markdown key={`t-${i}`} deferMath={deferMath}>
+              {seg.text}
+            </Markdown>
+          )
         }
         const streaming = Boolean(isStreaming) || !seg.closed
         const { truncated } = truncateOpenScript(seg.widgetCode)

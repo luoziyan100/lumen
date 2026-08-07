@@ -1,14 +1,14 @@
 /**
  * [INPUT]: 协议消息类型、全局 WebSocket（Node 22+ 与浏览器都内置）
- * [OUTPUT]: LumenClient —— 连接 agent-service 的类型化 WS 客户端
- * [POS]: §4 agent↔UI 协议的客户端侧。ui-client 复用它；也可在 Node 中无头测试
- *
- * 断线重连：reconnect() 后对已知任务用 subscribe(afterSeq) 拉齐，事件不丢不重。
+ * [OUTPUT]: LumenClient —— 连接 agent-service 的类型化 WS 客户端(含 Skills list/install/uninstall/activate)
+ * [POS]: §4 agent↔UI 协议的客户端侧。ui-client 浏览器副本在 packages/ui-client(手工同步);
+ *        本文件供 Node 无头测试。断线重连后对已知任务 subscribe(afterSeq) 拉齐。
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md;改消息格式须同步 ui-client agent-client
  */
 import type { Task, TaskEvent } from '../storage/task-store.ts'
 import type { Project } from '../storage/project-store.ts'
-import type { ClientMessage, ServerMessage } from '../protocol/messages.ts'
-import type { WorkspaceAsset } from '../runtime/agent-runtime.ts'
+import type { ClientMessage, ServerMessage, SkillInstallScope } from '../protocol/messages.ts'
+import type { SkillInfo, WorkspaceAsset } from '../runtime/agent-runtime.ts'
 
 type EventHandler = (event: TaskEvent) => void
 
@@ -24,6 +24,10 @@ export class LumenClient {
   private pendingProjectUpdated: ((project: Project) => void) | null = null
   private pendingAssets: ((assets: WorkspaceAsset[]) => void) | null = null
   private pendingAsset: ((content: string) => void) | null = null
+  private pendingSkills: ((skills: SkillInfo[]) => void) | null = null
+  private pendingActivate: ((taskId: string) => void) | null = null
+  private pendingOk: (() => void) | null = null
+  private pendingError: ((err: Error) => void) | null = null
 
   constructor(url: string, options: { token?: string } = {}) {
     if (options.token) {
@@ -145,6 +149,45 @@ export class LumenClient {
     })
   }
 
+  listSkills(projectId: string): Promise<SkillInfo[]> {
+    return new Promise((resolve, reject) => {
+      this.pendingSkills = resolve
+      this.pendingError = reject
+      this.send({ type: 'list_skills', projectId })
+    })
+  }
+
+  installSkill(projectId: string, scope: SkillInstallScope, path: string): Promise<SkillInfo[]> {
+    return new Promise((resolve, reject) => {
+      this.pendingSkills = resolve
+      this.pendingError = reject
+      this.send({ type: 'install_skill', projectId, scope, path })
+    })
+  }
+
+  uninstallSkill(projectId: string, scope: SkillInstallScope, name: string): Promise<SkillInfo[]> {
+    return new Promise((resolve, reject) => {
+      this.pendingSkills = resolve
+      this.pendingError = reject
+      this.send({ type: 'uninstall_skill', projectId, scope, name })
+    })
+  }
+
+  /** 显式激活 skill;返回 taskId(可能新建草稿) */
+  activateSkill(projectId: string, name: string, taskId?: string, args?: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      this.pendingActivate = resolve
+      this.pendingError = reject
+      this.send({
+        type: 'activate_skill',
+        projectId,
+        name,
+        ...(taskId ? { taskId } : {}),
+        ...(args ? { args } : {}),
+      })
+    })
+  }
+
   close(): void {
     this.ws?.close()
     this.ws = null
@@ -157,8 +200,15 @@ export class LumenClient {
   private onMessage(message: ServerMessage): void {
     switch (message.type) {
       case 'task_created':
-        this.pendingCreated?.(message.taskId)
-        this.pendingCreated = null
+        // activate_skill 也可能回 task_created;优先 pendingActivate
+        if (this.pendingActivate) {
+          this.pendingActivate(message.taskId)
+          this.pendingActivate = null
+          this.pendingError = null
+        } else {
+          this.pendingCreated?.(message.taskId)
+          this.pendingCreated = null
+        }
         break
       case 'tasks':
         this.pendingTasks?.(message.tasks)
@@ -183,6 +233,30 @@ export class LumenClient {
       case 'asset':
         this.pendingAsset?.(message.content)
         this.pendingAsset = null
+        break
+      case 'skills':
+        this.pendingSkills?.(message.skills)
+        this.pendingSkills = null
+        this.pendingError = null
+        break
+      case 'ok':
+        if (this.pendingActivate && message.taskId) {
+          this.pendingActivate(message.taskId)
+          this.pendingActivate = null
+          this.pendingError = null
+        } else {
+          this.pendingOk?.()
+          this.pendingOk = null
+        }
+        break
+      case 'error':
+        if (this.pendingError) {
+          const rej = this.pendingError
+          this.pendingError = null
+          this.pendingSkills = null
+          this.pendingActivate = null
+          rej(new Error(message.message))
+        }
         break
       case 'event':
         this.lastSeq.set(message.event.task_id, message.event.seq)

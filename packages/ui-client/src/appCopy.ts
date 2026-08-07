@@ -100,3 +100,26 @@ export const APP_STATUS_COPY = {
   thinking: '思考中',
   jumpToLatest: '回到最新',
 } as const
+
+/** Skills 斜杠 / Manage */
+export const SKILLS_COPY = {
+  manageTitle: 'Manage skills',
+  manageHint: 'Skills 是可运行的工作流包(SKILL.md + 可选 scripts/)',
+  addFolder: '添加文件夹',
+  addFile: '添加 SKILL.md',
+  installToUser: '安装到全局',
+  installToProject: '安装到本项目',
+  uninstall: '卸载',
+  empty: '尚未安装 Skill',
+  layerUser: '全局',
+  layerWorkspace: '本项目',
+  layerSource: '源码树',
+  slashFilter: '过滤 skills…',
+  manageItem: 'Manage skills',
+  menuSkills: 'Skills',
+  menuAddFiles: '添加文件',
+  activateFailed: '启动 Skill 失败',
+  installFailed: '安装失败',
+  uninstallFailed: '卸载失败',
+  pickUnavailable: '请在桌面 App 中选择路径(或开发态粘贴)',
+} as const

@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Toasty, useKumoToastManager } from '@cloudflare/kumo/components/toast'
 import { Tooltip, TooltipProvider } from '@cloudflare/kumo/components/tooltip'
-import { AgentClient, type ImageData, type Project, type Task } from './agent-client'
+import { AgentClient, type ImageData, type Project, type SkillInfo, type SkillInstallScope, type Task } from './agent-client'
 import { ensureAgentService } from './ensureAgent'
 import { useAgent, type ChatItem } from './useAgent'
 import { useStickToBottom } from './useStickToBottom'
@@ -24,6 +24,7 @@ import { CreateProjectModal, type CreateProjectPayload } from './components/Crea
 import { AskUserDialog } from './components/AskUserDialog'
 import { CollapsibleUserText } from './components/CollapsibleUserText'
 import { ComposerCard, type ComposerModelOption } from './components/ComposerCard'
+import { ManageSkillsDialog } from './components/ManageSkillsDialog'
 import { filterComposerFiles } from './composerAccept'
 import { SearchModal } from './components/SearchModal'
 import { SettingsModal } from './components/SettingsModal'
@@ -38,7 +39,7 @@ import { buildTurnRailItems, msgAnchorId } from './components/turnRail'
 import { AssistantContent } from './components/widget/AssistantContent'
 import { getTimeGreeting } from './greeting'
 import {
-  APP_BRAND_COPY, APP_NAV_ICON_BUTTON, APP_STATUS_COPY, APP_TITLEBAR_WORKSPACE_TOGGLE,
+  APP_BRAND_COPY, APP_NAV_ICON_BUTTON, APP_STATUS_COPY, APP_TITLEBAR_WORKSPACE_TOGGLE, SKILLS_COPY,
 } from './appCopy'
 
 // 默认必须 127.0.0.1:service 只绑 IPv4;localhost 常解析到 ::1 → 永远「服务未连接」
@@ -129,6 +130,9 @@ function AppInner() {
     newConversation, selectConversation, taskId, ctxUsage,
   } = useAgent(client, projectId, connected)
   const [askBusy, setAskBusy] = useState(false)
+  const [skills, setSkills] = useState<SkillInfo[]>([])
+  const [skillsManageOpen, setSkillsManageOpen] = useState(false)
+  const [skillsBusy, setSkillsBusy] = useState(false)
   const ws = useWorkspace(client, projectId, taskId, connected)
   // 工作目录:默认收起;当前会话有产物(上传文件/模型写出报告)才自动展开——纯问答保持收起(owner 定 2026-07-10)
   const [drawer, setDrawer] = useState(false)
@@ -152,6 +156,17 @@ function AppInner() {
   }
   // 产物驱动:当前会话有产物→展开工作目录,纯问答(无产物)→收起;手动开合保持到下次产物变化/切会话
   useEffect(() => { setDrawer(ws.assets.length > 0) }, [ws.assets.length, taskId])
+
+  const refreshSkills = useCallback(async (): Promise<void> => {
+    if (!connected) return
+    try {
+      setSkills(await client.listSkills(projectId))
+    } catch {
+      /* 列表失败不挡对话 */
+    }
+  }, [client, connected, projectId])
+
+  useEffect(() => { void refreshSkills() }, [refreshSkills])
 
   // 会话搜索弹窗(侧栏🔍 / ⌘K)+ 设置弹窗 + 新建项目弹框
   const [searchOpen, setSearchOpen] = useState(false)
@@ -529,6 +544,41 @@ function AppInner() {
     }
   }
 
+  async function activateSkill(name: string): Promise<void> {
+    if (running || uploading || pendingAsk) return
+    setInput('')
+    pinMessagesRef.current()
+    try {
+      const id = await client.activateSkill(projectId, name, taskId ?? undefined)
+      selectConversation(id, true, projectId)
+      setDraftProjectId(null)
+    } catch (err) {
+      toast.add({
+        variant: 'error',
+        title: SKILLS_COPY.activateFailed,
+        description: err instanceof Error ? err.message : '请重试',
+      })
+    }
+  }
+
+  async function installSkillPath(scope: SkillInstallScope, path: string): Promise<void> {
+    setSkillsBusy(true)
+    try {
+      setSkills(await client.installSkill(projectId, scope, path))
+    } finally {
+      setSkillsBusy(false)
+    }
+  }
+
+  async function uninstallSkillPath(scope: SkillInstallScope, name: string): Promise<void> {
+    setSkillsBusy(true)
+    try {
+      setSkills(await client.uninstallSkill(projectId, scope, name))
+    } finally {
+      setSkillsBusy(false)
+    }
+  }
+
   const fileRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   // 选中的文件先暂存在输入卡(像图片一样可 ❌ 反悔),发送时才建会话、入工作区(2026-07-09 客户定)
@@ -623,6 +673,10 @@ function AppInner() {
 
   const lastItem = items[items.length - 1]
   const lastRunning = lastItem?.kind === 'process' && lastItem.running
+  // 正文已在流:不要叠「思考中」,否则多一个高度扰动源
+  const lastStreamingAssistant =
+    lastItem?.kind === 'msg' && lastItem.role === 'assistant' && Boolean(lastItem.streaming)
+  const showThinking = running && !lastRunning && !pendingAsk && !lastStreamingAssistant
   const showReader = ws.open != null
   // 右栏可见 = 阅读器或工作目录轨;标题栏钮必须两边都能收,不能只拨 drawer
   const rightPaneOpen = showReader || drawer
@@ -750,7 +804,7 @@ function AppInner() {
                 }
                 return <div key={it.id} id={msgAnchorId(it.id)} className={`bubble bubble-${it.role}`}>{it.content}</div>
               })}
-              {running && !lastRunning && !pendingAsk && <ThinkingIndicator />}
+              {showThinking && <ThinkingIndicator />}
             </div>
             {!isEmpty && !messagesPinned && (
               <button
@@ -826,6 +880,9 @@ function AppInner() {
             onManageModels={() => setSettingsOpen(true)}
             ctxUsage={ctxUsage}
             canSend={!pendingAsk && !uploading && !!(input.trim() || attachments.length || pendingFiles.length)}
+            skills={skills}
+            onActivateSkill={(name) => { void activateSkill(name) }}
+            onOpenManageSkills={() => setSkillsManageOpen(true)}
           />
           </div>
         </main>
@@ -843,6 +900,15 @@ function AppInner() {
       </div>
 
       <SearchModal open={searchOpen} onOpenChange={setSearchOpen} conversations={convs} onSelect={pickConversation} />
+      {skillsManageOpen && (
+        <ManageSkillsDialog
+          skills={skills}
+          busy={skillsBusy}
+          onClose={() => setSkillsManageOpen(false)}
+          onInstall={installSkillPath}
+          onUninstall={uninstallSkillPath}
+        />
+      )}
       {settingsOpen && (
         <SettingsModal
           client={client}

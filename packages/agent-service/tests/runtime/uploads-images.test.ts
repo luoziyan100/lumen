@@ -29,22 +29,29 @@ function makeRuntime(base: string, store: TaskStore, model: ScriptedModel): Agen
   })
 }
 
-test('saveUpload 按类型归位:pdf→papers/ md→docs/ png→images/ docx→uploads/', async (t) => {
+test('saveUpload 按表示分类:pdf→papers/ 文本脚本→docs/ 图→images/ 未知→uploads/', async (t) => {
   const { base, store } = await makeEnv(t)
   const rt = makeRuntime(base, store, new ScriptedModel([]))
   const bytes = new Uint8Array([1, 2, 3])
-  assert.equal(await rt.saveUpload('p', 'paper.pdf', bytes), 'papers/paper.pdf')
-  assert.equal(await rt.saveUpload('p', 'note.md', bytes), 'docs/note.md')
-  assert.equal(await rt.saveUpload('p', 'fig.PNG', bytes), 'images/fig.PNG')
-  assert.equal(await rt.saveUpload('p', 'report.docx', bytes), 'uploads/report.docx')
-  assert.equal(await rt.saveUpload('p', '../..//evil.pdf', bytes), 'papers/evil.pdf', '路径穿越被剥掉')
+  const tid = 't-up'
+  assert.equal(await rt.saveUpload('p', 'paper.pdf', bytes, tid), 'papers/paper.pdf')
+  assert.equal(await rt.saveUpload('p', 'note.md', bytes, tid), 'docs/note.md')
+  assert.equal(await rt.saveUpload('p', 'setup.sh', bytes, tid), 'docs/setup.sh')
+  assert.equal(await rt.saveUpload('p', 'probe.py', bytes, tid), 'docs/probe.py')
+  assert.equal(await rt.saveUpload('p', 'fig.PNG', bytes, tid), 'images/fig.PNG')
+  assert.equal(await rt.saveUpload('p', 'report.docx', bytes, tid), 'uploads/report.docx')
+  assert.equal(await rt.saveUpload('p', 'blob', bytes, tid), 'uploads/blob', '无扩展名 → opaque uploads/')
+  assert.equal(await rt.saveUpload('p', '../..//evil.pdf', bytes, tid), 'papers/evil.pdf', '路径穿越被剥掉')
 
-  const assets = await rt.listAssets('p')
+  const assets = await rt.listAssets('p', tid)
   const kinds = Object.fromEntries(assets.map((a) => [a.name, a.kind]))
   assert.equal(kinds['paper.pdf'], 'pdf')
   assert.equal(kinds['note.md'], 'doc')
+  assert.equal(kinds['setup.sh'], 'doc')
+  assert.equal(kinds['probe.py'], 'doc')
   assert.equal(kinds['fig.PNG'], 'image')
   assert.equal(kinds['report.docx'], 'file')
+  assert.equal(kinds['blob'], 'file')
 })
 
 test('submit 带图:模型第一轮就看到 user 消息上的 images(经真实 runtime)', async (t) => {

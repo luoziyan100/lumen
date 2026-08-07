@@ -87,6 +87,40 @@ test('无 skill 时 systemPrompt 不含 Skills catalog', async (t) => {
   assert.ok(!system.content.includes('以下是可调用的研究工作流'), '无包时不注入 catalog')
 })
 
+test('activateSkillOnTask:回灌 playbook 后模型续跑', async (t) => {
+  const { base, store } = await makeEnv(t)
+  const skillDir = path.join(base, 'workspaces', 'p', 'skills', 'paper-probe')
+  await mkdir(skillDir, { recursive: true })
+  await writeFile(
+    path.join(skillDir, 'SKILL.md'),
+    `---
+name: paper-probe
+description: 探针
+---
+do the probe
+`,
+    'utf8',
+  )
+  const model = new ScriptedModel([assistantReply('按 playbook 做完了')])
+  const rt = new AgentRuntime({
+    store,
+    model,
+    sessionDir: path.join(base, 'sessions'),
+    workspacesDir: path.join(base, 'workspaces'),
+    mainTools: [],
+  })
+  const r = rt.activateSkillOnTask('p', 'paper-probe')
+  assert.equal(r.ok, true)
+  if (!r.ok) return
+  await rt.waitFor(r.taskId)
+  assert.equal(store.getTask(r.taskId)?.status, 'done')
+  const tr = store.listEvents(r.taskId).find((e) => e.kind === 'tool_result')
+  assert.ok(tr)
+  const content = (JSON.parse(tr.payload_json) as { llmContent: string }).llmContent
+  assert.ok(content.includes('Skill activated: paper-probe'))
+  assert.ok(model.calls[0].some((m) => m.role === 'tool_result' && String(m.content).includes('do the probe')))
+})
+
 test('seatbeltProfile 对 skills 根有 allow file-read,写仍限 workspace', () => {
   const profile = seatbeltProfile('/tmp/ws', '/Users/me', {
     skillReadRoots: ['/Users/me/.lumen/skills', '/tmp/ws-skills'],

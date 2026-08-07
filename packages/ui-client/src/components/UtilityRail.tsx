@@ -1,13 +1,14 @@
 /**
- * [INPUT]: Asset(含 scope);ChatItem;icons;useResizable;WORKSPACE_SCOPE_COPY
+ * [INPUT]: Asset(含 scope);ChatItem;icons;useResizable;WORKSPACE_SCOPE_COPY;filterComposerFiles
  * [OUTPUT]: UtilityRail —— 进度 + 工作目录(共享区 / 本会话)
- * [POS]: 右轨;阅读器打开时由 ReaderPane 替换
+ * [POS]: 右轨;阅读器打开时由 ReaderPane 替换;共享区上传与 composer 同宽准入
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useRef, useState, type ChangeEvent, type CSSProperties } from 'react'
 import type { Asset } from '../agent-client'
 import type { ChatItem, ProcessItem } from '../useAgent'
 import { WORKSPACE_SCOPE_COPY } from '../appCopy'
+import { filterComposerFiles } from '../composerAccept'
 import { ChevronIcon, FileTypeIcon, FoldersIcon, PlusIcon, ICON_MD } from './icons'
 import { useResizable } from '../useResizable'
 
@@ -55,7 +56,7 @@ export function UtilityRail({ assets, onOpen, items, running, onUploadShared }: 
   const session = assets.filter((a) => !isShared(a))
 
   function onPickShared(e: ChangeEvent<HTMLInputElement>): void {
-    const files = Array.from(e.target.files ?? [])
+    const files = filterComposerFiles(e.target.files)
     e.target.value = ''
     if (files.length && onUploadShared) onUploadShared(files)
   }

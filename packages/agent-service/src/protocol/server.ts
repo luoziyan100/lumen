@@ -254,6 +254,46 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
           .readAsset(message.projectId, message.path, message.taskId)
           .then((content) => send({ type: 'asset', path: message.path, content: content ?? '' }))
         break
+      case 'list_skills':
+        send({ type: 'skills', skills: runtime.listSkills(message.projectId) })
+        break
+      case 'install_skill':
+        if (demo) { send({ type: 'error', message: 'demo 模式不支持安装 skill' }); break }
+        try {
+          send({
+            type: 'skills',
+            skills: runtime.installSkill(message.projectId, message.scope, message.path),
+          })
+        } catch (e) {
+          send({ type: 'error', message: e instanceof Error ? e.message : 'install_skill 失败' })
+        }
+        break
+      case 'uninstall_skill':
+        if (demo) { send({ type: 'error', message: 'demo 模式不支持卸载 skill' }); break }
+        try {
+          send({
+            type: 'skills',
+            skills: runtime.uninstallSkill(message.projectId, message.scope, message.name),
+          })
+        } catch (e) {
+          send({ type: 'error', message: e instanceof Error ? e.message : 'uninstall_skill 失败' })
+        }
+        break
+      case 'activate_skill': {
+        const r = runtime.activateSkillOnTask(message.projectId, message.name, {
+          taskId: message.taskId,
+          args: message.args,
+          model: connModel,
+        })
+        if (!r.ok) {
+          send({ type: 'error', message: r.error })
+          break
+        }
+        if (r.created) send({ type: 'task_created', taskId: r.taskId })
+        subscribe(r.taskId, undefined, !r.created) // 新建回放;已有会话不回放防翻倍
+        send({ type: 'ok', taskId: r.taskId })
+        break
+      }
       case 'get_settings':
         if (settingsApi) send({ type: 'settings', settings: settingsApi.get() })
         else send({ type: 'error', message: 'settings 不可用' })

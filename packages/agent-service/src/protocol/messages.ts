@@ -1,18 +1,19 @@
 /**
  * [INPUT]: storage 的 Task / TaskEvent / Project
- * [OUTPUT]: WS 协议消息类型（client→server / server→client）
+ * [OUTPUT]: WS 协议消息类型（client→server / server→client;含 Skills list/install/uninstall/activate）
  * [POS]: §4 agent↔UI 协议。UI 发命令，service 推事件流；shared 包将复用这些类型。
  *        事件 kind 含 ephemeral text_delta / tool_call_start(仅 notify,不入库,见 runtime makeEmit);
- *        answer_user 解开 ask_user 挂起(见 doc/ask-user.md)
+ *        answer_user 解开 ask_user 挂起(见 doc/ask-user.md);
+ *        activate_skill 与 run_skill 同构回灌 playbook
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md;改格式须同步 ui-client agent-client
  */
 import type { Task, TaskEvent } from '../storage/task-store.ts'
 import type { Project } from '../storage/project-store.ts'
-import type { WorkspaceAsset } from '../runtime/agent-runtime.ts'
+import type { WorkspaceAsset, SkillInfo } from '../runtime/agent-runtime.ts'
 import type { ImageData } from '../core/types.ts'
 import type { PublicSettings, SettingsPatch } from '../storage/settings.ts'
 
-export type { Project }
+export type { Project, SkillInfo }
 
 /** demo 模式:浏览器随连接带入的模型配置(含用户自己的 key),后端只在连接内存持有、不落盘 */
 export interface ConnModelConfig {
@@ -27,6 +28,8 @@ export interface AnswerUserPayload {
   answers: Record<string, { selected: string[]; note?: string }>
   skipped?: boolean
 }
+
+export type SkillInstallScope = 'user' | 'project'
 
 export type ClientMessage =
   | { type: 'submit'; projectId: string; userText: string; images?: ImageData[] }
@@ -44,6 +47,10 @@ export type ClientMessage =
   | { type: 'archive_project'; projectId: string }
   | { type: 'list_assets'; projectId: string; taskId?: string }
   | { type: 'read_asset'; projectId: string; path: string; taskId?: string }
+  | { type: 'list_skills'; projectId: string }
+  | { type: 'install_skill'; projectId: string; scope: SkillInstallScope; path: string }
+  | { type: 'uninstall_skill'; projectId: string; scope: SkillInstallScope; name: string }
+  | { type: 'activate_skill'; projectId: string; name: string; taskId?: string; args?: string }
   | { type: 'get_settings' }
   | { type: 'update_settings'; settings: SettingsPatch }
   | { type: 'set_model'; config: ConnModelConfig }
@@ -58,6 +65,7 @@ export type ServerMessage =
   | { type: 'project_updated'; project: Project }
   | { type: 'assets'; assets: WorkspaceAsset[] }
   | { type: 'asset'; path: string; content: string }
+  | { type: 'skills'; skills: SkillInfo[] }
   | { type: 'settings'; settings: PublicSettings }
   | { type: 'ok'; taskId?: string }
   | { type: 'error'; message: string }

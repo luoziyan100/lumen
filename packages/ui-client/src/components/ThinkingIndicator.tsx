@@ -1,7 +1,7 @@
 /**
  * [INPUT]: appCopy 思考态文案;StatusOrb;orbState.ORB_THINKING
  * [OUTPUT]: ThinkingIndicator —— 模型等待态:点云球 breathing + 文案
- * [POS]: 对话流 status 气泡;尚无过程行时的等待;与 ProcessRow 运行态 orb 同族
+ * [POS]: 对话流 status 气泡;尚无过程行且尚无 streaming 正文时的等待;与 ProcessRow 运行态 orb 同族
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { APP_STATUS_COPY } from '../appCopy'

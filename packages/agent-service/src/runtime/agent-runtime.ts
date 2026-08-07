@@ -2,10 +2,11 @@
  * [INPUT]: core（runAgent/Thread/spawn）、storage（TaskStore/session/budget/resume）、workspace（FsWorkspace）;
  *          ask-user-tools 的 AskUserAnswer / AskUserWaiter
  * [OUTPUT]: AgentRuntime —— 把内核、存储、工作区、worker 角色拼成可执行、可订阅、可恢复的任务运行时;
- *           answerUser 解开 ask_user 挂起
+ *           answerUser 解开 ask_user 挂起;
+ *           listSkills/installSkill/uninstallSkill/activateSkillOnTask(与 run_skill 同构回灌)
  * [POS]: §4 运行环境。一个任务 = 一次 runAgent；durable emit 落 task_events + session jsonl + WS;
  *        text_delta/tool_call_start 仅 notify(不入库);imageBridge DeepSeek 去图插桩;
- *        pendingAsk 按 taskId+toolCallId 挂起(见 doc/ask-user.md)
+ *        pendingAsk 按 taskId+toolCallId 挂起(见 doc/ask-user.md);Skills 人机入口见宪法专节
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { Thread, type ForModelOptions } from '../core/thread.ts'
@@ -33,6 +34,11 @@ import {
   discoverSkills,
   formatSkillCatalog,
   skillReadRoots,
+  activateSkill,
+  installSkillFromPath,
+  uninstallSkill,
+  type InstallScope,
+  type SkillPackage,
 } from '../skills/index.ts'
 import type { ImageStore } from '../tools/env/image-store.ts'
 import { withImageSanitize } from '../tools/env/vision-tools.ts'
@@ -84,6 +90,22 @@ export interface AgentRuntimeConfig {
 /** 长任务不撑爆上下文的泄压阀：老 tool_result 超 8000 字符折叠，最近 6 条豁免 */
 export const DEFAULT_CONTEXT_FOLD: ForModelOptions = { maxToolResultChars: 8000, keepRecentToolResults: 6 }
 
+/** 表示分类:可渲染/可文本读 → papers|docs|images;其余 opaque → uploads */
+const UPLOAD_DOCS_EXT = new Set([
+  'md', 'markdown', 'txt', 'tex', 'csv', 'tsv', 'json', 'jsonl', 'html', 'htm',
+  'xml', 'yaml', 'yml', 'toml', 'css', 'svg', 'log', 'ini', 'conf',
+  'py', 'sh', 'bash', 'zsh', 'rb', 'go', 'rs', 'java', 'c', 'h', 'cpp', 'hpp', 'cs',
+  'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'php', 'sql', 'r',
+])
+const UPLOAD_IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif'])
+
+function uploadFolderForExt(ext: string): 'papers' | 'docs' | 'images' | 'uploads' {
+  if (ext === 'pdf') return 'papers'
+  if (UPLOAD_DOCS_EXT.has(ext)) return 'docs'
+  if (UPLOAD_IMAGE_EXT.has(ext)) return 'images'
+  return 'uploads'
+}
+
 export interface SubmitInput {
   projectId: string
   userText: string
@@ -97,6 +119,27 @@ export interface WorkspaceAsset {
   name: string
   /** shared = 项目共享区;session = 当前会话(默认) */
   scope?: 'shared' | 'session'
+}
+
+/** UI / WS 可见的 Skill 摘要(不含 playbook 正文) */
+export interface SkillInfo {
+  name: string
+  description: string
+  whenToUse?: string
+  layer: 'source' | 'workspace' | 'user'
+  baseDir: string
+  disableModelInvocation: boolean
+}
+
+function toSkillInfo(pkg: SkillPackage): SkillInfo {
+  return {
+    name: pkg.name,
+    description: pkg.description,
+    ...(pkg.whenToUse ? { whenToUse: pkg.whenToUse } : {}),
+    layer: pkg.layer,
+    baseDir: pkg.baseDir,
+    disableModelInvocation: pkg.disableModelInvocation,
+  }
 }
 
 type Listener = (event: TaskEvent) => void
@@ -226,6 +269,101 @@ export class AgentRuntime {
     return true
   }
 
+  /** 列出项目可见 Skills(三层合并后) */
+  listSkills(projectId: string): SkillInfo[] {
+    return this.skillsForProject(projectId).map(toSkillInfo)
+  }
+
+  installSkill(
+    projectId: string,
+    scope: InstallScope,
+    localPath: string,
+  ): SkillInfo[] {
+    installSkillFromPath({
+      scope,
+      path: localPath,
+      workspacesDir: this.cfg.workspacesDir,
+      projectId: sanitizeWorkspaceId(projectId),
+    })
+    return this.listSkills(projectId)
+  }
+
+  uninstallSkill(projectId: string, scope: InstallScope, name: string): SkillInfo[] {
+    if (scope !== 'user' && scope !== 'project') throw new Error('只能卸载 user/project 层')
+    uninstallSkill({
+      scope,
+      name,
+      workspacesDir: this.cfg.workspacesDir,
+      projectId: sanitizeWorkspaceId(projectId),
+    })
+    return this.listSkills(projectId)
+  }
+
+  /**
+   * 显式激活 skill(斜杠 / Manage):与 run_skill 同构回灌 playbook,再续跑模型。
+   * 无 taskId 时建草稿。任务在跑则失败。
+   */
+  activateSkillOnTask(
+    projectId: string,
+    skillName: string,
+    opts?: { taskId?: string; args?: string; model?: ModelPort },
+  ): { ok: true; taskId: string; created: boolean } | { ok: false; error: string } {
+    const skills = this.skillsForProject(projectId)
+    const activated = activateSkill(skills, skillName, opts?.args)
+    if (!activated.ok) return { ok: false, error: activated.llmContent }
+
+    let created = false
+    let taskId = opts?.taskId
+    if (!taskId) {
+      taskId = this.createDraft(projectId, `skill:${activated.pkg.name}`)
+      created = true
+    }
+    const task = this.cfg.store.getTask(taskId)
+    if (!task) return { ok: false, error: 'task 不存在' }
+    if (task.project_id !== sanitizeWorkspaceId(projectId) && task.project_id !== projectId) {
+      return { ok: false, error: 'forbidden' }
+    }
+    if (this.running.has(taskId)) return { ok: false, error: '任务正在运行,请稍后再激活 skill' }
+
+    const callId = `skill-${globalThis.crypto.randomUUID()}`
+    const userText = `/${activated.pkg.name}`
+    this.emitUser(taskId, userText)
+    appendSessionEntry(this.cfg.sessionDir, {
+      type: 'user', task_id: taskId, timestamp: new Date().toISOString(), content: userText,
+    })
+
+    const emit = this.makeEmit(taskId)
+    emit({
+      kind: 'model_step',
+      agentRole: 'main',
+      payload: {
+        content: '',
+        toolCalls: [{ id: callId, name: 'run_skill', arguments: { name: activated.pkg.name, ...(opts?.args ? { args: opts.args } : {}) } }],
+      },
+    })
+    emit({
+      kind: 'tool_call',
+      agentRole: 'main',
+      payload: { id: callId, name: 'run_skill', args: { name: activated.pkg.name, ...(opts?.args ? { args: opts.args } : {}) } },
+    })
+    emit({
+      kind: 'tool_result',
+      agentRole: 'main',
+      payload: { id: callId, name: 'run_skill', llmContent: activated.llmContent },
+    })
+
+    const events = this.cfg.store.listEvents(taskId)
+    const compacted = this.maybeCompact(task, events)
+    const thread = rebuildThread(compacted ?? events, {
+      systemPrompt: this.systemPrompt(task.project_id),
+      userText: task.goal,
+    })
+    const controller = new AbortController()
+    const promise = this.execute(task, thread, controller.signal, opts?.model)
+    this.running.set(taskId, { controller, promise })
+    return { ok: true, taskId, created }
+  }
+
   cancel(taskId: string): void {
     this.rejectPendingAsks(taskId, new DOMException('The operation was aborted.', 'AbortError'))
     this.running.get(taskId)?.controller.abort()
@@ -280,15 +418,18 @@ export class AgentRuntime {
   async listAssets(projectId: string, taskId?: string): Promise<WorkspaceAsset[]> {
     const classify = (paths: string[], scope: 'shared' | 'session'): WorkspaceAsset[] => {
       const base = (p: string): string => p.split('/').pop() ?? p
-      const TEXT_EXT = ['txt', 'tex', 'csv', 'json']
       const IMAGE_EXT = ['png', 'jpg', 'jpeg', 'webp', 'gif']
+      const inDocs = (p: string): boolean => p.startsWith('docs/') || p.includes('/docs/')
       const assets: WorkspaceAsset[] = []
       for (const p of paths) {
         const ext = (p.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? '').toLowerCase()
         if (ext === 'pdf') assets.push({ path: p, kind: 'pdf', name: base(p), scope })
-        else if (ext === 'md' && !/(^|\/)search-/.test(p)) assets.push({ path: p, kind: 'doc', name: base(p), scope })
+        else if (ext === 'md') {
+          // search-*.md 是检索中间物,不进侧栏
+          if (!/(^|\/)search-/.test(p)) assets.push({ path: p, kind: 'doc', name: base(p), scope })
+        }
         else if (ext === 'html' || ext === 'htm') assets.push({ path: p, kind: 'html', name: base(p), scope })
-        else if (TEXT_EXT.includes(ext) && (p.startsWith('docs/') || p.includes('/docs/'))) assets.push({ path: p, kind: 'doc', name: base(p), scope })
+        else if (inDocs(p)) assets.push({ path: p, kind: 'doc', name: base(p), scope })
         else if (IMAGE_EXT.includes(ext)) assets.push({ path: p, kind: 'image', name: base(p), scope })
         else if (p.includes('uploads/')) assets.push({ path: p, kind: 'file', name: base(p), scope })
       }
@@ -329,9 +470,9 @@ export class AgentRuntime {
   }
 
   /**
-   * 用户上传按类型归位。
-   * scope=shared → 写入项目 shared/{papers|docs|…}/(项目级共享);
-   * 默认 → 会话目录(有 taskId)或项目根。
+   * 用户上传:宽准入、按表示分类落盘(学 OpenSquilla — admission ≠ representation)。
+   * papers/ 图文可渲染族;docs/ 文本与源码;images/ 图;其余 → uploads/ opaque(工具可读,不假定 inline)。
+   * scope=shared → 写入项目 shared/{kind}/;默认 → 会话目录(有 taskId)或项目根。
    */
   async saveUpload(
     projectId: string,
@@ -343,10 +484,7 @@ export class AgentRuntime {
     ensureProjectDirs(this.cfg.workspacesDir, projectId)
     const safe = (name.split(/[/\\]/).pop() || 'upload').replace(/[^\w.\-一-鿿]/g, '_')
     const ext = (safe.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? '').toLowerCase()
-    const kind = ext === 'pdf' ? 'papers'
-      : ['md', 'txt', 'tex', 'csv', 'json', 'html'].includes(ext) ? 'docs'
-        : ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext) ? 'images'
-          : 'uploads'
+    const kind = uploadFolderForExt(ext)
     if (scope === 'shared') {
       const file = `shared/${kind}/${safe}`
       await this.makeProjectRootWorkspace(projectId).writeBytes(file, bytes)

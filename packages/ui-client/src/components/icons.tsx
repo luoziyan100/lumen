@@ -87,6 +87,10 @@ export function TrashIcon({ size = ICON_SM }: { size?: number }) {
   return <Trash size={size} />
 }
 
+export function FileTextIcon({ size = ICON_MD }: { size?: number }) {
+  return <FileText size={size} />
+}
+
 export function SendIcon({ size = ICON_MD }: { size?: number }) {
   return <ArrowUp size={size} />
 }
@@ -162,7 +166,7 @@ export function RenameIcon({ size = ICON_SM }: { size?: number }) {
 }
 
 /** Kumo DropdownMenu.Item 的 icon= 要 phosphor 组件引用 */
-export { Archive as ArchiveGlyph, Copy as CopyGlyph, Gear as GearGlyph, PencilSimple as RenameGlyph }
+export { Archive as ArchiveGlyph, At as AtGlyph, Copy as CopyGlyph, FileText as FileTextGlyph, Gear as GearGlyph, PencilSimple as RenameGlyph }
 
 /** 流程图放大查看 */
 export function ExpandIcon({ size = ICON_SM }: { size?: number }) {

@@ -1,9 +1,9 @@
 /**
  * [INPUT]: agent-service WS/HTTP 协议(messages 真源的浏览器侧内联副本);
  *          运行时读 window.__LUMEN_WS__/__LUMEN_TOKEN__(Tauri 注入,可晚于首屏)
- * [OUTPUT]: AgentClient —— connect/submit/continue/archiveTask/answerUser/listProjects/createProject/renameProject/archiveProject/设置与资产
+ * [OUTPUT]: AgentClient —— connect/submit/continue/archiveTask/answerUser/listProjects/…/listSkills/installSkill/uninstallSkill/activateSkill/设置与资产
  * [POS]: UI 唯一出站口;connect 每次解析端点并把 localhost→127.0.0.1(防 IPv6 假死);
- *        send 在 WS 非 OPEN 时必须失败,continue/archive/answer_user/rename·archive_project 等 ok/error 回执
+ *        send 在 WS 非 OPEN 时必须失败,continue/archive/answer_user/rename·archive_project/Skills 等 ok/error 回执
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md;改消息格式须三处同步
  */
 
@@ -99,6 +99,18 @@ export interface SettingsPatch {
   activeProfileId?: string
 }
 
+/** Skill 摘要(与 service SkillInfo 对齐) */
+export interface SkillInfo {
+  name: string
+  description: string
+  whenToUse?: string
+  layer: 'source' | 'workspace' | 'user'
+  baseDir: string
+  disableModelInvocation: boolean
+}
+
+export type SkillInstallScope = 'user' | 'project'
+
 type ServerMessage =
   | { type: 'hello'; demo: boolean }
   | { type: 'task_created'; taskId: string }
@@ -109,6 +121,7 @@ type ServerMessage =
   | { type: 'project_updated'; project: Project }
   | { type: 'assets'; assets: Asset[] }
   | { type: 'asset'; path: string; content: string }
+  | { type: 'skills'; skills: SkillInfo[] }
   | { type: 'settings'; settings: PublicSettings }
   | { type: 'ok'; taskId?: string }
   | { type: 'error'; message: string }
@@ -140,6 +153,8 @@ export class AgentClient {
   private pendingAssets: ((assets: Asset[]) => void) | null = null
   private pendingAsset: ((content: string) => void) | null = null
   private pendingSettings: ((settings: PublicSettings) => void) | null = null
+  private pendingSkills: { resolve: (s: SkillInfo[]) => void; reject: (e: Error) => void } | null = null
+  private pendingActivate: { resolve: (taskId: string) => void; reject: (e: Error) => void; taskId?: string } | null = null
   /** continue/cancel 等等待服务端 ok|error 的回执(禁 fire-and-forget) */
   private pendingAck: { resolve: () => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> } | null = null
   private url: string
@@ -376,6 +391,61 @@ export class AgentClient {
     })
   }
 
+  listSkills(projectId: string): Promise<SkillInfo[]> {
+    return new Promise((resolve, reject) => {
+      try {
+        this.pendingSkills = { resolve, reject }
+        this.send({ type: 'list_skills', projectId })
+      } catch (e) {
+        this.pendingSkills = null
+        reject(e)
+      }
+    })
+  }
+
+  installSkill(projectId: string, scope: SkillInstallScope, path: string): Promise<SkillInfo[]> {
+    return new Promise((resolve, reject) => {
+      try {
+        this.pendingSkills = { resolve, reject }
+        this.send({ type: 'install_skill', projectId, scope, path })
+      } catch (e) {
+        this.pendingSkills = null
+        reject(e)
+      }
+    })
+  }
+
+  uninstallSkill(projectId: string, scope: SkillInstallScope, name: string): Promise<SkillInfo[]> {
+    return new Promise((resolve, reject) => {
+      try {
+        this.pendingSkills = { resolve, reject }
+        this.send({ type: 'uninstall_skill', projectId, scope, name })
+      } catch (e) {
+        this.pendingSkills = null
+        reject(e)
+      }
+    })
+  }
+
+  /** 显式激活 skill;返回 taskId(可能新建草稿会话) */
+  activateSkill(projectId: string, name: string, taskId?: string, args?: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      try {
+        this.pendingActivate = { resolve, reject, taskId }
+        this.send({
+          type: 'activate_skill',
+          projectId,
+          name,
+          ...(taskId ? { taskId } : {}),
+          ...(args ? { args } : {}),
+        })
+      } catch (e) {
+        this.pendingActivate = null
+        reject(e)
+      }
+    })
+  }
+
   // ---- PDF(HTTP) ----
   /** PDF 原件 URL,给 pdf.js 直接 fetch(带 token) */
   pdfUrl(projectId: string, path: string, taskId?: string): string {
@@ -471,6 +541,7 @@ export class AgentClient {
         for (const h of this.helloHandlers) h(message.demo)
         break
       case 'task_created':
+        if (this.pendingActivate) this.pendingActivate.taskId = message.taskId
         this.pendingCreated?.(message.taskId)
         this.pendingCreated = null
         break
@@ -501,16 +572,37 @@ export class AgentClient {
         this.pendingAsset?.(message.content)
         this.pendingAsset = null
         break
+      case 'skills':
+        this.pendingSkills?.resolve(message.skills)
+        this.pendingSkills = null
+        break
       case 'settings':
         this.pendingSettings?.(message.settings)
         this.pendingSettings = null
         break
       case 'ok':
+        if (this.pendingActivate) {
+          const p = this.pendingActivate
+          this.pendingActivate = null
+          const id = message.taskId ?? p.taskId
+          if (id) p.resolve(id)
+          else p.reject(new Error('activate_skill 未返回 taskId'))
+        }
         this.resolvePendingAck()
         break
       case 'error': {
         const err = new Error(message.message || '请求失败')
         if (this.pendingAck) this.rejectPendingAck(err)
+        if (this.pendingActivate) {
+          const p = this.pendingActivate
+          this.pendingActivate = null
+          p.reject(err)
+        }
+        if (this.pendingSkills) {
+          const p = this.pendingSkills
+          this.pendingSkills = null
+          p.reject(err)
+        }
         if (this.pendingProjectCreated) {
           const p = this.pendingProjectCreated
           this.pendingProjectCreated = null

@@ -30,6 +30,25 @@ fn pick_folder() -> Option<String> {
         .map(|p| p.to_string_lossy().into_owned())
 }
 
+/// 安装 Skill:选含 SKILL.md 的文件夹
+#[tauri::command]
+fn pick_skill_folder() -> Option<String> {
+    rfd::FileDialog::new()
+        .set_title("选择 Skill 文件夹(须含 SKILL.md)")
+        .pick_folder()
+        .map(|p| p.to_string_lossy().into_owned())
+}
+
+/// 安装 Skill:选单个 SKILL.md
+#[tauri::command]
+fn pick_skill_file() -> Option<String> {
+    rfd::FileDialog::new()
+        .set_title("选择 SKILL.md")
+        .add_filter("Markdown", &["md"])
+        .pick_file()
+        .map(|p| p.to_string_lossy().into_owned())
+}
+
 /// 前端断线重连前:探活;无 LaunchAgent 时才临时 spawn
 #[tauri::command]
 fn ensure_agent_service(
@@ -254,6 +273,8 @@ fn main() {
         .manage(EnsureGate(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             pick_folder,
+            pick_skill_folder,
+            pick_skill_file,
             ensure_agent_service,
             launchd_status,
             launchd_install,

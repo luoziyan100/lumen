@@ -14,5 +14,7 @@ export {
   sourceSkillsDir,
   workspaceSkillsDir,
 } from './discovery.ts'
+export { installSkillFromPath, uninstallSkill } from './install.ts'
+export type { InstallScope, InstallSkillOpts, InstallSkillResult } from './install.ts'
 export { applySkillSubstitutions, normalizeSkillName, parseFrontmatter, parseSkillMarkdown } from './parse.ts'
 export type { DiscoverRoots, SkillLayer, SkillMeta, SkillPackage } from './types.ts'

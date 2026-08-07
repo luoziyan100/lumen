@@ -19,10 +19,12 @@
 - `ProcessRow.tsx` — 可折叠过程块(Kumo Collapsible):左侧 `StatusOrb` 按焦点工具态(`orbStateFromSteps`);完成态 `paused` 仍保留形态差异;与 ThinkingIndicator 的 breathing 分离
 - `PlanCard.tsx` — 复杂任务计划卡(`update_plan`→`kind:'plan'`):标题+k/n+步骤;全完成折叠绿勾;与 ProcessRow 职责分离(见 `doc/plan-card.md`)
 - `AskUserDialog.tsx` — `ask_user` 输入框上方悬浮问询卡(无遮罩);由 `useAgent.pendingAsk` 驱动(见 `doc/ask-user.md`)
-- `ComposerCard.tsx` — 对话输入暗玻璃岛;模型芯片 DropdownMenu;拖放文件进 pending(与 @ 同源白名单);见 `doc/ui-design.md` §0
+- `ComposerCard.tsx` — 对话输入暗玻璃岛;`+` Skills 子菜单;/ 斜杠浮层;模型芯片;拖放文件(宽准入);见 `doc/ui-design.md` §0
+- `SkillSlashMenu.tsx` — `/` 过滤 Skills + Manage 入口
+- `ManageSkillsDialog.tsx` — Manage skills:列表/添加文件夹·SKILL.md/卸载(Kumo Dialog,禁 glass-beam)
 - `CollapsibleUserText.tsx` — 用户超长 prompt 默认折叠(>9 行或 >750 字);底渐隐 + 展开/收起;助手消息不折
-- `ThinkingIndicator.tsx` — 模型等待态(尚无过程行/轮间):`StatusOrb` breathing +「思考中」;侧栏 sb-dot 仍脉冲点
-- `Markdown.tsx` — .md 文档与纯文本段渲染:GFM + KaTeX + 代码高亮 + ` ```mermaid ` → MermaidBlock
+- `ThinkingIndicator.tsx` — 模型等待态(尚无过程行/尚无流式正文):`StatusOrb` breathing +「思考中」;正文 `streaming` 时不叠;侧栏 sb-dot 仍脉冲点
+- `Markdown.tsx` — .md 文档与纯文本段渲染:GFM + KaTeX + 代码高亮 + ` ```mermaid ` → MermaidBlock;流式 `deferMath` 暂缓 KaTeX/mermaid 防高度抖
 - `MermaidBlock.tsx` — mermaid.js 动态加载;securityLevel=strict;主题读青瓷 token;悬停工具条放大/复制源码;失败回退源码
 - `widget/` — 对话网页沙箱(`show-widget` 围栏 → iframe);见 `widget/CLAUDE.md`
 - `hljs-celadon.css` — highlight.js 青瓷主题:消费 tokens.css 的 --code-* 语法色板

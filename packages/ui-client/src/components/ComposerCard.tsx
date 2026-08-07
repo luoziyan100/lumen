@@ -1,17 +1,19 @@
 /**
- * [INPUT]: border-beam;icons;ASK_USER_COPY;ImageData;composerAccept;父级传入的输入/附件/运行态/可选模型列表
- * [OUTPUT]: ComposerCard —— Border Beam 暗玻璃对话输入卡;模型芯片下拉;拖放文件进 pending(与 @ 同源白名单)
+ * [INPUT]: border-beam;icons;ASK_USER_COPY;SKILLS_COPY;ImageData;composerAccept;SkillSlashMenu;父级传入
+ * [OUTPUT]: ComposerCard —— Border Beam 暗玻璃对话输入卡;+/Skills;/ 斜杠;模型芯片;拖放文件
  * [POS]: 贴 composer-dock;仅改输入岛,不染暖纸消息流;见 doc/ui-design.md §0
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import { useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react'
 import { BorderBeam } from 'border-beam'
 import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
 import { Tooltip } from '@cloudflare/kumo/components/tooltip'
-import type { ImageData } from '../agent-client'
-import { ASK_USER_COPY } from '../appCopy'
-import { COMPOSER_ACCEPT, dragHasFiles, filterComposerFiles } from '../composerAccept'
-import { AtIcon, CheckIcon, ChevronDownIcon, CloseIcon, GearGlyph, PdfIcon, SendIcon } from './icons'
+import type { ImageData, SkillInfo } from '../agent-client'
+import { ASK_USER_COPY, SKILLS_COPY } from '../appCopy'
+import { dragHasFiles, filterComposerFiles } from '../composerAccept'
+import { AtGlyph, CheckIcon, ChevronDownIcon, CloseIcon, FileTextGlyph, FileTextIcon, GearGlyph, PdfIcon, PlusIcon, SendIcon } from './icons'
+import { SkillSlashMenu } from './SkillSlashMenu'
+import { parseSlashFilter } from '../skillSlash'
 
 /** composer 芯片可选的一条模型(跨供应商扁平) */
 export type ComposerModelOption = {
@@ -47,6 +49,9 @@ export function ComposerCard({
   onManageModels,
   ctxUsage,
   canSend,
+  skills,
+  onActivateSkill,
+  onOpenManageSkills,
 }: {
   input: string
   onInputChange: (value: string) => void
@@ -56,7 +61,6 @@ export function ComposerCard({
   taRef: RefObject<HTMLTextAreaElement | null>
   fileRef: RefObject<HTMLInputElement | null>
   onPickFiles: (e: ChangeEvent<HTMLInputElement>) => void
-  /** 拖放入库:与 @ 选文件同一条 pendingFiles 路径 */
   onAddFiles: (files: File[]) => void
   onAttachClick: () => void
   attachments: ImageData[]
@@ -75,11 +79,25 @@ export function ComposerCard({
   onManageModels: () => void
   ctxUsage: number | null | undefined
   canSend: boolean
+  skills: SkillInfo[]
+  onActivateSkill: (name: string) => void
+  onOpenManageSkills: () => void
 }) {
   const shortModel = shortenModel(modelLabel)
   const dropBlocked = uploading || pendingAsk
   const [dragOver, setDragOver] = useState(false)
   const dragDepth = useRef(0)
+  const slashFilter = useMemo(() => parseSlashFilter(input), [input])
+  const slashOpen = slashFilter != null && !pendingAsk && !running
+  const filteredSkills = useMemo(() => {
+    const q = (slashFilter ?? '').toLowerCase()
+    return skills.filter((s) => !q || s.name.includes(q) || s.description.toLowerCase().includes(q))
+  }, [skills, slashFilter])
+  const [slashHi, setSlashHi] = useState(0)
+
+  useEffect(() => {
+    setSlashHi(0)
+  }, [slashFilter, skills.length])
 
   function onDragEnter(e: DragEvent<HTMLFormElement>): void {
     if (dropBlocked || !dragHasFiles(e.dataTransfer)) return
@@ -114,6 +132,33 @@ export function ComposerCard({
     if (files.length) onAddFiles(files)
   }
 
+  function handleKeyDown(e: ReactKeyboardEvent<HTMLTextAreaElement>): void {
+    if (slashOpen && filteredSkills.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSlashHi((i) => (i + 1) % filteredSkills.length)
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSlashHi((i) => (i - 1 + filteredSkills.length) % filteredSkills.length)
+        return
+      }
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        const s = filteredSkills[slashHi]
+        if (s) onActivateSkill(s.name)
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onInputChange('')
+        return
+      }
+    }
+    onKeyDown(e)
+  }
+
   return (
     <BorderBeam
       className="composer-beam"
@@ -139,21 +184,62 @@ export function ComposerCard({
             松手添加文件
           </div>
         )}
-        <div className="composer-top">
-          <Tooltip
-            content={uploading ? '上传中…' : '添加文件'}
-            render={
-              <button
-                type="button"
-                className="composer-at"
-                aria-label="添加文件"
-                disabled={uploading || pendingAsk}
-                onClick={onAttachClick}
-              >
-                <AtIcon size={18} />
-              </button>
-            }
+        {slashOpen && (
+          <SkillSlashMenu
+            skills={skills}
+            filter={slashFilter ?? ''}
+            highlight={slashHi}
+            onHighlight={setSlashHi}
+            onPickSkill={(s) => onActivateSkill(s.name)}
+            onManage={onOpenManageSkills}
           />
+        )}
+        <div className="composer-top">
+          <DropdownMenu>
+            <Tooltip
+              content="添加"
+              render={
+                <DropdownMenu.Trigger
+                  render={
+                    <button
+                      type="button"
+                      className="composer-at"
+                      aria-label="添加"
+                      disabled={uploading || pendingAsk}
+                    />
+                  }
+                >
+                  <PlusIcon size={18} />
+                </DropdownMenu.Trigger>
+              }
+            />
+            <DropdownMenu.Content align="start" side="top" sideOffset={6} className="composer-plus-menu glass-card">
+              <DropdownMenu.Item icon={AtGlyph} onClick={onAttachClick}>
+                {SKILLS_COPY.menuAddFiles}
+              </DropdownMenu.Item>
+              <DropdownMenu.Sub>
+                <DropdownMenu.SubTrigger icon={FileTextGlyph}>
+                  {SKILLS_COPY.menuSkills}
+                </DropdownMenu.SubTrigger>
+                <DropdownMenu.SubContent align="start" side="right" sideOffset={4} className="glass-card">
+                  {skills.length === 0 && (
+                    <div className="composer-model-menu-empty">{SKILLS_COPY.empty}</div>
+                  )}
+                  {skills.map((s) => (
+                    <DropdownMenu.Item
+                      key={`m-${s.layer}-${s.name}`}
+                      onClick={() => onActivateSkill(s.name)}
+                    >
+                      {s.name}
+                    </DropdownMenu.Item>
+                  ))}
+                  <DropdownMenu.Item icon={GearGlyph} onClick={onOpenManageSkills}>
+                    {SKILLS_COPY.manageItem}
+                  </DropdownMenu.Item>
+                </DropdownMenu.SubContent>
+              </DropdownMenu.Sub>
+            </DropdownMenu.Content>
+          </DropdownMenu>
         </div>
 
         {attachments.length > 0 && (
@@ -187,9 +273,9 @@ export function ComposerCard({
           className="composer-input"
           value={input}
           onChange={(e) => onInputChange(e.target.value)}
-          onKeyDown={onKeyDown}
+          onKeyDown={handleKeyDown}
           onPaste={onPaste}
-          placeholder={pendingAsk ? ASK_USER_COPY.waitingHint : '问点什么,或拖入文件、粘贴图片…'}
+          placeholder={pendingAsk ? ASK_USER_COPY.waitingHint : '问点什么,/ 唤起 Skills,或拖入文件…'}
           rows={2}
           disabled={pendingAsk}
         />
@@ -272,7 +358,6 @@ export function ComposerCard({
           ref={fileRef}
           type="file"
           multiple
-          accept={COMPOSER_ACCEPT}
           hidden
           onChange={onPickFiles}
         />

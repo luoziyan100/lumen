@@ -60,11 +60,13 @@ Skill ≠ Memory。Skill 是可**启动**的研究工作流;Memory 是长期事�
 
 优先级:源码树 > 工作区 > 用户。包布局:`SKILL.md` + 可选 `scripts/` / `references/` / `assets/`。
 
-运行:`formatSkillCatalog` → systemPrompt「可运行的 Skills」段 → 模型 `run_skill` → tool_result(`Skill activated` + playbook,`${LUMEN_SKILL_DIR}` 已展开) → 模型用现有工具落地;包内脚本走 `run_code` 同一 Seatbelt(技能根只读放行,写仍限工作区)。
+运行:`formatSkillCatalog` → systemPrompt「可运行的 Skills」段 → 模型 `run_skill` **或** UI 斜杠/`+` → `activate_skill`(与 `run_skill` 同构回灌 playbook) → 模型用现有工具落地;包内脚本走 `run_code` 同一 Seatbelt(技能根只读放行,写仍限工作区)。
 
-不做(v1):host `` !` ``、skill 特权提权、独立 Skill VM、slash UI、自动扫 `.claude`。
+**人机入口(走出 v1):** composer 输入 `/name` 弹出 Skills 列表(选中即激活);`+` → Skills 子菜单同路径;底栏 **Manage skills** 弹窗以**文件夹为主**安装(拷贝进 `~/.lumen/skills` 或项目 `skills/`),单文件仅收 `SKILL.md` 并包成目录;支持卸载。不做 ClawHub/zip 主入口、不做 plugin-skills 合流、不把完整 playbook 每轮打进 system prompt。
 
-过程稿:`briefs/archive/skills.md`。
+不做(仍禁):host `` !` ``、skill 特权提权、独立 Skill VM、自动扫 `.claude`。
+
+过程稿:`briefs/archive/skills.md` · `briefs/archive/skills-slash-manage.md`。
 
 ## 运行时(runtime/)
 
@@ -104,6 +106,7 @@ WebSocket + JSON:
 | 任务 | `create_task` · `submit` · `continue` · `cancel` · `resume` · `list` |
 | 事件流 | `subscribe`(附事件重放;客户端按事件 id 去重) |
 | 资产 | `list_assets` · `read_asset`(shared + 当前会话;`scope` 标注) |
+| Skills | `list_skills` · `install_skill` · `uninstall_skill` · `activate_skill`(显式激活=run_skill 同构回灌) |
 | 设置 | `get_settings` · `update_settings` |
 
 UI 状态是事件流的纯函数:对 durable 子集重放必然得到同一界面;live 会话额外叠加 ephemeral 增量,由随后的 `model_step` 定稿替换 streaming 泡。`client/agent-client.ts`(LumenClient)是类型化客户端,浏览器与 Node 测试共用。
@@ -128,6 +131,8 @@ UI 状态是事件流的纯函数:对 durable 子集重放必然得到同一界�
 
 **共享的是资料,不是聊天。** 会话 cwd 仍是 `sessions/<taskId>/`;工具经 `shared/` 前缀只读访问共享区。`list_assets` 合并 shared + 当前会话并标注 `scope`。PDF 提取等中间产物进 `cache/`,不进资产列表。
 
+**上传策略(admission ≠ representation,对齐 OpenSquilla):** UI 不按扩展名拒收;服务端 `saveUpload` 按表示归位——`pdf`→`papers/`、文本与源码→`docs/`、图→`images/`、其余→`uploads/`(opaque:落盘给工具读,不假定 inline 进模型)。体积上限见 `maxUploadBytes`(默认 25MB)。
+
 ## 服务与外壳
 
 - `service.ts` — 进程入口:起 WS 服务,写 portfile(`~/.lumen/agent-service.json`:端口 / token)
@@ -137,6 +142,6 @@ UI 状态是事件流的纯函数:对 durable 子集重放必然得到同一界�
 
 ## ui-client
 
-React + Vite。三栏工作台:会话列表 / 对话(全幅消息流,输入卡片悬浮其上)/ 工作区+阅读器(分栏可拖宽,工作区随产物自动展开)。`useAgent` 持有 WS 连接,把事件流 reduce 成界面状态;上传文件先在输入区暂存,发送时才进入工作区。
+React + Vite。三栏工作台:会话列表 / 对话(全幅消息流,输入卡片悬浮其上)/ 工作区+阅读器(分栏可拖宽,工作区随产物自动展开)。`useAgent` 持有 WS 连接,把事件流 reduce 成界面状态;上传文件先在输入区暂存,发送时才进入工作区(宽准入,见上「上传策略」)。
 
 **对话可视化(网页沙箱):** assistant 文本中的 ` ```show-widget ` 围栏由 ui-client 解析,在 `sandbox="allow-scripts"`(无 same-origin)的 receiver iframe 内渲染 HTML/SVG/JS;CSP 限制 CDN 白名单且 `connect-src 'none'`。过程与验收见 `briefs/active/web-sandbox-widget.md`。这与 `run_code` 的进程沙箱(Seatbelt)是不同隔离面。

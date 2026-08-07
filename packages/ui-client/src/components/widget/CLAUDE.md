@@ -13,7 +13,7 @@
 - `parseShowWidget.ts` — 围栏分段解析与 partial JSON 提取
 - `height.ts` — `nextWidgetHeight`:流式 ratchet、终态可收缩
 - `WidgetFrame.tsx` — iframe.src=`/widget-receiver.html`(禁 srcdoc:父 CSP 会继承掐死 bootstrap);debounce update / finalize;阅读器 `fillHeight` 开岛内滚
-- `AssistantContent.tsx` — 文本 Markdown(含 mermaid)+ widget 交错;气泡入口
+- `AssistantContent.tsx` — 文本 Markdown(含 mermaid)+ widget 交错;流式 `deferMath`;气泡入口
 - `../HtmlViewer.tsx` — 工作区 HTML 预览入口(`fillHeight`)
 
 测试:`tests/widget-parse.test.ts`(解析 + sanitize);`tests/widget-theme.test.ts`(暗壳主题对比度 + fillHeight 滚动契约)。
