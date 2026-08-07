@@ -8,6 +8,7 @@
 
 - `fs-tools.ts` — ENV_TOOLS:read_file / write_file / edit_file / list_dir / grep / glob
   「文件系统即上下文」:agent 把正文写成文件,回头 grep / 分段重读,不逼模型凭截断摘要作答。
+  `resolveToolPath` 兼容 `file_name`/`filename`;缺 path 必须 error,禁写成字面量 `undefined`。
 - `run-code.ts` — runCodeTool:在当前会话工作区跑 node/python(cwd 锁工作区/60s 超时/输出上限/命令进事件流)。
 - `sandbox.ts` — Seatbelt profile(macOS):allow-default + 精准 deny(网络全禁/写限工作区/读封敏感目录);
   Skills 根(`~/.lumen/skills` + `skillReadRoots`)在 deny `.lumen` 之后 allow-read,便于跑包内脚本;写 skills 仍被禁。

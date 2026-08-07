@@ -3,7 +3,8 @@
  * [OUTPUT]: App —— 形态 A 装配;项目树(p-*) + 最近平铺历史;轮次轨;PlanCard/ProcessRow/ThinkingIndicator;
  *           ask_user 悬浮问询;composer 暗玻璃;用户超长 prompt 折叠
  * [POS]: ui-client 根组件;storage project_id ≠ 用户项目;历史不分类进「默认」;
- *        对话列 useStickToBottom:流式贴底;上滑松手可自由阅读;松钉后出「回到最新」
+ *        对话列 useStickToBottom:流式贴底;上滑松手可自由阅读;松钉后出「回到最新」;
+ *        标题栏工作区钮:阅读器开时一并关闭(drawer 与 ws.open 双态,不能只拨 drawer)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
@@ -623,7 +624,19 @@ function AppInner() {
   const lastItem = items[items.length - 1]
   const lastRunning = lastItem?.kind === 'process' && lastItem.running
   const showReader = ws.open != null
+  // 右栏可见 = 阅读器或工作目录轨;标题栏钮必须两边都能收,不能只拨 drawer
+  const rightPaneOpen = showReader || drawer
   const isEmpty = isEmptyChat(items, running)
+
+  function toggleRightPane(): void {
+    if (showReader) {
+      // 阅读器开着时:收起 = 关阅读器 + 收工作目录(回到纯对话)
+      ws.close()
+      setDrawer(false)
+      return
+    }
+    toggleRail(!drawer)
+  }
 
   return (
     <div className="app">
@@ -639,13 +652,13 @@ function AppInner() {
         </div>
         <nav className="titlebar-actions">
           {/* 工作区(右轨)收起/展开:图标钮,与左侧栏折叠钮对称;文字"工作区"改图标(owner 定) */}
-          <Tooltip content={drawer ? '收起工作区' : '展开工作区'} render={
+          <Tooltip content={rightPaneOpen ? '收起工作区' : '展开工作区'} render={
             <button
               className="icon-btn nav-icon-btn"
-              aria-label={drawer ? '收起工作区' : '展开工作区'}
-              aria-expanded={drawer}
+              aria-label={rightPaneOpen ? '收起工作区' : '展开工作区'}
+              aria-expanded={rightPaneOpen}
               aria-controls={APP_TITLEBAR_WORKSPACE_TOGGLE.controls}
-              onClick={() => toggleRail(!drawer)}
+              onClick={toggleRightPane}
             >
               <RailIcon size={APP_NAV_ICON_BUTTON.iconSize} />
             </button>

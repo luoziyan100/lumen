@@ -4,6 +4,8 @@
  * [POS]: §5.2 第一层工具。agent 攒状态的"地面"；全部经 ctx.workspace 沙箱
  *
  * 约定：工具不抛错——失败把 error 写进 llmContent，交给模型下一轮自行恢复（与 runAgent 的 recovery 一致）。
+ * 路径：模型偶发传 file_name/filename 而非 path；必须解析别名并拒写 "undefined"/"null" 字面量。
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { Tool, ToolContext, ToolResult, Workspace } from '../../core/tool.ts'
 
@@ -20,6 +22,15 @@ function requireWorkspace(ctx: ToolContext): Workspace | null {
 
 function objectParam(schema: Record<string, unknown>, required: string[]): Record<string, unknown> {
   return { type: 'object', properties: schema, required }
+}
+
+/** 从工具参数取工作区相对路径;兼容 file_name/filename/file 别名 */
+export function resolveToolPath(args: Record<string, unknown>): string | null {
+  const raw = args.path ?? args.file_name ?? args.filename ?? args.file
+  if (raw == null) return null
+  const p = String(raw).trim()
+  if (!p || p === 'undefined' || p === 'null') return null
+  return p
 }
 
 export const readFileTool: Tool = {
@@ -40,8 +51,12 @@ export const readFileTool: Tool = {
   run: async (args, ctx): Promise<ToolResult> => {
     const ws = requireWorkspace(ctx)
     if (!ws) return { llmContent: 'error: workspace 未注入' }
+    const filePath = resolveToolPath(args)
+    if (!filePath) {
+      return { llmContent: 'error: 缺少 path(也可用 file_name)。不要写到 undefined。' }
+    }
     try {
-      const content = await ws.readFile(String(args.path))
+      const content = await ws.readFile(filePath)
       const total = content.length
       const offset = Math.max(0, Math.floor(Number(args.offset ?? 0)) || 0)
       const limit = Math.max(1, Math.floor(Number(args.limit ?? READ_MAX_CHARS)) || READ_MAX_CHARS)
@@ -67,18 +82,28 @@ export const readFileTool: Tool = {
 export const writeFileTool: Tool = {
   spec: {
     name: 'write_file',
-    description: '写入工作区文件（覆盖；自动创建父目录）。只能写工作区，不能写 library/。',
+    description:
+      '写入工作区文件（覆盖；自动创建父目录）。只能写工作区，不能写 library/。' +
+      '参数 path 为工作区相对路径(如 notes/a.md);也接受 file_name。',
     parameters: objectParam(
-      { path: { type: 'string' }, content: { type: 'string' } },
-      ['path', 'content'],
+      {
+        path: { type: 'string', description: '工作区相对路径,如 notes/a.md' },
+        file_name: { type: 'string', description: 'path 的别名(兼容)' },
+        content: { type: 'string' },
+      },
+      ['content'],
     ),
   },
   run: async (args, ctx): Promise<ToolResult> => {
     const ws = requireWorkspace(ctx)
     if (!ws) return { llmContent: 'error: workspace 未注入' }
+    const filePath = resolveToolPath(args)
+    if (!filePath) {
+      return { llmContent: 'error: 缺少 path(也可用 file_name)。拒绝写入 undefined。' }
+    }
     try {
-      await ws.writeFile(String(args.path), String(args.content ?? ''))
-      return { llmContent: `ok: 已写入 ${args.path}` }
+      await ws.writeFile(filePath, String(args.content ?? ''))
+      return { llmContent: `ok: 已写入 ${filePath}` }
     } catch (error) {
       return { llmContent: `error: ${errorMessage(error)}` }
     }
@@ -97,9 +122,13 @@ export const editFileTool: Tool = {
   run: async (args, ctx): Promise<ToolResult> => {
     const ws = requireWorkspace(ctx)
     if (!ws) return { llmContent: 'error: workspace 未注入' }
+    const filePath = resolveToolPath(args)
+    if (!filePath) {
+      return { llmContent: 'error: 缺少 path(也可用 file_name)。' }
+    }
     try {
-      await ws.editFile(String(args.path), String(args.old_string ?? ''), String(args.new_string ?? ''))
-      return { llmContent: `ok: 已编辑 ${args.path}` }
+      await ws.editFile(filePath, String(args.old_string ?? ''), String(args.new_string ?? ''))
+      return { llmContent: `ok: 已编辑 ${filePath}` }
     } catch (error) {
       return { llmContent: `error: ${errorMessage(error)}` }
     }

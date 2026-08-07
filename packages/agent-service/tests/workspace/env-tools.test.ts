@@ -27,6 +27,18 @@ test('工具：write 然后 read 返回同样内容', async (t) => {
   assert.equal(r.llmContent, 'X 内容')
 })
 
+test('write_file:file_name 别名可写;缺 path 拒写 undefined', async (t) => {
+  const ws = await makeWs(t)
+  const ctx = noopCtx({ workspace: ws })
+  const bad = await writeFileTool.run({ content: '幽灵' }, ctx)
+  assert.match(bad.llmContent, /^error:.*path/)
+  assert.equal((await ws.glob('**/*')).includes('undefined'), false)
+
+  const w = await writeFileTool.run({ file_name: 'notes/trove.md', content: '对谈' }, ctx)
+  assert.equal(w.llmContent, 'ok: 已写入 notes/trove.md')
+  assert.equal(await ws.readFile('notes/trove.md'), '对谈')
+})
+
 test('工具：缺 workspace 时返回 error 而非抛出', async () => {
   const r = await readFileTool.run({ path: 'x' }, noopCtx())
   assert.match(r.llmContent, /workspace 未注入/)
