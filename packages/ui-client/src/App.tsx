@@ -4,7 +4,8 @@
  *           ask_user 悬浮问询;composer 暗玻璃;用户超长 prompt 折叠
  * [POS]: ui-client 根组件;storage project_id ≠ 用户项目;历史不分类进「默认」;
  *        对话列 useStickToBottom:流式贴底;上滑松手可自由阅读;松钉后出「回到最新」;
- *        标题栏工作区钮:阅读器开时一并关闭(drawer 与 ws.open 双态,不能只拨 drawer)
+ *        标题栏工作区钮:阅读器开时一并关闭(drawer 与 ws.open 双态,不能只拨 drawer);
+ *        侧栏未读灯:task_updated 终态且非当前 → unread(localStorage);打开会话清除
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
@@ -13,6 +14,8 @@ import { Tooltip, TooltipProvider } from '@cloudflare/kumo/components/tooltip'
 import { AgentClient, type ImageData, type Project, type SkillInfo, type SkillInstallScope, type Task } from './agent-client'
 import { ensureAgentService } from './ensureAgent'
 import { sortTasksForSidebar } from './sortTasks'
+import { shouldMarkUnreadOnStatus } from './sessionLamp'
+import { loadUnreadSessionIds, saveUnreadSessionIds } from './unreadSessions'
 import { useAgent, type ChatItem } from './useAgent'
 import { useStickToBottom } from './useStickToBottom'
 import { useWorkspace } from './useWorkspace'
@@ -120,10 +123,44 @@ function AppInner() {
   const [tasksByProject, setTasksByProject] = useState<Record<string, Task[]>>({})
   /** 项目行 + 后的临时「新建对话」;发言落库后清掉,未发言离开也清掉 */
   const [draftProjectId, setDraftProjectId] = useState<string | null>(null)
+  /** 会话未读(Claude 式实心灯);本机持久化 */
+  const [unreadIds, setUnreadIds] = useState<Set<string>>(() => loadUnreadSessionIds())
+  const taskIdForUnreadRef = useRef<string | null>(null)
 
-  // 侧栏短标题/置顶异步写回;写后按 store 同序重排
+  function markUnread(id: string): void {
+    setUnreadIds((prev) => {
+      if (prev.has(id)) return prev
+      const next = new Set(prev)
+      next.add(id)
+      saveUnreadSessionIds(next)
+      return next
+    })
+  }
+
+  function clearUnread(id: string): void {
+    setUnreadIds((prev) => {
+      if (!prev.has(id)) return prev
+      const next = new Set(prev)
+      next.delete(id)
+      saveUnreadSessionIds(next)
+      return next
+    })
+  }
+
+  function toggleUnread(id: string): void {
+    setUnreadIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      saveUnreadSessionIds(next)
+      return next
+    })
+  }
+
+  // 侧栏短标题/置顶/status 异步写回;非当前会话 running→终态 → 未读灯
   useEffect(() => {
     return client.onTaskUpdated((task) => {
+      let prevStatus: string | undefined
       setTasksByProject((prev) => {
         const pid = task.project_id
         const list = prev[pid]
@@ -131,11 +168,20 @@ function AppInner() {
           return { ...prev, [pid]: [task] }
         }
         const i = list.findIndex((t) => t.id === task.id)
+        prevStatus = i >= 0 ? list[i]!.status : undefined
         const next = list.slice()
         if (i < 0) next.unshift(task)
         else next[i] = { ...list[i]!, ...task }
         return { ...prev, [pid]: sortTasksForSidebar(next) }
       })
+      if (shouldMarkUnreadOnStatus({
+        prevStatus,
+        status: task.status,
+        taskId: task.id,
+        activeTaskId: taskIdForUnreadRef.current,
+      })) {
+        markUnread(task.id)
+      }
     })
   }, [client])
 
@@ -148,6 +194,7 @@ function AppInner() {
     items, running, pendingAsk, send, stop, answerAsk,
     newConversation, selectConversation, taskId, ctxUsage,
   } = useAgent(client, projectId, connected)
+  taskIdForUnreadRef.current = taskId
   const [askBusy, setAskBusy] = useState(false)
   const [skills, setSkills] = useState<SkillInfo[]>([])
   const [skillsManageOpen, setSkillsManageOpen] = useState(false)
@@ -202,6 +249,7 @@ function AppInner() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
   function pickConversation(task: Task): void {
+    clearUnread(task.id)
     setDraftProjectId(null) // 点进已有会话 = 取消未发言草稿
     persistProjectId(task.project_id)
     selectConversation(task.id, task.status === 'running', task.project_id)
@@ -213,6 +261,7 @@ function AppInner() {
   async function archiveConversation(task: Task): Promise<void> {
     try {
       await client.archiveTask(task.id, task.project_id)
+      clearUnread(task.id)
       setTasksByProject((prev) => {
         const next: Record<string, Task[]> = {}
         for (const [pid, list] of Object.entries(prev)) {
@@ -803,6 +852,8 @@ function AppInner() {
             onRenameProject={(p, name) => renameProject(p, name)}
             onArchiveProject={(p) => { void archiveProject(p) }}
             onSettings={() => setSettingsOpen(true)}
+            unreadIds={unreadIds}
+            onToggleUnread={toggleUnread}
           />
         )}
         {createProjectOpen && (

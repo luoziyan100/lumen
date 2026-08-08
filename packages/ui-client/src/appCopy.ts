@@ -34,6 +34,10 @@ export const SIDEBAR_PROJECT_COPY = {
   /** 项目树会话 >N 条时 Progressive Disclosure(见 visibleSessions) */
   showMoreSessions: '展开显示',
   showLessSessions: '收起',
+  /** 会话灯:点圆 toggle 未读(Claude read/unread);空心=已读,实心=未读,脉动=运行中 */
+  markUnread: '标为未读',
+  markRead: '标为已读',
+  lampRunning: '运行中',
   /** 次要点击(触控板双指点按 / 鼠标右键)后露出 */
   pinChat: '置顶',
   unpinChat: '取消置顶',

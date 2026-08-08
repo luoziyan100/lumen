@@ -1,9 +1,9 @@
 /**
- * [INPUT]: Project / Task;icons;SIDEBAR_*_COPY;useResizable;Kumo DropdownMenu;MarqueeTitle;visibleSessions
+ * [INPUT]: Project / Task;icons;SIDEBAR_*_COPY;useResizable;Kumo DropdownMenu;MarqueeTitle;visibleSessions;sessionLamp
  * [OUTPUT]: Sidebar —— 可折「项目」整区 + 全局置顶 + 最近;双指点按置顶/重命名/复制/归档;标题溢出悬停跑马灯
  * [POS]: 左栏;「项目」标题右侧 chevron 收整区(localStorage lumen:sbProjectsOpen);项目行左侧 chevron 仍管单树;
- *        项目树会话 >N 条 Progressive Disclosure(内存展开,active 保底);置顶在项目区下、最近上;
- *        Trigger 须 render=<button>;开编延后+忽略菜单 blur
+ *        项目树会话 >N 条 Progressive Disclosure(内存展开,active 保底);会话行左侧 status 灯(idle/unread/running);
+ *        置顶在项目区下、最近上;Trigger 须 render=<button>;开编延后+忽略菜单 blur
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
@@ -16,6 +16,7 @@ import {
 } from './icons'
 import { MarqueeTitle } from './MarqueeTitle'
 import { SIDEBAR_ACCOUNT_COPY, SIDEBAR_PROJECT_COPY } from '../appCopy'
+import { sessionLampKind } from '../sessionLamp'
 import { useResizable } from '../useResizable'
 import { visibleSessions } from '../visibleSessions'
 
@@ -63,6 +64,9 @@ interface SidebarProps {
   onRenameProject: (project: Project, name: string) => Promise<void> | void
   onArchiveProject: (project: Project) => void
   onSettings: () => void
+  /** 未读会话 id(客户端持久化);灯态见 sessionLamp */
+  unreadIds: ReadonlySet<string>
+  onToggleUnread: (taskId: string) => void
 }
 
 function projectLabel(p: Project): string {
@@ -90,6 +94,8 @@ export function Sidebar({
   onRenameProject,
   onArchiveProject,
   onSettings,
+  unreadIds,
+  onToggleUnread,
 }: SidebarProps) {
   const { width, handleProps } = useResizable({ edge: 'right', min: 220, max: 420, fallback: 300, storageKey: 'lumen:sbWidth' })
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(
@@ -203,6 +209,32 @@ export function Sidebar({
     const menuOpen = menuTaskId === task.id
     const pinned = Boolean(task.pinned_at?.trim())
     const renamingThis = renaming?.kind === 'task' && renaming.id === task.id
+    const lamp = sessionLampKind({
+      status: task.status,
+      unread: unreadIds.has(task.id),
+    })
+    const lampTitle = lamp === 'running'
+      ? SIDEBAR_PROJECT_COPY.lampRunning
+      : lamp === 'unread'
+        ? SIDEBAR_PROJECT_COPY.markRead
+        : SIDEBAR_PROJECT_COPY.markUnread
+    const lampBtn = (
+      <button
+        type="button"
+        className={`sb-lamp is-${lamp}`}
+        title={lampTitle}
+        aria-label={lampTitle}
+        aria-pressed={lamp === 'unread'}
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          closeMenus()
+          onToggleUnread(task.id)
+        }}
+      >
+        <span className="sb-lamp-dot" aria-hidden />
+      </button>
+    )
     if (renamingThis) {
       return (
         <div
@@ -210,6 +242,7 @@ export function Sidebar({
           className={`sb-item-row${flat ? ' sb-item-flat' : ''}${task.id === activeTaskId ? ' is-active' : ''}`}
           data-task-row={task.id}
         >
+          {lampBtn}
           <input
             ref={renameRef}
             className="sb-item-rename"
@@ -230,6 +263,7 @@ export function Sidebar({
         className={`sb-item-row${flat ? ' sb-item-flat' : ''}${task.id === activeTaskId ? ' is-active' : ''}${menuOpen ? ' is-menu-open' : ''}`}
         data-task-row={task.id}
       >
+        {lampBtn}
         <DropdownMenu
           open={menuOpen}
           onOpenChange={(open) => {
@@ -237,7 +271,7 @@ export function Sidebar({
             if (!open) setMenuTaskId(null)
           }}
         >
-          {/* Kumo Trigger:唯一子节点会被提升为 render——闲置会话无 sb-dot 时必须显式 button,否则槽宽/跑马灯链断裂 */}
+          {/* Kumo Trigger:唯一子节点会被提升为 render——须显式 button,否则槽宽/跑马灯链断裂 */}
           <DropdownMenu.Trigger
             render={<button type="button" className="sb-item" />}
             onClick={(e) => {
@@ -255,7 +289,6 @@ export function Sidebar({
             }}
           >
             <MarqueeTitle text={displayTaskTitle(task)} className="sb-item-title" forceRoll={menuOpen} />
-            {task.status === 'running' && <span className="sb-dot" />}
           </DropdownMenu.Trigger>
           <DropdownMenu.Content align="start" side="bottom" sideOffset={4} className="sb-task-menu glass-card">
             <DropdownMenu.Item

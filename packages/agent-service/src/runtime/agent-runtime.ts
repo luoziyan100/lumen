@@ -4,7 +4,8 @@
  * [OUTPUT]: AgentRuntime —— 把内核、存储、工作区、worker 角色拼成可执行、可订阅、可恢复的任务运行时;
  *           answerUser 解开 ask_user 挂起;
  *           listSkills/installSkill/uninstallSkill/activateSkillOnTask(与 run_skill 同构回灌);
- *           侧栏 task.title 异步生成(≠ goal;见 task-title.ts);renameTaskTitle 人手改 title
+ *           侧栏 task.title 异步生成(≠ goal;见 task-title.ts);renameTaskTitle 人手改 title;
+ *           notifyStatus 同步 emitTaskUpdated(侧栏 status/未读灯)
  * [POS]: §4 运行环境。一个任务 = 一次 runAgent；durable emit 落 task_events + session jsonl + WS;
  *        text_delta/tool_call_start 仅 notify(不入库);imageBridge DeepSeek 去图插桩;
  *        pendingAsk 按 taskId+toolCallId 挂起(见 doc/ask-user.md);Skills 人机入口见宪法专节
@@ -930,6 +931,9 @@ export class AgentRuntime {
     const events = this.cfg.store.listEvents(taskId)
     const last = events[events.length - 1]
     if (last && last.kind === 'status_change') this.notify(taskId, last)
+    // 侧栏列表靠 task_updated 刷新 status(含未读灯);仅订阅事件时非当前会话收不到
+    const task = this.cfg.store.getTask(taskId)
+    if (task) this.emitTaskUpdated(task)
   }
 
   private endSession(taskId: string, status: string, durationMs: number): void {

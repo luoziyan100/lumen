@@ -25,6 +25,8 @@
 | `displayTaskTitle.ts` | 侧栏/搜索展示名:`title ?? goal` |
 | `sortTasks.ts` | 侧栏序:钉档 → `pinned_at` → `created_at`(与 store list 同构) |
 | `visibleSessions.ts` | 项目树会话 Progressive Disclosure:默认前 N + active 保底 |
+| `sessionLamp.ts` | 侧栏会话灯状态机:idle / unread / running |
+| `unreadSessions.ts` | 未读会话 id 的 localStorage 读写 |
 | `pickSkillPath.ts` | Tauri 选 Skill 文件夹 / SKILL.md |
 | `appCopy.ts` / `settingsCopy.ts` / `greeting.ts` | 文案与问候(简体中文,不用 emoji);含 `SKILLS_COPY` |
 | `msgFold.ts` | 用户气泡折叠阈值(9 行 / 750 字);供 CollapsibleUserText 与测试 |

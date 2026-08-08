@@ -525,17 +525,45 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .sb-section-h-recent { margin-top: var(--s-3); }
 /* 置顶 / 项目 / 最近 分区标题之间留缝 */
 .sb-list .sb-section-h ~ .sb-section-h { margin-top: var(--s-3); }
-.sb-item-flat { padding-left: var(--s-3); }
+.sb-item-flat { padding-left: var(--s-2); }
 .sb-item-row {
-  display: flex; align-items: center; gap: 2px;
+  display: flex; align-items: center; gap: 0;
   border-radius: var(--radius-md);
 }
 .sb-item-row .sb-item { flex: 1; min-width: 0; }
+.sb-item-row .sb-item-rename { flex: 1; min-width: 0; }
 .sb-item-row.is-active { background: var(--vellum); }
 .sb-item-row.is-active .sb-item { background: none; color: var(--ink); }
 .sb-item-row:hover { background: var(--sand); }
 .sb-item-row:hover .sb-item { background: none; }
 .sb-item-row.is-active:hover { background: var(--vellum); }
+/* 会话灯:固定左槽;空心 idle / 实心 unread(--indigo) / 脉动 running(--ember);点圆 ≠ 选会话 */
+.sb-lamp {
+  flex: none;
+  width: 16px; height: 28px;
+  margin-left: 2px;
+  display: grid; place-items: center;
+  border: none; background: none; padding: 0;
+  cursor: pointer; border-radius: var(--radius-sm);
+  color: inherit;
+}
+.sb-lamp-dot {
+  width: 5.5px; height: 5.5px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  border: 1px solid var(--ink-mute);
+  background: transparent;
+}
+.sb-lamp.is-unread .sb-lamp-dot {
+  border-color: var(--indigo);
+  background: var(--indigo);
+}
+.sb-lamp.is-running .sb-lamp-dot {
+  border-color: var(--ember);
+  background: var(--ember);
+  animation: proc-pulse 1.2s ease-in-out infinite;
+}
+.sb-item-flat .sb-lamp { margin-left: 6px; }
 /* 会话行禁选字:避免次要点击时带选区 → 否则 WKWebView 弹 macOS Look Up/翻译 */
 .sb-item-row,
 .sb-item,
