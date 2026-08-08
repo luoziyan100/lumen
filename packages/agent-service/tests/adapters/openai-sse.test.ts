@@ -34,6 +34,16 @@ test('OpenAI SSE:文本 delta 拼成完整 content', () => {
   assert.equal(parsed.toolCalls.length, 0)
 })
 
+test('OpenAI SSE:reasoning_content 拼进 finalize', () => {
+  const accum = createOpenAIStreamAccum()
+  applyOpenAISseData(accum, '{"choices":[{"delta":{"reasoning_content":"先想"}}]}')
+  applyOpenAISseData(accum, '{"choices":[{"delta":{"reasoning_content":"再想"}}]}')
+  applyOpenAISseData(accum, '{"choices":[{"delta":{"content":"答"}}]}')
+  const parsed = parseOpenAIResponse(finalizeOpenAIStreamAccum(accum))
+  assert.equal(parsed.message.reasoningContent, '先想再想')
+  assert.equal(parsed.message.content, '答')
+})
+
 test('OpenAI SSE:tool_calls 增量拼装 + onToolCallStart 仅一次', () => {
   const accum = createOpenAIStreamAccum()
   const starts: Array<{ id: string; name: string }> = []

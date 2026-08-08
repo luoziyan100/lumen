@@ -63,13 +63,50 @@ test('arguments 含字符串内括号也能正确平衡解析', () => {
   assert.equal(parsed.toolCalls[0].arguments.q, 'a {nested} brace } here')
 })
 
-test('DeepSeek V4:max_tokens 抬到 ≥16k,并默认关闭 thinking', () => {
+test('DeepSeek V4:max_tokens 抬到 ≥16k,thinking 默认 enabled', () => {
   assert.equal(resolveOpenAIMaxTokens('deepseek-v4-flash', 4096), 16_384)
   assert.equal(resolveOpenAIMaxTokens('deepseek-v4-pro', 32_768), 32_768)
   assert.equal(resolveOpenAIMaxTokens('gpt-4o', 4096), 4096)
   const req = buildOpenAIRequest([{ role: 'user', content: 'hi' }], [], 'deepseek-v4-flash', 16_384)
-  assert.deepEqual(req.thinking, { type: 'disabled' })
+  assert.deepEqual(req.thinking, { type: 'enabled' })
   assert.equal(req.max_tokens, 16_384)
+})
+
+test('DeepSeek V4:assistant reasoningContent 随 tools 回灌', () => {
+  const req = buildOpenAIRequest(
+    [
+      { role: 'user', content: '天气?' },
+      {
+        role: 'assistant',
+        content: '',
+        reasoningContent: '先查日期',
+        toolCalls: [{ id: 'c1', name: 'get_date', arguments: {} }],
+      },
+      { role: 'tool_result', toolCallId: 'c1', content: '2026-08-08' },
+    ],
+    [{ name: 'get_date', description: 'd', parameters: {} }],
+    'deepseek-v4-flash',
+    16_384,
+  )
+  assert.deepEqual(req.thinking, { type: 'enabled' })
+  const asst = req.messages.find((m) => m.role === 'assistant')
+  assert.equal(asst?.reasoning_content, '先查日期')
+  assert.ok(asst?.tool_calls?.length)
+})
+
+test('parseOpenAIResponse 保留 reasoning_content', () => {
+  const parsed = parseOpenAIResponse({
+    choices: [{
+      message: {
+        content: '答',
+        reasoning_content: '想了一下',
+        tool_calls: [{ id: 'c1', type: 'function', function: { name: 'x', arguments: '{}' } }],
+      },
+    }],
+  })
+  assert.equal(parsed.message.reasoningContent, '想了一下')
+  assert.equal(parsed.message.content, '答')
+  assert.equal(parsed.toolCalls.length, 1)
 })
 
 test('DeepSeek V4 空 content+finish length → adapter 抛可观测错误(不静默 done)', async () => {

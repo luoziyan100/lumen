@@ -1,6 +1,7 @@
 /**
  * [OUTPUT]: 内核公共类型——消息 / 工具调用 / 用量 / 工具 schema / 事件
- * [POS]: agent-core 的类型基座；含 ephemeral text_delta / tool_call_start
+ * [POS]: agent-core 的类型基座；含 ephemeral text_delta / tool_call_start;
+ *        assistant.reasoningContent 供 DeepSeek thinking 带 tools 时回灌
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 
@@ -24,6 +25,8 @@ export interface Message {
   toolCalls?: ToolCall[] // 仅 assistant 轮
   toolCallId?: string // 仅 tool_result 轮
   images?: ImageData[] // 仅 user 轮
+  /** DeepSeek thinking:CoT;带 tools 时后续请求必须原样回灌 */
+  reasoningContent?: string
 }
 
 export interface Usage {

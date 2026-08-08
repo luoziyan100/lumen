@@ -121,16 +121,19 @@ do the probe
   assert.ok(model.calls[0].some((m) => m.role === 'tool_result' && String(m.content).includes('do the probe')))
 })
 
-test('seatbeltProfile 对 skills 根有 allow file-read,写仍限 workspace', () => {
-  const profile = seatbeltProfile('/tmp/ws', '/Users/me', {
+test('seatbeltProfile 对 skills/workspaces 可读,token 文件仍 deny', () => {
+  const profile = seatbeltProfile('/Users/me/.lumen/workspaces/p/sessions/t', '/Users/me', {
     skillReadRoots: ['/Users/me/.lumen/skills', '/tmp/ws-skills'],
   })
   assert.ok(profile.includes('(deny file-write*)'))
-  assert.ok(profile.includes('(subpath "/tmp/ws")'), '写白名单含工作区')
-  assert.ok(profile.includes('(subpath "/Users/me/.lumen/skills")'), '可读用户 skills')
-  assert.ok(profile.includes('(subpath "/Users/me/.lumen")'), '仍 deny 整个 .lumen 读(token)')
-  // allow 在 deny 之后,skills 子路径可恢复读
+  assert.ok(profile.includes('(subpath "/Users/me/.lumen/workspaces/p/sessions/t")'), '写白名单含工作区')
+  assert.ok(profile.includes('(literal "/Users/me/.lumen/agent-service.json")'), 'token 文件 deny')
+  assert.ok(profile.includes('(literal "/Users/me/.lumen/settings.json")'), 'settings 文件 deny')
+  assert.doesNotMatch(profile, /\(subpath "\/Users\/me\/\.lumen"\)/, '禁止整树 deny .lumen')
   const denyIdx = profile.indexOf('(deny file-read*')
   const allowIdx = profile.lastIndexOf('(allow file-read*')
-  assert.ok(allowIdx > denyIdx, 'allow-read skills 必须在 deny .lumen 之后')
+  assert.ok(allowIdx > denyIdx, 'allow-read 在 deny 之后')
+  const allowBlock = profile.slice(allowIdx)
+  assert.ok(allowBlock.includes('(subpath "/Users/me/.lumen/skills")'))
+  assert.ok(allowBlock.includes('(subpath "/Users/me/.lumen/workspaces")'))
 })

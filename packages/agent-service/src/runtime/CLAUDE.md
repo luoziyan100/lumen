@@ -14,7 +14,8 @@
   可选 imageBridge:DeepSeek 等 chat 前去图插桩,look_at_image 读同一 ImageStore;
   pendingAsk 按 taskId+toolCallId 挂起 ask_user(见 `doc/ask-user.md`);
   Skills:catalog 注入 systemPrompt + `run_skill` / skillReadRoots 进 Seatbelt;`listSkills`/`installSkill`/`uninstallSkill`/`activateSkillOnTask`(见 `doc/agent-core-architecture.md` Skills 专节);
-  `saveUpload` 宽准入按表示归位:pdf→papers/ 文本与源码→docs/ 图→images/ 其余 opaque→uploads/;
+  `saveUpload` 宽准入按表示归位:pdf→papers/ 文本脚本→docs/ 图→images/ 未知→uploads/;
+  docx 另抽 docs/<stem>.md(模式 A,见 `doc/document-ingest.md`);
   侧栏 `title`:非空 reply / done 兜底异步生成 + list 懒补;`onTaskUpdated` → WS `task_updated`
 - `task-title.ts` — 抽摘 user/非空 assistant、清洗短标题、shouldBackfillTitle
 

@@ -24,7 +24,7 @@ import {
   visionEnvFromProcess,
 } from './tools/env/vision-tools.ts'
 import { createResearchTools, createUnpdfEngine, createTavilyWebSearch } from './tools/research/index.ts'
-import { createPlanTools } from './tools/env/plan-tools.ts'
+import { createTodoTools } from './tools/env/todo-tools.ts'
 import { createAskUserTools } from './tools/env/ask-user-tools.ts'
 import { buildRoles } from './agents/roles.ts'
 import { createClaudeAdapter, createClaudeStreamFetchTransport, createFetchTransport } from './adapters/claude.ts'
@@ -132,7 +132,7 @@ export function createService(config: ServiceConfig = {}): Service {
   const lookAtImage = createLookAtImageTool({ store: imageStore, env: visionEnv })
   // run_code:owner 拍板 2026-07-05 进默认工具集(L1 进程纪律 + macOS Seatbelt,见 tools/env/sandbox.ts)
   // demo 模式:剔除 run_code —— 云端 Linux 无 macOS Seatbelt,公网开放=远程任意代码执行(2026-07-15 审计 must-fix)
-  const planTools = createPlanTools()
+  const planTools = createTodoTools()
   // ask_user:等人作答,不可套 withGuard 150s(见 doc/ask-user.md);仅主 agent,worker 不经 buildRoles 拿到全量名也不在子集里
   const askUserTools = createAskUserTools()
   const guarded = (

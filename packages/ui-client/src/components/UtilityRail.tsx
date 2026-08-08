@@ -1,12 +1,13 @@
 /**
  * [INPUT]: Asset(含 scope);ChatItem;icons;useResizable;WORKSPACE_SCOPE_COPY;filterComposerFiles
- * [OUTPUT]: UtilityRail —— 进度 + 工作目录(共享区 / 本会话)
- * [POS]: 右轨;阅读器打开时由 ReaderPane 替换;共享区上传与 composer 同宽准入
+ * [OUTPUT]: UtilityRail —— Todo Progress + 工作目录(共享区 / 本会话)
+ * [POS]: 右轨;阅读器打开时由 ReaderPane 替换;共享区上传与 composer 同宽准入;
+ *        Progress 主投影 Todo(见 doc/todo.md);无 Todo 时回退工具 process 步骤
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useRef, useState, type ChangeEvent, type CSSProperties } from 'react'
 import type { Asset } from '../agent-client'
-import type { ChatItem, ProcessItem } from '../useAgent'
+import type { ChatItem, ProcessItem, TodoChatItem, TodoEntry } from '../useAgent'
 import { WORKSPACE_SCOPE_COPY } from '../appCopy'
 import { filterComposerFiles } from '../composerAccept'
 import { ChevronIcon, FileTypeIcon, FoldersIcon, PlusIcon, ICON_MD } from './icons'
@@ -38,6 +39,12 @@ function AssetGroup({ label, items, onOpen }: { label: string; items: Asset[]; o
   )
 }
 
+function TodoMark({ status }: { status: TodoEntry['status'] }) {
+  if (status === 'completed') return <span className="rail-todo-mark" aria-hidden>✓</span>
+  if (status === 'in_progress') return <span className="rail-todo-mark is-run" aria-hidden />
+  return <span className="rail-todo-mark is-pending" aria-hidden />
+}
+
 export function UtilityRail({ assets, onOpen, items, running, onUploadShared }: {
   assets: Asset[]
   onOpen: (a: Asset) => void
@@ -46,7 +53,8 @@ export function UtilityRail({ assets, onOpen, items, running, onUploadShared }: 
   /** 有则显示「上传到共享区」 */
   onUploadShared?: (files: File[]) => void
 }) {
-  const proc: ProcessItem | undefined = running
+  const todo: TodoChatItem | undefined = [...items].reverse().find((it): it is TodoChatItem => it.kind === 'todo')
+  const proc: ProcessItem | undefined = !todo && running
     ? [...items].reverse().find((it): it is ProcessItem => it.kind === 'process' && it.running)
     : undefined
   const [dirOpen, setDirOpen] = useState(true)
@@ -54,6 +62,8 @@ export function UtilityRail({ assets, onOpen, items, running, onUploadShared }: 
   const sharedFileRef = useRef<HTMLInputElement>(null)
   const shared = assets.filter(isShared)
   const session = assets.filter((a) => !isShared(a))
+  const todoDone = todo ? todo.todos.filter((t) => t.status === 'completed').length : 0
+  const todoN = todo?.todos.length ?? 0
 
   function onPickShared(e: ChangeEvent<HTMLInputElement>): void {
     const files = filterComposerFiles(e.target.files)
@@ -64,7 +74,25 @@ export function UtilityRail({ assets, onOpen, items, running, onUploadShared }: 
   return (
     <aside className="rail" aria-label="工具轨" style={{ '--rail-w': `${width}px` } as CSSProperties}>
       <div className="rail-resize" role="separator" aria-orientation="vertical" aria-label="调整工作目录宽度(双击复位)" title="拖拽调宽 · 双击复位" {...handleProps} />
-      {proc && (
+      {todo && todo.todos.length > 0 && (
+        <section className="rail-card glass-beam">
+          <h3 className="rail-h">
+            进度
+            <span className="rail-count">{todoDone}/{todoN}</span>
+          </h3>
+          <ul className="rail-todo-steps">
+            {todo.todos.map((t) => (
+              <li key={t.id} className={`rail-todo-step is-${t.status}`}>
+                <TodoMark status={t.status} />
+                <span className="rail-todo-label">
+                  {t.status === 'in_progress' ? t.activeForm : t.content}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {!todo && proc && (
         <section className="rail-card glass-beam">
           <h3 className="rail-h">进度</h3>
           <ul className="proc-steps rail-steps">

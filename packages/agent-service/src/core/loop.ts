@@ -78,7 +78,14 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
     await emit({
       kind: 'model_step',
       agentRole: ctx.agentRole,
-      payload: { content: response.message.content, toolCalls: response.toolCalls, usage: response.usage },
+      payload: {
+        content: response.message.content,
+        toolCalls: response.toolCalls,
+        usage: response.usage,
+        ...(response.message.reasoningContent
+          ? { reasoningContent: response.message.reasoningContent }
+          : {}),
+      },
     })
 
     const calls: ToolCall[] = response.toolCalls.length

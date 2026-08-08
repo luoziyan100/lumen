@@ -10,7 +10,7 @@
 - `task-store.ts` — TaskStore:tasks / task_events;`title`(≠ goal);`pinned_at`;`EPHEMERAL_EVENT_KINDS`(text_delta/tool_call_start,runtime 不入库);`archived_at` 软归档;`updateTaskTitle`/`setTaskPinned`;list 钉档优先+钉内 `pinned_at` 倒序
 - `project-store.ts` — ProjectStore:一等项目名册 + 重命名/软归档(`archived_at`) + `shared/`/`memory/`/`skills/` 目录播种;default 零感知、禁归档
 - `workspace-id.ts` — sanitizeWorkspaceId:工作区路径段消毒(防 `..` / 分隔符)
-- `resume.ts` — rebuildThread:从持久化事件重建可续跑线程
+- `resume.ts` — rebuildThread:从持久化事件重建可续跑线程(含 model_step.reasoningContent)
 - `budget.ts` — 多维预算:从 task_events 计算用量(event-sourced),支持扩展预算
 - `session-file.ts` — session jsonl:LLM 视角 trace(append/read/list)
 - `settings.ts` — SettingsStore:供应商 profile(多配置单启用)+ 每卡 `models[]`/`activeModel`(旧 `model` 读盘迁移)+ 自定义指令;对外只回 key 掩码

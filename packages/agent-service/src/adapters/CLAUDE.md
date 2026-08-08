@@ -8,7 +8,7 @@
 
 - `claude.ts` — Claude Messages API:整包 + SSE streamTransport / createClaudeAdapter
 - `claude-sse.ts` — Anthropic SSE 纯函数拼装(可 fixture 单测)
-- `openai.ts` — OpenAI 兼容端点:整包 + SSE;DeepSeek V4 关 thinking、抬 max_tokens、空正文抛错
+- `openai.ts` — OpenAI 兼容端点:整包 + SSE;DeepSeek V4 thinking 默认 enabled、抬 max_tokens、回灌 reasoning_content、空正文抛错
 - `openai-sse.ts` — OpenAI SSE 纯函数拼装 + consumeSseDataStream
 - `stream-coalesce.ts` — text_delta 按字数/时延合并,压 WS 洪水
 - `record-replay.ts` — 录制 / 重放 transport:测试基座,fixture 为真实线格式

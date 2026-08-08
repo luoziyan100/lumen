@@ -1,7 +1,8 @@
 /**
  * [INPUT]: Kumo Button;ASK_USER_COPY;PendingAsk 题目结构
- * [OUTPUT]: AskUserDialog —— ask_user 输入框上方悬浮问询卡(多选 + 备注 + 跳过)
- * [POS]: 贴 composer 上方,无遮罩、不居中霸屏;见 doc/ask-user.md
+ * [OUTPUT]: AskUserDialog —— ask_user 输入框上方悬浮问询卡(选项 +「其他」幽灵输入 + 跳过)
+ * [POS]: 贴 composer 上方,无遮罩、不居中霸屏;见 doc/ask-user.md;
+ *        「其他」是真 input + placeholder,不是实心标签堵光标
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useMemo, useState } from 'react'
@@ -32,28 +33,29 @@ export function AskUserDialog({
     return init
   })
   const [notes, setNotes] = useState<Record<string, string>>({})
-  const [otherOn, setOtherOn] = useState<Record<string, boolean>>({})
 
   const canSubmit = useMemo(() => {
     return questions.every((q) => {
-      const sel = selected[q.id]
-      if (sel) return true
-      if (otherOn[q.id] && (notes[q.id] ?? '').trim()) return true
+      if (selected[q.id]) return true
+      if ((notes[q.id] ?? '').trim()) return true
       return false
     })
-  }, [questions, selected, otherOn, notes])
+  }, [questions, selected, notes])
 
   function pick(q: AskUserQuestion, opt: AskUserOption): void {
     setSelected((prev) => ({ ...prev, [q.id]: opt.label }))
-    setOtherOn((prev) => ({ ...prev, [q.id]: false }))
+    setNotes((prev) => ({ ...prev, [q.id]: '' }))
   }
 
-  function toggleOther(q: AskUserQuestion): void {
-    setOtherOn((prev) => {
-      const next = !prev[q.id]
-      if (next) setSelected((s) => ({ ...s, [q.id]: '' }))
-      return { ...prev, [q.id]: next }
-    })
+  function onOtherChange(q: AskUserQuestion, value: string): void {
+    setNotes((prev) => ({ ...prev, [q.id]: value }))
+    if (value.trim()) {
+      setSelected((prev) => ({ ...prev, [q.id]: '' }))
+    }
+  }
+
+  function onOtherFocus(q: AskUserQuestion): void {
+    setSelected((prev) => ({ ...prev, [q.id]: '' }))
   }
 
   async function submit(): Promise<void> {
@@ -63,7 +65,7 @@ export function AskUserDialog({
       const list: string[] = []
       if (selected[q.id]) list.push(selected[q.id])
       const note = (notes[q.id] ?? '').trim()
-      if (otherOn[q.id] && note) {
+      if (note) {
         if (!list.includes(ASK_USER_COPY.otherLabel)) list.push(ASK_USER_COPY.otherLabel)
       }
       answers[q.id] = {
@@ -93,64 +95,62 @@ export function AskUserDialog({
       </div>
 
       <div className="ask-user-body">
-        {questions.map((q, qi) => (
-          <section key={q.id} className="ask-user-q">
-            {questions.length > 1 && (
-              <div className="ask-user-q-head">
-                {q.header || `${ASK_USER_COPY.questionN}${qi + 1}`}
-              </div>
-            )}
-            {!(titleIsQuestion && qi === 0) && (
-              <p className="ask-user-q-text">{q.question}</p>
-            )}
-            <ul className="ask-user-opts">
-              {q.options.map((opt, oi) => {
-                const active = selected[q.id] === opt.label && !otherOn[q.id]
-                return (
-                  <li key={`${q.id}-${oi}`}>
-                    <button
-                      type="button"
-                      className={`ask-user-opt${active ? ' is-active' : ''}`}
+        {questions.map((q, qi) => {
+          const note = notes[q.id] ?? ''
+          const otherActive = !selected[q.id] && note.trim().length > 0
+          return (
+            <section key={q.id} className="ask-user-q">
+              {questions.length > 1 && (
+                <div className="ask-user-q-head">
+                  {q.header || `${ASK_USER_COPY.questionN}${qi + 1}`}
+                </div>
+              )}
+              {!(titleIsQuestion && qi === 0) && (
+                <p className="ask-user-q-text">{q.question}</p>
+              )}
+              <ul className="ask-user-opts">
+                {q.options.map((opt, oi) => {
+                  const active = selected[q.id] === opt.label
+                  return (
+                    <li key={`${q.id}-${oi}`}>
+                      <button
+                        type="button"
+                        className={`ask-user-opt${active ? ' is-active' : ''}`}
+                        disabled={busy}
+                        onClick={() => pick(q, opt)}
+                      >
+                        <span className="ask-user-opt-n">{oi + 1}</span>
+                        <span className="ask-user-opt-main">
+                          <span className="ask-user-opt-label">{opt.label}</span>
+                          {opt.description && (
+                            <span className="ask-user-opt-desc">{opt.description}</span>
+                          )}
+                        </span>
+                      </button>
+                    </li>
+                  )
+                })}
+                <li>
+                  <label
+                    className={`ask-user-opt ask-user-opt-other${otherActive ? ' is-active' : ''}`}
+                  >
+                    <span className="ask-user-opt-n" aria-hidden>+</span>
+                    <input
+                      type="text"
+                      className="ask-user-other-input"
                       disabled={busy}
-                      onClick={() => pick(q, opt)}
-                    >
-                      <span className="ask-user-opt-n">{oi + 1}</span>
-                      <span className="ask-user-opt-main">
-                        <span className="ask-user-opt-label">{opt.label}</span>
-                        {opt.description && (
-                          <span className="ask-user-opt-desc">{opt.description}</span>
-                        )}
-                      </span>
-                    </button>
-                  </li>
-                )
-              })}
-              <li>
-                <button
-                  type="button"
-                  className={`ask-user-opt ask-user-opt-other${otherOn[q.id] ? ' is-active' : ''}`}
-                  disabled={busy}
-                  onClick={() => toggleOther(q)}
-                >
-                  <span className="ask-user-opt-n">+</span>
-                  <span className="ask-user-opt-main">
-                    <span className="ask-user-opt-label">{ASK_USER_COPY.otherLabel}</span>
-                  </span>
-                </button>
-              </li>
-            </ul>
-            {(otherOn[q.id] || (notes[q.id] ?? '').length > 0) && (
-              <textarea
-                className="ask-user-note"
-                rows={2}
-                disabled={busy}
-                placeholder={ASK_USER_COPY.notePlaceholder}
-                value={notes[q.id] ?? ''}
-                onChange={(e) => setNotes((prev) => ({ ...prev, [q.id]: e.target.value }))}
-              />
-            )}
-          </section>
-        ))}
+                      placeholder={ASK_USER_COPY.otherPlaceholder}
+                      value={note}
+                      aria-label={ASK_USER_COPY.otherPlaceholder}
+                      onFocus={() => onOtherFocus(q)}
+                      onChange={(e) => onOtherChange(q, e.target.value)}
+                    />
+                  </label>
+                </li>
+              </ul>
+            </section>
+          )
+        })}
       </div>
 
       <div className="ask-user-actions">

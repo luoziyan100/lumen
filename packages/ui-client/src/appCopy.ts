@@ -74,7 +74,10 @@ export const MSG_FOLD_COPY = {
 export const ASK_USER_COPY = {
   title: '需要你的选择',
   questionN: '问题 ',
+  /** 提交时写入 selected 的标记名(非 UI 展示) */
   otherLabel: '其他，并补充说明',
+  /** 「其他」行 input 的幽灵占位,不占光标 */
+  otherPlaceholder: '其他，并补充说明',
   notePlaceholder: '补充说明…',
   skip: '跳过',
   submit: '确认',

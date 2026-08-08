@@ -1,7 +1,7 @@
 /**
  * [INPUT]: ProcessItem;Kumo Collapsible;StatusOrb;orbStateFromSteps
  * [OUTPUT]: ProcessRow —— 可折叠过程块;左侧点云球按焦点工具态切换(完成态 paused 保留形态)
- * [POS]: 对话流过程叙事行;与 ThinkingIndicator(尚无工具/轮间思考)分离;计划卡见 PlanCard
+ * [POS]: 对话流过程叙事行;与 ThinkingIndicator(尚无工具/轮间思考)分离;进度清单见 TodoCard / 右轨 Progress
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useState } from 'react'

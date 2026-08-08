@@ -18,7 +18,7 @@ _A local-first personal workbench: your on-device co-worker for everyday office 
 - **文件即交付**:报告、笔记、草稿写进真实工作区,不是埋在聊天气泡里;内置 PDF 阅读器
 - **上传暂存**:文件先停在输入区,发送时才建会话、才入工作区
 - **跨会话记忆**:项目级 `memory/` + 索引开局注入,下一次开聊仍记得约定
-- **计划卡**:复杂任务用 `update_plan` 写出步骤,界面 PlanCard 跟踪进度
+- **Todo 进度**:复杂任务用 `todo_write` 写出步骤,右轨 Progress / TodoCard 跟踪(见 `doc/todo.md`)
 - **问用户**:关键选择挂起作答(`ask_user`),不必猜你的偏好
 - **富输出**:对话内网页沙箱 widget、Mermaid 流程图等,读与写互不打架
 

@@ -1,7 +1,8 @@
 /**
  * [INPUT]: core 的 Thread/Message、task-store 的 TaskEvent
  * [OUTPUT]: rebuildThread —— 从持久化事件重建可续跑的线程
- * [POS]: §存储层。task_events 是 SoT，恢复时用它重放出 [system, user, ...assistant/tool_result]
+ * [POS]: §存储层。task_events 是 SoT，恢复时用它重放出 [system, user, ...assistant/tool_result];
+ *        model_step.reasoningContent 一并恢复(DeepSeek thinking+tools 回灌)
  *
  * system 在运行时重新生成（不持久化派生物）；user = task.goal；其余从 model_step / tool_result 重放。
  * 两条恢复纪律：
@@ -96,10 +97,14 @@ export function rebuildThread(events: TaskEvent[], options: RebuildOptions): Thr
       sawUser = true
     } else if (event.kind === 'model_step') {
       const toolCalls = payload.toolCalls as ToolCall[] | undefined
+      const reasoningContent = typeof payload.reasoningContent === 'string'
+        ? payload.reasoningContent
+        : undefined
       messages.push({
         role: 'assistant',
         content: typeof payload.content === 'string' ? payload.content : '',
         ...(toolCalls && toolCalls.length ? { toolCalls } : {}),
+        ...(reasoningContent ? { reasoningContent } : {}),
       })
     } else if (event.kind === 'tool_result') {
       messages.push({

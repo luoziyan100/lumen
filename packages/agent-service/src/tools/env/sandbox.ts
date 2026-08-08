@@ -10,10 +10,12 @@
  *   (删文件、外泄隐私、写持久化),不是云端的租户逃逸;精准封死三条危险路径即达标:
  *   - 网络:全禁(联网取数走受审的检索/抓取工具,不给裸 socket)
  *   - 写:默认禁,仅放行工作区 + 系统临时目录
- *   - 读:封死敏感目录(~/.ssh、~/.aws、~/.gnupg、~/.lumen 的 token、Keychains、shell 配置);
- *     但 Skills 根(~/.lumen/skills 与传入的 skillReadRoots)只读放行,便于 run_code 跑包内脚本。
+ *   - 读:封死 ~/.ssh 等 + **~/.lumen 下的 token/settings 文件**(勿整树 deny `.lumen`:
+ *     工作区在 ~/.lumen/workspaces/,node/python 解析脚本会 lstat 父目录,整树禁读 →
+ *     scratch 写得出、解释器读不进 / EPERM on lstat `.lumen`)。
+ *     Skills 根额外 allow-read,便于跑包内脚本。
  *   写 skills 树仍被 deny file-write* 挡住(不在 workspace 写白名单内)。
- *   实测三条逃逸均得 EPERM,工作区读写正常。
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { homedir } from 'node:os'
 
@@ -37,16 +39,22 @@ export function seatbeltProfile(
 ): string {
   const ws = q(workspaceRoot)
   const h = q(home)
-  const secret = [
+  const secretDirs = [
     `${h}/.ssh`, `${h}/.aws`, `${h}/.gnupg`, `${h}/.config/gcloud`,
-    `${h}/.lumen`, `${h}/Library/Keychains`, `${h}/Library/Application Support`,
+    `${h}/Library/Keychains`, `${h}/Library/Application Support`,
     `${h}/.zsh_history`, `${h}/.bash_history`, `${h}/.netrc`,
+  ]
+  // 只钉敏感文件,不 ban 整个 ~/.lumen(工作区/skills 都挂在下面)
+  const secretFiles = [
+    `${h}/.lumen/agent-service.json`,
+    `${h}/.lumen/settings.json`,
   ]
   const readRoots = [
     `${h}/.lumen/skills`,
+    `${h}/.lumen/workspaces`,
+    workspaceRoot,
     ...(options.skillReadRoots ?? []),
   ]
-  // 去重并丢掉空串
   const uniqRead = [...new Set(readRoots.map((p) => p.trim()).filter(Boolean))]
   const allowRead = uniqRead.map((p) => `  (subpath "${q(p)}")`).join('\n')
   return `(version 1)
@@ -58,7 +66,8 @@ export function seatbeltProfile(
   (subpath "/private/var/folders") (subpath "/private/tmp")
   (literal "/dev/null") (literal "/dev/stdout") (literal "/dev/stderr") (literal "/dev/tty"))
 (deny file-read*
-${secret.map((p) => `  (subpath "${q(p)}")`).join('\n')}
+${secretDirs.map((p) => `  (subpath "${q(p)}")`).join('\n')}
+${secretFiles.map((p) => `  (literal "${q(p)}")`).join('\n')}
   (literal "${h}/.zshrc") (literal "${h}/.bashrc") (literal "${h}/.profile") (literal "${h}/.zshenv"))
 (allow file-read*
 ${allowRead})

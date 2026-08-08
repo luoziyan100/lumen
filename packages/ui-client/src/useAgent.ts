@@ -2,7 +2,7 @@
  * [INPUT]: AgentClient 的事件流 / submit·continue·subscribe·answerUser
  * [OUTPUT]: useAgent → items/running/pendingAsk/send/stop/answerAsk/selectConversation;ChatItem 归约;
  *           sealRunningProcesses(正文/终态封口过程块)
- * [POS]: UI 对话状态核;跨项目切换时同步 projectIdRef;空 model_step→error;update_plan→PlanItem;
+ * [POS]: UI 对话状态核;跨项目切换时同步 projectIdRef;空 model_step→error;todo_write→TodoChatItem;
  *        text_delta 累积 streaming 泡并封口 running process;model_step 有正文时同封;
  *        tool_call_start 尽早开 process;ask_user→pendingAsk 驱动悬浮 Dialog(见 doc/ask-user.md)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
@@ -24,10 +24,20 @@ export interface ChatMsg {
 export interface ProcStep { id: string; name: string; done: boolean; label: string }
 export interface ProcessItem { kind: 'process'; id: string; steps: ProcStep[]; running: boolean }
 export interface CompactionMark { kind: 'compaction'; id: string }
-export type PlanStepStatus = 'pending' | 'in_progress' | 'done'
-export interface PlanStep { id: string; label: string; status: PlanStepStatus }
-export interface PlanItem { kind: 'plan'; id: string; title: string; steps: PlanStep[] }
-export type ChatItem = ChatMsg | ProcessItem | CompactionMark | PlanItem
+export type TodoStatus = 'pending' | 'in_progress' | 'completed'
+export interface TodoEntry {
+  id: string
+  content: string
+  status: TodoStatus
+  activeForm: string
+}
+export interface TodoChatItem {
+  kind: 'todo'
+  id: string
+  title?: string
+  todos: TodoEntry[]
+}
+export type ChatItem = ChatMsg | ProcessItem | CompactionMark | TodoChatItem
 
 export interface AskUserOption { label: string; description?: string }
 export interface AskUserQuestion {
@@ -45,61 +55,91 @@ const VERB: Record<string, string> = {
   search_papers: '检索文献', openalex_search: '检索文献', web_search: '网页搜索',
   extract_pdf: '读取 PDF', fetch_url: '抓取网页', read_url: '抓取网页',
   write_file: '写入文件', read_file: '读取文件', list_files: '浏览工作区', grep: '检索内文',
-  run_code: '运行代码', update_plan: '更新计划', ask_user: '询问用户',
+  run_code: '运行代码', todo_write: '更新进度', update_plan: '更新进度', ask_user: '询问用户',
 }
 const verb = (name: string): string => VERB[name] ?? name
-const PLAN_STATUSES = new Set<PlanStepStatus>(['pending', 'in_progress', 'done'])
+const TODO_STATUSES = new Set<TodoStatus>(['pending', 'in_progress', 'completed'])
+const isTodoTool = (name: string): boolean => name === 'todo_write' || name === 'update_plan'
 
 function safeParse(s: string): Record<string, unknown> {
   try { return JSON.parse(s) as Record<string, unknown> } catch { return {} }
 }
 
-function coercePlan(raw: unknown): { title: string; steps: PlanStep[] } | null {
+function mapTodoStatus(raw: string): TodoStatus | null {
+  if (raw === 'done') return 'completed'
+  if (TODO_STATUSES.has(raw as TodoStatus)) return raw as TodoStatus
+  return null
+}
+
+function coerceTodoList(raw: unknown): { title?: string; todos: TodoEntry[] } | null {
   if (!raw || typeof raw !== 'object') return null
-  const o = raw as { title?: unknown; steps?: unknown }
-  const title = String(o.title ?? '').trim()
-  if (!title || !Array.isArray(o.steps) || o.steps.length === 0) return null
-  const steps: PlanStep[] = []
-  for (let i = 0; i < o.steps.length; i++) {
-    const s = o.steps[i]
+  const o = raw as { title?: unknown; todos?: unknown; steps?: unknown; todo?: unknown }
+  // tool_result data 包一层 { todo: {...} }
+  if (o.todo && typeof o.todo === 'object') return coerceTodoList(o.todo)
+
+  const title = String(o.title ?? '').trim() || undefined
+  let rows: unknown[] | null = null
+  if (Array.isArray(o.todos)) rows = o.todos
+  else if (Array.isArray(o.steps)) rows = o.steps
+  if (!rows) return null
+  if (rows.length === 0) return { title, todos: [] }
+
+  const todos: TodoEntry[] = []
+  for (let i = 0; i < rows.length; i++) {
+    const s = rows[i]
     if (!s || typeof s !== 'object') continue
-    const row = s as { id?: unknown; label?: unknown; status?: unknown }
-    const label = String(row.label ?? '').trim()
-    if (!label) continue
-    const status = String(row.status ?? 'pending') as PlanStepStatus
-    if (!PLAN_STATUSES.has(status)) continue
-    steps.push({ id: String(row.id ?? `s${i + 1}`), label, status })
+    const row = s as {
+      id?: unknown
+      content?: unknown
+      label?: unknown
+      status?: unknown
+      activeForm?: unknown
+    }
+    const content = String(row.content ?? row.label ?? '').trim()
+    if (!content) continue
+    const status = mapTodoStatus(String(row.status ?? 'pending'))
+    if (!status) continue
+    const activeForm = String(row.activeForm ?? '').trim() || `正在${content}`
+    todos.push({ id: String(row.id ?? `t${i + 1}`), content, status, activeForm })
   }
-  if (!steps.length) return null
-  return { title, steps }
+  if (!todos.length && rows.length > 0) return null
+  return { title, todos }
 }
 
-function planFromToolArgs(args: unknown): { title: string; steps: PlanStep[] } | null {
-  if (typeof args === 'string') return coercePlan(safeParse(args))
-  return coercePlan(args)
+function todoFromToolArgs(args: unknown): { title?: string; todos: TodoEntry[] } | null {
+  if (typeof args === 'string') return coerceTodoList(safeParse(args))
+  return coerceTodoList(args)
 }
 
-/** tool_result.llmContent 末尾的 JSON 计划 */
-function planFromLlmContent(text: string): { title: string; steps: PlanStep[] } | null {
+/** tool_result.llmContent 末尾的 JSON Todo */
+function todoFromLlmContent(text: string): { title?: string; todos: TodoEntry[] } | null {
   const i = text.lastIndexOf('{')
   if (i < 0) return null
   try {
-    return coercePlan(JSON.parse(text.slice(i)))
+    return coerceTodoList(JSON.parse(text.slice(i)))
   } catch {
     return null
   }
 }
 
-function upsertPlan(prev: ChatItem[], eventId: string, plan: { title: string; steps: PlanStep[] }): ChatItem[] {
-  const existing = prev.find((it): it is PlanItem => it.kind === 'plan')
-  const item: PlanItem = {
-    kind: 'plan',
-    id: existing?.id ?? `plan-${eventId}`,
-    title: plan.title,
-    steps: plan.steps,
+function upsertTodo(
+  prev: ChatItem[],
+  eventId: string,
+  list: { title?: string; todos: TodoEntry[] },
+): ChatItem[] {
+  // 空表 = Removed 全部 → 从对话流拿掉
+  if (list.todos.length === 0) {
+    return prev.filter((it) => it.kind !== 'todo')
+  }
+  const existing = prev.find((it): it is TodoChatItem => it.kind === 'todo')
+  const item: TodoChatItem = {
+    kind: 'todo',
+    id: existing?.id ?? `todo-${eventId}`,
+    title: list.title,
+    todos: list.todos,
   }
   if (existing) {
-    return prev.map((it) => (it.kind === 'plan' ? item : it))
+    return prev.map((it) => (it.kind === 'todo' ? item : it))
   }
   return [...prev, item]
 }
@@ -308,7 +348,7 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
     }
     case 'tool_call_start': {
       const name = String(p.name ?? 'tool')
-      if (name === 'update_plan') return prev // 计划等完整 tool_call
+      if (isTodoTool(name)) return prev // Todo 等完整 tool_call
       const id = String(p.id ?? event.id)
       const step: ProcStep = { id, name, done: false, label: `${verb(name)}…` }
       const last = prev[prev.length - 1]
@@ -361,9 +401,9 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
     }
     case 'tool_call': {
       const name = String(p.name ?? 'tool')
-      if (name === 'update_plan') {
-        const plan = planFromToolArgs(p.args)
-        return plan ? upsertPlan(prev, event.id, plan) : prev
+      if (isTodoTool(name)) {
+        const list = todoFromToolArgs(p.args)
+        return list ? upsertTodo(prev, event.id, list) : prev
       }
       const id = String(p.id ?? event.id)
       const step: ProcStep = { id, name, done: false, label: `${verb(name)}…` }
@@ -376,9 +416,9 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
     }
     case 'tool_result': {
       const name = String(p.name ?? '')
-      if (name === 'update_plan') {
-        const plan = planFromLlmContent(typeof p.llmContent === 'string' ? p.llmContent : '')
-        return plan ? upsertPlan(prev, event.id, plan) : prev
+      if (isTodoTool(name)) {
+        const list = todoFromLlmContent(typeof p.llmContent === 'string' ? p.llmContent : '')
+        return list ? upsertTodo(prev, event.id, list) : prev
       }
       const id = String(p.id ?? '')
       const label = summarize(name, typeof p.llmContent === 'string' ? p.llmContent : '')

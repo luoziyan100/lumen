@@ -183,3 +183,17 @@ test('悬空 tool_use：中断落在工具批次中间 → 重建合成"已中�
   }
   assert.deepEqual(uses.sort(), results.sort(), '每个 tool_use 必须有配对 tool_result（否则 API 400）')
 })
+
+test('model_step.reasoningContent 重建进线程(DeepSeek thinking 回灌)', async (t: TestContext) => {
+  const store = await makeStore(t)
+  const task = store.createTask('p', '天气')
+  store.appendEvent(task.id, 'model_step', {
+    content: '',
+    reasoningContent: '先查日期',
+    toolCalls: [{ id: 'c1', name: 'get_date', arguments: {} }],
+  }, 'main')
+  store.appendEvent(task.id, 'tool_result', { id: 'c1', name: 'get_date', llmContent: '2026-08-08' }, 'main')
+  const rebuilt = rebuildThread(store.listEvents(task.id), { systemPrompt: 'S', userText: '天气' })
+  const asst = rebuilt.messages.find((m) => m.role === 'assistant')
+  assert.equal(asst?.reasoningContent, '先查日期')
+})

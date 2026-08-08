@@ -1,6 +1,6 @@
 /**
  * [INPUT]: AgentClient;useAgent;useWorkspace;Sidebar;TurnPreviewRail;UtilityRail;AskUserDialog;ComposerCard;CollapsibleUserText
- * [OUTPUT]: App —— 形态 A 装配;项目树(p-*) + 最近平铺历史;轮次轨;PlanCard/ProcessRow/ThinkingIndicator;
+ * [OUTPUT]: App —— 形态 A 装配;项目树(p-*) + 最近平铺历史;轮次轨;TodoCard/ProcessRow/ThinkingIndicator;
  *           ask_user 悬浮问询;composer 暗玻璃;用户超长 prompt 折叠
  * [POS]: ui-client 根组件;storage project_id ≠ 用户项目;历史不分类进「默认」;
  *        对话列 useStickToBottom:流式贴底;上滑松手可自由阅读;松钉后出「回到最新」;
@@ -36,7 +36,7 @@ import { ArrowDownIcon, CheckIcon, CopyIcon, PanelIcon, RailIcon } from './compo
 import { UtilityRail } from './components/UtilityRail'
 import { ReaderPane } from './components/ReaderPane'
 import { ProcessRow } from './components/ProcessRow'
-import { PlanCard } from './components/PlanCard'
+import { TodoCard } from './components/TodoCard'
 import { ThinkingIndicator } from './components/ThinkingIndicator'
 import { TurnPreviewRail } from './components/TurnPreviewRail'
 import { buildTurnRailItems, msgAnchorId } from './components/turnRail'
@@ -877,7 +877,7 @@ function AppInner() {
                 if (it.kind === 'compaction') {
                   return <div key={it.id} className="ctx-divider"><span>已整理更早的上下文 · 细节在工作区与历史记录</span></div>
                 }
-                if (it.kind === 'plan') return <PlanCard key={it.id} plan={it} />
+                if (it.kind === 'todo') return <TodoCard key={it.id} todo={it} />
                 if (it.kind === 'process') return <ProcessRow key={it.id} block={it} />
                 if (it.role === 'assistant') {
                   const streamingWidget = Boolean(it.streaming) || (running && !finalAssistantIds.has(it.id))

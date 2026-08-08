@@ -10,15 +10,21 @@
   「文件系统即上下文」:agent 把正文写成文件,回头 grep / 分段重读,不逼模型凭截断摘要作答。
   `resolveToolPath` 兼容 `file_name`/`filename`;缺 path 必须 error,禁写成字面量 `undefined`。
 - `run-code.ts` — runCodeTool:在当前会话工作区跑 node/python(cwd 锁工作区/60s 超时/输出上限/命令进事件流)。
-- `sandbox.ts` — Seatbelt profile(macOS):allow-default + 精准 deny(网络全禁/写限工作区/读封敏感目录);
-  Skills 根(`~/.lumen/skills` + `skillReadRoots`)在 deny `.lumen` 之后 allow-read,便于跑包内脚本;写 skills 仍被禁。
-  非 macOS 退化为仅 L1 进程纪律。**改 profile 必跑 tests/workspace/run-code.test.ts 的三条逃逸验收 + tests/runtime/skills.test.ts。**
+- `sandbox.ts` — Seatbelt profile(macOS):allow-default + 精准 deny(网络全禁/写限工作区);
+  读禁 ~/.ssh 等 + `~/.lumen/agent-service.json|settings.json`(勿整树 deny `.lumen`——工作区在其下,node 会 lstat 父目录);
+  Skills/`workspaces` allow-read;写 skills 仍被禁。
+  非 macOS 退化为仅 L1 进程纪律。**改 profile 必跑 tests/workspace/run-code.test.ts(含 ~/.lumen/workspaces 生产路径回归) + tests/runtime/skills.test.ts。**
 - `image-store.ts` — 任务级图片侧车 + `[[image:img-N]]` 占位符;`stripImagesForModel` 供 DeepSeek 路径去 image_url
 - `vision-tools.ts` — `look_at_image`(硅基 VL);`withImageSanitize` ModelPort 包装;env:`LUMEN_VISION_*`
-- `plan-tools.ts` — `update_plan`:复杂任务结构化进度;回灌线程 + `drafts/plan.md`(见 `doc/plan-card.md`)
+- `todo-tools.ts` — `todo_write`(+`update_plan` 兼容):会话 Todo;回灌线程 + `drafts/todo.md`(见 `doc/todo.md`)
+- `plan-tools.ts` — 薄再导出(兼容旧 import)
 - `ask-user-tools.ts` — `ask_user`:挂起 turn 问用户 1–3 题;runtime pending + WS `answer_user` 解开;不套 withGuard(见 `doc/ask-user.md`)
 - `memory-tools.ts` — read_memory / write_memory(由 runtime 按项目注入,不在 ENV_TOOLS 常量里)
 - `skill-tools.ts` — `run_skill`(启动工作流;由 runtime 注入;`≠` read_memory)
+
+## ingest/ — 摄取解析(模式 A,见 `doc/document-ingest.md`)
+
+- `docx.ts` / `index.ts` — OOXML→文本;上传时由 `saveUpload` 写出 `docs/<stem>.md`
 
 ## research/ — L2 研究桥接(把外部世界灌进工作区)
 

@@ -104,3 +104,16 @@ s.on('connect', () => { console.log('CONNECTED'); process.exit(0) })`,
   assert.match(r.llmContent, /NETBLOCKED:/)
   assert.doesNotMatch(r.llmContent, /CONNECTED/)
 })
+
+test('run_code(Seatbelt):工作区在 ~/.lumen/workspaces 下可执行 —— 生产路径回归', { skip: !darwin }, async (t) => {
+  const root = path.join(homedir(), '.lumen', 'workspaces', `_runcode_probe_${Date.now()}`)
+  await mkdir(root, { recursive: true })
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const ws = new FsWorkspace({ root })
+  const r = await runCodeTool.run(
+    { language: 'node', code: 'console.log("ok-under-lumen")' },
+    noopCtx({ workspace: ws }),
+  )
+  assert.match(r.llmContent, /退出码 0/, r.llmContent)
+  assert.match(r.llmContent, /ok-under-lumen/)
+})

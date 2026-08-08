@@ -18,6 +18,7 @@ import type { ModelPort } from '../core/model-port.ts'
 import type { AgentEvent, ImageData } from '../core/types.ts'
 import type { Tool, ToolContext } from '../core/tool.ts'
 import type { Limits } from '../core/limits.ts'
+import { extractDocxText, docxExtractMarkdown } from '../tools/ingest/docx.ts'
 import { EPHEMERAL_EVENT_KINDS, TaskStore, type Task, type TaskEvent } from '../storage/task-store.ts'
 import type { ProjectStore } from '../storage/project-store.ts'
 import { ensureProjectDirs } from '../storage/project-store.ts'
@@ -564,7 +565,8 @@ export class AgentRuntime {
 
   /**
    * 用户上传:宽准入、按表示分类落盘(学 OpenSquilla — admission ≠ representation)。
-   * papers/ 图文可渲染族;docs/ 文本与源码;images/ 图;其余 → uploads/ opaque(工具可读,不假定 inline)。
+   * papers/ 图文可渲染族;docs/ 文本与源码;images/ 图;其余 → uploads/ opaque。
+   * 复合格式(模式 A):原件进 uploads/,抽出稿进 docs/<stem>.md(见 doc/document-ingest.md)。
    * scope=shared → 写入项目 shared/{kind}/;默认 → 会话目录(有 taskId)或项目根。
    */
   async saveUpload(
@@ -578,13 +580,24 @@ export class AgentRuntime {
     const safe = (name.split(/[/\\]/).pop() || 'upload').replace(/[^\w.\-一-鿿]/g, '_')
     const ext = (safe.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? '').toLowerCase()
     const kind = uploadFolderForExt(ext)
-    if (scope === 'shared') {
-      const file = `shared/${kind}/${safe}`
-      await this.makeProjectRootWorkspace(projectId).writeBytes(file, bytes)
-      return file
+    const ws = scope === 'shared'
+      ? this.makeProjectRootWorkspace(projectId)
+      : this.makeWorkspace(projectId, taskId)
+    const file = scope === 'shared' ? `shared/${kind}/${safe}` : `${kind}/${safe}`
+    await ws.writeBytes(file, bytes)
+
+    // 摄取解析:docx → docs/<stem>.md(见 doc/document-ingest.md)
+    if (ext === 'docx') {
+      try {
+        const text = extractDocxText(bytes)
+        const stem = safe.replace(/\.docx$/i, '')
+        const mdPath = scope === 'shared' ? `shared/docs/${stem}.md` : `docs/${stem}.md`
+        await ws.writeFile(mdPath, docxExtractMarkdown(safe, text))
+      } catch {
+        // 抽取失败不阻断原件落盘
+      }
     }
-    const file = `${kind}/${safe}`
-    await this.makeWorkspace(projectId, taskId).writeBytes(file, bytes)
+
     return file
   }
 

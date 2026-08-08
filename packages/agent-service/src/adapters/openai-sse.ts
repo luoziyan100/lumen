@@ -1,7 +1,7 @@
 /**
  * [INPUT]: OpenAI Chat Completions SSE data 行(JSON)
  * [OUTPUT]: OpenAIStreamAccum / applyOpenAISseData / finalizeOpenAIStreamAccum —— 纯函数拼装
- * [POS]: openai 流式路径的可测核;不碰网络,fixture 字符串即可验收
+ * [POS]: openai 流式路径的可测核;拼 content + reasoning_content + tool_calls;不碰网络
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { ChatHandlers } from '../core/model-port.ts'
@@ -9,6 +9,8 @@ import type { OpenAIResponseBody } from './openai.ts'
 
 export interface OpenAIStreamAccum {
   content: string
+  /** DeepSeek thinking CoT 增量 */
+  reasoning: string
   /** index → 增量拼装中的 tool_call */
   tools: Map<number, { id: string; name: string; arguments: string }>
   /** 已对 handlers 打过 onToolCallStart 的 index */
@@ -18,11 +20,12 @@ export interface OpenAIStreamAccum {
 }
 
 export function createOpenAIStreamAccum(): OpenAIStreamAccum {
-  return { content: '', tools: new Map(), started: new Set() }
+  return { content: '', reasoning: '', tools: new Map(), started: new Set() }
 }
 
 type StreamChoiceDelta = {
   content?: string | null
+  reasoning_content?: string | null
   tool_calls?: Array<{
     index?: number
     id?: string
@@ -61,6 +64,9 @@ export function applyOpenAISseData(
     accum.content += delta.content
     handlers?.onTextDelta?.(delta.content)
   }
+  if (typeof delta.reasoning_content === 'string' && delta.reasoning_content) {
+    accum.reasoning += delta.reasoning_content
+  }
 
   for (const tc of delta.tool_calls ?? []) {
     const index = tc.index ?? 0
@@ -96,6 +102,7 @@ export function finalizeOpenAIStreamAccum(accum: OpenAIStreamAccum): OpenAIRespo
       {
         message: {
           content: accum.content,
+          ...(accum.reasoning ? { reasoning_content: accum.reasoning } : {}),
           ...(tool_calls.length ? { tool_calls } : {}),
         },
         finish_reason: accum.finish_reason,

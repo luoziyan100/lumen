@@ -736,6 +736,29 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .ask-user-opt-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ask-user-opt-label { color: inherit; }
 .ask-user-opt-desc { color: var(--ink-mute); font-size: var(--t-caption); line-height: 1.4; }
+.ask-user-opt-other {
+  cursor: text;
+  align-items: center;
+}
+.ask-user-opt-other:focus-within {
+  border-color: var(--ember);
+  background: color-mix(in srgb, var(--ember) 8%, var(--paper));
+  color: var(--ink);
+}
+.ask-user-opt-other:focus-within .ask-user-opt-n {
+  background: var(--ember); color: #0B0C10;
+}
+.ask-user-other-input {
+  flex: 1; min-width: 0; border: none; outline: none; background: transparent;
+  color: var(--ink); font: inherit; font-size: var(--t-body-sm); padding: 0; margin: 0;
+}
+.ask-user-other-input::placeholder {
+  color: var(--ink-mute);
+  opacity: 1;
+}
+.ask-user-other-input:disabled {
+  opacity: 0.6; cursor: not-allowed;
+}
 .ask-user-note {
   width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px 10px;
   border: 1px solid var(--sand-deep); border-radius: var(--radius-md);
@@ -743,6 +766,7 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   resize: vertical; outline: none;
 }
 .ask-user-note:focus { border-color: var(--ember); }
+.ask-user-note::placeholder { color: var(--ink-mute); opacity: 1; }
 .ask-user-actions { display: flex; justify-content: flex-end; gap: var(--s-2); flex: none; }
 
 .sb-item {
@@ -1494,46 +1518,71 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .proc-step-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--sand-deep); flex: none; }
 .proc-step-dot.is-done { background: var(--ember); }
 
-/* ---- 计划卡(doc/plan-card.md):目标进度,≠ ProcessRow ---- */
-.plan-card { align-self: stretch; max-width: 92%; }
-.plan-card-head {
+/* ---- 会话 Todo(doc/todo.md):进度清单,≠ ProcessRow ---- */
+.todo-card { align-self: stretch; max-width: 92%; }
+.todo-card-head {
   display: flex; align-items: center; gap: var(--s-3); width: 100%;
   padding: 10px 12px; border: 1px solid var(--sand-deep); border-radius: var(--radius-md);
   background: var(--card); color: var(--ink); font: inherit; font-size: var(--t-body-sm);
   cursor: pointer; text-align: left; box-shadow: var(--shadow-1);
 }
-.plan-card-head:hover { background: var(--paper-deep); }
-.plan-card.is-complete .plan-card-head { border-color: var(--moss); background: var(--success-bg); }
-.plan-card-badge {
+.todo-card-head:hover { background: var(--paper-deep); }
+.todo-card.is-complete .todo-card-head { border-color: var(--moss); background: var(--success-bg); }
+.todo-card-badge {
   width: 22px; height: 22px; border-radius: var(--radius-sm); flex: none;
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--ember-tint); color: var(--ember); font-size: 12px; font-weight: var(--w-semi);
 }
-.plan-card-badge.is-done { background: var(--success-bg); color: var(--success); }
-.plan-card-title { flex: 1; font-weight: var(--w-semi); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.plan-card-count { flex: none; font-variant-numeric: tabular-nums; color: var(--ink-mute); font-size: var(--t-body-sm); }
-.plan-card-count.is-done { color: var(--success); font-weight: var(--w-semi); }
-.plan-card-chev { flex: none; color: var(--ink-faint); font-size: 12px; }
-.plan-steps { list-style: none; margin: var(--s-1) 0 0; padding: var(--s-2) var(--s-2) var(--s-2) var(--s-3); display: flex; flex-direction: column; gap: var(--s-2); }
-.plan-step { display: flex; align-items: center; gap: var(--s-3); color: var(--ink-soft); font-size: var(--t-body-sm); }
-.plan-step.is-done .plan-step-label { text-decoration: line-through; color: var(--ink-mute); }
-.plan-step.is-in_progress .plan-step-label { color: var(--ink); font-weight: var(--w-semi); }
-.plan-step-ic { width: 16px; height: 16px; flex: none; display: inline-flex; align-items: center; justify-content: center; }
-.plan-step-ic-done { color: var(--success); font-size: 12px; font-weight: var(--w-semi); }
-.plan-step-ic-pending {
+.todo-card-badge.is-done { background: var(--success-bg); color: var(--success); }
+.todo-card-title { flex: 1; font-weight: var(--w-semi); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.todo-card-count { flex: none; font-variant-numeric: tabular-nums; color: var(--ink-mute); font-size: var(--t-body-sm); }
+.todo-card-count.is-done { color: var(--success); font-weight: var(--w-semi); }
+.todo-card-chev { flex: none; color: var(--ink-faint); font-size: 12px; }
+.todo-steps { list-style: none; margin: var(--s-1) 0 0; padding: var(--s-2) var(--s-2) var(--s-2) var(--s-3); display: flex; flex-direction: column; gap: var(--s-2); }
+.todo-step { display: flex; align-items: center; gap: var(--s-3); color: var(--ink-soft); font-size: var(--t-body-sm); }
+.todo-step.is-completed .todo-step-label { text-decoration: line-through; color: var(--ink-mute); }
+.todo-step.is-in_progress .todo-step-label { color: var(--ink); font-weight: var(--w-semi); }
+.todo-step-ic { width: 16px; height: 16px; flex: none; display: inline-flex; align-items: center; justify-content: center; }
+.todo-step-ic-done { color: var(--success); font-size: 12px; font-weight: var(--w-semi); }
+.todo-step-ic-pending {
   width: 14px; height: 14px; border-radius: 50%;
   border: 1.5px solid var(--sand-deep); box-sizing: border-box;
 }
-.plan-step-ic-run {
+.todo-step-ic-run {
   width: 14px; height: 14px; border-radius: 50%;
   border: 1.5px solid var(--ember); border-top-color: transparent;
-  box-sizing: border-box; animation: plan-spin 0.9s linear infinite;
+  box-sizing: border-box; animation: todo-spin 0.9s linear infinite;
 }
-@keyframes plan-spin { to { transform: rotate(360deg); } }
-.plan-step-tag {
+@keyframes todo-spin { to { transform: rotate(360deg); } }
+.todo-step-tag {
   margin-left: auto; flex: none; font-size: 11px; color: var(--ember);
   background: var(--ember-tint); padding: 1px 6px; border-radius: var(--radius-sm);
 }
+
+/* 右轨 Progress(同源 Todo) */
+.rail-todo-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-2); }
+.rail-todo-step {
+  display: flex; align-items: flex-start; gap: var(--s-2);
+  color: var(--ink-soft); font-size: var(--t-body-sm); line-height: 1.35;
+}
+.rail-todo-step.is-completed { color: var(--ink-mute); }
+.rail-todo-step.is-completed .rail-todo-label { text-decoration: line-through; }
+.rail-todo-step.is-in_progress { color: var(--ink); font-weight: var(--w-semi); }
+.rail-todo-mark {
+  width: 16px; height: 16px; flex: none; margin-top: 1px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; color: var(--success);
+}
+.rail-todo-mark.is-pending {
+  width: 12px; height: 12px; margin: 3px 2px 0;
+  border-radius: 50%; border: 1.5px solid var(--sand-deep); box-sizing: border-box;
+}
+.rail-todo-mark.is-run {
+  width: 12px; height: 12px; margin: 3px 2px 0;
+  border-radius: 50%; border: 1.5px solid var(--ember); border-top-color: transparent;
+  box-sizing: border-box; animation: todo-spin 0.9s linear infinite;
+}
+.rail-todo-label { flex: 1; min-width: 0; }
 
 /* ---- 空状态(封面):只有问候,不堆任何文字 ---- */
 .empty { margin: auto; text-align: center; color: var(--ink-mute); }

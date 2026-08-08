@@ -41,10 +41,11 @@
 ## 工具(tools/)
 
 - **研究**:`extract_pdf`(PDF → 文本,产物进会话 `cache/`)、`search_papers` / `get_citations`(OpenAlex 检索与引文,期刊分级参与排序)、`search_web`、`fetch_url`
+- **摄取解析(模式 A)**:上传复合件时框架抽文本进 `docs/*.md`,原件留 `uploads/`;见 `doc/document-ingest.md`(Skill 创作属模式 B,后续)
 - **环境**:`read_file` / `write_file` / `edit_file` / `list_dir` / `grep` / `glob`(全部限定在工作区内)、`run_code`(沙箱执行;可读 Skills 根以跑包内脚本)
 - **记忆**:`read_memory` / `write_memory` —— 项目级跨会话记忆:`memory/` 目录一条事实一个文件 + `MEMORY.md` 索引开局注入系统提示词;对用户完全透明
 - **Skills**:`run_skill` —— 可运行工作流包(`.lumen/skills/<name>/SKILL.md` + 可选 `scripts/`);catalog 开局注入;激活正文回灌线程;脚本经 `run_code`+Seatbelt,**不是**第二套 memory(见下文 Skills 专节)
-- **计划**:`update_plan` —— 复杂任务的结构化进度契约;结果回灌线程并写 `drafts/plan.md`;UI 以 PlanCard 投影(见 `doc/plan-card.md`)
+- **Todo**:`todo_write` —— 会话进度清单(Claude 式 TodoWrite);结果回灌线程并写 `drafts/todo.md`;UI 以右轨 Progress / TodoCard 投影(见 `doc/todo.md`);旧名 `update_plan` 仅兼容
 
 约定:工具结果一律回灌线程;长交付物(报告、笔记)写成工作区文件,对话里只留指针。
 

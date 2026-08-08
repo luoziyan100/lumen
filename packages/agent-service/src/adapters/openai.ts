@@ -6,8 +6,9 @@
  *
  * 同 claude.ts：请求构造与响应解析是纯函数，网络是可注入 transport，录制-重放走真实解析路径。
  * 有 ChatHandlers 时走 SSE(streamTransport);无则整包(重放零改语义)。
- * DeepSeek V4 默认开启 thinking：推理与正文共享 max_tokens；额度被隐式推理烧光时
- * HTTP 200 + content="" + finish_reason=length——适配器必须抬高额度、关掉 agent 环上的思考，并把空回复变成可观测错误。
+ * DeepSeek V4 thinking 默认 enabled(与官方一致);推理与正文共享 max_tokens——抬到 ≥16k;
+ * 带 tools 时必须回灌 assistant.reasoningContent,否则 API 400;
+ * 额度烧光 → HTTP 200 + content="" + finish_reason=length → 可观测错误(不静默 done)。
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { ChatHandlers, ModelPort, ModelResponse } from '../core/model-port.ts'
@@ -30,6 +31,8 @@ type OAMessage = {
   content: string | null | OAContentPart[]
   tool_calls?: OAToolCall[]
   tool_call_id?: string
+  /** DeepSeek thinking 回灌字段 */
+  reasoning_content?: string
 }
 export interface OpenAITool {
   type: 'function'
@@ -142,16 +145,22 @@ export function buildOpenAIRequest(messages: Message[], tools: ToolSpec[], model
     if (message.role === 'tool_result') {
       return { role: 'tool', tool_call_id: message.toolCallId ?? '', content: message.content }
     }
-    if (message.role === 'assistant' && message.toolCalls?.length) {
-      return {
+    if (message.role === 'assistant') {
+      const out: OAMessage = {
         role: 'assistant',
-        content: message.content ? message.content : null,
-        tool_calls: message.toolCalls.map((tc) => ({
+        content: message.content ? message.content : (message.toolCalls?.length ? null : ''),
+      }
+      if (message.reasoningContent != null && message.reasoningContent !== '') {
+        out.reasoning_content = message.reasoningContent
+      }
+      if (message.toolCalls?.length) {
+        out.tool_calls = message.toolCalls.map((tc) => ({
           id: tc.id,
           type: 'function',
           function: { name: tc.name, arguments: JSON.stringify(tc.arguments ?? {}) },
-        })),
+        }))
       }
+      return out
     }
     if (message.images?.length) {
       // DeepSeek 最后防线:绝不发 image_url(正常应由 runtime withImageSanitize 先去图插桩)
@@ -181,8 +190,8 @@ export function buildOpenAIRequest(messages: Message[], tools: ToolSpec[], model
     request.tools = tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } }))
     request.tool_choice = 'auto'
   }
-  // Agent 环要工具调用 + 可见正文;V4 默认 thinking 会把额度先花在 reasoning_content 上
-  if (isDeepSeekV4(model)) request.thinking = { type: 'disabled' }
+  // V4 官方默认 enabled;显式写出,避免代理/中间层吞默认
+  if (isDeepSeekV4(model)) request.thinking = { type: 'enabled' }
   return request
 }
 
@@ -194,8 +203,14 @@ export function parseOpenAIResponse(body: OpenAIResponseBody): ModelResponse {
     arguments: safeParseArgs(tc.function.arguments),
   }))
   const content = message?.content ?? ''
+  const reasoning = message?.reasoning_content
   const response: ModelResponse = {
-    message: { role: 'assistant', content, ...(toolCalls.length ? { toolCalls } : {}) },
+    message: {
+      role: 'assistant',
+      content,
+      ...(toolCalls.length ? { toolCalls } : {}),
+      ...(typeof reasoning === 'string' && reasoning ? { reasoningContent: reasoning } : {}),
+    },
     toolCalls,
   }
   if (body.usage) {

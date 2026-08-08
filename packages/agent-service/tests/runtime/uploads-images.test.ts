@@ -40,6 +40,7 @@ test('saveUpload 按表示分类:pdf→papers/ 文本脚本→docs/ 图→images
   assert.equal(await rt.saveUpload('p', 'probe.py', bytes, tid), 'docs/probe.py')
   assert.equal(await rt.saveUpload('p', 'fig.PNG', bytes, tid), 'images/fig.PNG')
   assert.equal(await rt.saveUpload('p', 'report.docx', bytes, tid), 'uploads/report.docx')
+  // 坏 zip 不阻断落盘;好 docx 另测 docs/*.md
   assert.equal(await rt.saveUpload('p', 'blob', bytes, tid), 'uploads/blob', '无扩展名 → opaque uploads/')
   assert.equal(await rt.saveUpload('p', '../..//evil.pdf', bytes, tid), 'papers/evil.pdf', '路径穿越被剥掉')
 

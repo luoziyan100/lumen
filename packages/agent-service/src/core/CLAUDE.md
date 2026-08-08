@@ -12,7 +12,7 @@
 - `tool.ts` — Tool 契约 + ToolContext(+toolCallId)+ SpawnFn
 - `spawn.ts` — createSpawnFn(递归原语)+ spawnTool;sub-agent = runAgent 的递归调用
 - `limits.ts` — 步数 / 递归深度 / 墙钟预算;防失控循环与永远 running
-- `types.ts` — 消息 / 工具调用 / 用量 / 事件的类型基座(含 ephemeral kind)
+- `types.ts` — 消息 / 工具调用 / 用量 / 事件的类型基座(含 ephemeral kind;`Message.reasoningContent` 供 thinking 回灌)
 - `guard.ts` — withGuard 超时;ask_user 等长等待工具勿套默认 150s
 - `index.ts` — 内核对外唯一出口
 
