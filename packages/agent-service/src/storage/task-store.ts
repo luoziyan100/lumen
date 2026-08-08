@@ -2,7 +2,7 @@
  * [INPUT]: db.ts 的 DB
  * [OUTPUT]: TaskStore / EPHEMERAL_EVENT_KINDS —— tasks / task_events 持久化
  * [POS]: §存储层。事件流是 runtime 的 source of truth;seq 事务内单调自增;
- *        ephemeral kind 由 runtime 旁路不入库;archived_at 软归档
+ *        ephemeral kind 由 runtime 旁路不入库;archived_at 软归档;pinned_at 置顶
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { DB } from './db.ts'
@@ -22,6 +22,8 @@ export interface Task {
   finished_at: string | null
   /** ISO 时间;NULL/缺省 = 未归档 */
   archived_at?: string | null
+  /** ISO 时间;NULL/缺省 = 未置顶;钉档内按此倒序(≠活跃时间) */
+  pinned_at?: string | null
 }
 
 export type TaskEventKind =
@@ -73,6 +75,7 @@ export class TaskStore {
     listAllTasks: ReturnType<DB['prepare']>
     updateTask: ReturnType<DB['prepare']>
     updateTaskTitle: ReturnType<DB['prepare']>
+    setTaskPinned: ReturnType<DB['prepare']>
     archiveTask: ReturnType<DB['prepare']>
     touchTask: ReturnType<DB['prepare']>
     insertEvent: ReturnType<DB['prepare']>
@@ -90,14 +93,18 @@ export class TaskStore {
         'INSERT INTO tasks (id, project_id, goal, status, last_error, created_at, updated_at, finished_at) VALUES (@id,@project_id,@goal,@status,@last_error,@created_at,@updated_at,@finished_at)',
       ),
       getTask: db.prepare('SELECT * FROM tasks WHERE id = ?'),
+      // 钉档优先 → 钉内 pinned_at 新者上 → 未钉 created_at;不跟活跃重排
       listTasks: db.prepare(
-        'SELECT * FROM tasks WHERE project_id = ? AND archived_at IS NULL ORDER BY created_at DESC',
+        `SELECT * FROM tasks WHERE project_id = ? AND archived_at IS NULL
+         ORDER BY (pinned_at IS NULL) ASC, pinned_at DESC, created_at DESC`,
       ),
       listAllTasks: db.prepare(
-        'SELECT * FROM tasks WHERE archived_at IS NULL ORDER BY created_at DESC',
+        `SELECT * FROM tasks WHERE archived_at IS NULL
+         ORDER BY (pinned_at IS NULL) ASC, pinned_at DESC, created_at DESC`,
       ),
       updateTask: db.prepare('UPDATE tasks SET status=?, last_error=?, finished_at=?, updated_at=? WHERE id=?'),
       updateTaskTitle: db.prepare('UPDATE tasks SET title=?, updated_at=? WHERE id=?'),
+      setTaskPinned: db.prepare('UPDATE tasks SET pinned_at=?, updated_at=? WHERE id=?'),
       archiveTask: db.prepare(
         'UPDATE tasks SET archived_at = COALESCE(archived_at, ?), updated_at = ? WHERE id = ?',
       ),
@@ -170,6 +177,18 @@ export class TaskStore {
     if (!task) return false
     const ts = now()
     this.stmts.updateTaskTitle.run(title, ts, id)
+    return true
+  }
+
+  /** 置顶/取消;pin=true 写当前 ISO,false 清 NULL;幂等 */
+  setTaskPinned(id: string, pinned: boolean): boolean {
+    const task = this.getTask(id)
+    if (!task) return false
+    const ts = now()
+    const already = task.pinned_at != null && String(task.pinned_at).trim() !== ''
+    if (pinned && already) return true
+    if (!pinned && !already) return true
+    this.stmts.setTaskPinned.run(pinned ? ts : null, ts, id)
     return true
   }
 

@@ -12,6 +12,7 @@ import { Toasty, useKumoToastManager } from '@cloudflare/kumo/components/toast'
 import { Tooltip, TooltipProvider } from '@cloudflare/kumo/components/tooltip'
 import { AgentClient, type ImageData, type Project, type SkillInfo, type SkillInstallScope, type Task } from './agent-client'
 import { ensureAgentService } from './ensureAgent'
+import { sortTasksForSidebar } from './sortTasks'
 import { useAgent, type ChatItem } from './useAgent'
 import { useStickToBottom } from './useStickToBottom'
 import { useWorkspace } from './useWorkspace'
@@ -120,7 +121,7 @@ function AppInner() {
   /** 项目行 + 后的临时「新建对话」;发言落库后清掉,未发言离开也清掉 */
   const [draftProjectId, setDraftProjectId] = useState<string | null>(null)
 
-  // 侧栏短标题异步写回
+  // 侧栏短标题/置顶异步写回;写后按 store 同序重排
   useEffect(() => {
     return client.onTaskUpdated((task) => {
       setTasksByProject((prev) => {
@@ -130,10 +131,10 @@ function AppInner() {
           return { ...prev, [pid]: [task] }
         }
         const i = list.findIndex((t) => t.id === task.id)
-        if (i < 0) return { ...prev, [pid]: [task, ...list] }
         const next = list.slice()
-        next[i] = { ...list[i]!, ...task }
-        return { ...prev, [pid]: next }
+        if (i < 0) next.unshift(task)
+        else next[i] = { ...list[i]!, ...task }
+        return { ...prev, [pid]: sortTasksForSidebar(next) }
       })
     })
   }, [client])
@@ -259,6 +260,19 @@ function AppInner() {
     }
   }
 
+  async function setConversationPinned(task: Task, pinned: boolean): Promise<void> {
+    try {
+      if (pinned) await client.pinTask(task.id, task.project_id)
+      else await client.unpinTask(task.id, task.project_id)
+    } catch (err) {
+      toast.add({
+        variant: 'error',
+        title: pinned ? '置顶失败' : '取消置顶失败',
+        description: err instanceof Error ? err.message : '请重试',
+      })
+    }
+  }
+
   /** 软归档项目:侧栏消失;若正看着该项目则切到空态 */
   async function archiveProject(proj: Project): Promise<void> {
     try {
@@ -370,7 +384,7 @@ function AppInner() {
         const tasks = await client.list(pid).catch(() => [] as Task[])
         if (!live) return
         setProjects([{ id: pid, name: '我的空间', source_path: null, created_at: '', updated_at: '' }])
-        setTasksByProject({ [pid]: tasks })
+        setTasksByProject({ [pid]: sortTasksForSidebar(tasks) })
         return
       }
       let list: Project[]
@@ -395,7 +409,7 @@ function AppInner() {
       // list 共用 pendingTasks 槽,必须串行,不能 Promise.all
       const map: Record<string, Task[]> = {}
       for (const p of list) {
-        map[p.id] = await client.list(p.id).catch(() => [])
+        map[p.id] = sortTasksForSidebar(await client.list(p.id).catch(() => []))
         if (!live) return
       }
       setTasksByProject(map)
@@ -413,12 +427,27 @@ function AppInner() {
     () => projects.filter((p) => p.id.startsWith('p-')),
     [projects],
   )
-  const recentTasks = useMemo(
-    () => Object.entries(tasksByProject)
-      .filter(([pid]) => !pid.startsWith('p-'))
-      .flatMap(([, tasks]) => tasks)
-      .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? '')),
+  /** 全局置顶区:跨项目抽一层;项目树/最近不再重复列出 */
+  const pinnedTasks = useMemo(
+    () => sortTasksForSidebar(
+      Object.values(tasksByProject).flat().filter((t) => Boolean(t.pinned_at?.trim())),
+    ),
     [tasksByProject],
+  )
+  const tasksByProjectUnpinned = useMemo(() => {
+    const next: Record<string, Task[]> = {}
+    for (const [pid, list] of Object.entries(tasksByProject)) {
+      next[pid] = list.filter((t) => !t.pinned_at?.trim())
+    }
+    return next
+  }, [tasksByProject])
+  const recentTasks = useMemo(
+    () => sortTasksForSidebar(
+      Object.entries(tasksByProjectUnpinned)
+        .filter(([pid]) => !pid.startsWith('p-'))
+        .flatMap(([, tasks]) => tasks),
+    ),
+    [tasksByProjectUnpinned],
   )
   /** 搜索跨项目(仍按会话点选) */
   const convs = useMemo(
@@ -756,7 +785,8 @@ function AppInner() {
           <Sidebar
             connected={connected}
             projects={sidebarProjects}
-            tasksByProject={tasksByProject}
+            pinnedTasks={pinnedTasks}
+            tasksByProject={tasksByProjectUnpinned}
             recentTasks={recentTasks}
             activeProjectId={projectId}
             activeTaskId={taskId}
@@ -769,6 +799,7 @@ function AppInner() {
             onSelectProject={selectProject}
             onArchive={(t) => { void archiveConversation(t) }}
             onRenameTask={(t, title) => renameConversation(t, title)}
+            onPinTask={(t, pinned) => setConversationPinned(t, pinned)}
             onRenameProject={(p, name) => renameProject(p, name)}
             onArchiveProject={(p) => { void archiveProject(p) }}
             onSettings={() => setSettingsOpen(true)}

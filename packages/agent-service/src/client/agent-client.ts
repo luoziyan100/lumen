@@ -88,6 +88,14 @@ export class LumenClient {
     this.send({ type: 'rename_task', taskId, title })
   }
 
+  pinTask(taskId: string): void {
+    this.send({ type: 'pin_task', taskId })
+  }
+
+  unpinTask(taskId: string): void {
+    this.send({ type: 'unpin_task', taskId })
+  }
+
   /** 解开挂起的 ask_user */
   answerUser(
     taskId: string,

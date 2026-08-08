@@ -1,7 +1,10 @@
 /** 图标唯一入口:一律 @phosphor-icons/react(Kumo 同源家族),经此单点 re-export。
- *  规范见 doc/ui-design.md「§3.1 图标规范」:三档尺寸 + weight 全站统一 regular;
- *  禁手写 SVG / 字符凑图标(← › × ＋) / emoji / 绕过本文件直接 import phosphor。 */
-import { Archive, ArrowDown, ArrowUp, ArrowsOut, At, CaretDown, CaretLeft, CaretRight, ChatCircle, Check, Copy, File, FileCode, FileCsv, FileDoc, FileHtml, FileImage, FilePdf, FilePpt, FileText, FileZip, FolderOpen, FolderSimple, Gear, MagnifyingGlass, Minus, PencilSimple, Play, Plus, SidebarSimple, Trash, User, X } from '@phosphor-icons/react'
+ *  [INPUT]: @phosphor-icons/react;doc/ui-design.md §3.1
+ *  [OUTPUT]: ICON_* + Panel/Folder/Chevron/SectionChevron/FileType 等统一出口
+ *  [POS]: components 图标单点;树左 ChevronIcon(CaretRight)、区右 SectionChevronIcon(CaretDown)
+ *  [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
+ *  规范:三档尺寸 + weight 全站统一 regular;禁手写 SVG / 字符凑图标 / emoji / 绕过本文件。 */
+import { Archive, ArrowDown, ArrowUp, ArrowsOut, At, CaretDown, CaretLeft, CaretRight, ChatCircle, Check, Copy, File, FileCode, FileCsv, FileDoc, FileHtml, FileImage, FilePdf, FilePpt, FileText, FileZip, FolderOpen, FolderSimple, Gear, MagnifyingGlass, Minus, PencilSimple, Play, Plus, PushPin, PushPinSlash, SidebarSimple, Trash, User, X } from '@phosphor-icons/react'
 
 // 尺寸三档:行内(列表/标签内) / 按钮内 / 导航按钮
 export const ICON_SM = 16
@@ -105,6 +108,19 @@ export function ChevronDownIcon({ size = ICON_SM }: { size?: number }) {
   return <CaretDown size={size} />
 }
 
+/** 区级折叠(标题右侧):CaretDown;展开朝下,收起 −90° 朝右 —— 与树节点 ChevronIcon(CaretRight) 分层 */
+export function SectionChevronIcon({ open }: { open?: boolean }) {
+  return (
+    <CaretDown
+      size={ICON_SM}
+      style={{
+        transform: open ? undefined : 'rotate(-90deg)',
+        transition: 'transform var(--dur-fast) var(--ease-out)',
+      }}
+    />
+  )
+}
+
 export function GearIcon({ size = ICON_MD }: { size?: number }) {
   return <Gear size={size} />
 }
@@ -166,7 +182,7 @@ export function RenameIcon({ size = ICON_SM }: { size?: number }) {
 }
 
 /** Kumo DropdownMenu.Item 的 icon= 要 phosphor 组件引用 */
-export { Archive as ArchiveGlyph, At as AtGlyph, Copy as CopyGlyph, FileText as FileTextGlyph, Gear as GearGlyph, PencilSimple as RenameGlyph }
+export { Archive as ArchiveGlyph, At as AtGlyph, Copy as CopyGlyph, FileText as FileTextGlyph, Gear as GearGlyph, PencilSimple as RenameGlyph, PushPin as PinGlyph, PushPinSlash as UnpinGlyph }
 
 /** 流程图放大查看 */
 export function ExpandIcon({ size = ICON_SM }: { size?: number }) {

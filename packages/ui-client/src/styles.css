@@ -416,6 +416,20 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   color: var(--ink-mute); font-size: var(--t-caption); font-weight: var(--w-medium);
   letter-spacing: .04em;
 }
+/* 「项目」区标题可点:文案左、chevron 右(Cursor Repositories ∨);与项目行左侧 chevron 分层 */
+.sb-section-toggle {
+  display: flex; align-items: center; gap: 4px;
+  width: 100%; margin: 0; border: 0; background: transparent;
+  cursor: pointer; text-align: left;
+  font: inherit; letter-spacing: inherit; color: inherit;
+}
+.sb-section-toggle:hover { color: var(--ink); }
+.sb-section-label { flex: 1; min-width: 0; }
+.sb-section-chev {
+  display: inline-flex; flex-shrink: 0; opacity: .7;
+  margin-right: 2px;
+}
+.sb-projects-body { display: flex; flex-direction: column; gap: 1px; }
 .sb-folder { display: flex; flex-direction: column; gap: 1px; }
 .sb-folder-row {
   display: flex; align-items: center; gap: 2px;
@@ -498,7 +512,19 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .sb-folder-plus:hover { background: var(--sand-deep); color: var(--ink); }
 .sb-folder-plus:disabled { cursor: not-allowed; opacity: 0.4; }
 .sb-sess { display: flex; flex-direction: column; gap: 1px; padding-left: 26px; }
+/* 项目树会话 Progressive Disclosure:次级文字钮,对齐会话缩进 */
+.sb-sess-more {
+  align-self: flex-start;
+  margin: 2px 0 4px;
+  padding: 2px 0;
+  border: none; background: none;
+  color: var(--ink-mute); font: inherit; font-size: var(--t-caption);
+  font-weight: var(--w-medium); cursor: pointer;
+}
+.sb-sess-more:hover { color: var(--ink-soft); }
 .sb-section-h-recent { margin-top: var(--s-3); }
+/* 置顶 / 项目 / 最近 分区标题之间留缝 */
+.sb-list .sb-section-h ~ .sb-section-h { margin-top: var(--s-3); }
 .sb-item-flat { padding-left: var(--s-3); }
 .sb-item-row {
   display: flex; align-items: center; gap: 2px;

@@ -4,7 +4,7 @@
 
 ## 成员
 
-- `Sidebar.tsx` — Cursor 式:项目区仅 `p-*`;双指点按项目→重命名/归档、会话→重命名/复制 ID/归档;点 + 才出临时「新建对话」;「最近」平铺;标题用 MarqueeTitle;行内重命名写 `title`(≠ goal)
+- `Sidebar.tsx` — Cursor 式:可折「项目」整区(标题 chevron + localStorage) → 全局「置顶」→「最近」;项目行 chevron 仍折单树;项目树会话 >N 条 Progressive Disclosure(`visibleSessions`,active 保底);双指点按置顶/重命名/复制/归档;钉会话不重复出现在树/最近;行内重命名写 `title`
 - `MarqueeTitle.tsx` — 溢出悬停无缝单向走马灯:双份文案 + track `translateX(-50%)`;闲置 ellipsis;禁 alternate/瞬切
 - `turnRail.ts` — `buildTurnRailItems`:ChatItem→用户轮次(一问+随后助手答);过程行不占刻度
 - `TurnPreviewRail.tsx` — 对话列左侧轮次轨(≥4 轮);空闲小圆点、悬停鱼眼放大+预览;窄栏/阅读器开时隐藏;点圆点滚到 `msg-<id>`
@@ -28,7 +28,7 @@
 - `MermaidBlock.tsx` — mermaid.js 动态加载;securityLevel=strict;主题读青瓷 token;悬停工具条放大/复制源码;失败回退源码
 - `widget/` — 对话网页沙箱(`show-widget` 围栏 → iframe);见 `widget/CLAUDE.md`
 - `hljs-celadon.css` — highlight.js 青瓷主题:消费 tokens.css 的 --code-* 语法色板
-- `icons.tsx` — **图标唯一入口**:re-export @phosphor-icons/react(Kumo 同源家族)并统一缺省尺寸;组件不得绕过它直接 import phosphor;不用 emoji;`FolderIcon` 接受 `open` → FolderSimple/FolderOpen 交叉淡入(侧栏项目展开态)
+- `icons.tsx` — **图标唯一入口**:re-export @phosphor-icons/react(Kumo 同源家族)并统一缺省尺寸;组件不得绕过它直接 import phosphor;不用 emoji;`FolderIcon` 接受 `open` → FolderSimple/FolderOpen;`ChevronIcon`(树左 CaretRight)/`SectionChevronIcon`(区右 CaretDown)
 
 ## 规则
 

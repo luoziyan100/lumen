@@ -2,14 +2,15 @@
  * [INPUT]: better-sqlite3
  * [OUTPUT]: openDatabase / DB —— 打开 SQLite 并跑增量 migration
  * [POS]: §存储层根。表结构搬自 old_lumen migration v8（tasks/task_events），只增不改;
- *        v6:tasks.archived_at 软归档;v7:projects.archived_at 软归档;v8:tasks.title 侧栏短名(≠goal)
+ *        v6:tasks.archived_at 软归档;v7:projects.archived_at 软归档;v8:tasks.title 侧栏短名(≠goal);
+ *        v9:tasks.pinned_at 侧栏置顶(NULL=未钉;钉内按钉时排序,不跟活跃跳)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import Database from 'better-sqlite3'
 
 export type DB = Database.Database
 
-const SCHEMA_VERSION = 8
+const SCHEMA_VERSION = 9
 
 export function openDatabase(filename: string): DB {
   const db = new Database(filename)
@@ -103,6 +104,11 @@ function migrate(db: DB): void {
   if (current < 8) {
     // 侧栏短标题(模型总结);goal 仍是首句原文/resume 兜底
     db.exec(`ALTER TABLE tasks ADD COLUMN title TEXT`)
+  }
+
+  if (current < 9) {
+    // 侧栏置顶:NULL=未钉;有 ISO=钉上时间(list 钉档优先,钉内按此倒序)
+    db.exec(`ALTER TABLE tasks ADD COLUMN pinned_at TEXT`)
   }
 
   db.pragma(`user_version = ${SCHEMA_VERSION}`)

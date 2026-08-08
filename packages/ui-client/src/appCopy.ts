@@ -16,6 +16,8 @@ export const SIDEBAR_ACCOUNT_COPY = {
 /** 侧栏:项目树(仅用户创建) + 最近(历史平铺,不是项目) */
 export const SIDEBAR_PROJECT_COPY = {
   section: '项目',
+  /** 置顶区:在「项目」下、「最近」上;跨项目;本轮无拖拽 */
+  pinned: '置顶',
   recent: '最近',
   newChat: '新对话',
   search: '搜索',
@@ -29,7 +31,12 @@ export const SIDEBAR_PROJECT_COPY = {
   newChatInProject: '在此项目新建会话',
   newProject: '新建项目',
   namePlaceholder: '项目名称',
+  /** 项目树会话 >N 条时 Progressive Disclosure(见 visibleSessions) */
+  showMoreSessions: '展开显示',
+  showLessSessions: '收起',
   /** 次要点击(触控板双指点按 / 鼠标右键)后露出 */
+  pinChat: '置顶',
+  unpinChat: '取消置顶',
   renameChat: '重命名',
   copySessionId: '复制会话 ID',
   copiedSessionId: '已复制会话 ID',

@@ -1,7 +1,9 @@
 /**
- * [INPUT]: Project / Task;icons;SIDEBAR_*_COPY;useResizable;Kumo DropdownMenu;MarqueeTitle
- * [OUTPUT]: Sidebar —— 项目树 + 最近;双指点按:会话重命名/复制/归档、项目重命名/归档;标题溢出悬停跑马灯
- * [POS]: 左栏;Trigger 必须 render=<button>(防首子被提升);会话名 hover marquee;行内重命名写 title≠goal
+ * [INPUT]: Project / Task;icons;SIDEBAR_*_COPY;useResizable;Kumo DropdownMenu;MarqueeTitle;visibleSessions
+ * [OUTPUT]: Sidebar —— 可折「项目」整区 + 全局置顶 + 最近;双指点按置顶/重命名/复制/归档;标题溢出悬停跑马灯
+ * [POS]: 左栏;「项目」标题右侧 chevron 收整区(localStorage lumen:sbProjectsOpen);项目行左侧 chevron 仍管单树;
+ *        项目树会话 >N 条 Progressive Disclosure(内存展开,active 保底);置顶在项目区下、最近上;
+ *        Trigger 须 render=<button>;开编延后+忽略菜单 blur
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
@@ -10,11 +12,12 @@ import type { Project, Task } from '../agent-client'
 import { displayTaskTitle } from '../displayTaskTitle'
 import {
   AccountIcon, ArchiveGlyph, ChatIcon, CheckIcon, ChevronIcon, CopyGlyph, FolderIcon, GearIcon,
-  NewProjectIcon, PlusIcon, RenameGlyph, SearchIcon, ICON_MD, ICON_SM,
+  NewProjectIcon, PinGlyph, PlusIcon, RenameGlyph, SearchIcon, SectionChevronIcon, UnpinGlyph, ICON_MD, ICON_SM,
 } from './icons'
 import { MarqueeTitle } from './MarqueeTitle'
 import { SIDEBAR_ACCOUNT_COPY, SIDEBAR_PROJECT_COPY } from '../appCopy'
 import { useResizable } from '../useResizable'
+import { visibleSessions } from '../visibleSessions'
 
 async function copyText(text: string): Promise<void> {
   try {
@@ -39,8 +42,10 @@ interface SidebarProps {
   connected: boolean
   /** 仅用户显式创建的项目(p-*),不含 default/孤儿桶 */
   projects: Project[]
+  /** 全局置顶(跨项目);已从 tasksByProject/recent 剔除 */
+  pinnedTasks: Task[]
   tasksByProject: Record<string, Task[]>
-  /** 非项目桶里的历史会话(平铺「最近」) */
+  /** 非项目桶里的历史会话(平铺「最近」;不含置顶) */
   recentTasks: Task[]
   activeProjectId: string
   activeTaskId: string | null
@@ -54,6 +59,7 @@ interface SidebarProps {
   onSelectProject: (projectId: string) => void
   onArchive: (task: Task) => void
   onRenameTask: (task: Task, title: string) => Promise<void> | void
+  onPinTask: (task: Task, pinned: boolean) => Promise<void> | void
   onRenameProject: (project: Project, name: string) => Promise<void> | void
   onArchiveProject: (project: Project) => void
   onSettings: () => void
@@ -66,6 +72,7 @@ function projectLabel(p: Project): string {
 export function Sidebar({
   connected,
   projects,
+  pinnedTasks,
   tasksByProject,
   recentTasks,
   activeProjectId,
@@ -79,6 +86,7 @@ export function Sidebar({
   onSelectProject,
   onArchive,
   onRenameTask,
+  onPinTask,
   onRenameProject,
   onArchiveProject,
   onSettings,
@@ -87,6 +95,16 @@ export function Sidebar({
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(
     activeProjectId.startsWith('p-') ? [activeProjectId] : [],
   ))
+  /** 项目树会话 show-more 展开态(按 projectId;不持久化) */
+  const [sessMoreOpen, setSessMoreOpen] = useState<Set<string>>(() => new Set())
+  /** 「项目」整区折起;默认开;记 localStorage */
+  const [projectsOpen, setProjectsOpen] = useState(() => {
+    try {
+      return localStorage.getItem('lumen:sbProjectsOpen') !== '0'
+    } catch {
+      return true
+    }
+  })
   const [copiedId, setCopiedId] = useState<string | null>(null)
   /** 次要点击打开的浮层菜单所挂会话;单击主按钮不打开 */
   const [menuTaskId, setMenuTaskId] = useState<string | null>(null)
@@ -96,13 +114,18 @@ export function Sidebar({
   const [renaming, setRenaming] = useState<RenameTarget | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
   const renameRef = useRef<HTMLInputElement>(null)
+  /** 菜单关闭的 pointer 收尾会 blur 刚 mount 的 input——忽略开编后极短窗口内的 blur */
+  const renameIgnoreBlurRef = useRef(false)
 
   useEffect(() => {
     if (!renaming) return
     const el = renameRef.current
     if (!el) return
+    renameIgnoreBlurRef.current = true
     el.focus()
     el.select()
+    const t = window.setTimeout(() => { renameIgnoreBlurRef.current = false }, 120)
+    return () => window.clearTimeout(t)
   }, [renaming])
 
   async function onCopySessionId(taskId: string): Promise<void> {
@@ -116,19 +139,27 @@ export function Sidebar({
     setMenuProjectId(null)
   }
 
+  /** 等 Dropdown 关掉再进编辑,否则 Item 点击收尾 blur 掉 input → 看起来「点了没反应」 */
   function beginRenameProject(proj: Project): void {
     closeMenus()
-    setRenaming({ kind: 'project', id: proj.id })
-    setRenameDraft(proj.name)
+    const name = proj.name
+    window.setTimeout(() => {
+      setRenaming({ kind: 'project', id: proj.id })
+      setRenameDraft(name)
+    }, 0)
   }
 
   function beginRenameTask(task: Task): void {
     closeMenus()
-    setRenaming({ kind: 'task', id: task.id })
-    setRenameDraft(displayTaskTitle(task))
+    const title = displayTaskTitle(task)
+    window.setTimeout(() => {
+      setRenaming({ kind: 'task', id: task.id })
+      setRenameDraft(title)
+    }, 0)
   }
 
   async function commitRenameProject(proj: Project): Promise<void> {
+    if (renameIgnoreBlurRef.current) return
     const next = renameDraft.trim()
     setRenaming(null)
     if (!next || next === proj.name) return
@@ -136,6 +167,7 @@ export function Sidebar({
   }
 
   async function commitRenameTask(task: Task): Promise<void> {
+    if (renameIgnoreBlurRef.current) return
     const next = renameDraft.trim()
     setRenaming(null)
     if (!next || next === displayTaskTitle(task)) return
@@ -169,6 +201,7 @@ export function Sidebar({
   function renderTaskRow(task: Task, flat?: boolean) {
     const copied = copiedId === task.id
     const menuOpen = menuTaskId === task.id
+    const pinned = Boolean(task.pinned_at?.trim())
     const renamingThis = renaming?.kind === 'task' && renaming.id === task.id
     if (renamingThis) {
       return (
@@ -213,7 +246,7 @@ export function Sidebar({
               onSelect(task)
             }}
             onContextMenu={(e) => {
-              // 双指点按 / 右键:挡系统菜单,开我们的重命名/复制/归档
+              // 双指点按 / 右键:挡系统菜单,开我们的置顶/重命名/复制/归档
               e.preventDefault()
               e.stopPropagation()
               window.getSelection()?.removeAllRanges()
@@ -226,7 +259,17 @@ export function Sidebar({
           </DropdownMenu.Trigger>
           <DropdownMenu.Content align="start" side="bottom" sideOffset={4} className="sb-task-menu glass-card">
             <DropdownMenu.Item
+              icon={pinned ? UnpinGlyph : PinGlyph}
+              onClick={() => {
+                closeMenus()
+                void onPinTask(task, !pinned)
+              }}
+            >
+              {pinned ? SIDEBAR_PROJECT_COPY.unpinChat : SIDEBAR_PROJECT_COPY.pinChat}
+            </DropdownMenu.Item>
+            <DropdownMenu.Item
               icon={RenameGlyph}
+              onPointerDown={(e) => e.preventDefault()}
               onClick={() => beginRenameTask(task)}
             >
               {SIDEBAR_PROJECT_COPY.renameChat}
@@ -278,6 +321,25 @@ export function Sidebar({
     })
   }
 
+  function toggleSessMore(projectId: string): void {
+    setSessMoreOpen((prev) => {
+      const next = new Set(prev)
+      if (next.has(projectId)) next.delete(projectId)
+      else next.add(projectId)
+      return next
+    })
+  }
+
+  function toggleProjectsSection(): void {
+    setProjectsOpen((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('lumen:sbProjectsOpen', next ? '1' : '0')
+      } catch { /* ignore */ }
+      return next
+    })
+  }
+
   function onProjectRowClick(p: Project): void {
     closeMenus()
     if (renaming) return
@@ -313,8 +375,6 @@ export function Sidebar({
         )}
       </nav>
 
-      <div className="sb-section-h">{SIDEBAR_PROJECT_COPY.section}</div>
-
       <nav className="sb-list" aria-label="项目与会话">
         {!connected ? (
           <div className="sb-empty sb-offline" role="status">
@@ -323,10 +383,24 @@ export function Sidebar({
           </div>
         ) : (
           <>
-            {projects.length === 0 && (
-              <div className="sb-empty">{SIDEBAR_PROJECT_COPY.emptyProjects}</div>
-            )}
-            {projects.map((proj) => {
+            <button
+              type="button"
+              className={`sb-section-h sb-section-toggle${projectsOpen ? ' is-open' : ''}`}
+              aria-expanded={projectsOpen}
+              aria-controls="sb-projects-body"
+              onClick={() => { closeMenus(); toggleProjectsSection() }}
+            >
+              <span className="sb-section-label">{SIDEBAR_PROJECT_COPY.section}</span>
+              <span className="sb-section-chev" aria-hidden>
+                <SectionChevronIcon open={projectsOpen} />
+              </span>
+            </button>
+            {projectsOpen && (
+              <div id="sb-projects-body" className="sb-projects-body">
+                {projects.length === 0 && (
+                  <div className="sb-empty">{SIDEBAR_PROJECT_COPY.emptyProjects}</div>
+                )}
+                {projects.map((proj) => {
               const open = expanded.has(proj.id)
               const tasks = tasksByProject[proj.id] ?? []
               const hasDraft = draftProjectId === proj.id
@@ -334,6 +408,12 @@ export function Sidebar({
               const active = proj.id === activeProjectId
               const label = projectLabel(proj)
               const showSess = open && (hasDraft || tasks.length > 0)
+              const sess = showSess
+                ? visibleSessions(tasks, {
+                    expanded: sessMoreOpen.has(proj.id),
+                    activeId: activeTaskId,
+                  })
+                : null
               const menuOpen = menuProjectId === proj.id
               const renamingThis = renaming?.kind === 'project' && renaming.id === proj.id
               return (
@@ -388,6 +468,7 @@ export function Sidebar({
                         <DropdownMenu.Content align="start" side="bottom" sideOffset={4} className="sb-task-menu glass-card">
                           <DropdownMenu.Item
                             icon={RenameGlyph}
+                            onPointerDown={(e) => e.preventDefault()}
                             onClick={() => beginRenameProject(proj)}
                           >
                             {SIDEBAR_PROJECT_COPY.renameProject}
@@ -416,7 +497,7 @@ export function Sidebar({
                       <PlusIcon size={14} />
                     </button>
                   </div>
-                  {showSess && (
+                  {showSess && sess && (
                     <div className="sb-sess">
                       {hasDraft && (
                         <button
@@ -428,12 +509,33 @@ export function Sidebar({
                           <span className="sb-item-title">{SIDEBAR_PROJECT_COPY.draftChat}</span>
                         </button>
                       )}
-                      {tasks.map((task) => renderTaskRow(task))}
+                      {sess.visible.map((task) => renderTaskRow(task))}
+                      {sess.canToggle && (
+                        <button
+                          type="button"
+                          className="sb-sess-more"
+                          aria-expanded={!sess.capped}
+                          onClick={() => toggleSessMore(proj.id)}
+                        >
+                          {sess.capped
+                            ? SIDEBAR_PROJECT_COPY.showMoreSessions
+                            : SIDEBAR_PROJECT_COPY.showLessSessions}
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
               )
-            })}
+                })}
+              </div>
+            )}
+
+            {pinnedTasks.length > 0 && (
+              <>
+                <div className="sb-section-h">{SIDEBAR_PROJECT_COPY.pinned}</div>
+                {pinnedTasks.map((task) => renderTaskRow(task, true))}
+              </>
+            )}
 
             <div className="sb-section-h sb-section-h-recent">{SIDEBAR_PROJECT_COPY.recent}</div>
             {recentTasks.length === 0 ? (

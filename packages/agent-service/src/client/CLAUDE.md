@@ -7,7 +7,7 @@
 
 ## 成员
 
-- `agent-client.ts` — LumenClient:submit/continue/subscribe/cancel/archiveTask/renameTask/list/listProjects/createProject/renameProject/archiveProject/listSkills/installSkill/uninstallSkill/activateSkill/资产 + 事件订阅;自动从 portfile 读端口与 token
+- `agent-client.ts` — LumenClient:submit/continue/subscribe/cancel/archiveTask/renameTask/pinTask/unpinTask/list/listProjects/createProject/renameProject/archiveProject/listSkills/installSkill/uninstallSkill/activateSkill/资产 + 事件订阅;自动从 portfile 读端口与 token
 
 ## 规则
 

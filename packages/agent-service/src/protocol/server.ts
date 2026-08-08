@@ -1,7 +1,7 @@
 /**
  * [INPUT]: ws、AgentRuntime、协议消息类型
  * [OUTPUT]: startServer —— 把 AgentRuntime 暴露为 localhost WebSocket 服务
- * [POS]: §4 服务边界。一条连接可 submit/subscribe/cancel/resume/archive_task/rename_task/answer_user/list，service 推 event 流
+ * [POS]: §4 服务边界。一条连接可 submit/subscribe/cancel/resume/archive_task/rename_task/pin_task/unpin_task/answer_user/list，service 推 event 流
  *
  * 断线重连用 subscribe.afterSeq 拉齐遗漏事件（事件 seq 单调，不丢不重）。
  * 鉴权：浏览器对 ws://127.0.0.1 没有跨源限制，任意网页都能发起连接——
@@ -206,6 +206,26 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
           else send({ type: 'ok', taskId: message.taskId })
         } catch (e) {
           send({ type: 'error', message: e instanceof Error ? e.message : 'rename_task 失败' })
+        }
+        break
+      }
+      case 'pin_task': {
+        if (!ownsTask(message.taskId, message.projectId)) { send({ type: 'error', message: 'forbidden' }); break }
+        {
+          const updated = runtime.setTaskPinned(message.taskId, true)
+          send(updated
+            ? { type: 'ok', taskId: message.taskId }
+            : { type: 'error', message: 'pin failed: task 不存在' })
+        }
+        break
+      }
+      case 'unpin_task': {
+        if (!ownsTask(message.taskId, message.projectId)) { send({ type: 'error', message: 'forbidden' }); break }
+        {
+          const updated = runtime.setTaskPinned(message.taskId, false)
+          send(updated
+            ? { type: 'ok', taskId: message.taskId }
+            : { type: 'error', message: 'unpin failed: task 不存在' })
         }
         break
       }

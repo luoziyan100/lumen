@@ -6,8 +6,8 @@
 
 ## 成员
 
-- `db.ts` — openDatabase:打开 SQLite 并跑**纯增量** migration(当前 v8:`tasks.title` 侧栏短名)
-- `task-store.ts` — TaskStore:tasks / task_events;`title`(≠ goal);`EPHEMERAL_EVENT_KINDS`(text_delta/tool_call_start,runtime 不入库);`archived_at` 软归档;`updateTaskTitle`
+- `db.ts` — openDatabase:打开 SQLite 并跑**纯增量** migration(当前 v9:`tasks.pinned_at` 侧栏置顶)
+- `task-store.ts` — TaskStore:tasks / task_events;`title`(≠ goal);`pinned_at`;`EPHEMERAL_EVENT_KINDS`(text_delta/tool_call_start,runtime 不入库);`archived_at` 软归档;`updateTaskTitle`/`setTaskPinned`;list 钉档优先+钉内 `pinned_at` 倒序
 - `project-store.ts` — ProjectStore:一等项目名册 + 重命名/软归档(`archived_at`) + `shared/`/`memory/`/`skills/` 目录播种;default 零感知、禁归档
 - `workspace-id.ts` — sanitizeWorkspaceId:工作区路径段消毒(防 `..` / 分隔符)
 - `resume.ts` — rebuildThread:从持久化事件重建可续跑线程

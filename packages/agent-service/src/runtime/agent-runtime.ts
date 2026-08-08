@@ -401,6 +401,15 @@ export class AgentRuntime {
     return updated
   }
 
+  /** 置顶/取消(写 pinned_at);成功广播 task_updated */
+  setTaskPinned(taskId: string, pinned: boolean): Task | null {
+    if (!this.cfg.store.getTask(taskId)) return null
+    if (!this.cfg.store.setTaskPinned(taskId, pinned)) return null
+    const updated = this.cfg.store.getTask(taskId)
+    if (updated) this.emitTaskUpdated(updated)
+    return updated
+  }
+
   isRunning(taskId: string): boolean {
     return this.running.has(taskId)
   }
