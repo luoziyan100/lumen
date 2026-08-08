@@ -1,9 +1,11 @@
 /**
  * [INPUT]: agent-service WS/HTTP 协议(messages 真源的浏览器侧内联副本);
  *          运行时读 window.__LUMEN_WS__/__LUMEN_TOKEN__(Tauri 注入,可晚于首屏)
- * [OUTPUT]: AgentClient —— connect/submit/continue/archiveTask/renameTask/pinTask/unpinTask/answerUser/…
+ * [OUTPUT]: AgentClient —— connect/submit/continue/archiveTask/renameTask/pinTask/unpinTask/answerUser/…;
+ *           submit/continue 可带 uploads[];uploadFile 回 UploadReceipt
  * [POS]: UI 唯一出站口;connect 每次解析端点并把 localhost→127.0.0.1(防 IPv6 假死);
- *        send 在 WS 非 OPEN 时必须失败,continue/archive/rename_task/pin·unpin/answer_user/rename·archive_project/Skills 等 ok/error 回执
+ *        send 在 WS 非 OPEN 时必须失败,continue/archive/rename_task/pin·unpin/answer_user/rename·archive_project/Skills 等 ok/error 回执;
+ *        上传知情见 doc/upload-awareness.md
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md;改消息格式须三处同步
  */
 
@@ -65,6 +67,20 @@ export interface ConnModelConfig {
 export interface ImageData {
   mediaType: string
   base64: string
+}
+
+/** 本回合落盘附件(人:chip / 机:附言);与 service UploadRef 同构 */
+export interface UploadRef {
+  name: string
+  path: string
+  extractPath?: string
+}
+
+/** /upload 回执 */
+export interface UploadReceipt {
+  path: string
+  name: string
+  extractPath?: string
 }
 
 /** 设置(服务端只回掩码,不回明文 key) */
@@ -238,11 +254,17 @@ export class AgentClient {
     return () => this.taskUpdatedHandlers.delete(handler)
   }
 
-  submit(projectId: string, userText: string, images?: ImageData[]): Promise<string> {
+  submit(projectId: string, userText: string, images?: ImageData[], uploads?: UploadRef[]): Promise<string> {
     return new Promise((resolve, reject) => {
       try {
         this.pendingCreated = resolve
-        this.send({ type: 'submit', projectId, userText, ...(images?.length ? { images } : {}) })
+        this.send({
+          type: 'submit',
+          projectId,
+          userText,
+          ...(images?.length ? { images } : {}),
+          ...(uploads?.length ? { uploads } : {}),
+        })
       } catch (e) {
         this.pendingCreated = null
         reject(e)
@@ -264,10 +286,23 @@ export class AgentClient {
   }
 
   /** 续聊:等服务端 ok/error。失败时(未连上/任务在跑/forbidden)必须 reject,UI 才能收回「思考中」 */
-  continueTask(taskId: string, userText: string, images?: ImageData[], projectId?: string): Promise<void> {
+  continueTask(
+    taskId: string,
+    userText: string,
+    images?: ImageData[],
+    projectId?: string,
+    uploads?: UploadRef[],
+  ): Promise<void> {
     const ack = this.expectAck()
     try {
-      this.send({ type: 'continue', taskId, userText, ...(images?.length ? { images } : {}), ...(projectId ? { projectId } : {}) })
+      this.send({
+        type: 'continue',
+        taskId,
+        userText,
+        ...(images?.length ? { images } : {}),
+        ...(uploads?.length ? { uploads } : {}),
+        ...(projectId ? { projectId } : {}),
+      })
     } catch (e) {
       this.rejectPendingAck(e instanceof Error ? e : new Error(String(e)))
     }
@@ -501,13 +536,13 @@ export class AgentClient {
     return u.toString()
   }
 
-  /** 上传任意文件;scope=shared 写入项目共享区,否则进会话目录 */
+  /** 上传任意文件;scope=shared 写入项目共享区,否则进会话目录。回执含 path/抽出稿供本回合知情。 */
   async uploadFile(
     projectId: string,
     file: File,
     taskId?: string,
     scope: 'shared' | 'session' = 'session',
-  ): Promise<string> {
+  ): Promise<UploadReceipt> {
     const u = new URL('/upload', this.httpBase)
     u.searchParams.set('project', projectId)
     u.searchParams.set('name', file.name)
@@ -515,7 +550,12 @@ export class AgentClient {
     if (scope === 'shared') u.searchParams.set('scope', 'shared')
     if (this.currentToken()) u.searchParams.set('token', this.currentToken()!)
     const res = await fetch(u.toString(), { method: 'POST', body: file })
-    return ((await res.json()) as { path: string }).path
+    const body = (await res.json()) as UploadReceipt
+    return {
+      path: body.path,
+      name: body.name || file.name,
+      ...(body.extractPath ? { extractPath: body.extractPath } : {}),
+    }
   }
 
   /** demo:把本连接的模型配置(含用户自己的 key)发给后端,只在连接内存生效、不落盘 */

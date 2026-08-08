@@ -23,6 +23,7 @@
 - `SkillSlashMenu.tsx` — `/` 过滤 Skills + Manage 入口
 - `ManageSkillsDialog.tsx` — Manage skills:列表/添加文件夹·SKILL.md/卸载(Kumo Dialog,禁 glass-beam)
 - `CollapsibleUserText.tsx` — 用户超长 prompt 默认折叠(>9 行或 >750 字);底渐隐 + 展开/收起;助手消息不折
+- `MsgFileChips.tsx` — 用户气泡附件 chip(上传知情 S4);点开读阅读器;见 `doc/upload-awareness.md`
 - `ThinkingIndicator.tsx` — 模型等待态(尚无过程行/尚无流式正文):`StatusOrb` breathing +「思考中」;正文 `streaming` 时不叠;侧栏 sb-dot 仍脉冲点
 - `Markdown.tsx` — .md 文档与纯文本段渲染:GFM + KaTeX + 代码高亮 + ` ```mermaid ` → MermaidBlock;流式 `deferMath` 暂缓 KaTeX/mermaid 防高度抖
 - `MermaidBlock.tsx` — mermaid.js 动态加载;securityLevel=strict;主题读青瓷 token;悬停工具条放大/复制源码;失败回退源码

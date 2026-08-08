@@ -34,15 +34,15 @@ test('saveUpload 按表示分类:pdf→papers/ 文本脚本→docs/ 图→images
   const rt = makeRuntime(base, store, new ScriptedModel([]))
   const bytes = new Uint8Array([1, 2, 3])
   const tid = 't-up'
-  assert.equal(await rt.saveUpload('p', 'paper.pdf', bytes, tid), 'papers/paper.pdf')
-  assert.equal(await rt.saveUpload('p', 'note.md', bytes, tid), 'docs/note.md')
-  assert.equal(await rt.saveUpload('p', 'setup.sh', bytes, tid), 'docs/setup.sh')
-  assert.equal(await rt.saveUpload('p', 'probe.py', bytes, tid), 'docs/probe.py')
-  assert.equal(await rt.saveUpload('p', 'fig.PNG', bytes, tid), 'images/fig.PNG')
-  assert.equal(await rt.saveUpload('p', 'report.docx', bytes, tid), 'uploads/report.docx')
+  assert.equal((await rt.saveUpload('p', 'paper.pdf', bytes, tid)).path, 'papers/paper.pdf')
+  assert.equal((await rt.saveUpload('p', 'note.md', bytes, tid)).path, 'docs/note.md')
+  assert.equal((await rt.saveUpload('p', 'setup.sh', bytes, tid)).path, 'docs/setup.sh')
+  assert.equal((await rt.saveUpload('p', 'probe.py', bytes, tid)).path, 'docs/probe.py')
+  assert.equal((await rt.saveUpload('p', 'fig.PNG', bytes, tid)).path, 'images/fig.PNG')
+  assert.equal((await rt.saveUpload('p', 'report.docx', bytes, tid)).path, 'uploads/report.docx')
   // 坏 zip 不阻断落盘;好 docx 另测 docs/*.md
-  assert.equal(await rt.saveUpload('p', 'blob', bytes, tid), 'uploads/blob', '无扩展名 → opaque uploads/')
-  assert.equal(await rt.saveUpload('p', '../..//evil.pdf', bytes, tid), 'papers/evil.pdf', '路径穿越被剥掉')
+  assert.equal((await rt.saveUpload('p', 'blob', bytes, tid)).path, 'uploads/blob', '无扩展名 → opaque uploads/')
+  assert.equal((await rt.saveUpload('p', '../..//evil.pdf', bytes, tid)).path, 'papers/evil.pdf', '路径穿越被剥掉')
 
   const assets = await rt.listAssets('p', tid)
   const kinds = Object.fromEntries(assets.map((a) => [a.name, a.kind]))
@@ -77,7 +77,13 @@ test('submit 带图:模型第一轮就看到 user 消息上的 images(经真实 
 
 test('continue 带图:第二轮 user 消息带图,重建线程后模型看得见', async (t) => {
   const { base, store } = await makeEnv(t)
-  const model = new ScriptedModel([assistantReply('第一轮'), assistantReply('第二轮,看到图了')])
+  // 多备几条:侧栏 title 异步也会调同一 model
+  const model = new ScriptedModel([
+    assistantReply('第一轮'),
+    assistantReply('第二轮,看到图了'),
+    assistantReply('标题'),
+    assistantReply('标题'),
+  ])
   const rt = makeRuntime(base, store, model)
 
   const taskId = rt.submit({ projectId: 'p', userText: '先聊两句' })
@@ -87,9 +93,57 @@ test('continue 带图:第二轮 user 消息带图,重建线程后模型看得见
   assert.ok(rt.continueTask(taskId, '这张呢?', [img]))
   await rt.waitFor(taskId)
 
-  const secondCall = model.calls[1]
-  const users = secondCall.filter((m) => m.role === 'user')
-  const last = users[users.length - 1]
-  assert.equal(last?.content, '这张呢?')
+  const continueCall = model.calls.find((msgs) =>
+    msgs.some((m) => m.role === 'user' && m.content === '这张呢?'))
+  assert.ok(continueCall, '应有含「这张呢?」的模型调用')
+  const last = continueCall.filter((m) => m.role === 'user').at(-1)
   assert.equal(last?.images?.[0].base64, 'REVG', '重建线程必须带回第二轮的图')
+})
+
+test('submit 带 uploads:模型 user.content 含附言;事件 payload 存 uploads 不把附言写入 content', async (t) => {
+  const { base, store } = await makeEnv(t)
+  const model = new ScriptedModel([assistantReply('收到 paper.pdf'), assistantReply('标题')])
+  const rt = makeRuntime(base, store, model)
+  const uploads = [{ name: 'paper.pdf', path: 'papers/paper.pdf' }]
+
+  const taskId = rt.submit({ projectId: 'p', userText: '', uploads })
+  await rt.waitFor(taskId)
+
+  const user = model.calls[0].find((m) => m.role === 'user')
+  assert.match(String(user?.content), /paper\.pdf/)
+  assert.match(String(user?.content), /papers\/paper\.pdf/)
+  assert.match(String(user?.content), /extract_pdf/)
+
+  const payload = JSON.parse(store.listEvents(taskId).find((e) => e.kind === 'user')!.payload_json) as {
+    content: string
+    uploads?: Array<{ path: string }>
+  }
+  assert.equal(payload.content, '', '展示正文不含附言')
+  assert.equal(payload.uploads?.[0]?.path, 'papers/paper.pdf')
+})
+
+test('continue 带 uploads:重建后模型仍见附言', async (t) => {
+  const { base, store } = await makeEnv(t)
+  const model = new ScriptedModel([
+    assistantReply('ok'),
+    assistantReply('看到 zip'),
+    assistantReply('标题'),
+    assistantReply('标题'),
+  ])
+  const rt = makeRuntime(base, store, model)
+
+  const taskId = rt.submit({ projectId: 'p', userText: '先聊' })
+  await rt.waitFor(taskId)
+
+  assert.ok(rt.continueTask(taskId, '解一下', undefined, undefined, [
+    { name: 'data.zip', path: 'uploads/data.zip' },
+  ]))
+  await rt.waitFor(taskId)
+
+  const continueCall = model.calls.find((msgs) =>
+    msgs.some((m) => m.role === 'user' && String(m.content).includes('data.zip')))
+  assert.ok(continueCall, '续跑线程应含 zip 附言')
+  const lastUser = continueCall.filter((m) => m.role === 'user').at(-1)
+  assert.match(String(lastUser?.content), /解一下/)
+  assert.match(String(lastUser?.content), /未做文本抽取|压缩包/)
 })

@@ -41,7 +41,7 @@ test('createDraft:建档不开跑;上传即归入该会话工作区', async (t) 
   assert.equal(store.getTask(id)?.status, 'queued', '草稿=queued,不自动开跑')
   assert.equal(rt.isRunning(id), false)
 
-  assert.equal(await rt.saveUpload('p', 'paper.pdf', new Uint8Array([0x25, 0x50]), id), 'papers/paper.pdf')
+  assert.equal((await rt.saveUpload('p', 'paper.pdf', new Uint8Array([0x25, 0x50]), id)).path, 'papers/paper.pdf')
   const assets = await rt.listAssets('p', id)
   assert.deepEqual(assets.map((a) => a.name), ['paper.pdf'], '不发消息也能在会话工作区看到文件')
 })

@@ -1,17 +1,18 @@
 /**
- * [INPUT]: AgentClient;useAgent;useWorkspace;Sidebar;TurnPreviewRail;UtilityRail;AskUserDialog;ComposerCard;CollapsibleUserText
+ * [INPUT]: AgentClient;useAgent;useWorkspace;Sidebar;TurnPreviewRail;UtilityRail;AskUserDialog;ComposerCard;CollapsibleUserText;MsgFileChips
  * [OUTPUT]: App —— 形态 A 装配;项目树(p-*) + 最近平铺历史;轮次轨;TodoCard/ProcessRow/ThinkingIndicator;
- *           ask_user 悬浮问询;composer 暗玻璃;用户超长 prompt 折叠
+ *           ask_user 悬浮问询;composer 暗玻璃;用户超长 prompt 折叠;上传 chip(知情 S4)
  * [POS]: ui-client 根组件;storage project_id ≠ 用户项目;历史不分类进「默认」;
  *        对话列 useStickToBottom:流式贴底;上滑松手可自由阅读;松钉后出「回到最新」;
  *        标题栏工作区钮:阅读器开时一并关闭(drawer 与 ws.open 双态,不能只拨 drawer);
- *        侧栏未读灯:task_updated 终态且非当前 → unread(localStorage);打开会话清除
+ *        侧栏未读灯:task_updated 终态且非当前 → unread(localStorage);打开会话清除;
+ *        上传=对话事件见 doc/upload-awareness.md
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Toasty, useKumoToastManager } from '@cloudflare/kumo/components/toast'
 import { Tooltip, TooltipProvider } from '@cloudflare/kumo/components/tooltip'
-import { AgentClient, type ImageData, type Project, type SkillInfo, type SkillInstallScope, type Task } from './agent-client'
+import { AgentClient, type ImageData, type Project, type SkillInfo, type SkillInstallScope, type Task, type UploadRef } from './agent-client'
 import { ensureAgentService } from './ensureAgent'
 import { sortTasksForSidebar } from './sortTasks'
 import { shouldMarkUnreadOnStatus } from './sessionLamp'
@@ -27,6 +28,7 @@ import { Sidebar } from './components/Sidebar'
 import { CreateProjectModal, type CreateProjectPayload } from './components/CreateProjectModal'
 import { AskUserDialog } from './components/AskUserDialog'
 import { CollapsibleUserText } from './components/CollapsibleUserText'
+import { MsgFileChips } from './components/MsgFileChips'
 import { ComposerCard, type ComposerModelOption } from './components/ComposerCard'
 import { ManageSkillsDialog } from './components/ManageSkillsDialog'
 import { filterComposerFiles } from './composerAccept'
@@ -611,17 +613,26 @@ function AppInner() {
     if ((!t && attachments.length === 0 && pendingFiles.length === 0) || running || uploading || pendingAsk) return
     const images = attachments
     const files = pendingFiles
-    const text = t || (files.length ? `(上传了 ${files.length} 个文件)` : '(见图)')
+    // 仅附件无正文:气泡靠 chip,不必假文案「上传了 N 个」;机侧附言由 uploads[] 注入
+    const text = t || (files.length ? '' : '(见图)')
+    const receipts: UploadRef[] = []
     // 带文件:先确保会话在(草稿,标题=第一句话而非文件名),文件入工作区后再开跑——模型第一轮就看得到
     if (files.length) {
       setUploading(true)
       try {
         let id = taskId
         if (!id) {
-          id = await client.createTask(projectId, text)
+          id = await client.createTask(projectId, t || files.map((f) => f.name).join(', '))
           selectConversation(id, false, projectId)
         }
-        for (const file of files) await client.uploadFile(projectId, file, id)
+        for (const file of files) {
+          const receipt = await client.uploadFile(projectId, file, id)
+          receipts.push({
+            name: file.name,
+            path: receipt.path,
+            ...(receipt.extractPath ? { extractPath: receipt.extractPath } : {}),
+          })
+        }
         ws.refresh(id)
         toggleRail(true) // 展开工作区轨,让用户看到刚入库的文件
       } catch (err) {
@@ -639,7 +650,7 @@ function AppInner() {
     setAttachments([])
     setPendingFiles([])
     pinMessagesRef.current() // 新一轮输出默认贴底跟随
-    await send(text, images.length ? images : undefined)
+    await send(text, images.length ? images : undefined, receipts.length ? receipts : undefined)
   }
   async function onSubmit(e: FormEvent): Promise<void> {
     e.preventDefault()
@@ -903,12 +914,32 @@ function AppInner() {
                       <div className="bubble bubble-user">
                         <CollapsibleUserText
                           text={it.content}
-                          leading={it.images?.length ? (
-                            <div className="msg-images">
-                              {it.images.map((im, i) => (
-                                <img key={i} className="msg-image" src={`data:${im.mediaType};base64,${im.base64}`} alt="粘贴的图片" />
-                              ))}
-                            </div>
+                          leading={(it.uploads?.length || it.images?.length) ? (
+                            <>
+                              {it.uploads?.length ? (
+                                <MsgFileChips
+                                  uploads={it.uploads}
+                                  onOpen={(ref) => {
+                                    const asset = ws.assets.find((a) => a.path === ref.path)
+                                      ?? {
+                                        path: ref.path,
+                                        name: ref.name,
+                                        kind: assetKindFromPath(ref.path),
+                                        scope: 'session' as const,
+                                      }
+                                    void ws.openAsset(asset)
+                                    toggleRail(true)
+                                  }}
+                                />
+                              ) : null}
+                              {it.images?.length ? (
+                                <div className="msg-images">
+                                  {it.images.map((im, i) => (
+                                    <img key={i} className="msg-image" src={`data:${im.mediaType};base64,${im.base64}`} alt="粘贴的图片" />
+                                  ))}
+                                </div>
+                              ) : null}
+                            </>
                           ) : undefined}
                         />
                       </div>
@@ -1041,4 +1072,14 @@ function EmptyState() {
       <div className="empty-mark">{getTimeGreeting()}</div>
     </div>
   )
+}
+
+/** 无 assets 列表命中时,按扩展名推断阅读器 kind */
+function assetKindFromPath(path: string): 'pdf' | 'doc' | 'html' | 'image' | 'file' {
+  const ext = (path.split('.').pop() ?? '').toLowerCase()
+  if (ext === 'pdf') return 'pdf'
+  if (ext === 'html' || ext === 'htm') return 'html'
+  if (['md', 'markdown', 'txt', 'tex', 'csv', 'json', 'yml', 'yaml'].includes(ext)) return 'doc'
+  if (['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) return 'image'
+  return 'file'
 }

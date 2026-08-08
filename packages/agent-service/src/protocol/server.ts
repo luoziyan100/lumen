@@ -1,11 +1,14 @@
 /**
  * [INPUT]: ws、AgentRuntime、协议消息类型
- * [OUTPUT]: startServer —— 把 AgentRuntime 暴露为 localhost WebSocket 服务
- * [POS]: §4 服务边界。一条连接可 submit/subscribe/cancel/resume/archive_task/rename_task/pin_task/unpin_task/answer_user/list，service 推 event 流
+ * [OUTPUT]: startServer —— 把 AgentRuntime 暴露为 localhost WebSocket 服务;
+ *           HTTP POST /upload → UploadReceipt JSON
+ * [POS]: §4 服务边界。一条连接可 submit/subscribe/cancel/resume/archive_task/rename_task/pin_task/unpin_task/answer_user/list，service 推 event 流;
+ *        submit/continue 透传 uploads[](doc/upload-awareness.md)
  *
  * 断线重连用 subscribe.afterSeq 拉齐遗漏事件（事件 seq 单调，不丢不重）。
  * 鉴权：浏览器对 ws://127.0.0.1 没有跨源限制，任意网页都能发起连接——
  * 所以凡传入 token 必须校验（?token= 查询参数；浏览器 WS 设不了自定义 header）。
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { WebSocketServer, type WebSocket } from 'ws'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
@@ -108,7 +111,7 @@ async function handleHttp(
       scope,
     )
     res.writeHead(200, { 'content-type': 'application/json' })
-    res.end(JSON.stringify({ path: saved }))
+    res.end(JSON.stringify(saved))
     return
   }
 
@@ -162,7 +165,12 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
         else send({ type: 'error', message: 'set_model 仅 demo 模式可用' })
         break
       case 'submit': {
-        const taskId = runtime.submit({ projectId: message.projectId, userText: message.userText, images: message.images }, connModel)
+        const taskId = runtime.submit({
+          projectId: message.projectId,
+          userText: message.userText,
+          images: message.images,
+          uploads: message.uploads,
+        }, connModel)
         send({ type: 'task_created', taskId })
         subscribe(taskId)
         break
@@ -176,7 +184,13 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
       }
       case 'continue': {
         if (!ownsTask(message.taskId, message.projectId)) { send({ type: 'error', message: 'forbidden' }); break }
-        const ok = runtime.continueTask(message.taskId, message.userText, message.images, connModel)
+        const ok = runtime.continueTask(
+          message.taskId,
+          message.userText,
+          message.images,
+          connModel,
+          message.uploads,
+        )
         if (ok) subscribe(message.taskId, undefined, false) // 续聊不回放:客户端没清屏,回放会把记录翻倍
         send({ type: ok ? 'ok' : 'error', ...(ok ? { taskId: message.taskId } : { message: 'continue failed: task 不存在或正在运行' }) } as ServerMessage)
         break

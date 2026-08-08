@@ -1,16 +1,17 @@
 /**
  * [INPUT]: AgentClient 的事件流 / submit·continue·subscribe·answerUser
  * [OUTPUT]: useAgent → items/running/pendingAsk/send/stop/answerAsk/selectConversation;ChatItem 归约;
- *           sealRunningProcesses(正文/终态封口过程块)
+ *           sealRunningProcesses(正文/终态封口过程块);user 事件 uploads[]→气泡 chip
  * [POS]: UI 对话状态核;跨项目切换时同步 projectIdRef;空 model_step→error;todo_write→TodoChatItem;
  *        text_delta 累积 streaming 泡并封口 running process;model_step 有正文时同封;
- *        tool_call_start 尽早开 process;ask_user→pendingAsk 驱动悬浮 Dialog(见 doc/ask-user.md)
+ *        tool_call_start 尽早开 process;ask_user→pendingAsk 驱动悬浮 Dialog(见 doc/ask-user.md);
+ *        上传知情 chip 见 doc/upload-awareness.md
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * user 也走事件流,不在前端乐观插入。taskId 按项目键存 localStorage。
  */
 import { useEffect, useRef, useState } from 'react'
-import type { AgentClient, AnswerUserPayload, ImageData, TaskEvent } from './agent-client'
+import type { AgentClient, AnswerUserPayload, ImageData, TaskEvent, UploadRef } from './agent-client'
 
 export interface ChatMsg {
   kind: 'msg'
@@ -18,6 +19,8 @@ export interface ChatMsg {
   role: 'user' | 'assistant' | 'error'
   content: string
   images?: ImageData[]
+  /** 本回合落盘附件(chip);机读附言只在 service 拼进模型 */
+  uploads?: UploadRef[]
   /** 真流式中:text_delta 累积;model_step 定稿后清除 */
   streaming?: boolean
 }
@@ -257,14 +260,14 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
   // 进入即欢迎页(owner 拍板 2026-07-05):启动/刷新不再无条件恢复上次会话。
   // localStorage 仍记录最近 taskId,但只由 App 在「该任务仍在运行」时调 selectConversation 接回。
 
-  async function send(text: string, images?: ImageData[]): Promise<void> {
+  async function send(text: string, images?: ImageData[], uploads?: UploadRef[]): Promise<void> {
     setRunning(true)
     const pid = projectIdRef.current
     try {
       if (taskIdRef.current) {
-        await client.continueTask(taskIdRef.current, text, images, pid)
+        await client.continueTask(taskIdRef.current, text, images, pid, uploads)
       } else {
-        const id = await client.submit(pid, text, images)
+        const id = await client.submit(pid, text, images, uploads)
         switchTo(id, pid)
       }
     } catch (err) {
@@ -333,7 +336,15 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
   switch (event.kind) {
     case 'user': {
       const images = Array.isArray(p.images) ? (p.images as ImageData[]) : undefined
-      return [...prev, { kind: 'msg', id: event.id, role: 'user', content: String(p.content ?? ''), ...(images?.length ? { images } : {}) }]
+      const uploads = parseUploadRefs(p.uploads)
+      return [...prev, {
+        kind: 'msg',
+        id: event.id,
+        role: 'user',
+        content: String(p.content ?? ''),
+        ...(images?.length ? { images } : {}),
+        ...(uploads.length ? { uploads } : {}),
+      }]
     }
     case 'text_delta': {
       const text = String(p.text ?? '')
@@ -470,4 +481,20 @@ function countHits(s: string): number {
     }
   } catch { /* 非 JSON,放弃计数 */ }
   return 0
+}
+
+/** 从 user 事件 payload 解析 uploads(与 service parseUploads 同构) */
+function parseUploadRefs(raw: unknown): UploadRef[] {
+  if (!Array.isArray(raw)) return []
+  const out: UploadRef[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const o = item as Record<string, unknown>
+    const path = typeof o.path === 'string' ? o.path : ''
+    if (!path) continue
+    const name = typeof o.name === 'string' && o.name ? o.name : (path.split('/').pop() ?? path)
+    const extractPath = typeof o.extractPath === 'string' ? o.extractPath : undefined
+    out.push({ name, path, ...(extractPath ? { extractPath } : {}) })
+  }
+  return out
 }

@@ -15,8 +15,10 @@
   pendingAsk 按 taskId+toolCallId 挂起 ask_user(见 `doc/ask-user.md`);
   Skills:catalog 注入 systemPrompt + `run_skill` / skillReadRoots 进 Seatbelt;`listSkills`/`installSkill`/`uninstallSkill`/`activateSkillOnTask`(见 `doc/agent-core-architecture.md` Skills 专节);
   `saveUpload` 宽准入按表示归位:pdf→papers/ 文本脚本→docs/ 图→images/ 未知→uploads/;
-  docx 另抽 docs/<stem>.md(模式 A,见 `doc/document-ingest.md`);
+  docx 另抽 docs/<stem>.md(模式 A,见 `doc/document-ingest.md`);回执 `UploadReceipt`;
+  submit/continue `uploads[]` → user 事件 + 模型附言(见 `doc/upload-awareness.md` + `upload-awareness.ts`);
   侧栏 `title`:非空 reply / done 兜底异步生成 + list 懒补;`onTaskUpdated` → WS `task_updated`
+- `upload-awareness.ts` — UploadRef / formatUploadAnnex / userContentForModel;知情附言纯函数
 - `task-title.ts` — 抽摘 user/非空 assistant、清洗短标题、shouldBackfillTitle
 
 ## 规则

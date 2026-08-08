@@ -5,10 +5,12 @@
  *           answerUser 解开 ask_user 挂起;
  *           listSkills/installSkill/uninstallSkill/activateSkillOnTask(与 run_skill 同构回灌);
  *           侧栏 task.title 异步生成(≠ goal;见 task-title.ts);renameTaskTitle 人手改 title;
- *           notifyStatus 同步 emitTaskUpdated(侧栏 status/未读灯)
+ *           notifyStatus 同步 emitTaskUpdated(侧栏 status/未读灯);
+ *           saveUpload→UploadReceipt;submit/continue 的 uploads[] 注入机读附言(见 upload-awareness)
  * [POS]: §4 运行环境。一个任务 = 一次 runAgent；durable emit 落 task_events + session jsonl + WS;
  *        text_delta/tool_call_start 仅 notify(不入库);imageBridge DeepSeek 去图插桩;
- *        pendingAsk 按 taskId+toolCallId 挂起(见 doc/ask-user.md);Skills 人机入口见宪法专节
+ *        pendingAsk 按 taskId+toolCallId 挂起(见 doc/ask-user.md);Skills 人机入口见宪法专节;
+ *        上传知情见 doc/upload-awareness.md
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { Thread, type ForModelOptions } from '../core/thread.ts'
@@ -28,6 +30,7 @@ import { rebuildThread } from '../storage/resume.ts'
 import { DEFAULT_COMPACTION, estimateWatermark, isContextOverflowError, planCompaction, withResultPersist, type CompactionPayload } from '../storage/context-budget.ts'
 import { mergeBudget, type TaskBudget } from '../storage/budget.ts'
 import { FsWorkspace } from '../workspace/fs-workspace.ts'
+import { userContentForModel, type UploadRef } from './upload-awareness.ts'
 import { readdirSync } from 'node:fs'
 import { LUMEN_PERSONA } from '../agents/persona.ts'
 import { createMemoryTools, readMemoryIndex } from '../tools/env/memory-tools.ts'
@@ -55,6 +58,15 @@ import {
   generateTaskTitle,
   shouldBackfillTitle,
 } from './task-title.ts'
+
+export type { UploadRef }
+
+/** saveUpload 回执:路径 + 可选抽出稿(知情附言用) */
+export interface UploadReceipt {
+  path: string
+  name: string
+  extractPath?: string
+}
 
 export interface RuntimeContextInfo {
   currentDate: string
@@ -118,6 +130,8 @@ export interface SubmitInput {
   projectId: string
   userText: string
   images?: ImageData[] // 粘贴/上传进对话的图片,随 user 消息进模型
+  /** 本回合已落盘附件(全类型);事件存 uploads[],模型见附言 — doc/upload-awareness.md */
+  uploads?: UploadRef[]
 }
 
 /** 侧栏要显示的"会话资产":论文 PDF / 文档 / 图片 / 其它上传件 */
@@ -228,18 +242,27 @@ export class AgentRuntime {
   }
 
   /** 发一条 user 事件(进 DB + 实时 notify 已订阅的客户端)。submit/continue 共用,
-   *  保证多轮记忆与刷新重建看到的是同一条事件流。图片持久化在 payload 里,重建/恢复不丢图。 */
-  private emitUser(taskId: string, content: string, images?: ImageData[]): void {
-    const stored = this.cfg.store.appendEvent(taskId, 'user', { content, ...(images?.length ? { images } : {}) }, 'main')
+   *  保证多轮记忆与刷新重建看到的是同一条事件流。图片/uploads 持久化在 payload,重建不丢。 */
+  private emitUser(taskId: string, content: string, images?: ImageData[], uploads?: UploadRef[]): void {
+    const stored = this.cfg.store.appendEvent(taskId, 'user', {
+      content,
+      ...(images?.length ? { images } : {}),
+      ...(uploads?.length ? { uploads } : {}),
+    }, 'main')
     this.notify(taskId, stored)
   }
 
   submit(input: SubmitInput, model?: ModelPort): string {
     const task = this.cfg.store.createTask(input.projectId, input.userText)
-    this.emitUser(task.id, input.userText, input.images) // 首句进事件流,多轮重建 + 刷新恢复用
+    this.emitUser(task.id, input.userText, input.images, input.uploads) // 首句进事件流,多轮重建 + 刷新恢复用
     this.startSession(task, input.userText)
     const controller = new AbortController()
-    const promise = this.execute(task, this.buildInitialThread(task, input.userText, input.images), controller.signal, model)
+    const promise = this.execute(
+      task,
+      this.buildInitialThread(task, input.userText, input.images, input.uploads),
+      controller.signal,
+      model,
+    )
     this.running.set(task.id, { controller, promise })
     return task.id
   }
@@ -266,11 +289,17 @@ export class AgentRuntime {
   }
 
   /** 在已有对话(task)上追加一轮:存 user 事件 → 重建累积线程 → 续跑。多轮记忆的实现。 */
-  continueTask(taskId: string, userText: string, images?: ImageData[], model?: ModelPort): boolean {
+  continueTask(
+    taskId: string,
+    userText: string,
+    images?: ImageData[],
+    model?: ModelPort,
+    uploads?: UploadRef[],
+  ): boolean {
     const task = this.cfg.store.getTask(taskId)
     if (!task) return false
     if (this.running.has(taskId)) return false
-    this.emitUser(taskId, userText, images)
+    this.emitUser(taskId, userText, images, uploads)
     appendSessionEntry(this.cfg.sessionDir, {
       type: 'user', task_id: taskId, timestamp: new Date().toISOString(), content: userText,
     })
@@ -575,7 +604,7 @@ export class AgentRuntime {
     bytes: Uint8Array,
     taskId?: string,
     scope: 'shared' | 'session' = 'session',
-  ): Promise<string> {
+  ): Promise<UploadReceipt> {
     ensureProjectDirs(this.cfg.workspacesDir, projectId)
     const safe = (name.split(/[/\\]/).pop() || 'upload').replace(/[^\w.\-一-鿿]/g, '_')
     const ext = (safe.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? '').toLowerCase()
@@ -587,18 +616,20 @@ export class AgentRuntime {
     await ws.writeBytes(file, bytes)
 
     // 摄取解析:docx → docs/<stem>.md(见 doc/document-ingest.md)
+    let extractPath: string | undefined
     if (ext === 'docx') {
       try {
         const text = extractDocxText(bytes)
         const stem = safe.replace(/\.docx$/i, '')
         const mdPath = scope === 'shared' ? `shared/docs/${stem}.md` : `docs/${stem}.md`
         await ws.writeFile(mdPath, docxExtractMarkdown(safe, text))
+        extractPath = mdPath
       } catch {
         // 抽取失败不阻断原件落盘
       }
     }
 
-    return file
+    return { path: file, name: safe, ...(extractPath ? { extractPath } : {}) }
   }
 
   subscribe(taskId: string, listener: Listener): () => void {
@@ -707,10 +738,14 @@ export class AgentRuntime {
     return lines.join('\n')
   }
 
-  private buildInitialThread(task: Task, userText: string, images?: ImageData[]): Thread {
+  private buildInitialThread(task: Task, userText: string, images?: ImageData[], uploads?: UploadRef[]): Thread {
     return new Thread([
       { role: 'system', content: this.systemPrompt(task.project_id) },
-      { role: 'user', content: userText, ...(images?.length ? { images } : {}) },
+      {
+        role: 'user',
+        content: userContentForModel(userText, uploads),
+        ...(images?.length ? { images } : {}),
+      },
     ])
   }
 

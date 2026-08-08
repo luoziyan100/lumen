@@ -5,17 +5,20 @@
  *        model_step.reasoningContent 一并恢复(DeepSeek thinking+tools 回灌)
  *
  * system 在运行时重新生成（不持久化派生物）；user = task.goal；其余从 model_step / tool_result 重放。
+ * user 事件可带 uploads[]:落库为展示正文,喂模型时拼附言(upload-awareness)。
  * 两条恢复纪律：
  * 1. 只回放主线程事件（agent_role 为 'main' 或 NULL=老数据）。worker 的内部步骤不属于主线程——
  *    父 agent 当时只看到 spawn 的压缩返回，重建也必须如此，否则隔离被资料性重放打破。
  * 2. 修补悬空 tool_use：中断可能落在"assistant 已落库、部分 tool_result 未落库"的窗口，
  *    给缺配对的调用合成"已中断"结果——铁律的延伸：模型必须看见"动作被打断"这个后果，
  *    而且 provider（Anthropic/OpenAI）要求每个 tool_use 必有配对 tool_result，否则拒绝请求。
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { Thread } from '../core/thread.ts'
 import type { ImageData, Message, ToolCall } from '../core/types.ts'
 import type { TaskEvent } from './task-store.ts'
 import { buildCompactionPreamble, type CompactionPayload } from './context-budget.ts'
+import { parseUploads, userContentForModel } from '../runtime/upload-awareness.ts'
 
 export interface RebuildOptions {
   systemPrompt: string
@@ -89,9 +92,11 @@ export function rebuildThread(events: TaskEvent[], options: RebuildOptions): Thr
       const images = Array.isArray(payload.images)
         ? (payload.images as ImageData[]).filter((im) => im && typeof im.base64 === 'string' && typeof im.mediaType === 'string')
         : []
+      const uploads = parseUploads(payload.uploads)
+      const display = typeof payload.content === 'string' ? payload.content : ''
       messages.push({
         role: 'user',
-        content: typeof payload.content === 'string' ? payload.content : '',
+        content: userContentForModel(display, uploads),
         ...(images.length ? { images } : {}),
       })
       sawUser = true

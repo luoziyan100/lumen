@@ -1,6 +1,7 @@
 /**
  * [INPUT]: storage 的 Task / TaskEvent / Project
- * [OUTPUT]: WS 协议消息类型（client→server / server→client;含 rename_task/pin_task/unpin_task / Skills）
+ * [OUTPUT]: WS 协议消息类型（client→server / server→client;含 rename_task/pin_task/unpin_task / Skills;
+ *           submit/continue 可带 uploads[] — 上传知情,见 doc/upload-awareness.md）
  * [POS]: §4 agent↔UI 协议。UI 发命令，service 推事件流；shared 包将复用这些类型。
  *        事件 kind 含 ephemeral text_delta / tool_call_start(仅 notify,不入库,见 runtime makeEmit);
  *        answer_user 解开 ask_user 挂起(见 doc/ask-user.md);
@@ -10,10 +11,11 @@
 import type { Task, TaskEvent } from '../storage/task-store.ts'
 import type { Project } from '../storage/project-store.ts'
 import type { WorkspaceAsset, SkillInfo } from '../runtime/agent-runtime.ts'
+import type { UploadRef } from '../runtime/upload-awareness.ts'
 import type { ImageData } from '../core/types.ts'
 import type { PublicSettings, SettingsPatch } from '../storage/settings.ts'
 
-export type { Project, SkillInfo }
+export type { Project, SkillInfo, UploadRef }
 
 /** demo 模式:浏览器随连接带入的模型配置(含用户自己的 key),后端只在连接内存持有、不落盘 */
 export interface ConnModelConfig {
@@ -32,8 +34,8 @@ export interface AnswerUserPayload {
 export type SkillInstallScope = 'user' | 'project'
 
 export type ClientMessage =
-  | { type: 'submit'; projectId: string; userText: string; images?: ImageData[] }
-  | { type: 'continue'; taskId: string; userText: string; images?: ImageData[]; projectId?: string }
+  | { type: 'submit'; projectId: string; userText: string; images?: ImageData[]; uploads?: UploadRef[] }
+  | { type: 'continue'; taskId: string; userText: string; images?: ImageData[]; uploads?: UploadRef[]; projectId?: string }
   | { type: 'create_task'; projectId: string; goal?: string }
   | { type: 'subscribe'; taskId: string; afterSeq?: number; projectId?: string }
   | { type: 'cancel'; taskId: string; projectId?: string }

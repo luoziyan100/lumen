@@ -72,7 +72,8 @@ test('saveUpload docx:原件 uploads/ + 抽出 docs/*.md', async (t: TestContext
   const tid = 't-docx'
   const bytes = new Uint8Array(minimalDocx(['会议纪要一行']))
   const saved = await rt.saveUpload('p', 'yxysmeeting.docx', bytes, tid)
-  assert.equal(saved, 'uploads/yxysmeeting.docx')
+  assert.equal(saved.path, 'uploads/yxysmeeting.docx')
+  assert.equal(saved.extractPath, 'docs/yxysmeeting.md')
 
   const root = path.join(base, 'workspaces', 'p', 'sessions', tid)
   const md = await readFile(path.join(root, 'docs', 'yxysmeeting.md'), 'utf8')

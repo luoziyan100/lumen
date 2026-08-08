@@ -1365,6 +1365,17 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .msg-images { display: flex; gap: var(--s-2); flex-wrap: wrap; margin-bottom: var(--s-2); }
 .msg-image { max-width: 220px; max-height: 160px; border-radius: var(--radius-sm); display: block; }
 
+/* 用户气泡附件 chip(与 composer file-chip 同族语义,消费纸面 token) */
+.msg-file-row { display: flex; gap: var(--s-2); flex-wrap: wrap; margin-bottom: var(--s-2); }
+.msg-file-chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 260px;
+  padding: 5px 9px; border: 1px solid var(--sand-deep); border-radius: var(--radius-md);
+  background: var(--sand); color: var(--ink-soft); font-size: var(--t-body-sm);
+  cursor: pointer; font: inherit; text-align: left;
+}
+.msg-file-chip:hover { background: var(--vellum); color: var(--ink); }
+.msg-file-chip svg { flex: none; color: var(--ink-mute); }
+
 /* ---- Workspace drawer ---- */
 /* 工作区抽屉 = 浮卡(与左侧栏对称,左缘可拖拽调宽) */
 .ws-drawer {
