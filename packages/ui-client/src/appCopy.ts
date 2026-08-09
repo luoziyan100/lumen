@@ -74,6 +74,12 @@ export const MSG_FOLD_COPY = {
 export const ASK_USER_COPY = {
   title: '需要你的选择',
   questionN: '问题 ',
+  /** 多题分页:「1 of 4」(对齐 Claude AskUserQuestion) */
+  of: 'of',
+  prev: '上一题',
+  next: '下一题',
+  pagerLabel: '题目切换',
+  pageHint: '答完本题可切到下一题;全部答完后确认',
   /** 提交时写入 selected 的标记名(非 UI 展示) */
   otherLabel: '其他，并补充说明',
   /** 「其他」行 input 的幽灵占位,不占光标 */

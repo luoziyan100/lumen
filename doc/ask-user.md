@@ -13,6 +13,7 @@
 3. **答案 = `tool_result.llmContent`**：回灌同一条只增线程（铁律）；不用 `continue` 解阻塞。
 4. **WS `answer_user`**：UI 经专用消息把选项/跳过交给 runtime，解开 pending Promise。
 5. **UI 输入框上方悬浮卡**：贴 composer 上方，无遮罩、不居中霸屏；见 `tool_call(ask_user)` 打开，见配对 `tool_result` 关闭。
+   **多题分页**（对齐 Claude）：一题一页，右上角 `‹ i of n ›` 左右切换；不在同一屏纵向堆叠全部题目。答完当前题可选自动进下一题；全部有答后「确认」一次提交。
 6. **主 agent 默认可用**：无 Plan/Default feature gate；**不**注册给 worker；**不**套 `withGuard` 150s（人思考时间不可当挂起）。
 7. **一直阻塞**：无超时空答；跳过/取消写入明确文案，避免模型误读空答案。
 
