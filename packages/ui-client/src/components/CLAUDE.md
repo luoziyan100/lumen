@@ -20,7 +20,7 @@
 - `ProcessRow.tsx` — 可折叠过程块(`CurtainFold` + 步骤 cascade);左侧 `StatusOrb` 按焦点工具态(`orbStateFromSteps`);完成态 `paused` 仍保留形态差异;与 ThinkingIndicator 的 breathing 分离
 - `TodoCard.tsx` — 会话 Todo 次要卡(`todo_write`→`kind:'todo'`);主呈现右轨 Progress(见 `doc/todo.md`)
 - `AskUserDialog.tsx` — `ask_user` 输入框上方悬浮问询卡;「其他」为幽灵 placeholder 真输入(非实心堵光标);见 `doc/ask-user.md`
-- `ComposerCard.tsx` — 对话输入暗玻璃岛;`+` Skills 子菜单;/ 斜杠浮层;模型芯片;拖放文件(宽准入);见 `doc/ui-design.md` §0
+- `ComposerCard.tsx` — 对话输入暗玻璃岛;`+` Skills 子菜单;/ 斜杠浮层;模型芯片;拖放文件;液态玻璃控件(`.liquid-glass`);待发图点开放大;见 `doc/ui-design.md` §0
 - `SkillSlashMenu.tsx` — `/` 过滤 Skills + Manage 入口
 - `ManageSkillsDialog.tsx` — Manage skills:列表/添加文件夹·SKILL.md/卸载(Kumo Dialog,禁 glass-beam)
 - `CollapsibleUserText.tsx` — 用户超长 prompt 默认折叠(>9 行或 >750 字);预览 clamp + `CurtainFold` 揭开全文;助手消息不折

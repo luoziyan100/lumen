@@ -30,8 +30,16 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   inherits: false;
   initial-value: 0deg;
 }
+@property --liquid-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
 @keyframes glass-beam-spin {
   to { --glass-beam-angle: 360deg; }
+}
+@keyframes liquid-rim-flow {
+  to { --liquid-angle: 360deg; }
 }
 
 /* ---- Glass Card:毛玻璃 + 双边反射(侧栏菜单 / 模型卡)
@@ -1229,18 +1237,84 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   pointer-events: none;
 }
 .composer-top { display: flex; align-items: center; }
+/* 液态玻璃控件:磨砂底 + 高光内缘 + 虹彩边流动(体验用,composer 岛内按钮) */
+.liquid-glass {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px) saturate(1.45);
+  -webkit-backdrop-filter: blur(14px) saturate(1.45);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.42) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.28) inset,
+    0 10px 24px -12px rgba(0, 0, 0, 0.55),
+    0 0 18px -10px rgba(94, 240, 208, 0.28);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.liquid-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--liquid-angle),
+    transparent 0%,
+    rgba(94, 240, 208, 0.85) 12%,
+    rgba(120, 180, 255, 0.75) 22%,
+    rgba(167, 139, 250, 0.9) 34%,
+    rgba(253, 230, 138, 0.8) 48%,
+    transparent 58%,
+    transparent 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: liquid-rim-flow 2.8s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+.liquid-glass > * { position: relative; z-index: 1; }
+.liquid-glass:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.22) inset,
+    0 12px 28px -12px rgba(0, 0, 0, 0.6),
+    0 0 28px -8px rgba(167, 139, 250, 0.35);
+}
+.liquid-glass:disabled {
+  opacity: 0.4;
+  cursor: default;
+  box-shadow: none;
+}
+.liquid-glass:disabled::before { animation: none; opacity: 0.35; }
+@media (prefers-reduced-motion: reduce) {
+  .liquid-glass::before { animation: none; }
+}
+
 .composer-at {
   width: 32px; height: 32px; flex: none; padding: 0;
   display: inline-flex; align-items: center; justify-content: center;
-  border: 1px solid var(--c-line); border-radius: 50%;
-  background: var(--c-fill); color: var(--c-fg-soft);
+  border-radius: 50%;
+  color: var(--c-fg-soft);
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
-.composer-at:hover:not(:disabled) {
-  background: var(--c-fill-hot); color: var(--c-fg); border-color: rgba(255, 255, 255, 0.18);
-}
-.composer-at:disabled { opacity: 0.4; cursor: default; }
+.composer-at:hover:not(:disabled) { color: var(--c-fg); }
+.composer-at:disabled { cursor: default; }
 
 /* Skills 斜杠浮层(composer 内绝对定位,向上展开) */
 .skill-slash-menu {
@@ -1350,18 +1424,13 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .composer-pill {
   display: inline-flex; align-items: center; gap: 6px;
   height: 30px; padding: 0 11px;
-  border: 1px solid var(--c-line); border-radius: 9999px;
-  background: var(--c-fill); color: var(--c-fg-soft);
+  border-radius: 9999px;
+  color: var(--c-fg-soft);
   font: inherit; font-size: 12px; font-weight: var(--w-medium);
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
-.composer-pill:hover:not(:disabled) {
-  background: var(--c-fill-hot); color: var(--c-fg); border-color: rgba(255, 255, 255, 0.16);
-}
-.composer-pill:disabled {
-  opacity: 0.45; cursor: default;
-}
+.composer-pill:hover:not(:disabled) { color: var(--c-fg); }
+.composer-pill:disabled { cursor: default; }
 .composer-pill-label {
   max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -1397,49 +1466,84 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   height: 22px;
   flex: none;
 }
-/* 发送/停止:参考图深色圆钮 + 浅色箭头(暗玻璃试点) */
+/* 发送/停止:液态玻璃圆钮 */
 .composer-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; flex: none; padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.10); border-radius: 50%; cursor: pointer;
+  border-radius: 50%; cursor: pointer;
   color: rgba(236, 238, 242, 0.92);
-  background: rgba(255, 255, 255, 0.10);
-  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
 .composer-btn:disabled { cursor: default; }
-.composer-btn-send:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.18);
-  color: #fff;
-}
 .composer-btn-send:active:not(:disabled) { transform: scale(0.96); }
 .composer-btn-send:disabled {
-  background: rgba(255, 255, 255, 0.05);
   color: rgba(220, 224, 230, 0.28);
-  border-color: rgba(255, 255, 255, 0.06);
 }
 .composer-btn-stop {
+  /* 停止保留暖警示,仍吃 liquid-glass 壳 */
   background: rgba(220, 120, 90, 0.28);
   border-color: rgba(240, 160, 130, 0.35);
   color: #fff;
+  box-shadow:
+    0 1px 0 rgba(255, 220, 200, 0.35) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.28) inset,
+    0 10px 24px -12px rgba(180, 60, 40, 0.45);
 }
-.composer-btn-stop:hover {
-  background: rgba(220, 120, 90, 0.40);
-  border-color: rgba(240, 160, 130, 0.5);
+.composer-btn-stop:hover:not(:disabled) {
+  background: rgba(220, 120, 90, 0.42);
+  border-color: rgba(240, 160, 130, 0.55);
 }
 .composer-btn-stop:active { transform: scale(0.96); }
 .stop-square { width: 11px; height: 11px; background: currentColor; border-radius: 2.5px; }
 
-/* 待发送图片 chips(粘贴进来的,暗玻璃卡内) */
+/* 待发送图片 chips:可点开放大 */
 .attach-row { display: flex; gap: var(--s-2); flex-wrap: wrap; padding: 0 4px; }
 .attach-chip { position: relative; display: inline-block; }
-.attach-chip img { height: 52px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 255, 255, 0.14); display: block; }
-.attach-chip button {
+.attach-chip-thumb {
+  display: block; padding: 0; margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.14); border-radius: var(--radius-sm);
+  background: transparent; cursor: zoom-in;
+}
+.attach-chip-thumb:hover { border-color: rgba(255, 255, 255, 0.32); }
+.attach-chip-thumb img {
+  height: 52px; display: block; border-radius: inherit;
+  pointer-events: none;
+}
+.attach-chip-remove {
   position: absolute; top: -6px; right: -6px; width: 18px; height: 18px;
   border: none; border-radius: 50%; background: rgba(20, 22, 26, 0.92); color: rgba(245, 246, 248, 0.9);
   font-size: 12px; line-height: 1; cursor: pointer; padding: 0;
   display: inline-flex; align-items: center; justify-content: center;
+  z-index: 1;
 }
+.attach-lightbox {
+  position: fixed; inset: 0; z-index: var(--z-modal);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: var(--s-3);
+  background: color-mix(in srgb, var(--ink) 55%, transparent);
+  padding: var(--s-6);
+  cursor: zoom-out;
+}
+.attach-lightbox-img {
+  max-width: min(92vw, 1100px);
+  max-height: min(82vh, 900px);
+  object-fit: contain;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: var(--shadow-3);
+  background: var(--paper-solid);
+  cursor: default;
+}
+.attach-lightbox-close {
+  position: absolute; top: var(--s-5); right: var(--s-5);
+  width: 36px; height: 36px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 50%;
+  background: rgba(20, 22, 28, 0.72); color: var(--ink);
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.attach-lightbox-close:hover { background: rgba(34, 36, 44, 0.9); }
 
 /* 待发送文件 chips:先暂存可反悔,发送时才入工作区(暗玻璃面) */
 .file-row { display: flex; gap: var(--s-2); flex-wrap: wrap; padding: 0 4px; }

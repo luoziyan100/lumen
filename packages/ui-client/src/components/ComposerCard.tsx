@@ -1,17 +1,18 @@
 /**
  * [INPUT]: border-beam;icons;ASK_USER_COPY;SKILLS_COPY;ImageData;composerAccept;SkillSlashMenu;父级传入
- * [OUTPUT]: ComposerCard —— Border Beam 暗玻璃对话输入卡;+/Skills;/ 斜杠;模型芯片;拖放文件
+ * [OUTPUT]: ComposerCard —— Border Beam 暗玻璃对话输入卡;液态玻璃控件;+/Skills;/ 斜杠;模型芯片;拖放文件;待发图可放大
  * [POS]: 贴 composer-dock;仅改输入岛,不染暖纸消息流;见 doc/ui-design.md §0
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import { BorderBeam } from 'border-beam'
 import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
 import { Tooltip } from '@cloudflare/kumo/components/tooltip'
 import type { ImageData, SkillInfo } from '../agent-client'
 import { ASK_USER_COPY, SKILLS_COPY } from '../appCopy'
 import { dragHasFiles, filterComposerFiles } from '../composerAccept'
-import { AtGlyph, CheckIcon, ChevronDownIcon, CloseIcon, FileTextGlyph, FileTextIcon, GearGlyph, PdfIcon, PlusIcon, SendIcon } from './icons'
+import { AtGlyph, CheckIcon, ChevronDownIcon, CloseIcon, FileTextGlyph, GearGlyph, PdfIcon, PlusIcon, SendIcon } from './icons'
 import { SkillSlashMenu } from './SkillSlashMenu'
 import { parseSlashFilter } from '../skillSlash'
 
@@ -94,10 +95,21 @@ export function ComposerCard({
     return skills.filter((s) => !q || s.name.includes(q) || s.description.toLowerCase().includes(q))
   }, [skills, slashFilter])
   const [slashHi, setSlashHi] = useState(0)
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null)
+  const pendingImageUrls = useObjectUrls(pendingFiles)
 
   useEffect(() => {
     setSlashHi(0)
   }, [slashFilter, skills.length])
+
+  useEffect(() => {
+    if (!previewSrc) return
+    function onKey(e: KeyboardEvent): void {
+      if (e.key === 'Escape') setPreviewSrc(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [previewSrc])
 
   function onDragEnter(e: DragEvent<HTMLFormElement>): void {
     if (dropBlocked || !dragHasFiles(e.dataTransfer)) return
@@ -159,6 +171,21 @@ export function ComposerCard({
     onKeyDown(e)
   }
 
+  const imageAttachments = attachments.map((im, i) => ({
+    key: `att-${i}`,
+    src: `data:${im.mediaType};base64,${im.base64}`,
+    onRemove: () => onRemoveAttachment(i),
+  }))
+  const imagePending = pendingFiles.flatMap((f, i) => {
+    if (!f.type.startsWith('image/')) return []
+    const src = pendingImageUrls[i]
+    if (!src) return []
+    return [{ key: `file-img-${f.name}-${i}`, src, onRemove: () => onRemoveFile(i) }]
+  })
+  const nonImagePending = pendingFiles
+    .map((f, i) => ({ f, i }))
+    .filter(({ f }) => !f.type.startsWith('image/'))
+
   return (
     <BorderBeam
       className="composer-beam"
@@ -203,7 +230,7 @@ export function ComposerCard({
                   render={
                     <button
                       type="button"
-                      className="composer-at"
+                      className="composer-at liquid-glass"
                       aria-label="添加"
                       disabled={uploading || pendingAsk}
                     />
@@ -242,21 +269,33 @@ export function ComposerCard({
           </DropdownMenu>
         </div>
 
-        {attachments.length > 0 && (
+        {(imageAttachments.length > 0 || imagePending.length > 0) && (
           <div className="attach-row">
-            {attachments.map((im, i) => (
-              <span key={i} className="attach-chip">
-                <img src={`data:${im.mediaType};base64,${im.base64}`} alt="待发送图片" />
-                <button type="button" aria-label="移除图片" onClick={() => onRemoveAttachment(i)}>
+            {[...imageAttachments, ...imagePending].map((im) => (
+              <span key={im.key} className="attach-chip">
+                <button
+                  type="button"
+                  className="attach-chip-thumb"
+                  aria-label="放大预览图片"
+                  onClick={() => setPreviewSrc(im.src)}
+                >
+                  <img src={im.src} alt="" />
+                </button>
+                <button
+                  type="button"
+                  className="attach-chip-remove"
+                  aria-label="移除图片"
+                  onClick={() => im.onRemove()}
+                >
                   <CloseIcon size={12} />
                 </button>
               </span>
             ))}
           </div>
         )}
-        {pendingFiles.length > 0 && (
+        {nonImagePending.length > 0 && (
           <div className="file-row">
-            {pendingFiles.map((f, i) => (
+            {nonImagePending.map(({ f, i }) => (
               <span key={`${f.name}-${i}`} className="file-chip" title={f.name}>
                 <PdfIcon size={14} />
                 <span className="file-chip-name">{f.name}</span>
@@ -284,7 +323,7 @@ export function ComposerCard({
           <div className="composer-pills">
             <DropdownMenu>
               <DropdownMenu.Trigger
-                render={<button type="button" className="composer-pill" />}
+                render={<button type="button" className="composer-pill liquid-glass" />}
                 title="选择模型"
                 aria-label="选择模型"
               >
@@ -329,7 +368,7 @@ export function ComposerCard({
               render={
                 <button
                   type="button"
-                  className="composer-btn composer-btn-stop"
+                  className="composer-btn composer-btn-stop liquid-glass"
                   aria-label="停止"
                   onClick={onStop}
                 >
@@ -343,7 +382,7 @@ export function ComposerCard({
               render={
                 <button
                   type="submit"
-                  className="composer-btn composer-btn-send"
+                  className="composer-btn composer-btn-send liquid-glass"
                   aria-label="发送"
                   disabled={!canSend}
                 >
@@ -362,8 +401,51 @@ export function ComposerCard({
           onChange={onPickFiles}
         />
       </form>
+
+      {previewSrc && createPortal(
+        <div
+          className="attach-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label="图片预览"
+          onClick={() => setPreviewSrc(null)}
+        >
+          <button
+            type="button"
+            className="attach-lightbox-close"
+            aria-label="关闭预览"
+            onClick={() => setPreviewSrc(null)}
+          >
+            <CloseIcon size={18} />
+          </button>
+          <img
+            className="attach-lightbox-img"
+            src={previewSrc}
+            alt="待发送图片预览"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>,
+        document.body,
+      )}
     </BorderBeam>
   )
+}
+
+/** 为 pending 图片 File 建 object URL;按内容签名重建,避免数组引用抖动反复 revoke */
+function useObjectUrls(files: File[]): (string | null)[] {
+  const sig = files.map((f) => `${f.name}\0${f.size}\0${f.lastModified}\0${f.type}`).join('\n')
+  const [urls, setUrls] = useState<(string | null)[]>(() => files.map(() => null))
+  useEffect(() => {
+    const next = files.map((f) => (f.type.startsWith('image/') ? URL.createObjectURL(f) : null))
+    setUrls(next)
+    return () => {
+      for (const u of next) {
+        if (u) URL.revokeObjectURL(u)
+      }
+    }
+    // 仅跟 sig:同内容新 File[] 引用不重建 URL(避免 lightbox blob 被 revoke)
+  }, [sig]) // eslint-disable-line react-hooks/exhaustive-deps -- files 由 sig 编码
+  return urls
 }
 
 /** 底栏 pill 宽度有限:长模型名收成尾段 */
