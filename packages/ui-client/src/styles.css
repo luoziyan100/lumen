@@ -1311,6 +1311,10 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   z-index: 0;
   mix-blend-mode: screen;
 }
+/* 多钮错开扫光相位(周期 3.6s 均分),避免 + / 模型 / 发送齐刷刷同一拍 */
+.composer-at.liquid-glass::before { animation-delay: 0s; }
+.composer-pill.liquid-glass::before { animation-delay: -1.2s; }
+.composer-btn.liquid-glass::before { animation-delay: -2.4s; }
 /* 色散边:固定多色描边,呼吸不转圈 */
 .liquid-glass::after {
   content: '';
