@@ -1,6 +1,6 @@
 # 问用户（Ask user question）
 
-状态: **现行**（2026-08-04）
+状态: **现行**（2026-08-09）
 
 ## 问题
 
@@ -8,12 +8,13 @@
 
 ## 决策
 
-1. **一等工具 `ask_user`**：模型产出 1–3 道结构化选择题；`tool.run` **挂起**当前 turn，直到用户作答。
-2. **答案 = `tool_result.llmContent`**：回灌同一条只增线程（铁律）；不用 `continue` 解阻塞。
-3. **WS `answer_user`**：UI 经专用消息把选项/跳过交给 runtime，解开 pending Promise。
-4. **UI 输入框上方悬浮卡**：贴 composer 上方，无遮罩、不居中霸屏；见 `tool_call(ask_user)` 打开，见配对 `tool_result` 关闭。
-5. **主 agent 默认可用**：无 Plan/Default feature gate；**不**注册给 worker；**不**套 `withGuard` 150s（人思考时间不可当挂起）。
-6. **一直阻塞**：无超时空答；跳过/取消写入明确文案，避免模型误读空答案。
+1. **一等工具 `ask_user`**：模型产出结构化选择题；`tool.run` **挂起**当前 turn，直到用户作答。
+2. **批问**：多处歧义时在**同一次**调用的 `questions` 里一并问清（硬上限 **4** 题/次，对齐 Claude AskUserQuestion）；禁止拆成多次「一题一挂起」。措词主打批问，不以「1–N」当人格金句。
+3. **答案 = `tool_result.llmContent`**：回灌同一条只增线程（铁律）；不用 `continue` 解阻塞。
+4. **WS `answer_user`**：UI 经专用消息把选项/跳过交给 runtime，解开 pending Promise。
+5. **UI 输入框上方悬浮卡**：贴 composer 上方，无遮罩、不居中霸屏；见 `tool_call(ask_user)` 打开，见配对 `tool_result` 关闭。
+6. **主 agent 默认可用**：无 Plan/Default feature gate；**不**注册给 worker；**不**套 `withGuard` 150s（人思考时间不可当挂起）。
+7. **一直阻塞**：无超时空答；跳过/取消写入明确文案，避免模型误读空答案。
 
 ## 非目标（v1）
 

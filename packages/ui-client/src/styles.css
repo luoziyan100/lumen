@@ -1441,7 +1441,7 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 /* ---- 右侧工具轨(持久;卡片浮在暖纸画布上,替代原 toggle 抽屉)---- */
 .rail {
   position: relative;
-  flex: 0 0 var(--rail-w, 280px); min-width: 0;
+  flex: 0 0 var(--rail-w, 300px); min-width: 0;
   margin: var(--s-2);
   display: flex; flex-direction: column; gap: var(--s-3);
   overflow-y: auto;

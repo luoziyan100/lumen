@@ -152,7 +152,7 @@ export function parseAskUserQuestions(args: unknown): AskUserQuestion[] | null {
   const raw = typeof args === 'string' ? safeParse(args) : (args && typeof args === 'object' ? args as Record<string, unknown> : null)
   if (!raw || !Array.isArray(raw.questions) || raw.questions.length === 0) return null
   const out: AskUserQuestion[] = []
-  for (let i = 0; i < raw.questions.length && i < 3; i++) {
+  for (let i = 0; i < raw.questions.length && i < 4; i++) {
     const q = raw.questions[i]
     if (!q || typeof q !== 'object') continue
     const row = q as { id?: unknown; header?: unknown; question?: unknown; options?: unknown }

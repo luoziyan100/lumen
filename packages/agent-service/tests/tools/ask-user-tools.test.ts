@@ -24,7 +24,7 @@ const sampleQ: AskUserQuestion[] = [
 ]
 
 describe('normalizeAskUserArgs', () => {
-  it('接受 1–3 题并补默认 id', () => {
+  it('接受 1–4 题并补默认 id', () => {
     const n = normalizeAskUserArgs({
       questions: [
         {
@@ -55,7 +55,18 @@ describe('normalizeAskUserArgs', () => {
           options: [{ label: 'a' }, { label: 'b' }],
         })),
       }),
+      'object',
+      '4 题合法(对齐 Claude)',
+    )
+    assert.equal(
+      typeof normalizeAskUserArgs({
+        questions: [1, 2, 3, 4, 5].map((i) => ({
+          question: `q${i}`,
+          options: [{ label: 'a' }, { label: 'b' }],
+        })),
+      }),
       'string',
+      '5 题超限',
     )
   })
 })

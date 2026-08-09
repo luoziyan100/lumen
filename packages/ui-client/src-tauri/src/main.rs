@@ -6,6 +6,7 @@
 //   ③ Cmd+Q 只杀壳自己 spawn 的 Child(LaunchAgent 进程留给 launchd)
 //   ④ macOS:红叉 = hide;Dock Reopen = show + ensure
 //   ⑤ 首次启动若无 LaunchAgent → 自动 install(用户级 KeepAlive)
+//   ⑥ 默认窗 1160×800(对齐 Cursor/Claude 量级后略收;旧 1080→1200 略宽)
 //
 // v0 已知取舍:sidecar/LaunchAgent 仍用本机 node 跑 TS 源(LUMEN_NODE / LUMEN_SERVICE_DIR)
 
@@ -302,7 +303,7 @@ fn main() {
             // 关掉后交给 ComposerCard 的 drag/drop(与 @ 选文件同路径)。
             WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
                 .title("Lumen")
-                .inner_size(1080.0, 760.0)
+                .inner_size(1160.0, 800.0)
                 .min_inner_size(720.0, 480.0)
                 .disable_drag_drop_handler()
                 .initialization_script(&script)

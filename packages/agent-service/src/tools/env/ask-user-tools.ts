@@ -2,14 +2,15 @@
  * [INPUT]: core Tool / ToolContext.deps.askUser / ctx.toolCallId
  * [OUTPUT]: createAskUserTools —— ask_user(挂起 turn 等用户结构化作答)
  * [POS]: §5.2 环境工具旁支;答案以 tool_result 回灌线程(见 doc/ask-user.md);
- *        须由 runtime 注入 askUser 等待桥,且勿套 withGuard 150s
+ *        同一次可批问多题(QUESTIONS_MAX=4,对齐 Claude);须由 runtime 注入 askUser 等待桥,勿套 withGuard 150s
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { Tool, ToolResult } from '../../core/tool.ts'
 
 export const ASK_USER_TOOL = 'ask_user'
 export const QUESTIONS_MIN = 1
-export const QUESTIONS_MAX = 3
+/** 单次挂起批问上限(对齐 Claude AskUserQuestion 1–4) */
+export const QUESTIONS_MAX = 4
 export const OPTIONS_MIN = 2
 export const OPTIONS_MAX = 6
 const HEADER_MAX = 40
@@ -137,14 +138,15 @@ export function createAskUserTools(): Tool[] {
       spec: {
         name: ASK_USER_TOOL,
         description:
-          '向用户提出 1–3 道选择题以澄清歧义或关键决策。调用后会暂停当前回合直到用户作答或跳过。' +
-          '仅在范围/来源/写法等不可自行拍板时使用;简单问题自己决定。',
+          '向用户提出结构化选择题以澄清歧义或关键决策。同一次可问多题(questions 数组至多 4 题;每题 ≥2 选项)。' +
+          '多处歧义时请在同一次调用里一并给出,不要为每个问题单独调用。' +
+          '调用后暂停当前回合直至用户作答或跳过。仅在不可自行拍板时使用;简单问题自己决定。',
         parameters: {
           type: 'object',
           properties: {
             questions: {
               type: 'array',
-              description: '1–3 道题;每题至少 2 个选项',
+              description: '本回合要问的题(可多题;长度 1–4)。多歧义时一次填满,勿拆成多次 ask_user',
               items: {
                 type: 'object',
                 properties: {

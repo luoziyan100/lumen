@@ -2,7 +2,8 @@
  * [INPUT]: Asset(含 scope);ChatItem;icons;useResizable;WORKSPACE_SCOPE_COPY;filterComposerFiles
  * [OUTPUT]: UtilityRail —— Todo Progress + 工作目录(共享区 / 本会话)
  * [POS]: 右轨;阅读器打开时由 ReaderPane 替换;共享区上传与 composer 同宽准入;
- *        Progress 主投影 Todo(见 doc/todo.md);无 Todo 时回退工具 process 步骤
+ *        Progress 主投影 Todo(见 doc/todo.md);无 Todo 时回退工具 process 步骤;
+ *        默认宽 300(随主窗 1160 略收;旧 280@1080 / 320@1200)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useRef, useState, type ChangeEvent, type CSSProperties } from 'react'
@@ -58,7 +59,8 @@ export function UtilityRail({ assets, onOpen, items, running, onUploadShared }: 
     ? [...items].reverse().find((it): it is ProcessItem => it.kind === 'process' && it.running)
     : undefined
   const [dirOpen, setDirOpen] = useState(true)
-  const { width, handleProps } = useResizable({ edge: 'left', min: 240, max: 480, fallback: 280, storageKey: 'lumen:railWidth.v2' })
+  // 默认 300:主窗略收后右轨同步;key 升 v4 使旧 320 缓存不锁死
+  const { width, handleProps } = useResizable({ edge: 'left', min: 260, max: 540, fallback: 300, storageKey: 'lumen:railWidth.v4' })
   const sharedFileRef = useRef<HTMLInputElement>(null)
   const shared = assets.filter(isShared)
   const session = assets.filter((a) => !isShared(a))

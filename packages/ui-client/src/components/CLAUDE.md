@@ -11,7 +11,7 @@
 - `CreateProjectModal.tsx` — 创建项目悬浮卡(无遮罩):名称 + 可选本机源文件夹(Tauri pick / 粘贴路径)
 - `SearchModal.tsx` — 会话搜索(⌘K):Kumo CommandPalette,内部过滤,↑↓/↵ 键盘导航
 - `SettingsModal.tsx` — 设置:供应商接入目录(卡内多模型 ID;列表自滚动;悬停启用/删除)/系统提示词/LaunchAgent;选用权在 composer 芯片
-- `UtilityRail.tsx` — 右轨:Todo Progress 优先(无 Todo 回退 process);工作目录(共享区/本会话);左缘拖拽调宽
+- `UtilityRail.tsx` — 右轨:Todo Progress 优先(无 Todo 回退 process);工作目录(共享区/本会话);左缘拖拽调宽(默认 300,`lumen:railWidth.v4`)
 - `ReaderPane.tsx` — 右分屏阅读器:doc 衬线正文 / PDF / HTML 沙箱
 - `PdfViewer.tsx` — pdf.js 竖向连续滚动渲染(锁 4.10.38)
 - `HtmlViewer.tsx` — 工作区 HTML 预览:复用 `widget/WidgetFrame`(allow-scripts + CSP,无 same-origin)

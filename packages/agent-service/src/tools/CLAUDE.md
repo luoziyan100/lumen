@@ -18,7 +18,7 @@
 - `vision-tools.ts` — `look_at_image`(硅基 VL);`withImageSanitize` ModelPort 包装;env:`LUMEN_VISION_*`
 - `todo-tools.ts` — `todo_write`(+`update_plan` 兼容):会话 Todo;回灌线程 + `drafts/todo.md`(见 `doc/todo.md`)
 - `plan-tools.ts` — 薄再导出(兼容旧 import)
-- `ask-user-tools.ts` — `ask_user`:挂起 turn 问用户 1–3 题;runtime pending + WS `answer_user` 解开;不套 withGuard(见 `doc/ask-user.md`)
+- `ask-user-tools.ts` — `ask_user`:挂起 turn 批问(至多 4 题/次,对齐 Claude);runtime pending + WS `answer_user` 解开;不套 withGuard(见 `doc/ask-user.md`)
 - `memory-tools.ts` — read_memory / write_memory(由 runtime 按项目注入,不在 ENV_TOOLS 常量里)
 - `skill-tools.ts` — `run_skill`(启动工作流;由 runtime 注入;`≠` read_memory)
 
