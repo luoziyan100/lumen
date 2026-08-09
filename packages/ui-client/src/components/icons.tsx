@@ -115,7 +115,7 @@ export function SectionChevronIcon({ open }: { open?: boolean }) {
       size={ICON_SM}
       style={{
         transform: open ? undefined : 'rotate(-90deg)',
-        transition: 'transform var(--dur-fast) var(--ease-out)',
+        transition: 'transform var(--dur-collapse-in) var(--ease-spring)',
       }}
     />
   )
@@ -138,7 +138,10 @@ export function ChevronIcon({ open }: { open?: boolean }) {
   return (
     <CaretRight
       size={ICON_SM}
-      style={{ transform: open ? 'rotate(90deg)' : undefined, transition: 'transform var(--dur-fast) var(--ease-out)' }}
+      style={{
+        transform: open ? 'rotate(90deg)' : undefined,
+        transition: 'transform var(--dur-collapse-in) var(--ease-spring)',
+      }}
     />
   )
 }

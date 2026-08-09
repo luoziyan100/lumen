@@ -4,25 +4,26 @@
 
 ## 成员
 
-- `Sidebar.tsx` — Cursor 式:可折「项目」整区(标题 chevron + localStorage) → 全局「置顶」→「最近」;项目行 chevron 仍折单树;项目树会话 >N 条 Progressive Disclosure(`visibleSessions`,active 保底);会话行左灯(`sessionLamp`:idle 空心/unread 实心/running 脉动,点圆 toggle 未读);双指点按置顶/重命名/复制/归档;钉会话不重复出现在树/最近;行内重命名写 `title`
+- `Sidebar.tsx` — Cursor 式:可折「项目」整区(标题 chevron + localStorage) → 全局「置顶」→「最近」;项目行 chevron 仍折单树;折叠动效走 `CurtainFold`;项目树会话 >N 条 Progressive Disclosure(`visibleSessions`,active 保底);会话行左灯(`sessionLamp`:idle 空心/unread 实心/running 脉动,点圆 toggle 未读);双指点按置顶/重命名/复制/归档;钉会话不重复出现在树/最近;行内重命名写 `title`
+- `CurtainFold.tsx` — **Curtain Language 原语**:grid Accordion + 卷帘 clip + spring 展开/curtain 收起;`stagger` 子项 cascade;关合保持挂载+`inert`;Accordion 式开合默认用它(过程块/侧栏/右轨目录/用户长文),禁再引入第二套高度动画
 - `MarqueeTitle.tsx` — 溢出悬停无缝单向走马灯:双份文案 + track `translateX(-50%)`;闲置 ellipsis;禁 alternate/瞬切
 - `turnRail.ts` — `buildTurnRailItems`:ChatItem→用户轮次(一问+随后助手答);过程行不占刻度
 - `TurnPreviewRail.tsx` — 对话列左侧轮次轨(≥4 轮);空闲小圆点、悬停鱼眼放大+预览;窄栏/阅读器开时隐藏;点圆点滚到 `msg-<id>`
 - `CreateProjectModal.tsx` — 创建项目悬浮卡(无遮罩):名称 + 可选本机源文件夹(Tauri pick / 粘贴路径)
 - `SearchModal.tsx` — 会话搜索(⌘K):Kumo CommandPalette,内部过滤,↑↓/↵ 键盘导航
 - `SettingsModal.tsx` — 设置:供应商接入目录(卡内多模型 ID;列表自滚动;悬停启用/删除)/系统提示词/LaunchAgent;选用权在 composer 芯片
-- `UtilityRail.tsx` — 右轨:Todo Progress 优先(无 Todo 回退 process);工作目录(共享区/本会话);左缘拖拽调宽(默认 300,`lumen:railWidth.v4`)
+- `UtilityRail.tsx` — 右轨:Todo Progress 优先(无 Todo 回退 process);工作目录(共享区/本会话,`CurtainFold` 开合);左缘拖拽调宽(默认 300,`lumen:railWidth.v4`)
 - `ReaderPane.tsx` — 右分屏阅读器:doc 衬线正文 / PDF / HTML 沙箱
 - `PdfViewer.tsx` — pdf.js 竖向连续滚动渲染(锁 4.10.38)
 - `HtmlViewer.tsx` — 工作区 HTML 预览:复用 `widget/WidgetFrame`(allow-scripts + CSP,无 same-origin)
 - `StatusOrb.tsx` — 行内点云球:thinking-orbs **原生 size=20**(禁 64→CSS 缩,否则九态糊成虚线圈);支持 `paused` 冻帧
-- `ProcessRow.tsx` — 可折叠过程块(Kumo Collapsible):左侧 `StatusOrb` 按焦点工具态(`orbStateFromSteps`);完成态 `paused` 仍保留形态差异;与 ThinkingIndicator 的 breathing 分离
+- `ProcessRow.tsx` — 可折叠过程块(`CurtainFold` + 步骤 cascade);左侧 `StatusOrb` 按焦点工具态(`orbStateFromSteps`);完成态 `paused` 仍保留形态差异;与 ThinkingIndicator 的 breathing 分离
 - `TodoCard.tsx` — 会话 Todo 次要卡(`todo_write`→`kind:'todo'`);主呈现右轨 Progress(见 `doc/todo.md`)
 - `AskUserDialog.tsx` — `ask_user` 输入框上方悬浮问询卡;「其他」为幽灵 placeholder 真输入(非实心堵光标);见 `doc/ask-user.md`
 - `ComposerCard.tsx` — 对话输入暗玻璃岛;`+` Skills 子菜单;/ 斜杠浮层;模型芯片;拖放文件(宽准入);见 `doc/ui-design.md` §0
 - `SkillSlashMenu.tsx` — `/` 过滤 Skills + Manage 入口
 - `ManageSkillsDialog.tsx` — Manage skills:列表/添加文件夹·SKILL.md/卸载(Kumo Dialog,禁 glass-beam)
-- `CollapsibleUserText.tsx` — 用户超长 prompt 默认折叠(>9 行或 >750 字);底渐隐 + 展开/收起;助手消息不折
+- `CollapsibleUserText.tsx` — 用户超长 prompt 默认折叠(>9 行或 >750 字);预览 clamp + `CurtainFold` 揭开全文;助手消息不折
 - `MsgFileChips.tsx` — 用户气泡附件 chip(上传知情 S4);点开读阅读器;见 `doc/upload-awareness.md`
 - `ThinkingIndicator.tsx` — 模型等待态(尚无过程行/尚无流式正文):`StatusOrb` breathing +「思考中」;正文 `streaming` 时不叠;侧栏 sb-dot 仍脉冲点
 - `Markdown.tsx` — .md 文档与纯文本段渲染:GFM + KaTeX + 代码高亮 + ` ```mermaid ` → MermaidBlock;流式 `deferMath` 暂缓 KaTeX/mermaid 防高度抖
@@ -34,6 +35,7 @@
 ## 规则
 
 - 组件只消费 token 与 `styles.css` 既有 class;新视觉模式先进 `doc/ui-design.md` §3 再落地。
+- **Curtain Language**:Accordion 式内容开合(侧栏树、过程块、右轨目录、用户长文)统一走 `CurtainFold`;收=curtain 上卷、开=spring 揭帘(+可选 stagger)。浮层(Dropdown/⌘K/斜杠)与左右整栏显隐不套卷帘。
 - 全窗 Glass 实验(分支 `experiment/glass-ui`):光边只挂输入卡(`border-beam`)与右轨工作区卡(`.glass-beam`);`.glass-card` 给侧栏双指菜单与设置模型卡(毛玻璃+反射高光);对话列全幅无壳;设置 Dialog **根**禁挂 glass-beam/glass-card(会毁 fixed 居中)。回退见 `doc/ui-design.md` §0。
 - 文案不内联,进 `appCopy.ts` / `settingsCopy.ts`。
 - ⚠ styles.css 未分层:同一元素上混用自有 class 与 Kumo 组件时,别写会盖过其 utility 的属性

@@ -99,8 +99,12 @@
 
   /* ---- 动效 ---- */
   --dur-fast: 120ms; --dur-base: 180ms; --dur-slow: 280ms; --dur-reader: 400ms;
+  --dur-collapse-in: 600ms;   /* 展开亮相:长于收起以显 spring */
+  --dur-collapse-out: 380ms;  /* 收起:卷帘节奏 */
   --ease-out: cubic-bezier(0.2, 0.6, 0.2, 1);
   --ease-inout: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.22, 1.85, 0.32, 1);   /* 过冲加码:短内容也可感 */
+  --ease-curtain: cubic-bezier(0.65, 0.05, 0.35, 1);  /* 收起:帘子上卷 */
 
   /* ---- 布局 ---- */
   --sidebar-w: 300px;

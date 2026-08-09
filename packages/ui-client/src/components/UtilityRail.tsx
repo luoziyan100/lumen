@@ -3,7 +3,7 @@
  * [OUTPUT]: UtilityRail —— Todo Progress + 工作目录(共享区 / 本会话)
  * [POS]: 右轨;阅读器打开时由 ReaderPane 替换;共享区上传与 composer 同宽准入;
  *        Progress 主投影 Todo(见 doc/todo.md);无 Todo 时回退工具 process 步骤;
- *        默认宽 300(随主窗 1160 略收;旧 280@1080 / 320@1200)
+ *        工作目录开合走 CurtainFold;默认宽 300(随主窗 1160 略收;旧 280@1080 / 320@1200)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useRef, useState, type ChangeEvent, type CSSProperties } from 'react'
@@ -11,6 +11,7 @@ import type { Asset } from '../agent-client'
 import type { ChatItem, ProcessItem, TodoChatItem, TodoEntry } from '../useAgent'
 import { WORKSPACE_SCOPE_COPY } from '../appCopy'
 import { filterComposerFiles } from '../composerAccept'
+import { CurtainFold } from './CurtainFold'
 import { ChevronIcon, FileTypeIcon, FoldersIcon, PlusIcon, ICON_MD } from './icons'
 import { useResizable } from '../useResizable'
 
@@ -115,7 +116,7 @@ export function UtilityRail({ assets, onOpen, items, running, onUploadShared }: 
           <span className="rail-count">{assets.length}</span>
           <ChevronIcon open={dirOpen} />
         </button>
-        {dirOpen && (
+        <CurtainFold open={dirOpen}>
           <div className="rail-dir-body">
             <div className="rail-group">
               <div className="rail-group-head">
@@ -150,7 +151,7 @@ export function UtilityRail({ assets, onOpen, items, running, onUploadShared }: 
             </div>
             <AssetGroup label={WORKSPACE_SCOPE_COPY.session} items={session} onOpen={onOpen} />
           </div>
-        )}
+        </CurtainFold>
       </section>
     </aside>
   )

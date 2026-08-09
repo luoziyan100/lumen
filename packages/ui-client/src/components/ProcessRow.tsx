@@ -1,13 +1,13 @@
 /**
- * [INPUT]: ProcessItem;Kumo Collapsible;StatusOrb;orbStateFromSteps
- * [OUTPUT]: ProcessRow —— 可折叠过程块;左侧点云球按焦点工具态切换(完成态 paused 保留形态)
+ * [INPUT]: ProcessItem;CurtainFold;StatusOrb;orbStateFromSteps
+ * [OUTPUT]: ProcessRow —— 可折叠过程块;卷帘开合;左侧点云球按焦点工具态切换
  * [POS]: 对话流过程叙事行;与 ThinkingIndicator(尚无工具/轮间思考)分离;进度清单见 TodoCard / 右轨 Progress
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useState } from 'react'
-import { Collapsible } from '@cloudflare/kumo/components/collapsible'
 import { orbStateFromSteps } from '../orbState'
 import type { ProcessItem } from '../useAgent'
+import { CurtainFold } from './CurtainFold'
 import { StatusOrb } from './StatusOrb'
 
 export function ProcessRow({ block }: { block: ProcessItem }) {
@@ -17,8 +17,13 @@ export function ProcessRow({ block }: { block: ProcessItem }) {
     : `研究过程 · ${block.steps.length} 步`
   const orbState = orbStateFromSteps(block.steps)
   return (
-    <Collapsible.Root className={`proc ${block.running ? 'proc-running' : ''}`} open={open} onOpenChange={setOpen}>
-      <Collapsible.Trigger className="proc-head">
+    <div className={`proc ${block.running ? 'proc-running' : ''}`}>
+      <button
+        type="button"
+        className="proc-head"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
         <StatusOrb
           className="proc-orb"
           state={orbState}
@@ -27,8 +32,8 @@ export function ProcessRow({ block }: { block: ProcessItem }) {
         />
         <span className="proc-label">{head}</span>
         <span className="proc-toggle">{open ? '收起' : `${block.steps.length} 步 ›`}</span>
-      </Collapsible.Trigger>
-      <Collapsible.Panel className="collapse-panel">
+      </button>
+      <CurtainFold open={open} stagger>
         <ul className="proc-steps">
           {block.steps.map((s) => (
             <li key={s.id} className="proc-step">
@@ -37,7 +42,7 @@ export function ProcessRow({ block }: { block: ProcessItem }) {
             </li>
           ))}
         </ul>
-      </Collapsible.Panel>
-    </Collapsible.Root>
+      </CurtainFold>
+    </div>
   )
 }

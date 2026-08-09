@@ -172,8 +172,8 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 /* 侧栏顶部图标行已并入标题栏 tb-left(位置恒定,不随侧栏开合漂移) */
 /* 会话搜索(⌘K)已迁移 Kumo CommandPalette;设置弹窗外壳已迁移 Kumo Dialog */
 
-/* Kumo Collapsible 面板:暂不做高度动画——展开高度在 webfont 加载竞态下会量得过期
-   导致内容被裁切;等字体本地打包(待办)后再按 --collapsible-panel-height 方案补 180ms 滑动 */
+/* Kumo Collapsible 面板:高度动画已由 CurtainFold(Curtain Language)承接;
+   过程块等不再依赖 --collapsible-panel-height 量高方案 */
 
 /* ---- 设置弹窗:左导航 + 右配置 ---- */
 /* 设置弹窗:表面与定位(fixed+translate 居中)由 Kumo Dialog 提供,这里只管布局尺寸。
@@ -429,7 +429,102 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   display: inline-flex; flex-shrink: 0; opacity: .7;
   margin-right: 2px;
 }
-.sb-projects-body { display: flex; flex-direction: column; gap: 1px; }
+
+/* Curtain Language:Accordion(grid 0fr→1fr) + 卷帘 clip + spring 展开(短内容也靠位移可感) */
+.curtain-fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-collapse-out) var(--ease-curtain);
+}
+.curtain-fold.is-open {
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--dur-collapse-in) var(--ease-spring);
+}
+.curtain-fold-pane {
+  min-height: 0;
+  overflow: hidden;
+}
+.curtain-fold-veil {
+  clip-path: inset(0 0 100% 0);
+  opacity: 0.15;
+  transform: translateY(-18px) scaleY(0.92);
+  transform-origin: top center;
+  filter: blur(2px);
+  transition:
+    clip-path var(--dur-collapse-out) var(--ease-curtain),
+    opacity var(--dur-collapse-out) var(--ease-curtain),
+    transform var(--dur-collapse-out) var(--ease-curtain),
+    filter var(--dur-collapse-out) var(--ease-curtain);
+}
+.curtain-fold.is-open .curtain-fold-veil {
+  clip-path: inset(0 0 0 0);
+  opacity: 1;
+  transform: translateY(0) scaleY(1);
+  filter: blur(0);
+  transition:
+    clip-path var(--dur-collapse-in) var(--ease-spring),
+    opacity calc(var(--dur-collapse-in) * 0.55) var(--ease-out),
+    transform var(--dur-collapse-in) var(--ease-spring),
+    filter calc(var(--dur-collapse-in) * 0.45) var(--ease-out);
+}
+/* 项目区内容落在 veil 上,勿把 flex 挂在 fold 根(会毁 grid Accordion) */
+.sb-projects-body .curtain-fold-veil {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+/* 子项错峰:展开时 cascade(侧栏 / 过程步骤) */
+.curtain-fold--stagger.is-open .curtain-fold-veil > .sb-folder,
+.curtain-fold--stagger.is-open .sb-sess > .sb-item,
+.curtain-fold--stagger.is-open .sb-sess > .sb-item-row,
+.curtain-fold--stagger.is-open .sb-sess > .sb-sess-more,
+.curtain-fold--stagger.is-open .proc-steps > .proc-step {
+  animation: curtain-fold-stagger var(--dur-collapse-in) var(--ease-spring) both;
+}
+.curtain-fold--stagger.is-open .curtain-fold-veil > .sb-folder:nth-child(1),
+.curtain-fold--stagger.is-open .sb-sess > :nth-child(1),
+.curtain-fold--stagger.is-open .proc-steps > .proc-step:nth-child(1) { animation-delay: 28ms; }
+.curtain-fold--stagger.is-open .curtain-fold-veil > .sb-folder:nth-child(2),
+.curtain-fold--stagger.is-open .sb-sess > :nth-child(2),
+.curtain-fold--stagger.is-open .proc-steps > .proc-step:nth-child(2) { animation-delay: 56ms; }
+.curtain-fold--stagger.is-open .curtain-fold-veil > .sb-folder:nth-child(3),
+.curtain-fold--stagger.is-open .sb-sess > :nth-child(3),
+.curtain-fold--stagger.is-open .proc-steps > .proc-step:nth-child(3) { animation-delay: 84ms; }
+.curtain-fold--stagger.is-open .curtain-fold-veil > .sb-folder:nth-child(4),
+.curtain-fold--stagger.is-open .sb-sess > :nth-child(4),
+.curtain-fold--stagger.is-open .proc-steps > .proc-step:nth-child(4) { animation-delay: 112ms; }
+.curtain-fold--stagger.is-open .curtain-fold-veil > .sb-folder:nth-child(5),
+.curtain-fold--stagger.is-open .sb-sess > :nth-child(5),
+.curtain-fold--stagger.is-open .proc-steps > .proc-step:nth-child(5) { animation-delay: 140ms; }
+.curtain-fold--stagger.is-open .curtain-fold-veil > .sb-folder:nth-child(n+6),
+.curtain-fold--stagger.is-open .sb-sess > :nth-child(n+6),
+.curtain-fold--stagger.is-open .proc-steps > .proc-step:nth-child(n+6) { animation-delay: 168ms; }
+@keyframes curtain-fold-stagger {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .curtain-fold,
+  .curtain-fold.is-open,
+  .curtain-fold-veil,
+  .curtain-fold.is-open .curtain-fold-veil {
+    transition: none;
+  }
+  .curtain-fold--stagger.is-open .curtain-fold-veil > .sb-folder,
+  .curtain-fold--stagger.is-open .sb-sess > .sb-item,
+  .curtain-fold--stagger.is-open .sb-sess > .sb-item-row,
+  .curtain-fold--stagger.is-open .sb-sess > .sb-sess-more,
+  .curtain-fold--stagger.is-open .proc-steps > .proc-step {
+    animation: none;
+  }
+  .curtain-fold:not(.is-open) .curtain-fold-veil {
+    clip-path: inset(0 0 100% 0);
+    opacity: 0;
+    transform: none;
+    filter: none;
+  }
+}
+
 .sb-folder { display: flex; flex-direction: column; gap: 1px; }
 .sb-folder-row {
   display: flex; align-items: center; gap: 2px;
@@ -1022,8 +1117,9 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .bubble-user { align-self: flex-end; background: var(--vellum); padding: 10px 14px; border-radius: var(--radius-lg); box-shadow: var(--shadow-1); }
 .bubble-assistant { align-self: stretch; font-family: var(--font-serif); font-size: var(--t-body-lg); }
 
-/* 用户超长 prompt:默认折(~5 行预览);阈值见 CollapsibleUserText */
+/* 用户超长 prompt:预览 clamp + CurtainFold 揭开全文 */
 .msg-fold { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.msg-fold-stack { display: flex; flex-direction: column; min-width: 0; }
 .msg-fold-body {
   white-space: pre-wrap; line-height: var(--lh-body-lg);
   overflow-wrap: anywhere;

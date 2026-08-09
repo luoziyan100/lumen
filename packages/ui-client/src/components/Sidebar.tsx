@@ -3,7 +3,8 @@
  * [OUTPUT]: Sidebar —— 可折「项目」整区 + 全局置顶 + 最近;双指点按置顶/重命名/复制/归档;标题溢出悬停跑马灯
  * [POS]: 左栏;「项目」标题右侧 chevron 收整区(localStorage lumen:sbProjectsOpen);项目行左侧 chevron 仍管单树;
  *        项目树会话 >N 条 Progressive Disclosure(内存展开,active 保底);会话行左侧 status 灯(idle/unread/running);
- *        置顶在项目区下、最近上;Trigger 须 render=<button>;开编延后+忽略菜单 blur
+ *        置顶在项目区下、最近上;Trigger 须 render=<button>;开编延后+忽略菜单 blur;
+ *        折叠动效见 CurtainFold(spring + 卷帘)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
@@ -14,6 +15,7 @@ import {
   AccountIcon, ArchiveGlyph, ChatIcon, CheckIcon, ChevronIcon, CopyGlyph, FolderIcon, GearIcon,
   NewProjectIcon, PinGlyph, PlusIcon, RenameGlyph, SearchIcon, SectionChevronIcon, UnpinGlyph, ICON_MD, ICON_SM,
 } from './icons'
+import { CurtainFold } from './CurtainFold'
 import { MarqueeTitle } from './MarqueeTitle'
 import { SIDEBAR_ACCOUNT_COPY, SIDEBAR_PROJECT_COPY } from '../appCopy'
 import { sessionLampKind } from '../sessionLamp'
@@ -428,140 +430,140 @@ export function Sidebar({
                 <SectionChevronIcon open={projectsOpen} />
               </span>
             </button>
-            {projectsOpen && (
-              <div id="sb-projects-body" className="sb-projects-body">
-                {projects.length === 0 && (
-                  <div className="sb-empty">{SIDEBAR_PROJECT_COPY.emptyProjects}</div>
-                )}
-                {projects.map((proj) => {
-              const open = expanded.has(proj.id)
-              const tasks = tasksByProject[proj.id] ?? []
-              const hasDraft = draftProjectId === proj.id
-              const draftActive = hasDraft && !activeTaskId
-              const active = proj.id === activeProjectId
-              const label = projectLabel(proj)
-              const showSess = open && (hasDraft || tasks.length > 0)
-              const sess = showSess
-                ? visibleSessions(tasks, {
-                    expanded: sessMoreOpen.has(proj.id),
-                    activeId: activeTaskId,
-                  })
-                : null
-              const menuOpen = menuProjectId === proj.id
-              const renamingThis = renaming?.kind === 'project' && renaming.id === proj.id
-              return (
-                <div key={proj.id} className={`sb-folder ${active ? 'is-active-proj' : ''}`}>
-                  <div className={`sb-folder-row${menuOpen ? ' is-menu-open' : ''}`}>
-                    <button
-                      type="button"
-                      className="sb-folder-ic"
-                      aria-expanded={open}
-                      aria-label={open ? '折叠' : '展开'}
-                      onClick={(e) => onToggleIcon(e, proj.id)}
-                    >
-                      <span className="sb-folder-ic-folder" aria-hidden><FolderIcon size={ICON_MD} open={open} /></span>
-                      <span className="sb-folder-ic-chev" aria-hidden><ChevronIcon open={open} /></span>
-                    </button>
-                    {renamingThis ? (
-                      <input
-                        ref={renameRef}
-                        className="sb-folder-rename"
-                        value={renameDraft}
-                        maxLength={64}
-                        aria-label={SIDEBAR_PROJECT_COPY.renameProject}
-                        placeholder={SIDEBAR_PROJECT_COPY.renamePlaceholder}
-                        onChange={(e) => setRenameDraft(e.target.value)}
-                        onKeyDown={(e) => onRenameProjectKey(e, proj)}
-                        onBlur={() => { void commitRenameProject(proj) }}
-                      />
-                    ) : (
-                      <DropdownMenu
-                        open={menuOpen}
-                        onOpenChange={(openMenu) => {
-                          if (!openMenu) setMenuProjectId(null)
-                        }}
+            <CurtainFold open={projectsOpen} id="sb-projects-body" className="sb-projects-body" stagger>
+              {projects.length === 0 && (
+                <div className="sb-empty">{SIDEBAR_PROJECT_COPY.emptyProjects}</div>
+              )}
+              {projects.map((proj) => {
+                const open = expanded.has(proj.id)
+                const tasks = tasksByProject[proj.id] ?? []
+                const hasDraft = draftProjectId === proj.id
+                const draftActive = hasDraft && !activeTaskId
+                const active = proj.id === activeProjectId
+                const label = projectLabel(proj)
+                const hasSess = hasDraft || tasks.length > 0
+                const sess = hasSess
+                  ? visibleSessions(tasks, {
+                      expanded: sessMoreOpen.has(proj.id),
+                      activeId: activeTaskId,
+                    })
+                  : null
+                const menuOpen = menuProjectId === proj.id
+                const renamingThis = renaming?.kind === 'project' && renaming.id === proj.id
+                return (
+                  <div key={proj.id} className={`sb-folder ${active ? 'is-active-proj' : ''}`}>
+                    <div className={`sb-folder-row${menuOpen ? ' is-menu-open' : ''}`}>
+                      <button
+                        type="button"
+                        className="sb-folder-ic"
+                        aria-expanded={open}
+                        aria-label={open ? '折叠' : '展开'}
+                        onClick={(e) => onToggleIcon(e, proj.id)}
                       >
-                        <DropdownMenu.Trigger
-                          render={<button type="button" className="sb-folder-main" />}
-                          title={proj.source_path ? `${label}\n${proj.source_path}` : label}
-                          onClick={(e) => {
-                            e.preventDefault()
-                            onProjectRowClick(proj)
-                          }}
-                          onContextMenu={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            window.getSelection()?.removeAllRanges()
-                            setMenuTaskId(null)
-                            setMenuProjectId(proj.id)
+                        <span className="sb-folder-ic-folder" aria-hidden><FolderIcon size={ICON_MD} open={open} /></span>
+                        <span className="sb-folder-ic-chev" aria-hidden><ChevronIcon open={open} /></span>
+                      </button>
+                      {renamingThis ? (
+                        <input
+                          ref={renameRef}
+                          className="sb-folder-rename"
+                          value={renameDraft}
+                          maxLength={64}
+                          aria-label={SIDEBAR_PROJECT_COPY.renameProject}
+                          placeholder={SIDEBAR_PROJECT_COPY.renamePlaceholder}
+                          onChange={(e) => setRenameDraft(e.target.value)}
+                          onKeyDown={(e) => onRenameProjectKey(e, proj)}
+                          onBlur={() => { void commitRenameProject(proj) }}
+                        />
+                      ) : (
+                        <DropdownMenu
+                          open={menuOpen}
+                          onOpenChange={(openMenu) => {
+                            if (!openMenu) setMenuProjectId(null)
                           }}
                         >
-                          <span className="sb-folder-name">{label}</span>
-                        </DropdownMenu.Trigger>
-                        <DropdownMenu.Content align="start" side="bottom" sideOffset={4} className="sb-task-menu glass-card">
-                          <DropdownMenu.Item
-                            icon={RenameGlyph}
-                            onPointerDown={(e) => e.preventDefault()}
-                            onClick={() => beginRenameProject(proj)}
-                          >
-                            {SIDEBAR_PROJECT_COPY.renameProject}
-                          </DropdownMenu.Item>
-                          <DropdownMenu.Item
-                            icon={ArchiveGlyph}
-                            variant="danger"
-                            onClick={() => {
-                              closeMenus()
-                              onArchiveProject(proj)
+                          <DropdownMenu.Trigger
+                            render={<button type="button" className="sb-folder-main" />}
+                            title={proj.source_path ? `${label}\n${proj.source_path}` : label}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              onProjectRowClick(proj)
+                            }}
+                            onContextMenu={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              window.getSelection()?.removeAllRanges()
+                              setMenuTaskId(null)
+                              setMenuProjectId(proj.id)
                             }}
                           >
-                            {SIDEBAR_PROJECT_COPY.archiveProject}
-                          </DropdownMenu.Item>
-                        </DropdownMenu.Content>
-                      </DropdownMenu>
-                    )}
-                    <button
-                      type="button"
-                      className="sb-folder-plus"
-                      title={SIDEBAR_PROJECT_COPY.newChatInProject}
-                      aria-label={SIDEBAR_PROJECT_COPY.newChatInProject}
-                      disabled={!connected || renamingThis}
-                      onClick={(e) => onPlus(e, proj.id)}
-                    >
-                      <PlusIcon size={14} />
-                    </button>
-                  </div>
-                  {showSess && sess && (
-                    <div className="sb-sess">
-                      {hasDraft && (
-                        <button
-                          type="button"
-                          className={`sb-item sb-item-draft ${draftActive ? 'is-active' : ''}`}
-                          onClick={() => { closeMenus(); onNewChat(proj.id) }}
-                          title={SIDEBAR_PROJECT_COPY.draftChat}
-                        >
-                          <span className="sb-item-title">{SIDEBAR_PROJECT_COPY.draftChat}</span>
-                        </button>
+                            <span className="sb-folder-name">{label}</span>
+                          </DropdownMenu.Trigger>
+                          <DropdownMenu.Content align="start" side="bottom" sideOffset={4} className="sb-task-menu glass-card">
+                            <DropdownMenu.Item
+                              icon={RenameGlyph}
+                              onPointerDown={(e) => e.preventDefault()}
+                              onClick={() => beginRenameProject(proj)}
+                            >
+                              {SIDEBAR_PROJECT_COPY.renameProject}
+                            </DropdownMenu.Item>
+                            <DropdownMenu.Item
+                              icon={ArchiveGlyph}
+                              variant="danger"
+                              onClick={() => {
+                                closeMenus()
+                                onArchiveProject(proj)
+                              }}
+                            >
+                              {SIDEBAR_PROJECT_COPY.archiveProject}
+                            </DropdownMenu.Item>
+                          </DropdownMenu.Content>
+                        </DropdownMenu>
                       )}
-                      {sess.visible.map((task) => renderTaskRow(task))}
-                      {sess.canToggle && (
-                        <button
-                          type="button"
-                          className="sb-sess-more"
-                          aria-expanded={!sess.capped}
-                          onClick={() => toggleSessMore(proj.id)}
-                        >
-                          {sess.capped
-                            ? SIDEBAR_PROJECT_COPY.showMoreSessions
-                            : SIDEBAR_PROJECT_COPY.showLessSessions}
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        className="sb-folder-plus"
+                        title={SIDEBAR_PROJECT_COPY.newChatInProject}
+                        aria-label={SIDEBAR_PROJECT_COPY.newChatInProject}
+                        disabled={!connected || renamingThis}
+                        onClick={(e) => onPlus(e, proj.id)}
+                      >
+                        <PlusIcon size={14} />
+                      </button>
                     </div>
-                  )}
-                </div>
-              )
-                })}
-              </div>
-            )}
+                    {hasSess && sess && (
+                      <CurtainFold open={open} className="sb-sess-wrap" stagger>
+                        <div className="sb-sess">
+                          {hasDraft && (
+                            <button
+                              type="button"
+                              className={`sb-item sb-item-draft ${draftActive ? 'is-active' : ''}`}
+                              onClick={() => { closeMenus(); onNewChat(proj.id) }}
+                              title={SIDEBAR_PROJECT_COPY.draftChat}
+                            >
+                              <span className="sb-item-title">{SIDEBAR_PROJECT_COPY.draftChat}</span>
+                            </button>
+                          )}
+                          {sess.visible.map((task) => renderTaskRow(task))}
+                          {sess.canToggle && (
+                            <button
+                              type="button"
+                              className="sb-sess-more"
+                              aria-expanded={!sess.capped}
+                              onClick={() => toggleSessMore(proj.id)}
+                            >
+                              {sess.capped
+                                ? SIDEBAR_PROJECT_COPY.showMoreSessions
+                                : SIDEBAR_PROJECT_COPY.showLessSessions}
+                            </button>
+                          )}
+                        </div>
+                      </CurtainFold>
+                    )}
+                  </div>
+                )
+              })}
+            </CurtainFold>
 
             {pinnedTasks.length > 0 && (
               <>
