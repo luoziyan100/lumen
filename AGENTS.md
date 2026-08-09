@@ -218,3 +218,11 @@ Phase 3 生根:
 维护三层完整，执行回环约束，拒绝孤立变更。
 Keep the map aligned with the terrain, or the terrain will be lost.
 </INVOCATION>
+
+<LUMEN_DELIVERY>
+桌面壳验收闭环(强制,勿再询问):
+- 凡改动 packages/ui-client(含样式/组件/文案)或影响用户可见 UI 的代码:验证通过后必须自行重装并打开 /Applications/Lumen.app,再向用户汇报。
+- 流程: pkill -x Lumen → npm run tauri:build -w packages/ui-client → rm -rf /Applications/Lumen.app && cp -R packages/ui-client/src-tauri/target/release/bundle/macos/Lumen.app /Applications/ → open /Applications/Lumen.app
+- 仅 agent-service 逻辑变更:重装 launchd 服务(npm run launchd:install -w packages/agent-service 或等价),不必 tauri 重装,除非 UI 也动了。
+- 禁止只 commit 不重装就收工;禁止问用户「要不要重装」——默认做。
+</LUMEN_DELIVERY>
