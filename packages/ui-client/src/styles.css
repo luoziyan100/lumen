@@ -33,20 +33,24 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 @keyframes glass-beam-spin {
   to { --glass-beam-angle: 360deg; }
 }
-/* 液态抛光:高光带从左扫到右(非 rim 转圈) */
+/*
+ * 扫光:用 background-position 在「铺满圆角矩形」的层上移动,
+ * 不用 skew 长条 translate——长条进圆角会露矩形硬边,且路程易扫不完。
+ * 渐变画在 220% 宽画布上,亮带居中;从 100%→0% = 从左外完整扫到右外。
+ */
 @keyframes liquid-sheen-sweep {
   0% {
-    transform: translateX(-70%) skewX(-18deg);
+    background-position: 100% 50%;
     opacity: 0;
   }
-  12% { opacity: 0.95; }
-  55% { opacity: 0.75; }
+  8% { opacity: 1; }
+  88% { opacity: 1; }
   100% {
-    transform: translateX(70%) skewX(-18deg);
+    background-position: 0% 50%;
     opacity: 0;
   }
 }
-/* 色散边轻微左右呼吸,仍不转圈 */
+/* 色散边轻微呼吸,仍不转圈 */
 @keyframes liquid-chroma-breathe {
   0%, 100% { opacity: 0.72; filter: saturate(1.05); }
   50% { opacity: 0.95; filter: saturate(1.25); }
@@ -1249,14 +1253,14 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .composer-top { display: flex; align-items: center; }
 /*
  * 液态抛光玻璃(composer 岛内按钮)——对标 inspora 液态球:
- * 体:深色曲面 + 左上固定镜面高光(抛光感)
- * 动:宽高光带左→右扫过(非 conic 沿边转圈)
- * 边:静态色散 rim(青/琥珀),仅呼吸,不转
+ * 体:深色曲面 + 左上固定镜面高光
+ * 动:铺满圆角面的渐变扫光(background-position),贴合 pill/圆钮边界,完整扫过
+ * 边:静态色散 rim,仅呼吸
  */
 .liquid-glass {
   position: relative;
   isolation: isolate;
-  overflow: hidden;
+  overflow: hidden; /* 裁切所有伪层到本元素 border-radius */
   border: 1px solid rgba(255, 255, 255, 0.12);
   background:
     radial-gradient(120% 100% at 28% 12%, rgba(255, 255, 255, 0.38) 0%, rgba(255, 255, 255, 0.08) 28%, transparent 52%),
@@ -1280,32 +1284,34 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
     box-shadow var(--dur-fast) var(--ease-out),
     transform var(--dur-fast) var(--ease-out);
 }
-/* 扫光带:左→右液态流动 */
+/* 扫光:inset 0 继承圆角,渐变在超宽画布上移动——贴合边界且扫完整段 */
 .liquid-glass::before {
   content: '';
   position: absolute;
-  top: -40%;
-  bottom: -40%;
-  left: 0;
-  width: 55%;
+  inset: 0;
   border-radius: inherit;
-  background: linear-gradient(
-    100deg,
+  background-image: linear-gradient(
+    105deg,
     transparent 0%,
-    rgba(255, 255, 255, 0.02) 28%,
-    rgba(255, 255, 255, 0.14) 42%,
-    rgba(255, 255, 255, 0.55) 50%,
-    rgba(160, 210, 255, 0.28) 54%,
-    rgba(255, 190, 140, 0.12) 60%,
-    transparent 72%,
+    transparent 38%,
+    rgba(255, 255, 255, 0.03) 44%,
+    rgba(255, 255, 255, 0.18) 48%,
+    rgba(255, 255, 255, 0.58) 50.5%,
+    rgba(170, 215, 255, 0.32) 53%,
+    rgba(255, 195, 150, 0.12) 56%,
+    transparent 62%,
     transparent 100%
   );
-  animation: liquid-sheen-sweep 3.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  /* 250%:亮带在画布中点,0%/100% 定位时分别完全在右/左外侧,保证扫完整段 */
+  background-size: 250% 100%;
+  background-repeat: no-repeat;
+  background-position: 100% 50%;
+  animation: liquid-sheen-sweep 3.6s cubic-bezier(0.45, 0, 0.2, 1) infinite;
   pointer-events: none;
   z-index: 0;
   mix-blend-mode: screen;
 }
-/* 色散边:固定多色描边(青→紫→琥珀),呼吸不转圈 */
+/* 色散边:固定多色描边,呼吸不转圈 */
 .liquid-glass::after {
   content: '';
   position: absolute;
@@ -1350,7 +1356,7 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
     0 12px 28px -12px rgba(0, 0, 0, 0.6);
 }
 .liquid-glass:hover:not(:disabled)::before {
-  animation-duration: 2.2s;
+  animation-duration: 2.4s;
 }
 .liquid-glass:disabled {
   opacity: 0.4;
@@ -1366,10 +1372,8 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   .liquid-glass::before,
   .liquid-glass::after { animation: none; }
   .liquid-glass::before {
-    transform: translateX(0) skewX(-12deg);
-    opacity: 0.35;
-    width: 40%;
-    left: 20%;
+    background-position: 40% 50%;
+    opacity: 0.4;
   }
 }
 
