@@ -1,6 +1,6 @@
 /**
  * [INPUT]: border-beam;icons;ASK_USER_COPY;SKILLS_COPY;ImageData;composerAccept;SkillSlashMenu;父级传入
- * [OUTPUT]: ComposerCard —— Border Beam 暗玻璃对话输入卡;液态玻璃控件;+/Skills;/ 斜杠;模型芯片;拖放文件;待发图可放大
+ * [OUTPUT]: ComposerCard —— Border Beam 暗玻璃对话输入卡;液态抛光控件(左→右扫光,非 rim 转圈);+/Skills;/ 斜杠;模型芯片;拖放文件;待发图可放大
  * [POS]: 贴 composer-dock;仅改输入岛,不染暖纸消息流;见 doc/ui-design.md §0
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */

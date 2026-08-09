@@ -30,16 +30,26 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   inherits: false;
   initial-value: 0deg;
 }
-@property --liquid-angle {
-  syntax: '<angle>';
-  inherits: false;
-  initial-value: 0deg;
-}
 @keyframes glass-beam-spin {
   to { --glass-beam-angle: 360deg; }
 }
-@keyframes liquid-rim-flow {
-  to { --liquid-angle: 360deg; }
+/* 液态抛光:高光带从左扫到右(非 rim 转圈) */
+@keyframes liquid-sheen-sweep {
+  0% {
+    transform: translateX(-70%) skewX(-18deg);
+    opacity: 0;
+  }
+  12% { opacity: 0.95; }
+  55% { opacity: 0.75; }
+  100% {
+    transform: translateX(70%) skewX(-18deg);
+    opacity: 0;
+  }
+}
+/* 色散边轻微左右呼吸,仍不转圈 */
+@keyframes liquid-chroma-breathe {
+  0%, 100% { opacity: 0.72; filter: saturate(1.05); }
+  50% { opacity: 0.95; filter: saturate(1.25); }
 }
 
 /* ---- Glass Card:毛玻璃 + 双边反射(侧栏菜单 / 模型卡)
@@ -1237,20 +1247,32 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   pointer-events: none;
 }
 .composer-top { display: flex; align-items: center; }
-/* 液态玻璃控件:磨砂底 + 高光内缘 + 虹彩边流动(体验用,composer 岛内按钮) */
+/*
+ * 液态抛光玻璃(composer 岛内按钮)——对标 inspora 液态球:
+ * 体:深色曲面 + 左上固定镜面高光(抛光感)
+ * 动:宽高光带左→右扫过(非 conic 沿边转圈)
+ * 边:静态色散 rim(青/琥珀),仅呼吸,不转
+ */
 .liquid-glass {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(14px) saturate(1.45);
-  -webkit-backdrop-filter: blur(14px) saturate(1.45);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    radial-gradient(120% 100% at 28% 12%, rgba(255, 255, 255, 0.38) 0%, rgba(255, 255, 255, 0.08) 28%, transparent 52%),
+    radial-gradient(90% 80% at 78% 92%, rgba(0, 0, 0, 0.45) 0%, transparent 58%),
+    linear-gradient(165deg,
+      rgba(255, 255, 255, 0.14) 0%,
+      rgba(48, 52, 62, 0.55) 38%,
+      rgba(18, 20, 26, 0.72) 100%);
+  backdrop-filter: blur(16px) saturate(1.55);
+  -webkit-backdrop-filter: blur(16px) saturate(1.55);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.42) inset,
-    0 -1px 0 rgba(0, 0, 0, 0.28) inset,
-    0 10px 24px -12px rgba(0, 0, 0, 0.55),
-    0 0 18px -10px rgba(94, 240, 208, 0.28);
+    0 1.5px 0 rgba(255, 255, 255, 0.5) inset,
+    0 -3px 10px rgba(0, 0, 0, 0.4) inset,
+    0 0 0 0.5px rgba(255, 255, 255, 0.06),
+    0 0 20px -8px rgba(100, 180, 255, 0.28),
+    0 10px 24px -12px rgba(0, 0, 0, 0.55);
   transition:
     background var(--dur-fast) var(--ease-out),
     color var(--dur-fast) var(--ease-out),
@@ -1258,21 +1280,45 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
     box-shadow var(--dur-fast) var(--ease-out),
     transform var(--dur-fast) var(--ease-out);
 }
+/* 扫光带:左→右液态流动 */
 .liquid-glass::before {
+  content: '';
+  position: absolute;
+  top: -40%;
+  bottom: -40%;
+  left: 0;
+  width: 55%;
+  border-radius: inherit;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.02) 28%,
+    rgba(255, 255, 255, 0.14) 42%,
+    rgba(255, 255, 255, 0.55) 50%,
+    rgba(160, 210, 255, 0.28) 54%,
+    rgba(255, 190, 140, 0.12) 60%,
+    transparent 72%,
+    transparent 100%
+  );
+  animation: liquid-sheen-sweep 3.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
+  z-index: 0;
+  mix-blend-mode: screen;
+}
+/* 色散边:固定多色描边(青→紫→琥珀),呼吸不转圈 */
+.liquid-glass::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: conic-gradient(
-    from var(--liquid-angle),
-    transparent 0%,
-    rgba(94, 240, 208, 0.85) 12%,
-    rgba(120, 180, 255, 0.75) 22%,
-    rgba(167, 139, 250, 0.9) 34%,
-    rgba(253, 230, 138, 0.8) 48%,
-    transparent 58%,
-    transparent 100%
+  background: linear-gradient(
+    125deg,
+    rgba(255, 255, 255, 0.65) 0%,
+    rgba(120, 200, 255, 0.7) 22%,
+    rgba(180, 140, 255, 0.45) 48%,
+    rgba(255, 180, 110, 0.55) 72%,
+    rgba(255, 255, 255, 0.25) 100%
   );
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
@@ -1282,28 +1328,49 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
     linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
-  animation: liquid-rim-flow 2.8s linear infinite;
+  animation: liquid-chroma-breathe 4.2s ease-in-out infinite;
   pointer-events: none;
   z-index: 0;
 }
 .liquid-glass > * { position: relative; z-index: 1; }
 .liquid-glass:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.28);
+  background:
+    radial-gradient(120% 100% at 28% 12%, rgba(255, 255, 255, 0.48) 0%, rgba(255, 255, 255, 0.12) 30%, transparent 54%),
+    radial-gradient(90% 80% at 78% 92%, rgba(0, 0, 0, 0.38) 0%, transparent 58%),
+    linear-gradient(165deg,
+      rgba(255, 255, 255, 0.2) 0%,
+      rgba(56, 60, 72, 0.6) 40%,
+      rgba(22, 24, 32, 0.75) 100%);
+  border-color: rgba(255, 255, 255, 0.22);
   box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.5) inset,
-    0 -1px 0 rgba(0, 0, 0, 0.22) inset,
-    0 12px 28px -12px rgba(0, 0, 0, 0.6),
-    0 0 28px -8px rgba(167, 139, 250, 0.35);
+    0 1.5px 0 rgba(255, 255, 255, 0.58) inset,
+    0 -3px 10px rgba(0, 0, 0, 0.35) inset,
+    0 0 0 0.5px rgba(255, 255, 255, 0.1),
+    0 0 28px -6px rgba(140, 170, 255, 0.4),
+    0 12px 28px -12px rgba(0, 0, 0, 0.6);
+}
+.liquid-glass:hover:not(:disabled)::before {
+  animation-duration: 2.2s;
 }
 .liquid-glass:disabled {
   opacity: 0.4;
   cursor: default;
   box-shadow: none;
 }
-.liquid-glass:disabled::before { animation: none; opacity: 0.35; }
+.liquid-glass:disabled::before,
+.liquid-glass:disabled::after {
+  animation: none;
+  opacity: 0.28;
+}
 @media (prefers-reduced-motion: reduce) {
-  .liquid-glass::before { animation: none; }
+  .liquid-glass::before,
+  .liquid-glass::after { animation: none; }
+  .liquid-glass::before {
+    transform: translateX(0) skewX(-12deg);
+    opacity: 0.35;
+    width: 40%;
+    left: 20%;
+  }
 }
 
 .composer-at {
