@@ -21,8 +21,8 @@
 - `TodoCard.tsx` — 会话 Todo 次要卡(`todo_write`→`kind:'todo'`);主呈现右轨 Progress(见 `doc/todo.md`)
 - `AskUserDialog.tsx` — `ask_user` 输入框上方悬浮问询卡;「其他」为幽灵 placeholder 真输入(非实心堵光标);见 `doc/ask-user.md`
 - `ComposerCard.tsx` — 对话输入暗玻璃岛;`+` Skills 子菜单;/ 斜杠浮层;模型芯片;拖放文件;液态玻璃控件(`.liquid-glass`);待发图点开放大;见 `doc/ui-design.md` §0
-- `SkillSlashMenu.tsx` — `/` 过滤 Skills + Manage 入口
-- `ManageSkillsDialog.tsx` — Manage skills:列表/添加文件夹·SKILL.md/卸载(Kumo Dialog,禁 glass-beam)
+- `SkillSlashMenu.tsx` — `/` 过滤 Skills + Manage 入口;行左 `SkillIcon`,Manage 用公文包
+- `ManageSkillsDialog.tsx` — Manage skills:列表/添加文件夹·SKILL.md/卸载(Kumo Dialog,禁 glass-beam);行左 `SkillIcon`
 - `CollapsibleUserText.tsx` — 用户超长 prompt 默认折叠(>9 行或 >750 字);预览 clamp + `CurtainFold` 揭开全文;助手消息不折
 - `MsgFileChips.tsx` — 用户气泡附件 chip(上传知情 S4);点开读阅读器;见 `doc/upload-awareness.md`
 - `ThinkingIndicator.tsx` — 模型等待态(尚无过程行/尚无流式正文):`StatusOrb` breathing +「思考中」;正文 `streaming` 时不叠;侧栏 sb-dot 仍脉冲点
@@ -30,7 +30,7 @@
 - `MermaidBlock.tsx` — mermaid.js 动态加载;securityLevel=strict;主题读青瓷 token;悬停工具条放大/复制源码;失败回退源码
 - `widget/` — 对话网页沙箱(`show-widget` 围栏 → iframe);见 `widget/CLAUDE.md`
 - `hljs-celadon.css` — highlight.js 青瓷主题:消费 tokens.css 的 --code-* 语法色板
-- `icons.tsx` — **图标唯一入口**:re-export @phosphor-icons/react(Kumo 同源家族)并统一缺省尺寸;组件不得绕过它直接 import phosphor;不用 emoji;`FolderIcon` 接受 `open` → FolderSimple/FolderOpen;`ChevronIcon`(树左 CaretRight)/`SectionChevronIcon`(区右 CaretDown)
+- `icons.tsx` — **图标唯一入口**:re-export @phosphor-icons/react(Kumo 同源家族)并统一缺省尺寸;组件不得绕过它直接 import phosphor;不用 emoji;`FolderIcon` 接受 `open` → FolderSimple/FolderOpen;`ChevronIcon`(树左 CaretRight)/`SectionChevronIcon`(区右 CaretDown);Skills:`skillGlyphForName`/`SkillIcon`/`ManageSkillsIcon`(Briefcase,非齿轮)
 
 ## 规则
 

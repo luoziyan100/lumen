@@ -12,7 +12,7 @@ import { Tooltip } from '@cloudflare/kumo/components/tooltip'
 import type { ImageData, SkillInfo } from '../agent-client'
 import { ASK_USER_COPY, SKILLS_COPY } from '../appCopy'
 import { dragHasFiles, filterComposerFiles } from '../composerAccept'
-import { AtGlyph, CheckIcon, ChevronDownIcon, CloseIcon, FileTextGlyph, GearGlyph, PdfIcon, PlusIcon, SendIcon } from './icons'
+import { AtGlyph, BriefcaseGlyph, CheckIcon, ChevronDownIcon, CloseIcon, GearGlyph, PdfIcon, PlusIcon, SendIcon, SkillGlyph, skillGlyphForName } from './icons'
 import { SkillSlashMenu } from './SkillSlashMenu'
 import { parseSlashFilter } from '../skillSlash'
 
@@ -245,7 +245,7 @@ export function ComposerCard({
                 {SKILLS_COPY.menuAddFiles}
               </DropdownMenu.Item>
               <DropdownMenu.Sub>
-                <DropdownMenu.SubTrigger icon={FileTextGlyph}>
+                <DropdownMenu.SubTrigger icon={SkillGlyph}>
                   {SKILLS_COPY.menuSkills}
                 </DropdownMenu.SubTrigger>
                 <DropdownMenu.SubContent align="start" side="right" sideOffset={4} className="glass-card">
@@ -255,12 +255,13 @@ export function ComposerCard({
                   {skills.map((s) => (
                     <DropdownMenu.Item
                       key={`m-${s.layer}-${s.name}`}
+                      icon={skillGlyphForName(s.name)}
                       onClick={() => onActivateSkill(s.name)}
                     >
                       {s.name}
                     </DropdownMenu.Item>
                   ))}
-                  <DropdownMenu.Item icon={GearGlyph} onClick={onOpenManageSkills}>
+                  <DropdownMenu.Item icon={BriefcaseGlyph} onClick={onOpenManageSkills}>
                     {SKILLS_COPY.manageItem}
                   </DropdownMenu.Item>
                 </DropdownMenu.SubContent>

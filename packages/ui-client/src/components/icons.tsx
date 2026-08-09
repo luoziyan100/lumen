@@ -1,10 +1,17 @@
 /** 图标唯一入口:一律 @phosphor-icons/react(Kumo 同源家族),经此单点 re-export。
  *  [INPUT]: @phosphor-icons/react;doc/ui-design.md §3.1
- *  [OUTPUT]: ICON_* + Panel/Folder/Chevron/SectionChevron/FileType 等统一出口
- *  [POS]: components 图标单点;树左 ChevronIcon(CaretRight)、区右 SectionChevronIcon(CaretDown)
+ *  [OUTPUT]: ICON_* + Panel/Folder/Chevron/SectionChevron/FileType/Skill 等统一出口
+ *  [POS]: components 图标单点;树左 ChevronIcon(CaretRight)、区右 SectionChevronIcon(CaretDown);
+ *        Skills 菜单:条目用 skillGlyphForName,Manage 用 Briefcase(对齐 Claude)
  *  [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *  规范:三档尺寸 + weight 全站统一 regular;禁手写 SVG / 字符凑图标 / emoji / 绕过本文件。 */
-import { Archive, ArrowDown, ArrowUp, ArrowsOut, At, CaretDown, CaretLeft, CaretRight, ChatCircle, Check, Copy, File, FileCode, FileCsv, FileDoc, FileHtml, FileImage, FilePdf, FilePpt, FileText, FileZip, FolderOpen, FolderSimple, Gear, MagnifyingGlass, Minus, PencilSimple, Play, Plus, PushPin, PushPinSlash, SidebarSimple, Trash, User, X } from '@phosphor-icons/react'
+import {
+  Archive, ArrowDown, ArrowUp, ArrowsOut, At, BookOpen, Brain, Briefcase, CalendarBlank, CaretDown, CaretLeft, CaretRight,
+  ChatCircle, Check, Code, Copy, File, FileCode, FileCsv, FileDoc, FileHtml, FileImage, FilePdf, FilePpt, FileText, FileZip,
+  FolderOpen, FolderSimple, Gear, MagnifyingGlass, Minus, Palette, PencilSimple, Play, Plus, PushPin, PushPinSlash,
+  Question, Scroll, SidebarSimple, Stack, Trash, User, Wrench, X,
+  type Icon,
+} from '@phosphor-icons/react'
 
 // 尺寸三档:行内(列表/标签内) / 按钮内 / 导航按钮
 export const ICON_SM = 16
@@ -185,7 +192,48 @@ export function RenameIcon({ size = ICON_SM }: { size?: number }) {
 }
 
 /** Kumo DropdownMenu.Item 的 icon= 要 phosphor 组件引用 */
-export { Archive as ArchiveGlyph, At as AtGlyph, Copy as CopyGlyph, FileText as FileTextGlyph, Gear as GearGlyph, PencilSimple as RenameGlyph, PushPin as PinGlyph, PushPinSlash as UnpinGlyph }
+export {
+  Archive as ArchiveGlyph,
+  At as AtGlyph,
+  Briefcase as BriefcaseGlyph,
+  Copy as CopyGlyph,
+  FileText as FileTextGlyph,
+  Gear as GearGlyph,
+  PencilSimple as RenameGlyph,
+  PushPin as PinGlyph,
+  PushPinSlash as UnpinGlyph,
+  Scroll as SkillGlyph,
+}
+
+/**
+ * Skills 条目图标(Claude 式:每行左侧 glyph)。
+ * 按 name 关键字映射,未知 skill 回落 Scroll(工作流卷轴,区别于普通 FileText 附件)。
+ * Kumo `icon=` 要组件引用 → 用本函数;JSX 用 `SkillIcon`。
+ */
+export function skillGlyphForName(name: string): Icon {
+  const n = name.toLowerCase()
+  if (/paper|read|pdf|doc|journal|arxiv/.test(n)) return BookOpen
+  if (/schedul|calendar|cron|remind|time/.test(n)) return CalendarBlank
+  if (/design|ui|visual|draw|palette/.test(n)) return Palette
+  if (/memory|remember|consolidat/.test(n)) return Brain
+  if (/context|stack|window/.test(n)) return Stack
+  if (/setup|install|config|cowork|init/.test(n)) return Wrench
+  if (/explain|usage|help|how|faq/.test(n)) return Question
+  if (/search|web|fetch|find|lookup/.test(n)) return MagnifyingGlass
+  if (/code|script|run|exec/.test(n)) return Code
+  return Scroll
+}
+
+/** Skills 列表行内图标 */
+export function SkillIcon({ name, size = ICON_SM }: { name: string; size?: number }) {
+  const Glyph = skillGlyphForName(name)
+  return <Glyph size={size} />
+}
+
+/** Manage skills:公文包(对齐 Claude;非齿轮——齿轮留给设置/模型) */
+export function ManageSkillsIcon({ size = ICON_SM }: { size?: number }) {
+  return <Briefcase size={size} />
+}
 
 /** 流程图放大查看 */
 export function ExpandIcon({ size = ICON_SM }: { size?: number }) {

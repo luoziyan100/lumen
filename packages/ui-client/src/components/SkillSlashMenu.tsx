@@ -6,7 +6,7 @@
  */
 import type { SkillInfo } from '../agent-client'
 import { SKILLS_COPY } from '../appCopy'
-import { FileTextIcon, GearGlyph } from './icons'
+import { ManageSkillsIcon, SkillIcon } from './icons'
 
 export function SkillSlashMenu({
   skills,
@@ -43,7 +43,7 @@ export function SkillSlashMenu({
               onMouseEnter={() => onHighlight(i)}
               onClick={() => onPickSkill(s)}
             >
-              <FileTextIcon size={16} />
+              <SkillIcon name={s.name} size={16} />
               <span className="skill-slash-name">{s.name}</span>
               <span className="skill-slash-desc">{s.description}</span>
             </button>
@@ -55,7 +55,7 @@ export function SkillSlashMenu({
       </ul>
       <div className="skill-slash-sep" />
       <button type="button" className="skill-slash-item skill-slash-manage" onClick={onManage}>
-        <GearGlyph size={16} />
+        <ManageSkillsIcon size={16} />
         <span className="skill-slash-name">{SKILLS_COPY.manageItem}</span>
       </button>
     </div>

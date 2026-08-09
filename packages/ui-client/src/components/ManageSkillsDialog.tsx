@@ -10,7 +10,7 @@ import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
 import type { SkillInfo, SkillInstallScope } from '../agent-client'
 import { SKILLS_COPY } from '../appCopy'
 import { pickSkillFile, pickSkillFolder } from '../pickSkillPath'
-import { ChevronDownIcon, CloseIcon, FileTextIcon, PlusIcon, TrashIcon } from './icons'
+import { ChevronDownIcon, CloseIcon, PlusIcon, SkillIcon, TrashIcon } from './icons'
 
 function layerLabel(layer: SkillInfo['layer']): string {
   if (layer === 'user') return SKILLS_COPY.layerUser
@@ -119,7 +119,7 @@ export function ManageSkillsDialog({
           {skills.length === 0 && <li className="skills-manage-empty">{SKILLS_COPY.empty}</li>}
           {skills.map((s) => (
             <li key={`${s.layer}:${s.name}`} className="skills-manage-row">
-              <FileTextIcon size={18} />
+              <SkillIcon name={s.name} size={18} />
               <div className="skills-manage-meta">
                 <span className="skills-manage-name">{s.name}</span>
                 <span className="skills-manage-desc">{s.description}</span>
