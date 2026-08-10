@@ -35,3 +35,23 @@ export {
   type WorktreeResult,
 } from './worktree.ts'
 export { rebuildChildThread, type RebuildChildOptions } from './child-resume.ts'
+export {
+  discoverAgents,
+  parseAgentMarkdown,
+  buildAgentDiscoverRoots,
+  defaultUserAgentsDir,
+  type DiscoveredAgent,
+  type AgentLayer,
+  type AgentDiscoverRoots,
+} from './discovery.ts'
+export {
+  mergeAgentRegistry,
+  listCallableAgents,
+  listAllAgents,
+  resolveFromRegistry,
+  loadToggles,
+  saveToggles,
+  setAgentToggle,
+  defaultTogglesPath,
+  type AgentToggleMap,
+} from './registry.ts'

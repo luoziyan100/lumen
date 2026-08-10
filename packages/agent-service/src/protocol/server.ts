@@ -226,6 +226,29 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
             : { type: 'error', message: 'kill_subagent failed: not found' })
         }
         break
+      case 'list_agent_types': {
+        const agents = runtime.listAgentTypes(message.projectId).map((a) => ({
+          name: a.name,
+          description: a.description,
+          layer: a.layer,
+          disabled: a.disabled,
+          defaultCapability: a.defaultCapability,
+        }))
+        send({ type: 'agent_types', projectId: message.projectId, agents })
+        break
+      }
+      case 'set_agent_type_disabled': {
+        runtime.setAgentTypeDisabled(message.name, message.disabled)
+        const agents = runtime.listAgentTypes(message.projectId).map((a) => ({
+          name: a.name,
+          description: a.description,
+          layer: a.layer,
+          disabled: a.disabled,
+          defaultCapability: a.defaultCapability,
+        }))
+        send({ type: 'agent_types', projectId: message.projectId, agents })
+        break
+      }
       case 'archive_task': {
         if (!ownsTask(message.taskId, message.projectId)) { send({ type: 'error', message: 'forbidden' }); break }
         const archived = runtime.archiveTask(message.taskId)

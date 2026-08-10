@@ -64,6 +64,16 @@ import { ChildRunner } from '../subagent/runner.ts'
 import { createSubagentTools } from '../tools/env/subagent-tools.ts'
 import { resumeAllowed, type SubagentRecord } from '../subagent/types.ts'
 import type { SubagentInfo } from '../protocol/messages.ts'
+import {
+  buildAgentDiscoverRoots,
+  defaultTogglesPath,
+  listAllAgents,
+  listCallableAgents,
+  loadToggles,
+  mergeAgentRegistry,
+  setAgentToggle,
+  type DiscoveredAgent,
+} from '../subagent/index.ts'
 import { openDatabase, type DB } from '../storage/db.ts'
 import { mkdirSync } from 'node:fs'
 import * as nodePath from 'node:path'
@@ -469,6 +479,33 @@ export class AgentRuntime {
     if (!rec || rec.parent_task_id !== taskId) return false
     this.subagents.kill(subagentId, 'ui_kill')
     return true
+  }
+
+  /** T8：项目可见 agent 类型（含 disabled 标记） */
+  listAgentTypes(projectId: string): DiscoveredAgent[] {
+    return listAllAgents(this.agentRegistryForProject(projectId))
+  }
+
+  /** 可 spawn 的类型名 */
+  listCallableAgentNames(projectId: string): string[] {
+    return listCallableAgents(this.agentRegistryForProject(projectId)).map((a) => a.name)
+  }
+
+  /** toggle：disabled=true 禁用（不可 spawn / 不可见于 callable） */
+  setAgentTypeDisabled(name: string, disabled: boolean): DiscoveredAgent[] {
+    setAgentToggle(defaultTogglesPath(), name, disabled)
+    // 返回 default 项目视图（caller 可再 listAgentTypes）
+    return this.listAgentTypes('default')
+  }
+
+  private agentRegistryForProject(projectId: string): Map<string, DiscoveredAgent> {
+    const source = this.cfg.projects?.getProject(projectId)?.source_path
+    const roots = buildAgentDiscoverRoots({
+      workspacesDir: this.cfg.workspacesDir,
+      projectId,
+      sourcePath: source,
+    })
+    return mergeAgentRegistry(roots, loadToggles(defaultTogglesPath()))
   }
 
   /** 软归档:若在跑先 cancel,再写 archived_at;列表不再返回 */
@@ -916,6 +953,7 @@ export class AgentRuntime {
       roles: this.cfg.roles ?? {},
       maxDepth: limits.maxDepth,
       worktreeRoot: this.subagents.config.worktree_root,
+      agentRegistry: this.agentRegistryForProject(task.project_id),
       resolveGitRoot: (parentTaskId) => {
         // 项目 source_path 优先；无 git 则 null → worktree spawn 显式失败
         const t = this.cfg.store.getTask(parentTaskId)

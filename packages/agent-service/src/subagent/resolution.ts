@@ -25,6 +25,8 @@ export interface AgentDefinition {
   systemPrompt: string
   /** 显式工具名白名单；空 = 仅 kindPreset */
   toolNames?: string[]
+  /** T8：frontmatter/disabled；registry 再叠 toggle */
+  disabled?: boolean
 }
 
 /** explore：只读勘察 */
@@ -124,6 +126,10 @@ export function listBuiltinNames(): string[] {
   return BUILTIN_DEFINITIONS.map((d) => d.name)
 }
 
+/**
+ * 仅查 builtin（兼容旧调用）。
+ * 生产路径请用 registry.resolveFromRegistry（含发现 + toggle）。
+ */
 export function resolveAgentDefinition(name: string): AgentDefinition | null {
   return BY_NAME.get(name) ?? null
 }

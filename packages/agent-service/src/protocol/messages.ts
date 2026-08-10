@@ -61,6 +61,8 @@ export type ClientMessage =
   | { type: 'cancel_turn'; taskId: string; projectId?: string }
   | { type: 'list_subagents'; taskId: string; projectId?: string }
   | { type: 'kill_subagent'; taskId: string; subagentId: string; projectId?: string }
+  | { type: 'list_agent_types'; projectId: string }
+  | { type: 'set_agent_type_disabled'; projectId: string; name: string; disabled: boolean }
   | { type: 'archive_task'; taskId: string; projectId?: string }
   | { type: 'rename_task'; taskId: string; title: string; projectId?: string }
   | { type: 'pin_task'; taskId: string; projectId?: string }
@@ -95,6 +97,17 @@ export type ServerMessage =
   | { type: 'asset'; path: string; content: string }
   | { type: 'skills'; skills: SkillInfo[] }
   | { type: 'subagents'; taskId: string; subagents: SubagentInfo[] }
+  | {
+      type: 'agent_types'
+      projectId: string
+      agents: Array<{
+        name: string
+        description: string
+        layer: string
+        disabled: boolean
+        defaultCapability: string
+      }>
+    }
   | { type: 'settings'; settings: PublicSettings }
   | { type: 'ok'; taskId?: string }
   | { type: 'error'; message: string }

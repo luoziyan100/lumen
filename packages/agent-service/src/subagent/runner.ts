@@ -21,6 +21,8 @@ import {
   resolveAgentDefinition,
   type AgentDefinition,
 } from './resolution.ts'
+import type { DiscoveredAgent } from './discovery.ts'
+import { resolveFromRegistry } from './registry.ts'
 import { isWriteCapableToolset } from './tool-kind.ts'
 import { rebuildChildThread } from './child-resume.ts'
 import {
@@ -62,6 +64,8 @@ export interface ChildRunnerDeps {
   resolveGitRoot?: (parentTaskId: string) => string | null | Promise<string | null>
   /** worktree 父目录；默认 config.worktree_root */
   worktreeRoot?: string
+  /** T8：合并后的 agent registry；缺省仅 builtin */
+  agentRegistry?: Map<string, DiscoveredAgent>
 }
 
 export interface StartChildInput {
@@ -117,12 +121,20 @@ export class ChildRunner {
    * background=false：仍立即返回 id，调用方可 wait(id) 阻塞至终态或 demote。
    */
   async start(input: StartChildInput): Promise<SpawnImmediateResult & { handle?: ChildRunHandle }> {
-    const def = input.definition ?? resolveAgentDefinition(input.subagent_type)
+    let def: AgentDefinition | null = input.definition ?? null
+    if (!def) {
+      if (this.deps.agentRegistry) {
+        // 有 registry 时禁止回落 builtin：disabled 必须硬拒绝
+        def = resolveFromRegistry(this.deps.agentRegistry, input.subagent_type)
+      } else {
+        def = resolveAgentDefinition(input.subagent_type)
+      }
+    }
     if (!def) {
       return {
         success: false,
         error_code: SUBAGENT_ERROR.TYPE_UNKNOWN,
-        error: `unknown subagent_type "${input.subagent_type}"`,
+        error: `unknown or disabled subagent_type "${input.subagent_type}"`,
       }
     }
 
