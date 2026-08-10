@@ -1,7 +1,7 @@
 /**
  * [INPUT]: thinking-orbs ThinkingOrb
  * [OUTPUT]: StatusOrb —— 行内 20px 点云球(用库原生 size=20 预设,各态点距已调过)
- * [POS]: ThinkingIndicator / ProcessRow 共用;theme 钉 dark 适配玻璃壳
+ * [POS]: ProcessRow 工具过程态;思考中已改用 generative-loaders aperture
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { ThinkingOrb, type OrbState } from 'thinking-orbs'

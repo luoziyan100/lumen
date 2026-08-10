@@ -1196,12 +1196,21 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 }
 .bubble-status { align-self: flex-start; color: var(--ink-mute); font-size: var(--t-body-sm); }
 
-/* ---- 思考/过程态:thinking-orbs(StatusOrb 原生 size=20) ---- */
+/* ---- 思考态:generative-loaders aperture(32);过程态 StatusOrb 仍 20 ---- */
 .think-status {
   display: inline-flex; align-items: center; gap: var(--s-3);
-  padding: 4px 0;
+  padding: 2px 0;
 }
-.think-orb,
+.think-aperture {
+  display: inline-flex;
+  flex: none;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  /* 对齐玻璃壳浅墨;InlineLoader 吃 currentColor / --il-color */
+  color: var(--ink-soft);
+}
 .proc-orb {
   display: block;
   flex: none;
