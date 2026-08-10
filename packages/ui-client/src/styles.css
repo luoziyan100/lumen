@@ -1986,32 +1986,54 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   overflow-x: auto; font-size: var(--t-body-sm); line-height: 1.55;
 }
 .mermaid-source code { background: none; padding: 0; font-family: var(--font-mono); }
-/* 放大层:可滚动看清密图;Esc / 点遮罩关闭 */
+/* 放大层:Cursor 式 — 深色实遮罩 + 图在视口中心;Esc / 点遮罩关闭 */
 .mermaid-lightbox {
   position: fixed; inset: 0; z-index: var(--z-modal);
-  display: flex; flex-direction: column;
-  background: color-mix(in srgb, var(--ink) 45%, transparent);
-  padding: var(--s-4);
+  display: flex; align-items: center; justify-content: center;
+  /* 不用浅 ink 混透明:暗 UI 下会发灰透出聊天 */
+  background: rgba(8, 10, 14, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: var(--s-6);
+  cursor: zoom-out;
 }
 .mermaid-lightbox-bar {
-  flex: none; align-self: center; display: flex; align-items: center; gap: var(--s-2);
-  margin-bottom: var(--s-3); padding: 4px 6px 4px 12px;
-  background: var(--card); border: 1px solid var(--sand); border-radius: 999px;
+  position: absolute; top: var(--s-5); left: 50%; transform: translateX(-50%);
+  z-index: 1;
+  display: flex; align-items: center; gap: var(--s-2);
+  padding: 4px 6px 4px 12px;
+  background: rgba(28, 30, 38, 0.92); border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
   box-shadow: var(--shadow-2);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  cursor: default;
 }
 .mermaid-lightbox-title {
   font-size: var(--t-caption); color: var(--ink-mute); font-family: var(--font-sans);
   margin-right: var(--s-2);
 }
 .mermaid-lightbox-body {
-  flex: 1; min-height: 0; overflow: auto;
-  background: var(--paper-solid); border: 1px solid var(--sand);
-  border-radius: var(--radius-lg); padding: var(--s-6);
+  /* 居中舞台:不占满整屏顶对齐,内容在框内再居中 */
+  flex: none;
+  display: flex; align-items: center; justify-content: center;
+  max-width: min(94vw, 1280px);
+  max-height: min(82vh, 900px);
+  overflow: auto;
+  padding: var(--s-6);
+  background: rgba(16, 18, 24, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-3);
+  cursor: default;
 }
 .mermaid-lightbox-body svg {
-  display: block; margin: 0 auto;
-  max-width: none; width: max(100%, 960px); height: auto;
+  display: block;
+  margin: auto;
+  max-width: 100%;
+  max-height: min(76vh, 840px);
+  width: auto;
+  height: auto;
 }
 .md-body blockquote { margin: 0.9em 0; padding-left: var(--s-4); border-left: 3px solid var(--sand-deep); color: var(--ink-soft); }
 .md-body hr { border: none; border-top: 1px solid var(--sand); margin: 1.4em 0; }

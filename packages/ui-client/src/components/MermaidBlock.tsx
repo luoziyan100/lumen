@@ -6,6 +6,7 @@
  *
  * 渲染前 sanitizeMermaidSource:语义 class 映射 + 字面色对比度门禁;theme dark+darkMode。
  * 复制按钮始终给用户/模型原文,改写只服务可读像素。
+ * 放大层:深色实遮罩 + 视口居中(对齐 Cursor),见 styles.css .mermaid-lightbox*
  */
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
