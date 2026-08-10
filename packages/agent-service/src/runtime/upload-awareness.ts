@@ -1,8 +1,9 @@
 /**
- * [INPUT]: 无运行时依赖;消费 UploadRef(上传回执/协议字段)
- * [OUTPUT]: UploadRef / formatUploadAnnex / userContentForModel / parseUploads
- * [POS]: 上传知情(S4,见 doc/upload-awareness.md);rebuildThread 与 submit/continue 共用,
- *        保证落库的 display content 与喂给模型的附言可分离重建
+ * [INPUT]: 无运行时依赖;消费 UploadRef / activePath(协议字段)
+ * [OUTPUT]: UploadRef / formatUploadAnnex / formatActivePathAnnex / userContentForModel /
+ *           parseUploads / sanitizeActivePath / isBindableActivePath
+ * [POS]: 上传知情(S4)+产物闭环当前稿(见 briefs/active/artifact-loop-P0.md);
+ *        rebuildThread 与 submit/continue 共用,落库 display content 与机读附言可分离重建
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 
@@ -16,8 +17,62 @@ export interface UploadRef {
   extractPath?: string
 }
 
+/** 拼装 user 机读 content 时的可选附言块 */
+export interface UserContentAnnex {
+  uploads?: UploadRef[]
+  /** 已通过 sanitizeActivePath 的可写文本路径 */
+  activePath?: string | null
+}
+
+/** 可绑为「当前稿」的文本扩展名(可 read_file + write/edit) */
+const BINDABLE_TEXT_EXT = new Set([
+  'md', 'markdown', 'txt', 'csv', 'json', 'jsonl', 'xml', 'yaml', 'yml', 'tex',
+  'py', 'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'sh', 'css', 'html', 'htm', 'rs', 'go', 'java',
+])
+
 const ANNEX_HEADER =
   '# 本回合上传的附件（已在会话工作区，可直接用工具读写；勿说「你没附上」或去找 img-N，除非本回合另附了图片）'
+
+const ACTIVE_PATH_HEADER = '# 当前稿'
+
+/** 规范化工作区相对路径;非法返回 null */
+export function normalizeWorkspaceRelPath(raw: string): string | null {
+  let p = raw.trim().replace(/\\/g, '/')
+  if (!p || p.includes('\0')) return null
+  if (p.startsWith('/') || /^[a-zA-Z]:/.test(p)) return null
+  const parts = p.split('/').filter((s) => s.length > 0 && s !== '.')
+  if (parts.some((s) => s === '..')) return null
+  p = parts.join('/')
+  return p || null
+}
+
+function extOf(path: string): string {
+  const base = path.split('/').pop() ?? path
+  return (base.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? '').toLowerCase()
+}
+
+/**
+ * 是否可绑为 active「当前稿」:
+ * 可写文本扩展名;排除 shared/ 只读挂载、cache/ 内部物。
+ */
+export function isBindableActivePath(path: string): boolean {
+  const p = normalizeWorkspaceRelPath(path)
+  if (!p) return false
+  if (p === 'shared' || p.startsWith('shared/')) return false
+  if (p === 'cache' || p.startsWith('cache/')) return false
+  if (p === 'library' || p.startsWith('library/')) return false
+  const ext = extOf(p)
+  if (!ext || !BINDABLE_TEXT_EXT.has(ext)) return false
+  return true
+}
+
+/** 服务端/客户端共用:非法 activePath → null(不持久化、不拼附言) */
+export function sanitizeActivePath(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  const p = normalizeWorkspaceRelPath(raw)
+  if (!p || !isBindableActivePath(p)) return null
+  return p
+}
 
 /** 按路径/抽出稿生成一行机读提示 */
 export function hintForUpload(ref: UploadRef): string {
@@ -53,9 +108,39 @@ export function formatUploadAnnex(uploads: UploadRef[]): string {
   return lines.join('\n')
 }
 
+/** 当前稿机读附言(path 须已 sanitize) */
+export function formatActivePathAnnex(activePath: string): string {
+  const p = sanitizeActivePath(activePath)
+  if (!p) return ''
+  return [
+    ACTIVE_PATH_HEADER,
+    `用户正在阅读或编辑工作区文件: \`${p}\``,
+    '除非用户明确要求新建文件，修改/续写/润色应使用 edit_file（或 write_file 覆盖）指向该路径。',
+  ].join('\n')
+}
+
+function resolveAnnex(uploadsOrAnnex?: UploadRef[] | UserContentAnnex): UserContentAnnex {
+  if (!uploadsOrAnnex) return {}
+  if (Array.isArray(uploadsOrAnnex)) return { uploads: uploadsOrAnnex }
+  return uploadsOrAnnex
+}
+
 /** 用户可见正文 + 可选附言 → 喂给模型的 user.content */
-export function userContentForModel(displayText: string, uploads?: UploadRef[]): string {
-  const annex = uploads?.length ? formatUploadAnnex(uploads) : ''
+export function userContentForModel(
+  displayText: string,
+  uploadsOrAnnex?: UploadRef[] | UserContentAnnex,
+): string {
+  const { uploads, activePath } = resolveAnnex(uploadsOrAnnex)
+  const parts: string[] = []
+  if (uploads?.length) {
+    const a = formatUploadAnnex(uploads)
+    if (a) parts.push(a)
+  }
+  if (activePath) {
+    const a = formatActivePathAnnex(activePath)
+    if (a) parts.push(a)
+  }
+  const annex = parts.join('\n\n')
   const body = displayText.trimEnd()
   if (!annex) return displayText
   if (!body) return annex
@@ -76,4 +161,14 @@ export function parseUploads(raw: unknown): UploadRef[] {
     out.push({ name: name || path, path, ...(extractPath ? { extractPath } : {}) })
   }
   return out
+}
+
+/** 从 tool_call.args 解析 path(含 file_name 别名);旧 tool_result 回退用 */
+export function pathFromToolArgs(args: unknown): string | null {
+  if (!args || typeof args !== 'object') return null
+  const o = args as Record<string, unknown>
+  const raw = o.path ?? o.file_name ?? o.filename ?? o.file
+  if (typeof raw !== 'string') return null
+  const p = normalizeWorkspaceRelPath(raw)
+  return p
 }

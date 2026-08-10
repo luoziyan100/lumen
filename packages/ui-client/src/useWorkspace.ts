@@ -1,10 +1,11 @@
 /**
  * [INPUT]: AgentClient.listAssets/readAsset;projectId + taskId
- * [OUTPUT]: useWorkspace → assets(含 shared+session scope)/open/refresh
- * [POS]: 工作区轨与阅读器的数据源;无会话只刷 shared(本会话空);切会话乐观清 session 防串味
+ * [OUTPUT]: useWorkspace → assets/open/refresh/reloadOpen;切会话清 open
+ * [POS]: 工作区轨与阅读器的数据源;无会话只刷 shared;切会话乐观清 session 防串味;
+ *        reloadOpen 供 write/edit 后刷新当前打开内容(产物闭环 P0)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
- * 刷新时机:会话就绪/切换 + 每次 reply + 手动。
+ * 刷新时机:会话就绪/切换 + 每次 reply + 手动 + write/edit 命中 open.path。
  */
 import { useCallback, useEffect, useState } from 'react'
 import type { AgentClient, Asset } from './agent-client'
@@ -21,7 +22,6 @@ export function useWorkspace(client: AgentClient, projectId: string, taskId: str
 
   /** tid 覆写:刚建的草稿会话上传完立刻刷——state 里的 taskId 此时可能还没切过去 */
   const refresh = useCallback((tid: string | null = taskId) => {
-    // 无会话 → 仅 shared;有会话 → shared+session(服务端契约)
     client.listAssets(projectId, tid ?? undefined).then(setAssets).catch(() => setAssets([]))
   }, [client, projectId, taskId])
 
@@ -32,7 +32,6 @@ export function useWorkspace(client: AgentClient, projectId: string, taskId: str
       return
     }
     setOpen(null)
-    // 切到新对话:立刻丢掉上一会话的 session 文件,避免等 list 返回前串味
     setAssets((prev) => (taskId ? prev : prev.filter(isSharedAsset)))
     refresh()
     const off = client.onEvent((e) => { if (e.kind === 'reply') refresh() })
@@ -43,9 +42,22 @@ export function useWorkspace(client: AgentClient, projectId: string, taskId: str
     if (a.kind === 'pdf') setOpen({ kind: 'pdf', path: a.path, name: a.name })
     else if (a.kind === 'doc') setOpen({ kind: 'doc', path: a.path, name: a.name, content: await client.readAsset(projectId, a.path, taskId ?? undefined) })
     else if (a.kind === 'html') setOpen({ kind: 'html', path: a.path, name: a.name, content: await client.readAsset(projectId, a.path, taskId ?? undefined) })
-    // image / file:v1 仅陈列,不进阅读器
   }
   function close(): void { setOpen(null) }
 
-  return { assets, refresh, open, openAsset, close }
+  /** 重读当前打开的文本/html(pdf 走 url 不缓存 content) */
+  const reloadOpen = useCallback(async (): Promise<void> => {
+    setOpen((cur) => {
+      if (!cur) return cur
+      if (cur.kind === 'pdf') return cur
+      void client.readAsset(projectId, cur.path, taskId ?? undefined).then((content) => {
+        setOpen((prev) => (prev && prev.path === cur.path && prev.kind === cur.kind
+          ? { ...prev, content }
+          : prev))
+      }).catch(() => { /* 刷新失败保留旧内容 */ })
+      return cur
+    })
+  }, [client, projectId, taskId])
+
+  return { assets, refresh, open, openAsset, close, reloadOpen }
 }

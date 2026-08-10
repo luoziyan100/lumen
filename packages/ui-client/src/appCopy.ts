@@ -71,6 +71,12 @@ export const MSG_FOLD_COPY = {
   collapse: '收起',
 }
 
+/** 产物闭环:当前稿 chip */
+export const ACTIVE_DOC_COPY = {
+  chipPrefix: '当前',
+  clear: '取消绑定当前稿',
+} as const
+
 export const ASK_USER_COPY = {
   title: '需要你的选择',
   questionN: '问题 ',

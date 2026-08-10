@@ -5,7 +5,7 @@
  *        model_step.reasoningContent 一并恢复(DeepSeek thinking+tools 回灌)
  *
  * system 在运行时重新生成（不持久化派生物）；user = task.goal；其余从 model_step / tool_result 重放。
- * user 事件可带 uploads[]:落库为展示正文,喂模型时拼附言(upload-awareness)。
+ * user 事件可带 uploads[] / activePath:落库为展示正文,喂模型时拼附言(upload-awareness)。
  * 两条恢复纪律：
  * 1. 只回放主线程事件（agent_role 为 'main' 或 NULL=老数据）。worker 的内部步骤不属于主线程——
  *    父 agent 当时只看到 spawn 的压缩返回，重建也必须如此，否则隔离被资料性重放打破。
@@ -93,10 +93,11 @@ export function rebuildThread(events: TaskEvent[], options: RebuildOptions): Thr
         ? (payload.images as ImageData[]).filter((im) => im && typeof im.base64 === 'string' && typeof im.mediaType === 'string')
         : []
       const uploads = parseUploads(payload.uploads)
+      const activePath = typeof payload.activePath === 'string' ? payload.activePath : undefined
       const display = typeof payload.content === 'string' ? payload.content : ''
       messages.push({
         role: 'user',
-        content: userContentForModel(display, uploads),
+        content: userContentForModel(display, { uploads, activePath }),
         ...(images.length ? { images } : {}),
       })
       sawUser = true

@@ -103,7 +103,7 @@ export const writeFileTool: Tool = {
     }
     try {
       await ws.writeFile(filePath, String(args.content ?? ''))
-      return { llmContent: `ok: 已写入 ${filePath}` }
+      return { llmContent: `ok: 已写入 ${filePath}`, data: { path: filePath } }
     } catch (error) {
       return { llmContent: `error: ${errorMessage(error)}` }
     }
@@ -128,7 +128,7 @@ export const editFileTool: Tool = {
     }
     try {
       await ws.editFile(filePath, String(args.old_string ?? ''), String(args.new_string ?? ''))
-      return { llmContent: `ok: 已编辑 ${filePath}` }
+      return { llmContent: `ok: 已编辑 ${filePath}`, data: { path: filePath } }
     } catch (error) {
       return { llmContent: `error: ${errorMessage(error)}` }
     }

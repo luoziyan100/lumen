@@ -254,7 +254,13 @@ export class AgentClient {
     return () => this.taskUpdatedHandlers.delete(handler)
   }
 
-  submit(projectId: string, userText: string, images?: ImageData[], uploads?: UploadRef[]): Promise<string> {
+  submit(
+    projectId: string,
+    userText: string,
+    images?: ImageData[],
+    uploads?: UploadRef[],
+    activePath?: string | null,
+  ): Promise<string> {
     return new Promise((resolve, reject) => {
       try {
         this.pendingCreated = resolve
@@ -264,6 +270,7 @@ export class AgentClient {
           userText,
           ...(images?.length ? { images } : {}),
           ...(uploads?.length ? { uploads } : {}),
+          ...(activePath ? { activePath } : {}),
         })
       } catch (e) {
         this.pendingCreated = null
@@ -292,6 +299,7 @@ export class AgentClient {
     images?: ImageData[],
     projectId?: string,
     uploads?: UploadRef[],
+    activePath?: string | null,
   ): Promise<void> {
     const ack = this.expectAck()
     try {
@@ -301,6 +309,7 @@ export class AgentClient {
         userText,
         ...(images?.length ? { images } : {}),
         ...(uploads?.length ? { uploads } : {}),
+        ...(activePath ? { activePath } : {}),
         ...(projectId ? { projectId } : {}),
       })
     } catch (e) {

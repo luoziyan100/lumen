@@ -1,6 +1,7 @@
 /**
  * [INPUT]: border-beam;icons;ASK_USER_COPY;SKILLS_COPY;ImageData;composerAccept;SkillSlashMenu;父级传入
- * [OUTPUT]: ComposerCard —— Border Beam 暗玻璃对话输入卡;液态抛光控件(左→右扫光,非 rim 转圈);+/Skills;/ 斜杠;模型芯片;拖放文件;待发图可放大
+ * [OUTPUT]: ComposerCard —— Border Beam 暗玻璃对话输入卡;液态抛光;+/Skills;/ 斜杠;模型芯片;
+ *           拖放文件;待发图可放大;当前稿 chip(产物闭环 P0)
  * [POS]: 贴 composer-dock;仅改输入岛,不染暖纸消息流;见 doc/ui-design.md §0
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
@@ -10,9 +11,9 @@ import { BorderBeam } from 'border-beam'
 import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
 import { Tooltip } from '@cloudflare/kumo/components/tooltip'
 import type { ImageData, SkillInfo } from '../agent-client'
-import { ASK_USER_COPY, SKILLS_COPY } from '../appCopy'
+import { ACTIVE_DOC_COPY, ASK_USER_COPY, SKILLS_COPY } from '../appCopy'
 import { dragHasFiles, filterComposerFiles } from '../composerAccept'
-import { AtGlyph, BriefcaseGlyph, CheckIcon, ChevronDownIcon, CloseIcon, GearGlyph, PdfIcon, PlusIcon, SendIcon, SkillGlyph, skillGlyphForName } from './icons'
+import { AtGlyph, BriefcaseGlyph, CheckIcon, ChevronDownIcon, CloseIcon, FileTextIcon, GearGlyph, PdfIcon, PlusIcon, SendIcon, SkillGlyph, skillGlyphForName } from './icons'
 import { SkillSlashMenu } from './SkillSlashMenu'
 import { parseSlashFilter } from '../skillSlash'
 
@@ -53,6 +54,8 @@ export function ComposerCard({
   skills,
   onActivateSkill,
   onOpenManageSkills,
+  activePath,
+  onClearActivePath,
 }: {
   input: string
   onInputChange: (value: string) => void
@@ -83,6 +86,9 @@ export function ComposerCard({
   skills: SkillInfo[]
   onActivateSkill: (name: string) => void
   onOpenManageSkills: () => void
+  /** 当前稿 path(可写文本);chip 展示,发送时注入机读附言 */
+  activePath?: string | null
+  onClearActivePath?: () => void
 }) {
   const shortModel = shortenModel(modelLabel)
   const dropBlocked = uploading || pendingAsk
@@ -305,6 +311,25 @@ export function ComposerCard({
                 </button>
               </span>
             ))}
+          </div>
+        )}
+        {activePath && (
+          <div className="active-doc-row">
+            <span className="active-doc-chip" title={activePath}>
+              <FileTextIcon size={14} />
+              <span className="active-doc-label">{ACTIVE_DOC_COPY.chipPrefix}</span>
+              <span className="active-doc-path">{activePath.split('/').pop() ?? activePath}</span>
+              {onClearActivePath && (
+                <button
+                  type="button"
+                  className="active-doc-clear"
+                  aria-label={ACTIVE_DOC_COPY.clear}
+                  onClick={onClearActivePath}
+                >
+                  <CloseIcon size={12} />
+                </button>
+              )}
+            </span>
           </div>
         )}
 

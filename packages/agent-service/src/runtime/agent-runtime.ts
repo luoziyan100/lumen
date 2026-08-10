@@ -6,7 +6,7 @@
  *           listSkills/installSkill/uninstallSkill/activateSkillOnTask(与 run_skill 同构回灌);
  *           侧栏 task.title 异步生成(≠ goal;见 task-title.ts);renameTaskTitle 人手改 title;
  *           notifyStatus 同步 emitTaskUpdated(侧栏 status/未读灯);
- *           saveUpload→UploadReceipt;submit/continue 的 uploads[] 注入机读附言(见 upload-awareness)
+ *           saveUpload→UploadReceipt;submit/continue 的 uploads[]/activePath 注入机读附言
  * [POS]: §4 运行环境。一个任务 = 一次 runAgent；durable emit 落 task_events + session jsonl + WS;
  *        text_delta/tool_call_start 仅 notify(不入库);imageBridge DeepSeek 去图插桩;
  *        pendingAsk 按 taskId+toolCallId 挂起(见 doc/ask-user.md);Skills 人机入口见宪法专节;
@@ -30,7 +30,7 @@ import { rebuildThread } from '../storage/resume.ts'
 import { DEFAULT_COMPACTION, estimateWatermark, isContextOverflowError, planCompaction, withResultPersist, type CompactionPayload } from '../storage/context-budget.ts'
 import { mergeBudget, type TaskBudget } from '../storage/budget.ts'
 import { FsWorkspace } from '../workspace/fs-workspace.ts'
-import { userContentForModel, type UploadRef } from './upload-awareness.ts'
+import { sanitizeActivePath, userContentForModel, type UploadRef } from './upload-awareness.ts'
 import { readdirSync } from 'node:fs'
 import { LUMEN_PERSONA } from '../agents/persona.ts'
 import { createMemoryTools, readMemoryIndex } from '../tools/env/memory-tools.ts'
@@ -132,6 +132,8 @@ export interface SubmitInput {
   images?: ImageData[] // 粘贴/上传进对话的图片,随 user 消息进模型
   /** 本回合已落盘附件(全类型);事件存 uploads[],模型见附言 — doc/upload-awareness.md */
   uploads?: UploadRef[]
+  /** 当前稿(可写文本);事件存 activePath,模型见附言 — artifact-loop P0 */
+  activePath?: string
 }
 
 /** 侧栏要显示的"会话资产":论文 PDF / 文档 / 图片 / 其它上传件 */
@@ -242,24 +244,33 @@ export class AgentRuntime {
   }
 
   /** 发一条 user 事件(进 DB + 实时 notify 已订阅的客户端)。submit/continue 共用,
-   *  保证多轮记忆与刷新重建看到的是同一条事件流。图片/uploads 持久化在 payload,重建不丢。 */
-  private emitUser(taskId: string, content: string, images?: ImageData[], uploads?: UploadRef[]): void {
+   *  保证多轮记忆与刷新重建看到的是同一条事件流。图片/uploads/activePath 持久化在 payload,重建不丢。 */
+  private emitUser(
+    taskId: string,
+    content: string,
+    images?: ImageData[],
+    uploads?: UploadRef[],
+    activePath?: string | null,
+  ): void {
+    const safePath = sanitizeActivePath(activePath ?? null)
     const stored = this.cfg.store.appendEvent(taskId, 'user', {
       content,
       ...(images?.length ? { images } : {}),
       ...(uploads?.length ? { uploads } : {}),
+      ...(safePath ? { activePath: safePath } : {}),
     }, 'main')
     this.notify(taskId, stored)
   }
 
   submit(input: SubmitInput, model?: ModelPort): string {
+    const safePath = sanitizeActivePath(input.activePath ?? null)
     const task = this.cfg.store.createTask(input.projectId, input.userText)
-    this.emitUser(task.id, input.userText, input.images, input.uploads) // 首句进事件流,多轮重建 + 刷新恢复用
+    this.emitUser(task.id, input.userText, input.images, input.uploads, safePath) // 首句进事件流
     this.startSession(task, input.userText)
     const controller = new AbortController()
     const promise = this.execute(
       task,
-      this.buildInitialThread(task, input.userText, input.images, input.uploads),
+      this.buildInitialThread(task, input.userText, input.images, input.uploads, safePath),
       controller.signal,
       model,
     )
@@ -295,11 +306,13 @@ export class AgentRuntime {
     images?: ImageData[],
     model?: ModelPort,
     uploads?: UploadRef[],
+    activePath?: string | null,
   ): boolean {
     const task = this.cfg.store.getTask(taskId)
     if (!task) return false
     if (this.running.has(taskId)) return false
-    this.emitUser(taskId, userText, images, uploads)
+    const safePath = sanitizeActivePath(activePath ?? null)
+    this.emitUser(taskId, userText, images, uploads, safePath)
     appendSessionEntry(this.cfg.sessionDir, {
       type: 'user', task_id: taskId, timestamp: new Date().toISOString(), content: userText,
     })
@@ -738,12 +751,19 @@ export class AgentRuntime {
     return lines.join('\n')
   }
 
-  private buildInitialThread(task: Task, userText: string, images?: ImageData[], uploads?: UploadRef[]): Thread {
+  private buildInitialThread(
+    task: Task,
+    userText: string,
+    images?: ImageData[],
+    uploads?: UploadRef[],
+    activePath?: string | null,
+  ): Thread {
+    const safePath = sanitizeActivePath(activePath ?? null)
     return new Thread([
       { role: 'system', content: this.systemPrompt(task.project_id) },
       {
         role: 'user',
-        content: userContentForModel(userText, uploads),
+        content: userContentForModel(userText, { uploads, activePath: safePath }),
         ...(images?.length ? { images } : {}),
       },
     ])

@@ -1,7 +1,7 @@
 /**
  * [INPUT]: storage 的 Task / TaskEvent / Project
  * [OUTPUT]: WS 协议消息类型（client→server / server→client;含 rename_task/pin_task/unpin_task / Skills;
- *           submit/continue 可带 uploads[] — 上传知情,见 doc/upload-awareness.md）
+ *           submit/continue 可带 uploads[] / activePath — 上传知情 + 产物闭环当前稿）
  * [POS]: §4 agent↔UI 协议。UI 发命令，service 推事件流；shared 包将复用这些类型。
  *        事件 kind 含 ephemeral text_delta / tool_call_start(仅 notify,不入库,见 runtime makeEmit);
  *        answer_user 解开 ask_user 挂起(见 doc/ask-user.md);
@@ -34,8 +34,8 @@ export interface AnswerUserPayload {
 export type SkillInstallScope = 'user' | 'project'
 
 export type ClientMessage =
-  | { type: 'submit'; projectId: string; userText: string; images?: ImageData[]; uploads?: UploadRef[] }
-  | { type: 'continue'; taskId: string; userText: string; images?: ImageData[]; uploads?: UploadRef[]; projectId?: string }
+  | { type: 'submit'; projectId: string; userText: string; images?: ImageData[]; uploads?: UploadRef[]; activePath?: string }
+  | { type: 'continue'; taskId: string; userText: string; images?: ImageData[]; uploads?: UploadRef[]; activePath?: string; projectId?: string }
   | { type: 'create_task'; projectId: string; goal?: string }
   | { type: 'subscribe'; taskId: string; afterSeq?: number; projectId?: string }
   | { type: 'cancel'; taskId: string; projectId?: string }

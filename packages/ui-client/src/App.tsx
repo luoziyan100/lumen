@@ -6,13 +6,14 @@
  *        对话列 useStickToBottom:流式贴底;上滑松手可自由阅读;松钉后出「回到最新」;
  *        标题栏工作区钮:阅读器开时一并关闭(drawer 与 ws.open 双态,不能只拨 drawer);
  *        侧栏未读灯:task_updated 终态且非当前 → unread(localStorage);打开会话清除;
- *        上传=对话事件见 doc/upload-awareness.md
+ *        上传=对话事件见 doc/upload-awareness.md;当前稿 activePath 见 artifact-loop P0
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Toasty, useKumoToastManager } from '@cloudflare/kumo/components/toast'
 import { Tooltip, TooltipProvider } from '@cloudflare/kumo/components/tooltip'
-import { AgentClient, type ImageData, type Project, type SkillInfo, type SkillInstallScope, type Task, type UploadRef } from './agent-client'
+import { AgentClient, type Asset, type ImageData, type Project, type SkillInfo, type SkillInstallScope, type Task, type UploadRef } from './agent-client'
+import { pathFromToolArgs, sanitizeActivePathClient } from './activePath.ts'
 import { ensureAgentService } from './ensureAgent'
 import { sortTasksForSidebar } from './sortTasks'
 import { shouldMarkUnreadOnStatus } from './sessionLamp'
@@ -202,6 +203,37 @@ function AppInner() {
   const [skillsManageOpen, setSkillsManageOpen] = useState(false)
   const [skillsBusy, setSkillsBusy] = useState(false)
   const ws = useWorkspace(client, projectId, taskId, connected)
+  /** 当前稿:(projectId,taskId) 作用域;切会话/项目清;可写文本才绑 */
+  const [activePath, setActivePath] = useState<string | null>(null)
+  const openPathRef = useRef<string | null>(null)
+  useEffect(() => { openPathRef.current = ws.open?.path ?? null }, [ws.open?.path])
+  useEffect(() => { setActivePath(null) }, [projectId, taskId])
+
+  const openAssetBound = useCallback(async (a: Asset): Promise<void> => {
+    await ws.openAsset(a)
+    const bind = sanitizeActivePathClient(a.path)
+    if (bind) setActivePath(bind)
+  }, [ws])
+
+  // write/edit 命中打开中的文件 → 重载阅读器
+  useEffect(() => {
+    return client.onEvent((e) => {
+      if (e.kind !== 'tool_result') return
+      if (taskId && e.task_id !== taskId) return
+      let payload: Record<string, unknown> = {}
+      try { payload = JSON.parse(e.payload_json) as Record<string, unknown> } catch { return }
+      const name = String(payload.name ?? '')
+      if (name !== 'write_file' && name !== 'edit_file') return
+      let path = typeof payload.path === 'string' ? payload.path.trim() : ''
+      if (!path) path = pathFromToolArgs(payload.args) ?? ''
+      // 旧事件:从 llmContent 兜底
+      if (!path && typeof payload.llmContent === 'string') {
+        const m = payload.llmContent.match(/已(?:写入|编辑)\s+(\S+)/)
+        if (m?.[1]) path = m[1]
+      }
+      if (path && openPathRef.current === path) void ws.reloadOpen()
+    })
+  }, [client, taskId, ws.reloadOpen])
   // 工作目录:默认收起;当前会话有产物(上传文件/模型写出报告)才自动展开——纯问答保持收起(owner 定 2026-07-10)
   const [drawer, setDrawer] = useState(false)
   const [input, setInput] = useState('')
@@ -650,7 +682,12 @@ function AppInner() {
     setAttachments([])
     setPendingFiles([])
     pinMessagesRef.current() // 新一轮输出默认贴底跟随
-    await send(text, images.length ? images : undefined, receipts.length ? receipts : undefined)
+    await send(
+      text,
+      images.length ? images : undefined,
+      receipts.length ? receipts : undefined,
+      activePath,
+    )
   }
   async function onSubmit(e: FormEvent): Promise<void> {
     e.preventDefault()
@@ -927,7 +964,7 @@ function AppInner() {
                                         kind: assetKindFromPath(ref.path),
                                         scope: 'session' as const,
                                       }
-                                    void ws.openAsset(asset)
+                                    void openAssetBound(asset)
                                     toggleRail(true)
                                   }}
                                 />
@@ -1028,6 +1065,8 @@ function AppInner() {
             skills={skills}
             onActivateSkill={(name) => { void activateSkill(name) }}
             onOpenManageSkills={() => setSkillsManageOpen(true)}
+            activePath={activePath}
+            onClearActivePath={() => setActivePath(null)}
           />
           </div>
         </main>
@@ -1036,7 +1075,7 @@ function AppInner() {
         {drawer && !showReader && (
           <UtilityRail
             assets={ws.assets}
-            onOpen={ws.openAsset}
+            onOpen={(a) => { void openAssetBound(a) }}
             items={items}
             running={running}
             onUploadShared={(files) => { void uploadShared(files) }}

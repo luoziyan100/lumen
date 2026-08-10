@@ -5,13 +5,14 @@
  * [POS]: UI 对话状态核;跨项目切换时同步 projectIdRef;空 model_step→error;todo_write→TodoChatItem;
  *        text_delta 累积 streaming 泡并封口 running process;model_step 有正文时同封;
  *        tool_call_start 尽早开 process;ask_user→pendingAsk 驱动悬浮 Dialog(见 doc/ask-user.md);
- *        上传知情 chip 见 doc/upload-awareness.md
+ *        上传知情 chip 见 doc/upload-awareness.md;产物闭环 activePath 随 send 提交
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * user 也走事件流,不在前端乐观插入。taskId 按项目键存 localStorage。
  */
 import { useEffect, useRef, useState } from 'react'
 import type { AgentClient, AnswerUserPayload, ImageData, TaskEvent, UploadRef } from './agent-client'
+import { pathFromToolArgs } from './activePath.ts'
 
 export interface ChatMsg {
   kind: 'msg'
@@ -24,7 +25,14 @@ export interface ChatMsg {
   /** 真流式中:text_delta 累积;model_step 定稿后清除 */
   streaming?: boolean
 }
-export interface ProcStep { id: string; name: string; done: boolean; label: string }
+export interface ProcStep {
+  id: string
+  name: string
+  done: boolean
+  label: string
+  /** write/edit 路径:来自 tool_call.args 或 tool_result.path */
+  path?: string
+}
 export interface ProcessItem { kind: 'process'; id: string; steps: ProcStep[]; running: boolean }
 export interface CompactionMark { kind: 'compaction'; id: string }
 export type TodoStatus = 'pending' | 'in_progress' | 'completed'
@@ -260,14 +268,19 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
   // 进入即欢迎页(owner 拍板 2026-07-05):启动/刷新不再无条件恢复上次会话。
   // localStorage 仍记录最近 taskId,但只由 App 在「该任务仍在运行」时调 selectConversation 接回。
 
-  async function send(text: string, images?: ImageData[], uploads?: UploadRef[]): Promise<void> {
+  async function send(
+    text: string,
+    images?: ImageData[],
+    uploads?: UploadRef[],
+    activePath?: string | null,
+  ): Promise<void> {
     setRunning(true)
     const pid = projectIdRef.current
     try {
       if (taskIdRef.current) {
-        await client.continueTask(taskIdRef.current, text, images, pid, uploads)
+        await client.continueTask(taskIdRef.current, text, images, pid, uploads, activePath)
       } else {
-        const id = await client.submit(pid, text, images, uploads)
+        const id = await client.submit(pid, text, images, uploads, activePath)
         switchTo(id, pid)
       }
     } catch (err) {
@@ -417,10 +430,23 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
         return list ? upsertTodo(prev, event.id, list) : prev
       }
       const id = String(p.id ?? event.id)
-      const step: ProcStep = { id, name, done: false, label: `${verb(name)}…` }
+      const path = pathFromToolArgs(p.args) ?? undefined
+      const step: ProcStep = {
+        id,
+        name,
+        done: false,
+        label: `${verb(name)}…`,
+        ...(path ? { path } : {}),
+      }
       const last = prev[prev.length - 1]
       if (last && last.kind === 'process' && last.running) {
-        if (last.steps.some((s) => s.id === id)) return prev // tool_call_start 已占位
+        if (last.steps.some((s) => s.id === id)) {
+          // tool_call_start 已占位:补 path
+          return [...prev.slice(0, -1), {
+            ...last,
+            steps: last.steps.map((s) => (s.id === id ? { ...s, ...step, done: false } : s)),
+          }]
+        }
         return [...prev.slice(0, -1), { ...last, steps: [...last.steps, step] }]
       }
       return [...prev, { kind: 'process', id: `proc-${id}`, steps: [step], running: true }]
@@ -432,9 +458,22 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
         return list ? upsertTodo(prev, event.id, list) : prev
       }
       const id = String(p.id ?? '')
-      const label = summarize(name, typeof p.llmContent === 'string' ? p.llmContent : '')
+      const payloadPath = typeof p.path === 'string' && p.path.trim() ? p.path.trim() : null
+      let fallbackPath: string | undefined
+      for (const it of prev) {
+        if (it.kind !== 'process') continue
+        const s = it.steps.find((x) => x.id === id)
+        if (s?.path) { fallbackPath = s.path; break }
+      }
+      const path = payloadPath ?? fallbackPath
+      const label = summarize(name, typeof p.llmContent === 'string' ? p.llmContent : '', path)
       return prev.map((it) => it.kind === 'process'
-        ? { ...it, steps: it.steps.map((s) => (s.id === id ? { ...s, done: true, label } : s)) }
+        ? {
+            ...it,
+            steps: it.steps.map((s) => (s.id === id
+              ? { ...s, done: true, label, ...(path ? { path } : {}) }
+              : s)),
+          }
         : it)
     }
     case 'reply':
@@ -455,12 +494,19 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
   }
 }
 
-/** 完成态摘要:能可靠数出条目就显示「命中 N」,否则降级为「完成」。 */
-function summarize(name: string, llmContent: string): string {
+/** 完成态摘要:write/edit 优先展示 path;旧事件无 path 时「完成(无 path)」 */
+function summarize(name: string, llmContent: string, path?: string): string {
   const v = verb(name)
   if (name === 'ask_user') {
     if (llmContent.includes('跳过')) return `${v} · 已跳过`
     return `${v} · 已回答`
+  }
+  if (name === 'write_file' || name === 'edit_file') {
+    if (path) return `${v} · ${path}`
+    // 从 llmContent 兜底:ok: 已写入 notes/a.md
+    const m = llmContent.match(/已(?:写入|编辑)\s+(\S+)/)
+    if (m?.[1]) return `${v} · ${m[1]}`
+    return `${v} · 完成(无 path)`
   }
   if (name === 'extract_pdf') {
     const n = llmContent.length

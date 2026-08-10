@@ -1,12 +1,17 @@
 /**
- * 上传知情附言:纯函数契约(doc/upload-awareness.md S4)
+ * 上传知情附言 + 当前稿附言:纯函数契约
+ * (doc/upload-awareness.md S4;briefs/active/artifact-loop-P0.md)
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  formatActivePathAnnex,
   formatUploadAnnex,
   hintForUpload,
+  isBindableActivePath,
   parseUploads,
+  pathFromToolArgs,
+  sanitizeActivePath,
   userContentForModel,
 } from '../../src/runtime/upload-awareness.ts'
 
@@ -46,4 +51,38 @@ test('parseUploads 容错', () => {
   assert.deepEqual(parseUploads([{ path: 'x', extractPath: 'docs/x.md' }]), [
     { name: 'x', path: 'x', extractPath: 'docs/x.md' },
   ])
+})
+
+test('sanitizeActivePath:可绑 drafts/notes;拒 PDF shared cache 逃逸', () => {
+  assert.equal(sanitizeActivePath('drafts/综述.md'), 'drafts/综述.md')
+  assert.equal(sanitizeActivePath('notes/a.txt'), 'notes/a.txt')
+  assert.equal(sanitizeActivePath('docs/a.md'), 'docs/a.md')
+  assert.equal(sanitizeActivePath('papers/a.pdf'), null)
+  assert.equal(sanitizeActivePath('shared/notes/x.md'), null)
+  assert.equal(sanitizeActivePath('cache/x.md'), null)
+  assert.equal(sanitizeActivePath('../etc/passwd'), null)
+  assert.equal(sanitizeActivePath('/abs/x.md'), null)
+  assert.equal(sanitizeActivePath(null), null)
+  assert.ok(isBindableActivePath('drafts/a.md'))
+  assert.equal(isBindableActivePath('papers/a.pdf'), false)
+})
+
+test('formatActivePathAnnex + userContentForModel 合并', () => {
+  assert.equal(formatActivePathAnnex('papers/a.pdf'), '')
+  assert.match(formatActivePathAnnex('drafts/a.md'), /当前稿/)
+  assert.match(formatActivePathAnnex('drafts/a.md'), /drafts\/a\.md/)
+  const both = userContentForModel('改第二节', {
+    uploads: [{ name: 'a.pdf', path: 'papers/a.pdf' }],
+    activePath: 'drafts/a.md',
+  })
+  assert.match(both, /^改第二节\n\n# 本回合/)
+  assert.match(both, /# 当前稿/)
+  assert.match(both, /drafts\/a\.md/)
+  assert.equal(userContentForModel('hi', { activePath: null }), 'hi')
+})
+
+test('pathFromToolArgs 别名', () => {
+  assert.equal(pathFromToolArgs({ path: 'drafts/a.md' }), 'drafts/a.md')
+  assert.equal(pathFromToolArgs({ file_name: 'notes/b.md' }), 'notes/b.md')
+  assert.equal(pathFromToolArgs({}), null)
 })

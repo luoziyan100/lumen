@@ -118,7 +118,22 @@ export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
       }
 
       thread.append({ role: 'tool_result', toolCallId: call.id, content: result.llmContent }) // ← 铁律
-      await emit({ kind: 'tool_result', agentRole: ctx.agentRole, payload: { id: call.id, name: call.name, llmContent: result.llmContent } })
+      // payload 可带 path(write/edit 等):UI 展示「已更新 path」;旧事件无此字段须回退 tool_call.args
+      const pathFromData =
+        result.data && typeof result.data === 'object' && result.data !== null
+          && typeof (result.data as { path?: unknown }).path === 'string'
+          ? (result.data as { path: string }).path
+          : undefined
+      await emit({
+        kind: 'tool_result',
+        agentRole: ctx.agentRole,
+        payload: {
+          id: call.id,
+          name: call.name,
+          llmContent: result.llmContent,
+          ...(pathFromData ? { path: pathFromData } : {}),
+        },
+      })
     }
     // 不 return —— 下一轮 model.chat 取到的 thread 就包含了这些 tool_result
   }

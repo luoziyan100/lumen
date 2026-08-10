@@ -170,6 +170,7 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
           userText: message.userText,
           images: message.images,
           uploads: message.uploads,
+          activePath: message.activePath,
         }, connModel)
         send({ type: 'task_created', taskId })
         subscribe(taskId)
@@ -190,6 +191,7 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
           message.images,
           connModel,
           message.uploads,
+          message.activePath,
         )
         if (ok) subscribe(message.taskId, undefined, false) // 续聊不回放:客户端没清屏,回放会把记录翻倍
         send({ type: ok ? 'ok' : 'error', ...(ok ? { taskId: message.taskId } : { message: 'continue failed: task 不存在或正在运行' }) } as ServerMessage)
