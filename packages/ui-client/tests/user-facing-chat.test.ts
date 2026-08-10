@@ -35,8 +35,18 @@ function applyEv(items: ChatItem[], kind: string, id: string, p: Record<string, 
   return reduceChatItems(items, event, payload)
 }
 
-describe('user-facing Claude 档', () => {
-  it('AT1: 多轮 tool+中间碎碎念 → 主列表 0 process，仅最终答案', () => {
+describe('user-facing Claude 两阶段', () => {
+  it('AT1 live: 工具进行中主列表有 process（可见）', () => {
+    let u: ChatItem[] = []
+    u = applyUser(u, 'user', 'u1', { content: '搜一下' })
+    u = applyUser(u, 'tool_call_start', 's1', { id: 't1', name: 'fetch_url' })
+    u = applyUser(u, 'tool_result', 'r1', { id: 't1', name: 'fetch_url', llmContent: 'ok' })
+    assert.equal(u.filter((i) => i.kind === 'process').length, 1)
+    const proc = u.find((i) => i.kind === 'process')
+    if (proc?.kind === 'process') assert.equal(proc.running, true)
+  })
+
+  it('AT1 final: 定稿后 process 卸下，只留 Thought+最终答案', () => {
     let u: ChatItem[] = []
     u = applyUser(u, 'user', 'u1', { content: '搜一下' })
     u = applyUser(u, 'tool_call_start', 's1', { id: 't1', name: 'fetch_url' })
@@ -46,6 +56,10 @@ describe('user-facing Claude 档', () => {
       toolCalls: [{ id: 't2', name: 'fetch_url', arguments: {} }],
       reasoningContent: 'Need another path for PDF',
     })
+    // 中间工具轮仍应保留 process（且中间碎碎念不当最终气泡）
+    assert.ok(u.some((i) => i.kind === 'process'))
+    assert.ok(!u.some((i) => i.kind === 'msg' && i.role === 'assistant' && String(i.content).includes('unpaywall')))
+
     u = applyUser(u, 'tool_call_start', 's2', { id: 't2', name: 'fetch_url' })
     u = applyUser(u, 'tool_result', 'r2', { id: 't2', name: 'fetch_url', llmContent: 'pdf' })
     u = applyUser(u, 'model_step', 'm2', {
@@ -54,7 +68,7 @@ describe('user-facing Claude 档', () => {
       reasoningContent: 'Enough to answer',
     })
 
-    assert.equal(u.filter((i) => i.kind === 'process').length, 0)
+    assert.equal(u.filter((i) => i.kind === 'process').length, 0, '终局 process 应消失')
     assert.equal(u.filter((i) => i.kind === 'thought').length, 1)
     const answers = u.filter((i) => i.kind === 'msg' && i.role === 'assistant')
     assert.equal(answers.length, 1)
@@ -62,10 +76,17 @@ describe('user-facing Claude 档', () => {
       assert.match(answers[0].content, /最终结论/)
       assert.ok(!answers[0].content.includes('unpaywall'))
     }
-    if (u.find((i) => i.kind === 'thought')?.kind === 'thought') {
-      const th = u.find((i) => i.kind === 'thought')!
-      if (th.kind === 'thought') assert.equal(th.done, true)
-    }
+    const th = u.find((i) => i.kind === 'thought')
+    if (th?.kind === 'thought') assert.equal(th.done, true)
+  })
+
+  it('text_delta 定稿流开始时也卸下 process', () => {
+    let u: ChatItem[] = []
+    u = applyUser(u, 'tool_call_start', 's1', { id: 't1', name: 'search_web' })
+    assert.ok(u.some((i) => i.kind === 'process'))
+    u = applyUser(u, 'text_delta', 'd1', { text: '结论' })
+    assert.equal(u.filter((i) => i.kind === 'process').length, 0)
+    assert.ok(u.some((i) => i.kind === 'msg' && i.role === 'assistant'))
   })
 
   it('AT2: reasoning → Thought 默认 done=false 直到最终答案', () => {

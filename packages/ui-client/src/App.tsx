@@ -934,8 +934,8 @@ function AppInner() {
                 }
                 if (it.kind === 'todo') return <TodoCard key={it.id} todo={it} />
                 if (it.kind === 'thought') return <ThoughtRow key={it.id} thought={it} />
-                // 用户面默认不渲染 process（证据面在右轨）;兼容旧状态残留
-                if (it.kind === 'process') return null
+                // 进行中展示 process；终局归约会卸下 process（消失再出答案）
+                if (it.kind === 'process') return <ProcessRow key={it.id} block={it} />
                 if (it.role === 'assistant') {
                   const streamingWidget = Boolean(it.streaming) || (running && !finalAssistantIds.has(it.id))
                   if (!finalAssistantIds.has(it.id)) {

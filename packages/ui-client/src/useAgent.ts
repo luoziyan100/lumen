@@ -431,21 +431,25 @@ function dropStreamingAssistant(prev: ChatItem[]): ChatItem[] {
   return prev
 }
 
+/** 终局：过程块从用户面消失（非折叠，而是整块卸下） */
+function stripProcessItems(prev: ChatItem[]): ChatItem[] {
+  if (!prev.some((it) => it.kind === 'process')) return prev
+  return prev.filter((it) => it.kind !== 'process')
+}
+
 /**
- * 用户面归约（Claude 档）：
- * - 无 process / subagent 过程行
- * - reasoningContent → Thought（默认折叠由组件负责）
- * - 带 toolCalls 的 model_step 正文不进大气泡
- * - 无工具的正文 / 最终 reply 路径 → 助手气泡
- * - todo 仍展示
+ * 用户面归约（Claude 两阶段）：
+ * - **进行中**：展示 tool/subagent 过程（透明度），reasoning → Thought
+ * - **终局**（无工具的定稿正文 / reply / 终态）：过程块**卸下消失**，只留 Thought(折叠)+最终答案
+ * - 工具轮中间正文不进大气泡；todo 仍展示
  */
 export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Record<string, unknown>): ChatItem[] {
   switch (event.kind) {
     case 'user': {
       const images = Array.isArray(p.images) ? (p.images as ImageData[]) : undefined
       const uploads = parseUploadRefs(p.uploads)
-      // 新 user turn：上一轮 thought 标 done
-      const base = markThoughtsDone(prev)
+      // 新 user turn：上一轮 thought 标 done；清残留 process
+      const base = markThoughtsDone(stripProcessItems(prev))
       return [...base, {
         kind: 'msg',
         id: event.id,
@@ -458,18 +462,21 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
     case 'text_delta': {
       const text = String(p.text ?? '')
       if (!text) return prev
-      const last = prev[prev.length - 1]
+      // 最终回答开始流式时：过程先卸下（「消失再出结果」）
+      let next = stripProcessItems(prev)
+      const last = next[next.length - 1]
       if (last?.kind === 'msg' && last.role === 'assistant' && last.streaming) {
-        return [...prev.slice(0, -1), { ...last, content: last.content + text }]
+        return [...next.slice(0, -1), { ...last, content: last.content + text }]
       }
-      return [...prev, { kind: 'msg', id: event.id, role: 'assistant', content: text, streaming: true }]
+      return [...next, { kind: 'msg', id: event.id, role: 'assistant', content: text, streaming: true }]
     }
+    // 进行中：过程可见（复用证据面 process 逻辑）
     case 'tool_call_start':
     case 'subagent_started':
     case 'subagent_completed':
     case 'subagent_interrupted':
     case 'subagent_demoted':
-      return prev
+      return reduceChatItems(prev, event, p)
     case 'model_step': {
       const content = typeof p.content === 'string' ? p.content.trim() : ''
       const tools = Array.isArray(p.toolCalls) ? p.toolCalls : []
@@ -478,12 +485,16 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
       if (reasoning) next = upsertThought(next, event.id, reasoning, false)
 
       if (tools.length > 0) {
-        // 工具轮：丢掉半成品流式泡，正文不当最终答案
+        // 工具轮：丢掉半成品流式泡；过程块保持（进行中可见）
+        // 不因正文 seal process（避免碎成多条）
         next = dropStreamingAssistant(next)
+        // 若尚无 process，不在这里开——等 tool_call_start
         return next
       }
 
-      // 无工具 = 可展示的正文
+      // —— 终局：无工具定稿 —— 过程消失，只留 Thought + 答案
+      next = stripProcessItems(next)
+
       let streamingIdx = -1
       for (let i = next.length - 1; i >= 0; i -= 1) {
         const it = next[i]
@@ -498,9 +509,8 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
           out[streamingIdx] = { kind: 'msg', id: event.id, role: 'assistant', content }
           return markThoughtsDone(out)
         }
-        // 空正文无工具：去掉半成品泡
         out.splice(streamingIdx, 1)
-        if (tools.length === 0 && !content) {
+        if (!content && !reasoning) {
           return [...markThoughtsDone(out), {
             kind: 'msg',
             id: event.id,
@@ -521,7 +531,7 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
           content: '模型返回了空回复（常见于思考模式耗尽输出额度）。请重试，或在设置中换模型。',
         }]
       }
-      return next
+      return markThoughtsDone(next)
     }
     case 'tool_call': {
       const name = String(p.name ?? 'tool')
@@ -529,7 +539,7 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
         const list = todoFromToolArgs(p.args)
         return list ? upsertTodo(prev, event.id, list) : prev
       }
-      return prev
+      return reduceChatItems(prev, event, p)
     }
     case 'tool_result': {
       const name = String(p.name ?? '')
@@ -537,19 +547,23 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
         const list = todoFromLlmContent(typeof p.llmContent === 'string' ? p.llmContent : '')
         return list ? upsertTodo(prev, event.id, list) : prev
       }
-      return prev
+      return reduceChatItems(prev, event, p)
     }
     case 'reply':
-      return markThoughtsDone(prev)
+      // 终局：卸过程 + 收 Thought
+      return markThoughtsDone(stripProcessItems(prev))
     case 'status_change': {
       const to = String(p.to ?? '')
       if (!['canceled', 'failed', 'done', 'interrupted'].includes(to)) return prev
-      return markThoughtsDone(prev)
+      return markThoughtsDone(stripProcessItems(prev))
     }
     case 'compaction':
       return [...prev, { kind: 'compaction', id: event.id }]
     case 'error':
-      return markThoughtsDone([...prev, { kind: 'msg', id: event.id, role: 'error', content: String(p.error ?? '出错了') }])
+      return markThoughtsDone(stripProcessItems([
+        ...prev,
+        { kind: 'msg', id: event.id, role: 'error', content: String(p.error ?? '出错了') },
+      ]))
     default:
       return prev
   }
