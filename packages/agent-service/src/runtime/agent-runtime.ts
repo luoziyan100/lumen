@@ -60,7 +60,11 @@ import {
 } from './task-title.ts'
 import { SubagentCoordinator } from '../subagent/coordinator.ts'
 import { SubagentStore } from '../subagent/store.ts'
+import { ChildRunner } from '../subagent/runner.ts'
+import { createSubagentTools } from '../tools/env/subagent-tools.ts'
 import { openDatabase, type DB } from '../storage/db.ts'
+import { mkdirSync } from 'node:fs'
+import * as nodePath from 'node:path'
 
 export type { UploadRef }
 
@@ -888,7 +892,33 @@ export class AgentRuntime {
       maxDepth: limits.maxDepth,
     })
     const turnId = this.cfg.store.beginTurn(task.id)
-    this.subagents?.openSpawnAdmission(task.id)
+    this.subagents.openSpawnAdmission(task.id)
+    // T3/T4: ChildRunner 共用本轮 model；child 工具宇宙 = mainTools（无 ask_user/memory 外挂，由 kind 过滤）
+    const childRunner = new ChildRunner({
+      coordinator: this.subagents,
+      model,
+      allTools: this.cfg.mainTools,
+      roles: this.cfg.roles ?? {},
+      maxDepth: limits.maxDepth,
+      makeWorkspace: (parentTaskId, cwdRoot) => {
+        const t = this.cfg.store.getTask(parentTaskId)
+        const projectId = t?.project_id ?? task.project_id
+        if (!cwdRoot) return this.makeWorkspace(projectId, parentTaskId)
+        const pid = sanitizeWorkspaceId(projectId)
+        const tid = sanitizeWorkspaceId(parentTaskId)
+        ensureProjectDirs(this.cfg.workspacesDir, pid)
+        const sessionRoot = nodePath.join(this.cfg.workspacesDir, pid, 'sessions', tid)
+        const stripe = nodePath.join(sessionRoot, cwdRoot)
+        mkdirSync(stripe, { recursive: true })
+        const sharedRoot = nodePath.join(this.cfg.workspacesDir, pid, 'shared')
+        const source = this.cfg.projects?.getProject(pid)?.source_path
+        const libraryRoot = (source && source.trim()) || this.cfg.libraryRoot
+        return new FsWorkspace({ root: stripe, libraryRoot, sharedRoot })
+      },
+      emit: (parentTaskId, event) => {
+        this.makeEmit(parentTaskId)(event)
+      },
+    })
     const ctx: ToolContext = {
       taskId: task.id,
       sessionId: task.id,
@@ -904,11 +934,14 @@ export class AgentRuntime {
         imageStore: this.cfg.imageBridge?.store,
         askUser: this.makeAskUserWaiter(task.id),
         subagents: this.subagents,
+        childRunner,
       },
     }
     const memoryTools = createMemoryTools(this.memoryDir(task.project_id)) // 跨会话记忆:仅主 agent,worker 不带
     const skillTools = createSkillTools(this.skillsForProject(task.project_id))
-    const mains = [...this.cfg.mainTools, ...memoryTools, ...skillTools]
+    const subagentTools = createSubagentTools()
+    const mains = [...this.cfg.mainTools, ...memoryTools, ...skillTools, ...subagentTools]
+    // 旧 spawn(role=…) 与 T4 spawn_subagent 并存；有 roles 时保留兼容路径
     const baseTools = this.cfg.roles && Object.keys(this.cfg.roles).length ? [...mains, spawnTool] : mains
     // 大结果落盘(方案 B):启用预算时,超限工具输出全文进会话 cache/tool-results/,上下文只留预览+路径
     const tools = this.cfg.contextBudget?.window

@@ -48,6 +48,7 @@ export type TaskEventKind =
   | 'subagent_started'
   | 'subagent_completed'
   | 'subagent_interrupted'
+  | 'subagent_demoted'
   | 'subagent_completion_reminder'
   | 'subagent_completion_reminder_consumed'
 
