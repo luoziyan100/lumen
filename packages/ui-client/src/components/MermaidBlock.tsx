@@ -1,37 +1,43 @@
 /**
- * [INPUT]: mermaid(动态 import);tokens.css 青瓷色板;ExpandIcon/CopyIcon
- * [OUTPUT]: MermaidBlock —— ```mermaid → SVG;悬停工具条:放大 / 复制源码
+ * [INPUT]: mermaid(动态 import);tokens.css;mermaidSanitize(v0–v2 颜色闸);ExpandIcon/CopyIcon
+ * [OUTPUT]: MermaidBlock —— ```mermaid → SVG;悬停工具条:放大 / 复制源码(原文,非改写稿)
  * [POS]: Markdown 的语言围栏分支;与 show-widget 沙箱并列,专吃结构图 DSL
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
+ *
+ * 渲染前 sanitizeMermaidSource:语义 class 映射 + 字面色对比度门禁;theme dark+darkMode。
+ * 复制按钮始终给用户/模型原文,改写只服务可读像素。
  */
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { glassMermaidThemeVariables, sanitizeMermaidSource } from '../mermaidSanitize'
 import { CheckIcon, CloseIcon, CopyIcon, ExpandIcon, ICON_SM } from './icons'
 
 function readThemeVars(el: HTMLElement): Record<string, string> {
   const cs = getComputedStyle(el)
+  const base = glassMermaidThemeVariables()
   const v = (name: string, fallback: string): string =>
     (cs.getPropertyValue(name).trim() || fallback)
+  // CSS 变量可能是 rgba;mermaid 对实色更稳。有 token 时覆盖关键项,解析失败则保留 glass 实色。
   return {
-    background: 'transparent',
-    primaryColor: v('--ember-tint', '#e8f0eb'),
-    primaryTextColor: v('--ink', '#211F1C'),
-    primaryBorderColor: v('--ember', '#2F6B4E'),
-    secondaryColor: v('--paper-deep', '#f4f2ec'),
-    secondaryTextColor: v('--ink', '#211F1C'),
-    secondaryBorderColor: v('--sand-deep', '#cfc8ba'),
-    tertiaryColor: v('--vellum', '#eeeae2'),
-    tertiaryTextColor: v('--ink', '#211F1C'),
-    tertiaryBorderColor: v('--sand', '#ddd6c8'),
-    lineColor: v('--ink-mute', '#8a8378'),
-    textColor: v('--ink', '#211F1C'),
-    mainBkg: v('--paper-solid', '#fffefb'),
-    nodeBorder: v('--sand-deep', '#cfc8ba'),
-    clusterBkg: v('--paper-deep', '#f4f2ec'),
-    clusterBorder: v('--sand-deep', '#cfc8ba'),
-    titleColor: v('--ink', '#211F1C'),
-    edgeLabelBackground: v('--paper-solid', '#fffefb'),
-    fontFamily: v('--font-sans', 'sans-serif'),
+    ...base,
+    primaryColor: v('--ember-tint', base.primaryColor!),
+    primaryTextColor: v('--ink', base.primaryTextColor!),
+    primaryBorderColor: v('--ember', base.primaryBorderColor!),
+    secondaryColor: v('--paper-deep', base.secondaryColor!),
+    secondaryTextColor: v('--ink-mute', base.secondaryTextColor!),
+    secondaryBorderColor: v('--sand-deep', base.secondaryBorderColor!),
+    tertiaryColor: v('--vellum', base.tertiaryColor!),
+    tertiaryTextColor: v('--ink', base.tertiaryTextColor!),
+    tertiaryBorderColor: v('--sand', base.tertiaryBorderColor!),
+    lineColor: v('--ink-mute', base.lineColor!),
+    textColor: v('--ink', base.textColor!),
+    mainBkg: v('--paper-solid', base.mainBkg!),
+    nodeBorder: v('--sand-deep', base.nodeBorder!),
+    clusterBkg: v('--paper-deep', base.clusterBkg!),
+    clusterBorder: v('--sand-deep', base.clusterBorder!),
+    titleColor: v('--ink', base.titleColor!),
+    edgeLabelBackground: v('--paper-deep', base.edgeLabelBackground!),
+    fontFamily: v('--font-sans', base.fontFamily!),
   }
 }
 
@@ -71,16 +77,18 @@ export function MermaidBlock({ chart }: { chart: string }) {
       try {
         const mermaid = (await import('mermaid')).default
         const host = hostRef.current
-        const themeVariables = host ? readThemeVars(host) : undefined
+        const themeVariables = host ? readThemeVars(host) : glassMermaidThemeVariables()
+        const { source: safeSource } = sanitizeMermaidSource(source)
         mermaid.initialize({
           startOnLoad: false,
           securityLevel: 'strict',
-          theme: 'base',
+          theme: 'dark',
+          darkMode: true,
           themeVariables,
-          fontFamily: themeVariables?.fontFamily,
+          fontFamily: themeVariables.fontFamily,
         })
         const id = `mmd-${reactId}-${Math.random().toString(36).slice(2, 8)}`
-        const { svg: out } = await mermaid.render(id, source)
+        const { svg: out } = await mermaid.render(id, safeSource)
         if (!cancelled) setSvg(out)
       } catch (e) {
         if (!cancelled) {
