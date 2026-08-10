@@ -24,10 +24,14 @@ export interface UserContentAnnex {
   activePath?: string | null
 }
 
-/** 可绑为「当前稿」的文本扩展名(可 read_file + write/edit) */
+/**
+ * 可绑为「当前稿」的文本扩展名(可 read_file + write/edit)。
+ * html/htm 故意排除:阅读器里是预览面(只开不绑),打开≠钉待改对象(artifact-loop P0 / HDD)。
+ * 用户要对 HTML 源码迭代:对话点名 path,或后续「显式钉住」入口。
+ */
 const BINDABLE_TEXT_EXT = new Set([
   'md', 'markdown', 'txt', 'csv', 'json', 'jsonl', 'xml', 'yaml', 'yml', 'tex',
-  'py', 'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'sh', 'css', 'html', 'htm', 'rs', 'go', 'java',
+  'py', 'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'sh', 'css', 'rs', 'go', 'java',
 ])
 
 const ANNEX_HEADER =

@@ -53,11 +53,14 @@ test('parseUploads 容错', () => {
   ])
 })
 
-test('sanitizeActivePath:可绑 drafts/notes;拒 PDF shared cache 逃逸', () => {
+test('sanitizeActivePath:可绑 drafts/notes;拒 PDF HTML shared cache 逃逸', () => {
   assert.equal(sanitizeActivePath('drafts/综述.md'), 'drafts/综述.md')
   assert.equal(sanitizeActivePath('notes/a.txt'), 'notes/a.txt')
   assert.equal(sanitizeActivePath('docs/a.md'), 'docs/a.md')
   assert.equal(sanitizeActivePath('papers/a.pdf'), null)
+  // HTML 只开不绑:预览 ≠ 当前稿
+  assert.equal(sanitizeActivePath('drafts/page.html'), null)
+  assert.equal(sanitizeActivePath('notes/x.htm'), null)
   assert.equal(sanitizeActivePath('shared/notes/x.md'), null)
   assert.equal(sanitizeActivePath('cache/x.md'), null)
   assert.equal(sanitizeActivePath('../etc/passwd'), null)
@@ -65,6 +68,7 @@ test('sanitizeActivePath:可绑 drafts/notes;拒 PDF shared cache 逃逸', () =>
   assert.equal(sanitizeActivePath(null), null)
   assert.ok(isBindableActivePath('drafts/a.md'))
   assert.equal(isBindableActivePath('papers/a.pdf'), false)
+  assert.equal(isBindableActivePath('x.html'), false)
 })
 
 test('formatActivePathAnnex + userContentForModel 合并', () => {

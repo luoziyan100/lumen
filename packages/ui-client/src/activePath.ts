@@ -5,9 +5,11 @@
  * [PROTOCOL]: 变更时更新此头部,并与 agent-service upload-awareness 白名单对齐
  */
 
+// 可绑「当前稿」= 默认可 edit 的文本稿。html/htm 只进阅读器预览(只开不绑),
+// 避免一点开可视化就钉 activePath(HDD:打开≠要改)。
 const BINDABLE_TEXT_EXT = new Set([
   'md', 'markdown', 'txt', 'csv', 'json', 'jsonl', 'xml', 'yaml', 'yml', 'tex',
-  'py', 'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'sh', 'css', 'html', 'htm', 'rs', 'go', 'java',
+  'py', 'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'sh', 'css', 'rs', 'go', 'java',
 ])
 
 export function normalizeWorkspaceRelPath(raw: string): string | null {
