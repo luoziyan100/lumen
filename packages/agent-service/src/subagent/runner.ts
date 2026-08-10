@@ -4,6 +4,7 @@
  * [POS]: subagent T3/T5 L3；与主 runtime 共用内核，独立 turn/session/Abort
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
+import { existsSync } from 'node:fs'
 import * as path from 'node:path'
 import { Thread } from '../core/thread.ts'
 import { runAgent } from '../core/loop.ts'
@@ -13,6 +14,7 @@ import type { Limits } from '../core/limits.ts'
 import type { AgentEvent } from '../core/types.ts'
 import type { Tool, ToolContext, Workspace } from '../core/tool.ts'
 import { FsWorkspace } from '../workspace/fs-workspace.ts'
+import type { TaskEvent } from '../storage/task-store.ts'
 import type { SubagentCoordinator } from './coordinator.ts'
 import {
   buildChildTools,
@@ -20,6 +22,7 @@ import {
   type AgentDefinition,
 } from './resolution.ts'
 import { isWriteCapableToolset } from './tool-kind.ts'
+import { rebuildChildThread } from './child-resume.ts'
 import {
   expandUserPath,
   materializeWorktree,
@@ -45,6 +48,8 @@ export interface ChildRunnerDeps {
   makeWorkspace: (parentTaskId: string, cwdRoot: string | null) => Workspace | Promise<Workspace>
   /** 事件桥：写入 parent task 事件流（agentRole = subagent_type） */
   emit: (parentTaskId: string, event: AgentEvent) => void | Promise<void>
+  /** resume 重建线程：读 parent task 事件 */
+  listEvents?: (parentTaskId: string) => TaskEvent[]
   /** 嵌套 spawn 用（allowNested 时）；默认空 */
   roles?: Record<string, RoleDef>
   maxDepth?: number
@@ -76,6 +81,8 @@ export interface StartChildInput {
   /** 覆盖 definition 解析（测试/自定义） */
   definition?: AgentDefinition
   model?: ModelPort
+  /** T6：从已有子 session 续跑 */
+  resume_from?: string
 }
 
 export interface ChildRunHandle {
@@ -128,19 +135,35 @@ export class ChildRunner {
     const writeCapable = isWriteCapableToolset(tools)
     void effectiveCapability
 
-    const isolation: IsolationMode = input.isolation ?? def.isolationDefault
-    const reg = this.deps.coordinator.registerSpawn({
-      parent_task_id: input.parent_task_id,
-      parent_turn_id: input.parent_turn_id,
-      parent_subagent_id: input.parent_subagent_id ?? null,
-      subagent_type: def.name,
-      description: input.description,
-      depth: input.depth ?? 1,
-      isolation,
-      model_cwd: input.model_cwd,
-      write_capable: writeCapable,
-      surface_completion: true,
-    })
+    const isResume = Boolean(input.resume_from)
+    let priorSummary: string | null = null
+    let originalPrompt: string | null = null
+
+    let reg
+    if (isResume) {
+      const src = this.deps.coordinator.get(input.resume_from!)
+      priorSummary = src?.completion_summary ?? src?.last_error ?? null
+      reg = this.deps.coordinator.prepareResume({
+        resume_from: input.resume_from!,
+        parent_task_id: input.parent_task_id,
+        parent_turn_id: input.parent_turn_id,
+        subagent_type: def.name,
+      })
+    } else {
+      const isolation: IsolationMode = input.isolation ?? def.isolationDefault
+      reg = this.deps.coordinator.registerSpawn({
+        parent_task_id: input.parent_task_id,
+        parent_turn_id: input.parent_turn_id,
+        parent_subagent_id: input.parent_subagent_id ?? null,
+        subagent_type: def.name,
+        description: input.description,
+        depth: input.depth ?? 1,
+        isolation,
+        model_cwd: input.model_cwd,
+        write_capable: writeCapable,
+        surface_completion: true,
+      })
+    }
     if (!reg.ok || !reg.record) {
       return {
         success: false,
@@ -150,19 +173,36 @@ export class ChildRunner {
     }
 
     const rec = reg.record
+    originalPrompt = input.scope
+      ? `Scope: ${input.scope}\n\n${input.prompt}`
+      : input.prompt
 
-    // T5: worktree 物化——失败则终态 failed，禁止改 isolation=none
-    if (isolation === 'worktree') {
-      const wt = await this.materializeForChild(rec.id, input.parent_task_id)
-      if (!wt.ok) {
-        this.deps.coordinator.complete(rec.id, 'failed', {
-          last_error: wt.error,
-          completion_summary: wt.error,
-        })
-        return {
-          success: false,
-          error_code: wt.error_code,
-          error: wt.error,
+    // T5: 新 spawn 的 worktree 物化；resume 继承路径，缺失则显式失败
+    if (rec.isolation === 'worktree') {
+      if (isResume) {
+        if (!rec.worktree_path || !existsSync(rec.worktree_path)) {
+          this.deps.coordinator.complete(rec.id, 'failed', {
+            last_error: 'worktree path missing on resume (refusing fallback to none)',
+            completion_summary: 'worktree path missing on resume',
+          })
+          return {
+            success: false,
+            error_code: SUBAGENT_ERROR.WORKTREE_FAILED,
+            error: 'worktree path missing on resume (refusing fallback to none)',
+          }
+        }
+      } else {
+        const wt = await this.materializeForChild(rec.id, input.parent_task_id)
+        if (!wt.ok) {
+          this.deps.coordinator.complete(rec.id, 'failed', {
+            last_error: wt.error,
+            completion_summary: wt.error,
+          })
+          return {
+            success: false,
+            error_code: wt.error_code,
+            error: wt.error,
+          }
         }
       }
     }
@@ -193,6 +233,14 @@ export class ChildRunner {
       model: input.model ?? this.deps.model,
       signal: controller.signal,
       depth: input.depth ?? 1,
+      resume: isResume
+        ? {
+          resumePrompt: originalPrompt,
+          priorSummary,
+          // 历史锚：priorSummary 或事件回放；不重复塞同一 resume 正文
+          originalPrompt: null,
+        }
+        : null,
     })
     this.inflight.set(rec.id, done)
     void done.finally(() => this.inflight.delete(rec.id))
@@ -250,8 +298,13 @@ export class ChildRunner {
     model: ModelPort
     signal: AbortSignal
     depth: number
+    resume: null | {
+      resumePrompt: string
+      priorSummary: string | null
+      originalPrompt: string | null
+    }
   }): Promise<void> {
-    const { id, def, tools, prompt, scope, model, signal, depth } = args
+    const { id, def, tools, prompt, scope, model, signal, depth, resume } = args
     const rec = this.deps.coordinator.get(id)
     if (!rec) return
 
@@ -303,9 +356,9 @@ export class ChildRunner {
         roles: this.deps.roles ?? {},
         maxDepth,
       })
-      const childTurnId = rec.active_turn_id ?? `turn-${globalThis.crypto.randomUUID()}`
+      const childTurnId = fresh.active_turn_id ?? `turn-${globalThis.crypto.randomUUID()}`
       const ctx: ToolContext = {
-        taskId: rec.parent_task_id,
+        taskId: fresh.parent_task_id,
         sessionId: id,
         turnId: childTurnId,
         agentRole: def.name,
@@ -323,13 +376,24 @@ export class ChildRunner {
         maxSteps: def.maxSteps,
         maxDepth,
       }
-      const body = scope
-        ? `Scope: ${scope}\n\n${prompt}`
-        : prompt
-      const thread = new Thread([
-        { role: 'system', content: def.systemPrompt },
-        { role: 'user', content: body },
-      ])
+
+      let thread: Thread
+      if (resume) {
+        const events = this.deps.listEvents?.(fresh.parent_task_id) ?? []
+        thread = rebuildChildThread(events, {
+          systemPrompt: def.systemPrompt,
+          subagentId: id,
+          originalPrompt: resume.originalPrompt,
+          resumePrompt: resume.resumePrompt,
+          priorSummary: resume.priorSummary,
+        })
+      } else {
+        const body = scope ? `Scope: ${scope}\n\n${prompt}` : prompt
+        thread = new Thread([
+          { role: 'system', content: def.systemPrompt },
+          { role: 'user', content: body },
+        ])
+      }
 
       const result = await runAgent({
         thread,

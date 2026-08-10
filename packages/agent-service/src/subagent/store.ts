@@ -201,6 +201,28 @@ export class SubagentStore {
     )
   }
 
+  /**
+   * resume 前重开：终态 → queued；保留 cwd/worktree/type；清空 finished/reminder。
+   */
+  reopenForResume(id: string, parentTurnId?: string): SubagentRecord | null {
+    const cur = this.get(id)
+    if (!cur) return null
+    const ts = now()
+    this.db.prepare(`
+      UPDATE subagents SET
+        status='queued',
+        last_error=NULL,
+        finished_at=NULL,
+        active_turn_id=NULL,
+        reminder_consumed=0,
+        completion_summary=NULL,
+        parent_turn_id=COALESCE(?, parent_turn_id),
+        updated_at=?
+      WHERE id=?
+    `).run(parentTurnId ?? null, ts, id)
+    return this.get(id)
+  }
+
   setUsage(
     id: string,
     usage: {

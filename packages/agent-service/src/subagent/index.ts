@@ -34,3 +34,4 @@ export {
   expandUserPath,
   type WorktreeResult,
 } from './worktree.ts'
+export { rebuildChildThread, type RebuildChildOptions } from './child-resume.ts'

@@ -85,6 +85,10 @@ const SPAWN_SPEC = {
         description: 'Virtual path under task session (none only). Omitted for write types → workers/<id>/',
       },
       scope: { type: 'string', description: 'Optional scope prefix for research workers' },
+      resume_from: {
+        type: 'string',
+        description: 'Resume an existing subagent (done|interrupted|exhausted); inherits cwd/worktree',
+      },
     },
     required: ['prompt', 'description', 'subagent_type'],
   },
@@ -155,13 +159,6 @@ export const spawnSubagentTool: Tool = {
     if (!prompt || !description || !subagent_type) {
       return errResult(SUBAGENT_ERROR.TYPE_UNKNOWN, 'prompt, description, subagent_type required')
     }
-    if (args.resume_from) {
-      return errResult(
-        SUBAGENT_ERROR.RESUME_NOT_ALLOWED,
-        'resume_from not wired in this build (T6); spawn a new subagent',
-      )
-    }
-
     const background = parseBool(args.background, true)
     const capability = parseCapability(args.capability_mode)
     if (args.capability_mode != null && args.capability_mode !== '' && capability == null) {
@@ -189,6 +186,9 @@ export const spawnSubagentTool: Tool = {
       isolation,
       model_cwd: args.cwd != null && String(args.cwd).trim() !== '' ? String(args.cwd) : null,
       depth: ctx.depth + 1,
+      resume_from: args.resume_from != null && String(args.resume_from).trim() !== ''
+        ? String(args.resume_from)
+        : undefined,
     })
 
     if (!start.success) {

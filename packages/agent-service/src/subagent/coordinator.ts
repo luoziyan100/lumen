@@ -581,4 +581,86 @@ export class SubagentCoordinator {
   ): void {
     this.store.setWorkspacePaths(id, paths)
   }
+
+  /**
+   * resume 资格 + 同 task + type 匹配 → reopen queued。
+   * 不继承 parent_turn（新 turn 由 markRunning 分配）；cwd/worktree 保留在行上。
+   */
+  prepareResume(opts: {
+    resume_from: string
+    parent_task_id: string
+    parent_turn_id: string
+    subagent_type: string
+  }): SpawnRegisterResult {
+    const src = this.store.get(opts.resume_from)
+    if (!src) {
+      return { ok: false, error_code: SUBAGENT_ERROR.NOT_FOUND, error: `resume source not found: ${opts.resume_from}` }
+    }
+    if (src.parent_task_id !== opts.parent_task_id) {
+      return {
+        ok: false,
+        error_code: SUBAGENT_ERROR.RESUME_NOT_ALLOWED,
+        error: 'resume_from must be under the same parent task',
+      }
+    }
+    if (src.subagent_type !== opts.subagent_type) {
+      return {
+        ok: false,
+        error_code: SUBAGENT_ERROR.RESUME_NOT_ALLOWED,
+        error: `subagent_type mismatch: source=${src.subagent_type} requested=${opts.subagent_type}`,
+      }
+    }
+    if (!resumeAllowed(src.status)) {
+      return {
+        ok: false,
+        error_code: SUBAGENT_ERROR.RESUME_NOT_ALLOWED,
+        error: `status ${src.status} is not resumeable`,
+      }
+    }
+    if (this.spawnBlocked.has(opts.parent_task_id)) {
+      return {
+        ok: false,
+        error_code: SUBAGENT_ERROR.SPAWN_BLOCKED,
+        error: 'spawn blocked for this task (stop/teardown)',
+      }
+    }
+    if (
+      this.store.countActiveForTask(opts.parent_task_id) >= this.cfg.max_concurrent_per_task
+      || this.store.countActiveGlobal() >= this.cfg.max_concurrent_global
+    ) {
+      return {
+        ok: false,
+        error_code: SUBAGENT_ERROR.CONCURRENCY_LIMIT,
+        error: 'concurrency limit',
+      }
+    }
+    // reopen 前快照路径（reopen 不碰 cwd/worktree）
+    const paths = {
+      cwd_root: src.cwd_root,
+      worktree_path: src.worktree_path,
+      snapshot_ref: src.snapshot_ref,
+    }
+    const reopened = this.store.reopenForResume(src.id, opts.parent_turn_id)
+    if (!reopened) {
+      return { ok: false, error_code: SUBAGENT_ERROR.NOT_FOUND, error: 'reopen failed' }
+    }
+    this.store.setWorkspacePaths(src.id, paths)
+    this.taskStore.appendEvent(
+      opts.parent_task_id,
+      'subagent_started',
+      {
+        subagent_id: src.id,
+        subagent_type: src.subagent_type,
+        description: src.description,
+        parent_turn_id: opts.parent_turn_id,
+        resume_from: src.id,
+        status: 'queued',
+        isolation: src.isolation,
+        cwd_root: paths.cwd_root,
+        worktree_path: paths.worktree_path,
+      },
+      'main',
+    )
+    return { ok: true, record: this.store.get(src.id)! }
+  }
 }

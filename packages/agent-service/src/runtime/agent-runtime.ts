@@ -927,6 +927,7 @@ export class AgentRuntime {
       emit: (parentTaskId, event) => {
         this.makeEmit(parentTaskId)(event)
       },
+      listEvents: (parentTaskId) => this.cfg.store.listEvents(parentTaskId),
     })
     const ctx: ToolContext = {
       taskId: task.id,
