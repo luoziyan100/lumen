@@ -1,6 +1,6 @@
 /**
- * [OUTPUT]: subagent 模块出口（T0–T2）
- * [POS]: 子 Agent 协议/存储/协调/reminder/ToolKind/Resolution
+ * [OUTPUT]: subagent 模块出口（T0–T3）
+ * [POS]: 子 Agent 协议/存储/协调/reminder/ToolKind/Resolution/Runner
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 export * from './types.ts'
@@ -26,3 +26,4 @@ export {
   assertExploreReadOnly,
   type AgentDefinition,
 } from './resolution.ts'
+export { ChildRunner, type ChildRunnerDeps, type StartChildInput, type ChildRunHandle } from './runner.ts'
