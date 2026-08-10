@@ -1,5 +1,5 @@
 /**
- * [OUTPUT]: subagent 模块出口（T0+T1）
+ * [OUTPUT]: subagent 模块出口（T0–T2）
  * [POS]: 子 Agent 协议/存储/协调/reminder/ToolKind/Resolution
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */

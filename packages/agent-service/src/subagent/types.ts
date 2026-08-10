@@ -124,6 +124,76 @@ export const DEFAULT_SUBAGENT_CONFIG: SubagentConfig = {
   worktree_root: '~/.lumen/worktrees',
 }
 
+/** bg spawn 立即返回 */
+export interface SpawnImmediateResult {
+  success: boolean
+  subagent_id?: string
+  subagent_type?: string
+  status?: 'queued' | 'running'
+  demoted?: boolean
+  error_code?: string
+  error?: string
+}
+
+/** 完成结构（get_output / wait 终态） */
+export interface SubagentCompletionResult {
+  output: string
+  subagent_id: string
+  subagent_type: string
+  status: SubagentStatus
+  tool_calls: number
+  turns: number
+  duration_ms: number
+  worktree_path?: string
+  cwd_root?: string
+  resume_hint: string
+  resume_allowed: boolean
+  error?: string
+  usage: SubagentUsage
+  usage_applied_to_parent: boolean
+  truncated?: boolean
+  full_output_path?: string
+}
+
+export interface WaitOptions {
+  /** 等待上限 ms；foreground 用 config.foreground_budget_ms */
+  timeoutMs?: number
+  /**
+   * 超时后是否 demote 为 background 继续跑（不杀）。
+   * true = 协议 foreground 超时行为；false = 仅超时返回仍 running。
+   */
+  demoteOnTimeout?: boolean
+  signal?: AbortSignal
+}
+
+export interface WaitResult {
+  /** 全部终态 → done；任一超时且 demote → demoted；超时未 demote → timeout */
+  outcome: 'done' | 'demoted' | 'timeout' | 'aborted'
+  results: SubagentCompletionResult[]
+  /** 仍未终态的 id */
+  pending_ids: string[]
+}
+
+/** isolation=worktree 时禁止模型 cwd；cwd_root 由 runner 物化后写入 */
+export function assertSpawnCwdLegal(
+  isolation: IsolationMode,
+  modelCwd: string | null | undefined,
+): { ok: true } | { ok: false; error_code: string; error: string } {
+  if (isolation === 'worktree' && modelCwd != null && modelCwd !== '') {
+    return {
+      ok: false,
+      error_code: SUBAGENT_ERROR.CWD_FORBIDDEN_WITH_WORKTREE,
+      error: 'cwd is forbidden when isolation=worktree',
+    }
+  }
+  return { ok: true }
+}
+
+/** none 隔离 + 写型：默认 workers/<id>/ 条带 */
+export function defaultWriteStripeCwd(subagentId: string): string {
+  return `workers/${subagentId}`
+}
+
 /** Capability 格 meet（R1 · RW∩EX=RO） */
 export function meetCapability(
   a: CapabilityMode | null | undefined,

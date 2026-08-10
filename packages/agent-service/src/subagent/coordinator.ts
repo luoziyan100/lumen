@@ -1,7 +1,7 @@
 /**
- * [INPUT]: SubagentStore + TaskStore；R1.3 生命周期/并发/kill 级联
- * [OUTPUT]: SubagentCoordinator —— 受理 spawn 登记、kill、sweep、并发闸
- * [POS]: T0 协调器骨架;Runner 未接 runAgent 前可纯状态机测
+ * [INPUT]: SubagentStore + TaskStore；R1.3 生命周期/并发/kill/wait/fg demote
+ * [OUTPUT]: SubagentCoordinator —— spawn 登记、kill、cancel、wait、getOutput、sweep
+ * [POS]: T2 全命令 + 落盘;Runner(runAgent) 在 T3 挂 live handle
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { TaskStore } from '../storage/task-store.ts'
@@ -14,12 +14,19 @@ import type { SubagentStore } from './store.ts'
 import {
   DEFAULT_SUBAGENT_CONFIG,
   SUBAGENT_ERROR,
+  assertSpawnCwdLegal,
+  defaultWriteStripeCwd,
   isTerminalStatus,
   resumeAllowed,
   type CreateSubagentInput,
+  type IsolationMode,
+  type SpawnImmediateResult,
+  type SubagentCompletionResult,
   type SubagentConfig,
   type SubagentRecord,
   type SubagentStatus,
+  type WaitOptions,
+  type WaitResult,
 } from './types.ts'
 
 export interface SpawnRegisterResult {
@@ -32,6 +39,10 @@ export interface SpawnRegisterResult {
 /** live handle：进程内 AbortController；无则仅落盘状态 */
 export interface LiveHandle {
   controller: AbortController
+  startedAt: number
+  demoted: boolean
+  /** foreground 等待时 demote 回调 */
+  onDemote?: () => void
 }
 
 export class SubagentCoordinator {
@@ -41,6 +52,7 @@ export class SubagentCoordinator {
   private readonly live = new Map<string, LiveHandle>()
   /** Stop 后禁止新 spawn 的 parent_task_id */
   private readonly spawnBlocked = new Set<string>()
+  private readonly fgTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
   constructor(store: SubagentStore, taskStore: TaskStore, cfg: Partial<SubagentConfig> = {}) {
     this.store = store
@@ -61,10 +73,17 @@ export class SubagentCoordinator {
   }
 
   /**
-   * 登记 spawn → status=queued。
-   * 并发超限 → 拒绝，错误码 subagent_concurrency_limit。
+   * 校验 + 登记 spawn → status=queued。
+   * 并发超限 / worktree+cwd / depth / blocked → 拒绝。
    */
-  registerSpawn(input: CreateSubagentInput): SpawnRegisterResult {
+  registerSpawn(
+    input: CreateSubagentInput & {
+      /** 模型传入的 cwd（虚拟相对路径）；worktree 时禁止 */
+      model_cwd?: string | null
+      /** 写型 none 隔离时自动 workers/<id>/ */
+      write_capable?: boolean
+    },
+  ): SpawnRegisterResult {
     if (this.spawnBlocked.has(input.parent_task_id)) {
       return {
         ok: false,
@@ -79,6 +98,11 @@ export class SubagentCoordinator {
         error: `max_depth ${this.cfg.max_depth} exceeded`,
       }
     }
+    const isolation: IsolationMode = input.isolation ?? 'none'
+    const cwdCheck = assertSpawnCwdLegal(isolation, input.model_cwd)
+    if (!cwdCheck.ok) {
+      return { ok: false, error_code: cwdCheck.error_code, error: cwdCheck.error }
+    }
     if (
       this.store.countActiveForTask(input.parent_task_id) >= this.cfg.max_concurrent_per_task
       || this.store.countActiveGlobal() >= this.cfg.max_concurrent_global
@@ -89,8 +113,22 @@ export class SubagentCoordinator {
         error: `concurrency limit (task=${this.cfg.max_concurrent_per_task}, global=${this.cfg.max_concurrent_global})`,
       }
     }
-    // worktree + cwd 禁（cwd_root 由 runner 设；模型 cwd 在工具层拒）
-    const rec = this.store.create(input)
+
+    const id = input.id ?? `sub-${globalThis.crypto.randomUUID()}`
+    let cwd_root = input.cwd_root ?? null
+    // none + 写型 + 未指定 cwd → 强制 workers/<id>/ 条带
+    if (isolation === 'none' && input.write_capable && !cwd_root && !input.model_cwd) {
+      cwd_root = defaultWriteStripeCwd(id)
+    } else if (isolation === 'none' && input.model_cwd) {
+      cwd_root = input.model_cwd
+    }
+
+    const rec = this.store.create({
+      ...input,
+      id,
+      isolation,
+      cwd_root,
+    })
     this.taskStore.appendEvent(
       rec.parent_task_id,
       'subagent_started',
@@ -101,13 +139,26 @@ export class SubagentCoordinator {
         parent_turn_id: rec.parent_turn_id,
         parent_subagent_id: rec.parent_subagent_id,
         status: rec.status,
+        isolation: rec.isolation,
+        cwd_root: rec.cwd_root,
       },
       'main',
     )
     return { ok: true, record: rec }
   }
 
-  /** queued → running；分配 child turn */
+  /** bg 立即响应形状（工具层用） */
+  toImmediateResult(record: SubagentRecord, demoted = false): SpawnImmediateResult {
+    return {
+      success: true,
+      subagent_id: record.id,
+      subagent_type: record.subagent_type,
+      status: record.status === 'running' ? 'running' : 'queued',
+      ...(demoted ? { demoted: true } : {}),
+    }
+  }
+
+  /** queued → running；分配 **child 自有** turn（≠ parent_turn / root） */
   markRunning(id: string): SubagentRecord | null {
     const cur = this.store.get(id)
     if (!cur || cur.status !== 'queued') return null
@@ -124,11 +175,59 @@ export class SubagentCoordinator {
   }
 
   attachLive(id: string, controller: AbortController): void {
-    this.live.set(id, { controller })
+    this.live.set(id, { controller, startedAt: Date.now(), demoted: false })
+  }
+
+  isLive(id: string): boolean {
+    return this.live.has(id)
+  }
+
+  isDemoted(id: string): boolean {
+    return this.live.get(id)?.demoted === true
   }
 
   /**
-   * 终态。写 completion 事件 + 可选 drain reminder。
+   * 启动 foreground 预算表：到期 demote（不杀），子继续 bg。
+   * Runner/工具层在 background=false 时调用。
+   */
+  armForegroundBudget(id: string, budgetMs = this.cfg.foreground_budget_ms): void {
+    this.clearFgTimer(id)
+    const handle = this.live.get(id)
+    if (!handle) return
+    const timer = setTimeout(() => {
+      this.demoteToBackground(id)
+    }, budgetMs)
+    // 不 block 进程退出
+    if (typeof timer === 'object' && 'unref' in timer) (timer as NodeJS.Timeout).unref()
+    this.fgTimers.set(id, timer)
+  }
+
+  /** foreground 超时 → demote；不 abort */
+  demoteToBackground(id: string): boolean {
+    this.clearFgTimer(id)
+    const handle = this.live.get(id)
+    if (!handle || handle.demoted) return false
+    const rec = this.store.get(id)
+    if (!rec || isTerminalStatus(rec.status)) return false
+    handle.demoted = true
+    this.taskStore.appendEvent(
+      rec.parent_task_id,
+      'subagent_demoted',
+      { subagent_id: id, reason: 'foreground_budget' },
+      'main',
+    )
+    handle.onDemote?.()
+    return true
+  }
+
+  private clearFgTimer(id: string): void {
+    const t = this.fgTimers.get(id)
+    if (t) clearTimeout(t)
+    this.fgTimers.delete(id)
+  }
+
+  /**
+   * 终态。写 completion 事件 + usage 落盘 + drain reminder。
    */
   complete(
     id: string,
@@ -139,13 +238,18 @@ export class SubagentCoordinator {
       tool_calls?: number
       turns?: number
       usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+      cwd_root?: string | null
+      worktree_path?: string | null
     },
   ): SubagentRecord | null {
     const cur = this.store.get(id)
     if (!cur) return null
-    if (isTerminalStatus(cur.status) && cur.status !== 'cancelling') {
-      // already terminal — allow interrupted overwrite only from sweep
+    if (isTerminalStatus(cur.status)) {
+      // already terminal — idempotent get
+      return cur
     }
+
+    this.clearFgTimer(id)
     const live = this.live.get(id)
     if (live && status === 'aborted') live.controller.abort()
     this.live.delete(id)
@@ -164,19 +268,27 @@ export class SubagentCoordinator {
     if (opts?.completion_summary != null) {
       this.store.setCompletionSummary(id, opts.completion_summary)
     }
+    if (opts?.cwd_root !== undefined || opts?.worktree_path !== undefined) {
+      this.store.setWorkspacePaths(id, {
+        cwd_root: opts.cwd_root,
+        worktree_path: opts.worktree_path,
+      })
+    }
+    if (opts?.usage || opts?.tool_calls != null || opts?.turns != null) {
+      this.store.setUsage(id, {
+        prompt_tokens: opts.usage?.prompt_tokens,
+        completion_tokens: opts.usage?.completion_tokens,
+        total_tokens: opts.usage?.total_tokens,
+        tool_calls: opts.tool_calls,
+        turns: opts.turns,
+      })
+    }
+
     const next = this.store.updateStatus(id, status, {
       last_error: opts?.last_error,
       finished: true,
     })
     if (!next) return null
-
-    // usage counters (best-effort update via raw SQL if provided)
-    if (opts?.usage || opts?.tool_calls != null || opts?.turns != null) {
-      // re-read after status update
-      const r = this.store.get(id)!
-      // store doesn't expose generic update — use complete path fields via setCompletionSummary only for T0
-      void r
-    }
 
     this.taskStore.appendEvent(
       next.parent_task_id,
@@ -187,11 +299,156 @@ export class SubagentCoordinator {
         status: next.status,
         resume_allowed: resumeAllowed(next.status),
         summary: next.completion_summary,
+        usage: {
+          prompt_tokens: next.prompt_tokens,
+          completion_tokens: next.completion_tokens,
+          total_tokens: next.total_tokens,
+        },
       },
       'main',
     )
     drainCompletionReminder(this.store, this.taskStore, id)
     return this.store.get(id)
+  }
+
+  /**
+   * 读完成结构（running 也可 query，output 可能空）。
+   * 截断：completion_output_cap。
+   */
+  getOutput(id: string): SubagentCompletionResult | null {
+    const r = this.store.get(id)
+    if (!r) return null
+    return this.toCompletionResult(r)
+  }
+
+  private toCompletionResult(r: SubagentRecord): SubagentCompletionResult {
+    const raw = r.completion_summary ?? ''
+    const cap = this.cfg.completion_output_cap
+    const truncated = raw.length > cap
+    const output = truncated ? raw.slice(0, cap) : raw
+    const allowed = resumeAllowed(r.status)
+    const started = this.live.get(r.id)?.startedAt
+    const endMs = r.finished_at ? Date.parse(r.finished_at) : Date.now()
+    const startMs = started ?? Date.parse(r.created_at)
+    const duration_ms = Math.max(0, endMs - startMs)
+
+    let resume_hint = ''
+    if (allowed) {
+      resume_hint = `resume_from=${r.id} (status=${r.status})`
+    } else if (isTerminalStatus(r.status)) {
+      resume_hint = `not resumeable (status=${r.status})`
+    } else {
+      resume_hint = 'still running; use wait or get_output later'
+    }
+
+    return {
+      output,
+      subagent_id: r.id,
+      subagent_type: r.subagent_type,
+      status: r.status,
+      tool_calls: r.tool_calls,
+      turns: r.turns,
+      duration_ms,
+      ...(r.worktree_path ? { worktree_path: r.worktree_path } : {}),
+      ...(r.cwd_root ? { cwd_root: r.cwd_root } : {}),
+      resume_hint,
+      resume_allowed: allowed,
+      ...(r.last_error ? { error: r.last_error } : {}),
+      usage: {
+        prompt_tokens: r.prompt_tokens,
+        completion_tokens: r.completion_tokens,
+        total_tokens: r.total_tokens,
+      },
+      // parent budget 接线在 T3 Runner
+      usage_applied_to_parent: false,
+      ...(truncated ? { truncated: true } : {}),
+    }
+  }
+
+  /**
+   * 等待一组子到达终态，或 timeout / demote / abort。
+   * 轮询落盘状态（Runner 未就绪时测试可 complete 推进）。
+   */
+  async wait(ids: string[], opts: WaitOptions = {}): Promise<WaitResult> {
+    const timeoutMs = opts.timeoutMs ?? this.cfg.foreground_budget_ms
+    const demoteOnTimeout = opts.demoteOnTimeout === true
+    const deadline = Date.now() + timeoutMs
+    const pending = new Set(ids)
+    const signal = opts.signal
+
+    // 注册 demote 唤醒
+    const demoteWaiters: Array<() => void> = []
+    for (const id of ids) {
+      const h = this.live.get(id)
+      if (h) {
+        const prev = h.onDemote
+        h.onDemote = () => {
+          prev?.()
+          for (const w of demoteWaiters) w()
+        }
+      }
+    }
+
+    const poll = (): boolean => {
+      for (const id of [...pending]) {
+        const r = this.store.get(id)
+        if (r && isTerminalStatus(r.status)) pending.delete(id)
+      }
+      return pending.size === 0
+    }
+
+    if (poll()) {
+      return {
+        outcome: 'done',
+        results: ids.map((id) => this.getOutput(id)!).filter(Boolean),
+        pending_ids: [],
+      }
+    }
+
+    return await new Promise<WaitResult>((resolve) => {
+      let settled = false
+      const finish = (outcome: WaitResult['outcome']) => {
+        if (settled) return
+        settled = true
+        clearInterval(iv)
+        signal?.removeEventListener('abort', onAbort)
+        const pending_ids = [...pending]
+        resolve({
+          outcome,
+          results: ids
+            .map((id) => this.getOutput(id))
+            .filter((x): x is SubagentCompletionResult => Boolean(x)),
+          pending_ids,
+        })
+      }
+
+      const onAbort = () => finish('aborted')
+      signal?.addEventListener('abort', onAbort, { once: true })
+      if (signal?.aborted) {
+        finish('aborted')
+        return
+      }
+
+      demoteWaiters.push(() => {
+        if (demoteOnTimeout) finish('demoted')
+      })
+
+      const iv = setInterval(() => {
+        if (poll()) {
+          finish('done')
+          return
+        }
+        if (Date.now() >= deadline) {
+          if (demoteOnTimeout) {
+            for (const id of pending) this.demoteToBackground(id)
+            finish('demoted')
+          } else {
+            finish('timeout')
+          }
+        }
+      }, 20)
+      if (typeof iv === 'object' && 'unref' in iv) (iv as NodeJS.Timeout).unref()
+    })
   }
 
   /**
@@ -217,16 +474,14 @@ export class SubagentCoordinator {
     return last
   }
 
-  /** 杀 parent_turn_id 匹配的直接子（及其后代 via kill） */
+  /**
+   * cancelTurn：杀 parent_turn_id === turnId 的子（及其后代 via kill 级联）。
+   * 孙的 parent_turn 是 child turn，不会被 root turn 误匹配。
+   */
   cancelByParentTurn(parentTaskId: string, turnId: string): number {
     let n = 0
     for (const r of this.store.listByParentTask(parentTaskId)) {
-      if (r.parent_turn_id === turnId && !isTerminalStatus(r.status) && r.parent_subagent_id == null) {
-        // 直接挂在 task 上且 parent_turn 匹配
-        this.kill(r.id, `cancelTurn:${turnId}`)
-        n += 1
-      } else if (r.parent_turn_id === turnId && !isTerminalStatus(r.status)) {
-        // 也杀 parent_turn 直接匹配的（child 下 spawn 的孙 parent_turn=child turn，不会在此）
+      if (r.parent_turn_id === turnId && !isTerminalStatus(r.status)) {
         this.kill(r.id, `cancelTurn:${turnId}`)
         n += 1
       }
@@ -234,18 +489,22 @@ export class SubagentCoordinator {
     return n
   }
 
+  /** 别名：产品层 cancelTurn */
+  cancelTurn(parentTaskId: string, turnId: string): number {
+    return this.cancelByParentTurn(parentTaskId, turnId)
+  }
+
+  /** 杀 task 下全部活跃子并 block 新 spawn */
   cancelByParentTask(parentTaskId: string): number {
     this.blockSpawn(parentTaskId)
     let n = 0
+    // 先杀顶层（级联后代），再兜底
     for (const r of this.store.listByParentTask(parentTaskId)) {
       if (!isTerminalStatus(r.status) && r.parent_subagent_id == null) {
         this.kill(r.id, 'cancelTask')
         n += 1
-      } else if (!isTerminalStatus(r.status)) {
-        // kill 根会级联；避免重复只杀顶层
       }
     }
-    // 再扫一遍兜底
     for (const r of this.store.listByParentTask(parentTaskId)) {
       if (!isTerminalStatus(r.status)) {
         this.kill(r.id, 'cancelTask')
@@ -255,14 +514,18 @@ export class SubagentCoordinator {
     return n
   }
 
+  cancelTask(parentTaskId: string): number {
+    return this.cancelByParentTask(parentTaskId)
+  }
+
   /**
    * 服务重启：queued|running|cancelling 且无 live → interrupted。
-   * 关闭 child active turn。
    */
   sweepInterrupted(): number {
     let n = 0
     for (const r of this.store.listLiveForSweep()) {
       if (this.live.has(r.id)) continue
+      this.clearFgTimer(r.id)
       const activeTurn = r.active_turn_id
       if (activeTurn) {
         this.taskStore.appendEvent(
@@ -306,5 +569,9 @@ export class SubagentCoordinator {
 
   get(id: string): SubagentRecord | null {
     return this.store.get(id)
+  }
+
+  listByParentTask(parentTaskId: string): SubagentRecord[] {
+    return this.store.listByParentTask(parentTaskId)
   }
 }

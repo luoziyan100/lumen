@@ -182,6 +182,53 @@ export class SubagentStore {
     ).run(summary, now(), id)
   }
 
+  setWorkspacePaths(
+    id: string,
+    paths: { cwd_root?: string | null; worktree_path?: string | null; snapshot_ref?: string | null },
+  ): void {
+    const cur = this.get(id)
+    if (!cur) return
+    this.db.prepare(`
+      UPDATE subagents SET
+        cwd_root=?, worktree_path=?, snapshot_ref=?, updated_at=?
+      WHERE id=?
+    `).run(
+      paths.cwd_root === undefined ? cur.cwd_root : paths.cwd_root,
+      paths.worktree_path === undefined ? cur.worktree_path : paths.worktree_path,
+      paths.snapshot_ref === undefined ? cur.snapshot_ref : paths.snapshot_ref,
+      now(),
+      id,
+    )
+  }
+
+  setUsage(
+    id: string,
+    usage: {
+      prompt_tokens?: number
+      completion_tokens?: number
+      total_tokens?: number
+      tool_calls?: number
+      turns?: number
+    },
+  ): void {
+    const cur = this.get(id)
+    if (!cur) return
+    this.db.prepare(`
+      UPDATE subagents SET
+        prompt_tokens=?, completion_tokens=?, total_tokens=?,
+        tool_calls=?, turns=?, updated_at=?
+      WHERE id=?
+    `).run(
+      usage.prompt_tokens ?? cur.prompt_tokens,
+      usage.completion_tokens ?? cur.completion_tokens,
+      usage.total_tokens ?? cur.total_tokens,
+      usage.tool_calls ?? cur.tool_calls,
+      usage.turns ?? cur.turns,
+      now(),
+      id,
+    )
+  }
+
   setReminderConsumed(id: string, consumed: boolean): boolean {
     const r = this.db.prepare(`
       UPDATE subagents SET reminder_consumed=?, updated_at=?
