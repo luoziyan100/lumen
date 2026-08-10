@@ -1,7 +1,8 @@
 /**
  * [INPUT]: AgentClient 的事件流 / submit·continue·subscribe·answerUser
  * [OUTPUT]: useAgent → items/running/pendingAsk/send/stop/answerAsk/selectConversation;ChatItem 归约;
- *           sealRunningProcesses(正文/终态封口过程块);user 事件 uploads[]→气泡 chip
+ *           sealRunningProcesses(正文/终态封口过程块);user 事件 uploads[]→气泡 chip;
+ *           isLiveTaskEvent / viewEpoch 防切会话后在途 setItems 串台
  * [POS]: UI 对话状态核;跨项目切换时同步 projectIdRef;空 model_step→error;todo_write→TodoChatItem;
  *        text_delta 累积 streaming 泡并封口 running process;model_step 有正文时同封;
  *        tool_call_start 尽早开 process;ask_user→pendingAsk 驱动悬浮 Dialog(见 doc/ask-user.md);
@@ -9,6 +10,7 @@
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * user 也走事件流,不在前端乐观插入。taskId 按项目键存 localStorage。
+ * 切会话(switchTo)必须 bump viewEpoch:事件入口校验不够,setItems updater 内须二次 isLiveTaskEvent。
  */
 import { useEffect, useRef, useState } from 'react'
 import type { AgentClient, AnswerUserPayload, ImageData, TaskEvent, UploadRef } from './agent-client'
@@ -187,6 +189,16 @@ export function parseAskUserQuestions(args: unknown): AskUserQuestion[] | null {
   return out.length ? out : null
 }
 
+/** 事件是否仍归属当前视图。切会话后在途 setState 必须丢弃,否则空草稿会串出旧「研究过程」。 */
+export function isLiveTaskEvent(
+  eventTaskId: string,
+  activeTaskId: string | null,
+  eventEpoch: number,
+  activeEpoch: number,
+): boolean {
+  return eventEpoch === activeEpoch && activeTaskId != null && eventTaskId === activeTaskId
+}
+
 export function useAgent(client: AgentClient, projectId: string, connected: boolean) {
   const [items, setItems] = useState<ChatItem[]>([])
   const [running, setRunning] = useState(false)
@@ -196,10 +208,13 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
   const taskIdRef = useRef<string | null>(null)
   const projectIdRef = useRef(projectId)
   projectIdRef.current = projectId
+  /** 每次 switchTo 递增;事件入口捕获 epoch,setItems 时再比一次,挡住清屏后迟到的 reduce */
+  const viewEpochRef = useRef(0)
   const seenEventIds = useRef<Set<string>>(new Set()) // 已归约过的事件 id:回放与实时交错时保证幂等
   const openAskIds = useRef<Set<string>>(new Set()) // 回放时跟踪未配对的 ask_user toolCallId
 
   function switchTo(id: string | null, forProjectId = projectIdRef.current): void {
+    viewEpochRef.current += 1
     taskIdRef.current = id
     seenEventIds.current = new Set()
     openAskIds.current = new Set()
@@ -213,17 +228,25 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
 
   useEffect(() => {
     const offEvent = client.onEvent((event: TaskEvent) => {
-      // 只归约当前会话的事件——旧任务后台还在流式时不许串台
+      // 入口快滤:旧任务 live 推送不排队
       if (event.task_id !== taskIdRef.current) return
       if (seenEventIds.current.has(event.id)) return // 重复送达(如运行中再次 attach 的回放)只算一次
+      // 捕获本事件所属视图代数——switchTo 之后即便已进 handler 的 setState 也不得写 items
+      const epoch = viewEpochRef.current
       seenEventIds.current.add(event.id)
       const payload = safeParse(event.payload_json)
-      setItems((prev) => reduceChatItems(prev, event, payload))
+      setItems((prev) => {
+        if (!isLiveTaskEvent(event.task_id, taskIdRef.current, epoch, viewEpochRef.current)) return prev
+        return reduceChatItems(prev, event, payload)
+      })
       if (event.kind === 'context_usage') {
         const r = payload.ratio
-        if (typeof r === 'number') setCtxUsage(r)
+        if (typeof r === 'number' && isLiveTaskEvent(event.task_id, taskIdRef.current, epoch, viewEpochRef.current)) {
+          setCtxUsage(r)
+        }
       }
       if (event.kind === 'tool_call' && String(payload.name ?? '') === 'ask_user') {
+        if (!isLiveTaskEvent(event.task_id, taskIdRef.current, epoch, viewEpochRef.current)) return
         const toolCallId = String(payload.id ?? '')
         const questions = parseAskUserQuestions(payload.args)
         if (toolCallId && questions) {
@@ -232,17 +255,20 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
         }
       }
       if (event.kind === 'tool_result' && String(payload.name ?? '') === 'ask_user') {
+        if (!isLiveTaskEvent(event.task_id, taskIdRef.current, epoch, viewEpochRef.current)) return
         const toolCallId = String(payload.id ?? '')
         if (toolCallId) openAskIds.current.delete(toolCallId)
         setPendingAsk((cur) => (cur && cur.toolCallId === toolCallId ? null : cur))
         if (!openAskIds.current.size) setPendingAsk(null)
       }
       if (event.kind === 'reply' || event.kind === 'error') {
+        if (!isLiveTaskEvent(event.task_id, taskIdRef.current, epoch, viewEpochRef.current)) return
         setRunning(false)
         openAskIds.current = new Set()
         setPendingAsk(null)
       }
       if (event.kind === 'status_change') {
+        if (!isLiveTaskEvent(event.task_id, taskIdRef.current, epoch, viewEpochRef.current)) return
         const to = String(payload.to ?? '')
         if (['canceled', 'failed', 'done', 'interrupted'].includes(to)) {
           openAskIds.current = new Set()
@@ -276,23 +302,30 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
   ): Promise<void> {
     setRunning(true)
     const pid = projectIdRef.current
+    const epoch = viewEpochRef.current
     try {
       if (taskIdRef.current) {
         await client.continueTask(taskIdRef.current, text, images, pid, uploads, activePath)
       } else {
         const id = await client.submit(pid, text, images, uploads, activePath)
+        // 发送途中用户已切走:不要把新 task 绑到当前空草稿
+        if (viewEpochRef.current !== epoch) return
         switchTo(id, pid)
       }
     } catch (err) {
+      if (viewEpochRef.current !== epoch) return
       setRunning(false)
       const msg = err instanceof Error ? err.message : String(err)
       const preview = text.trim().slice(0, 80)
-      setItems((prev) => [...prev, {
-        kind: 'msg',
-        id: `send-err-${Date.now()}`,
-        role: 'error',
-        content: `消息未送达:${msg}${preview ? `（原文: ${preview}${text.trim().length > 80 ? '…' : ''}）` : ''}`,
-      }])
+      setItems((prev) => {
+        if (viewEpochRef.current !== epoch) return prev
+        return [...prev, {
+          kind: 'msg',
+          id: `send-err-${Date.now()}`,
+          role: 'error',
+          content: `消息未送达:${msg}${preview ? `（原文: ${preview}${text.trim().length > 80 ? '…' : ''}）` : ''}`,
+        }]
+      })
     }
   }
 

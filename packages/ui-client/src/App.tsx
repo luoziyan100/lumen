@@ -6,7 +6,8 @@
  *        对话列 useStickToBottom:流式贴底;上滑松手可自由阅读;松钉后出「回到最新」;
  *        标题栏工作区钮:阅读器开时一并关闭(drawer 与 ws.open 双态,不能只拨 drawer);
  *        侧栏未读灯:task_updated 终态且非当前 → unread(localStorage);打开会话清除;
- *        上传=对话事件见 doc/upload-awareness.md;当前稿 activePath 见 artifact-loop P0
+ *        上传=对话事件见 doc/upload-awareness.md;当前稿 activePath 见 artifact-loop P0;
+ *        messages 容器 key=taskId|draft 强制 remount,配合 useAgent viewEpoch 防串台
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
@@ -919,7 +920,11 @@ function AppInner() {
                 onSelectTurn={scrollToTurn}
               />
             )}
-            <div ref={messagesRef} className={`messages ${isEmpty ? 'messages-empty' : ''}`}>
+            <div
+              ref={messagesRef}
+              key={taskId ?? `draft:${projectId}`}
+              className={`messages ${isEmpty ? 'messages-empty' : ''}`}
+            >
               {isEmpty && <EmptyState />}
               {items.map((it) => {
                 if (it.kind === 'compaction') {
