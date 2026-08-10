@@ -121,7 +121,8 @@ export function createService(config: ServiceConfig = {}): Service {
     return pub
   }
 
-  const tavilyKey = process.env.TAVILY_API_KEY
+  // search_web：Tavily。key 来自 process.env / .env / ~/.lumen/.env（见 loadDotenv）
+  const tavilyKey = (process.env.TAVILY_API_KEY ?? '').trim()
   const research = createResearchTools({
     pdfEngine: createUnpdfEngine(),
     webSearch: tavilyKey ? createTavilyWebSearch({ apiKey: tavilyKey }) : undefined,
@@ -209,13 +210,24 @@ export function createService(config: ServiceConfig = {}): Service {
   }
 }
 
-/** 启动前读 packages/agent-service/.env(若存在)注入 process.env;已设置的环境变量优先,不覆盖。 */
+/**
+ * 启动前注入 .env（不覆盖已有非空环境变量）。
+ * 顺序：packages/agent-service/.env → ~/.lumen/.env（后者覆盖前者空槽，便于本机密钥出仓）
+ */
 function loadDotenv(): void {
-  const envPath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.env')
-  if (!existsSync(envPath)) return
-  for (const line of readFileSync(envPath, 'utf8').split('\n')) {
-    const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/)
-    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].trim().replace(/^['"]|['"]$/g, '')
+  const packageEnv = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.env')
+  const homeEnv = path.join(process.env.LUMEN_HOME ?? path.join(homedir(), '.lumen'), '.env')
+  for (const envPath of [packageEnv, homeEnv]) {
+    if (!existsSync(envPath)) continue
+    for (const line of readFileSync(envPath, 'utf8').split('\n')) {
+      const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/)
+      if (!m) continue
+      const key = m[1]!
+      const val = m[2]!.trim().replace(/^['"]|['"]$/g, '')
+      if (!val) continue // 空值不当配置
+      const cur = process.env[key]
+      if (cur === undefined || cur.trim() === '') process.env[key] = val
+    }
   }
 }
 
@@ -228,7 +240,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     libraryRoot: process.env.LUMEN_LIBRARY,
   })
   service.start().then((handle) => {
+    const webOk = Boolean((process.env.TAVILY_API_KEY ?? '').trim())
     // eslint-disable-next-line no-console
-    console.log(`[lumen agent-service] listening ws://127.0.0.1:${handle.port}`)
+    console.log(
+      `[lumen agent-service] listening ws://127.0.0.1:${handle.port}`
+        + ` · search_web=${webOk ? 'tavily' : 'off(no TAVILY_API_KEY)'}`,
+    )
   })
 }
