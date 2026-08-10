@@ -75,8 +75,43 @@ export class LumenClient {
     this.send({ type: 'subscribe', taskId, afterSeq: this.lastSeq.get(taskId) })
   }
 
+  /** 整 task 取消 */
   cancel(taskId: string): void {
     this.send({ type: 'cancel', taskId })
+  }
+
+  /** 只停当前 turn（UI Stop 默认） */
+  cancelTurn(taskId: string): void {
+    this.send({ type: 'cancel_turn', taskId })
+  }
+
+  listSubagents(taskId: string): Promise<import('../protocol/messages.ts').SubagentInfo[]> {
+    return new Promise((resolve, reject) => {
+      const onMsg = (ev: MessageEvent) => {
+        try {
+          const m = JSON.parse(String(ev.data)) as import('../protocol/messages.ts').ServerMessage
+          if (m.type === 'subagents' && m.taskId === taskId) {
+            this.ws?.removeEventListener('message', onMsg)
+            resolve(m.subagents)
+          }
+          if (m.type === 'error') {
+            this.ws?.removeEventListener('message', onMsg)
+            reject(new Error(m.message))
+          }
+        } catch { /* ignore */ }
+      }
+      this.ws?.addEventListener('message', onMsg)
+      try {
+        this.send({ type: 'list_subagents', taskId })
+      } catch (e) {
+        this.ws?.removeEventListener('message', onMsg)
+        reject(e)
+      }
+    })
+  }
+
+  killSubagent(taskId: string, subagentId: string): void {
+    this.send({ type: 'kill_subagent', taskId, subagentId })
   }
 
   archiveTask(taskId: string): void {

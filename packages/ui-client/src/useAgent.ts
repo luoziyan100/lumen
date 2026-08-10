@@ -347,10 +347,14 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
     client.subscribe(id, pid)
   }
 
-  /** 停止当前在跑的任务(发送按钮的暂停态) */
+  /**
+   * 停止当前 turn（发送按钮暂停态）= cancelTurn：
+   * 中止主 loop + 杀本 turn 子 agent；不误杀其他 turn 的后台子。
+   * 整 task 强制停走 client.cancel（归档路径等）。
+   */
   function stop(): void {
     try {
-      if (taskIdRef.current) client.cancel(taskIdRef.current, projectIdRef.current)
+      if (taskIdRef.current) client.cancelTurn(taskIdRef.current, projectIdRef.current)
     } catch { /* 已断线则本地收尾即可 */ }
     setRunning(false)
     setPendingAsk(null)
@@ -520,6 +524,47 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
     case 'compaction':
       // 确定性压缩标记(方案 B):旧细节归档,给一条弱分隔线
       return [...prev, { kind: 'compaction', id: event.id }]
+    case 'subagent_started': {
+      const sid = String(p.subagent_id ?? event.id)
+      const stype = String(p.subagent_type ?? 'subagent')
+      const desc = String(p.description ?? stype)
+      const step: ProcStep = {
+        id: `sub-${sid}`,
+        name: 'spawn_subagent',
+        done: false,
+        label: `子代理 ${stype}：${desc}`,
+      }
+      const last = prev[prev.length - 1]
+      if (last?.kind === 'process' && last.running) {
+        if (last.steps.some((s) => s.id === step.id)) return prev
+        return [...prev.slice(0, -1), { ...last, steps: [...last.steps, step] }]
+      }
+      return [...prev, { kind: 'process', id: `proc-sub-${sid}`, steps: [step], running: true }]
+    }
+    case 'subagent_completed':
+    case 'subagent_interrupted':
+    case 'subagent_demoted': {
+      const sid = String(p.subagent_id ?? '')
+      const status = String(p.status ?? event.kind.replace('subagent_', ''))
+      const summary = typeof p.summary === 'string' ? p.summary
+        : typeof p.completion_summary === 'string' ? p.completion_summary
+          : status
+      const label = event.kind === 'subagent_demoted'
+        ? '子代理已转后台继续'
+        : `子代理 ${status}${summary && summary !== status ? ` · ${summary.slice(0, 80)}` : ''}`
+      return prev.map((it) => {
+        if (it.kind !== 'process') return it
+        const steps = it.steps.map((s) => (
+          s.id === `sub-${sid}`
+            ? { ...s, done: event.kind !== 'subagent_demoted', label }
+            : s
+        ))
+        const stillRun = event.kind === 'subagent_demoted'
+          ? it.running
+          : steps.some((s) => !s.done) ? it.running : false
+        return { ...it, steps, running: stillRun && steps.some((s) => !s.done) }
+      })
+    }
     case 'error':
       return [...prev, { kind: 'msg', id: event.id, role: 'error', content: String(p.error ?? '出错了') }]
     default:

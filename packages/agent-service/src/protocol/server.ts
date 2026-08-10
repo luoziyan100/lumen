@@ -202,9 +202,29 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
         subscribe(message.taskId, message.afterSeq)
         break
       case 'cancel':
+        // 整 task（cancelTask）
         if (!ownsTask(message.taskId, message.projectId)) { send({ type: 'error', message: 'forbidden' }); break }
         runtime.cancel(message.taskId)
         send({ type: 'ok', taskId: message.taskId })
+        break
+      case 'cancel_turn':
+        // Stop 默认：只停当前 turn
+        if (!ownsTask(message.taskId, message.projectId)) { send({ type: 'error', message: 'forbidden' }); break }
+        runtime.cancelTurn(message.taskId)
+        send({ type: 'ok', taskId: message.taskId })
+        break
+      case 'list_subagents':
+        if (!ownsTask(message.taskId, message.projectId)) { send({ type: 'error', message: 'forbidden' }); break }
+        send({ type: 'subagents', taskId: message.taskId, subagents: runtime.listSubagents(message.taskId) })
+        break
+      case 'kill_subagent':
+        if (!ownsTask(message.taskId, message.projectId)) { send({ type: 'error', message: 'forbidden' }); break }
+        {
+          const ok = runtime.killSubagent(message.taskId, message.subagentId)
+          send(ok
+            ? { type: 'ok', taskId: message.taskId }
+            : { type: 'error', message: 'kill_subagent failed: not found' })
+        }
         break
       case 'archive_task': {
         if (!ownsTask(message.taskId, message.projectId)) { send({ type: 'error', message: 'forbidden' }); break }

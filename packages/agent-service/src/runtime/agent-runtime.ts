@@ -62,6 +62,8 @@ import { SubagentCoordinator } from '../subagent/coordinator.ts'
 import { SubagentStore } from '../subagent/store.ts'
 import { ChildRunner } from '../subagent/runner.ts'
 import { createSubagentTools } from '../tools/env/subagent-tools.ts'
+import { resumeAllowed, type SubagentRecord } from '../subagent/types.ts'
+import type { SubagentInfo } from '../protocol/messages.ts'
 import { openDatabase, type DB } from '../storage/db.ts'
 import { mkdirSync } from 'node:fs'
 import * as nodePath from 'node:path'
@@ -441,19 +443,32 @@ export class AgentRuntime {
     return { ok: true, taskId, created }
   }
 
+  /** 整 task 取消（cancelTask）：abort 主 loop + 全部子 + block 新 spawn */
   cancel(taskId: string): void {
     this.rejectPendingAsks(taskId, new DOMException('The operation was aborted.', 'AbortError'))
     this.running.get(taskId)?.controller.abort()
-    // 整 task 取消:级联杀全部子(R1.3 cancelTask)
-    this.subagents?.cancelByParentTask(taskId)
+    this.subagents.cancelByParentTask(taskId)
   }
 
-  /** 只停当前 turn:中止主 loop + 杀 parent_turn_id 匹配的子 */
+  /** 只停当前 turn（Stop 默认）：abort 主 loop + 杀 parent_turn 匹配的子 */
   cancelTurn(taskId: string): void {
     const turnId = this.cfg.store.getActiveTurnId(taskId)
     this.rejectPendingAsks(taskId, new DOMException('The operation was aborted.', 'AbortError'))
     this.running.get(taskId)?.controller.abort()
-    if (turnId) this.subagents?.cancelByParentTurn(taskId, turnId)
+    if (turnId) this.subagents.cancelByParentTurn(taskId, turnId)
+  }
+
+  /** UI/协议：子 Agent 快照列表 */
+  listSubagents(taskId: string): SubagentInfo[] {
+    return this.subagents.listByParentTask(taskId).map(toSubagentInfo)
+  }
+
+  /** UI：kill 单个子（校验归属） */
+  killSubagent(taskId: string, subagentId: string): boolean {
+    const rec = this.subagents.get(subagentId)
+    if (!rec || rec.parent_task_id !== taskId) return false
+    this.subagents.kill(subagentId, 'ui_kill')
+    return true
   }
 
   /** 软归档:若在跑先 cancel,再写 archived_at;列表不再返回 */
@@ -1098,6 +1113,24 @@ export class AgentRuntime {
     appendSessionEntry(this.cfg.sessionDir, {
       type: 'session_end', task_id: taskId, timestamp: new Date().toISOString(), status, duration_ms: durationMs,
     })
+  }
+}
+
+function toSubagentInfo(r: SubagentRecord): SubagentInfo {
+  return {
+    id: r.id,
+    parent_task_id: r.parent_task_id,
+    parent_turn_id: r.parent_turn_id,
+    subagent_type: r.subagent_type,
+    description: r.description,
+    status: r.status,
+    isolation: r.isolation,
+    cwd_root: r.cwd_root,
+    worktree_path: r.worktree_path,
+    completion_summary: r.completion_summary,
+    resume_allowed: resumeAllowed(r.status),
+    created_at: r.created_at,
+    finished_at: r.finished_at,
   }
 }
 

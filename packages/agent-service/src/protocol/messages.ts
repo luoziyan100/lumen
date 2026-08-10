@@ -33,12 +33,34 @@ export interface AnswerUserPayload {
 
 export type SkillInstallScope = 'user' | 'project'
 
+/** 子 Agent 列表项（UI / list_subagents） */
+export interface SubagentInfo {
+  id: string
+  parent_task_id: string
+  parent_turn_id: string
+  subagent_type: string
+  description: string
+  status: string
+  isolation: string
+  cwd_root: string | null
+  worktree_path: string | null
+  completion_summary: string | null
+  resume_allowed: boolean
+  created_at: string
+  finished_at: string | null
+}
+
 export type ClientMessage =
   | { type: 'submit'; projectId: string; userText: string; images?: ImageData[]; uploads?: UploadRef[]; activePath?: string }
   | { type: 'continue'; taskId: string; userText: string; images?: ImageData[]; uploads?: UploadRef[]; activePath?: string; projectId?: string }
   | { type: 'create_task'; projectId: string; goal?: string }
   | { type: 'subscribe'; taskId: string; afterSeq?: number; projectId?: string }
+  /** 整 task 取消（abort 主 loop + 全部子）；归档/强制停用 */
   | { type: 'cancel'; taskId: string; projectId?: string }
+  /** 只停当前 turn（abort 主 loop + 杀 parent_turn 匹配的子）；UI Stop 默认 */
+  | { type: 'cancel_turn'; taskId: string; projectId?: string }
+  | { type: 'list_subagents'; taskId: string; projectId?: string }
+  | { type: 'kill_subagent'; taskId: string; subagentId: string; projectId?: string }
   | { type: 'archive_task'; taskId: string; projectId?: string }
   | { type: 'rename_task'; taskId: string; title: string; projectId?: string }
   | { type: 'pin_task'; taskId: string; projectId?: string }
@@ -72,6 +94,7 @@ export type ServerMessage =
   | { type: 'assets'; assets: WorkspaceAsset[] }
   | { type: 'asset'; path: string; content: string }
   | { type: 'skills'; skills: SkillInfo[] }
+  | { type: 'subagents'; taskId: string; subagents: SubagentInfo[] }
   | { type: 'settings'; settings: PublicSettings }
   | { type: 'ok'; taskId?: string }
   | { type: 'error'; message: string }

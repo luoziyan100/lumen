@@ -323,8 +323,18 @@ export class AgentClient {
     this.send({ type: 'subscribe', taskId, ...(projectId ? { projectId } : {}) })
   }
 
+  /** 整 task 取消（归档/强制停） */
   cancel(taskId: string, projectId?: string): void {
     this.send({ type: 'cancel', taskId, ...(projectId ? { projectId } : {}) })
+  }
+
+  /** 只停当前 turn（发送按钮 Stop 默认） */
+  cancelTurn(taskId: string, projectId?: string): void {
+    this.send({ type: 'cancel_turn', taskId, ...(projectId ? { projectId } : {}) })
+  }
+
+  killSubagent(taskId: string, subagentId: string, projectId?: string): void {
+    this.send({ type: 'kill_subagent', taskId, subagentId, ...(projectId ? { projectId } : {}) })
   }
 
   /** 软归档:列表隐藏;等 ok/error */

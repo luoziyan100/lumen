@@ -23,6 +23,35 @@ function ev(kind: string, id: string, payload: Record<string, unknown>): { event
   }
 }
 
+describe('reduceChatItems subagent', () => {
+  it('subagent_started 开过程步, completed 收尾', () => {
+    let items: ChatItem[] = []
+    const start = ev('subagent_started', 'e1', {
+      subagent_id: 'sub-1',
+      subagent_type: 'explore',
+      description: '扫目录',
+    })
+    items = reduceChatItems(items, start.event, start.p)
+    assert.equal(items.length, 1)
+    assert.equal(items[0]?.kind, 'process')
+    if (items[0]?.kind === 'process') {
+      assert.equal(items[0].running, true)
+      assert.equal(items[0].steps[0]?.label.includes('explore'), true)
+      assert.equal(items[0].steps[0]?.done, false)
+    }
+    const done = ev('subagent_completed', 'e2', {
+      subagent_id: 'sub-1',
+      status: 'done',
+      summary: 'ok',
+    })
+    items = reduceChatItems(items, done.event, done.p)
+    if (items[0]?.kind === 'process') {
+      assert.equal(items[0].steps[0]?.done, true)
+      assert.match(items[0].steps[0]?.label ?? '', /done/)
+    }
+  })
+})
+
 describe('reduceChatItems streaming', () => {
   it('text_delta 累积同一 streaming 泡,model_step 定稿替换', () => {
     let items: ChatItem[] = []
