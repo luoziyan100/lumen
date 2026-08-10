@@ -1,12 +1,10 @@
 /**
  * [INPUT]: AgentClient 的事件流 / submit·continue·subscribe·answerUser
- * [OUTPUT]: useAgent → items/running/pendingAsk/send/stop/answerAsk/selectConversation;ChatItem 归约;
- *           sealRunningProcesses(正文/终态封口过程块);user 事件 uploads[]→气泡 chip;
- *           isLiveTaskEvent / viewEpoch 防切会话后在途 setItems 串台
- * [POS]: UI 对话状态核;跨项目切换时同步 projectIdRef;空 model_step→error;todo_write→TodoChatItem;
- *        text_delta 累积 streaming 泡并封口 running process;model_step 有正文时同封;
- *        tool_call_start 尽早开 process;ask_user→pendingAsk 驱动悬浮 Dialog(见 doc/ask-user.md);
- *        上传知情 chip 见 doc/upload-awareness.md;产物闭环 activePath 随 send 提交
+ * [OUTPUT]: useAgent → items(用户面)/evidenceItems(归因面)/running/…;
+ *           reduceUserFacingItems(Claude 档:Thought+最终答案)/reduceChatItems=证据面全量;
+ *           sealRunningProcesses;isLiveTaskEvent / viewEpoch
+ * [POS]: UI 对话状态核;用户面默认不渲染工具过程;证据面给右轨/排障;
+ *        todo_write 仍进用户面;ask_user→pendingAsk;上传知情 chip
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * user 也走事件流,不在前端乐观插入。taskId 按项目键存 localStorage。
@@ -36,6 +34,13 @@ export interface ProcStep {
   path?: string
 }
 export interface ProcessItem { kind: 'process'; id: string; steps: ProcStep[]; running: boolean }
+/** Claude 档：折叠的思考过程（reasoningContent） */
+export interface ThoughtItem {
+  kind: 'thought'
+  id: string
+  content: string
+  done: boolean
+}
 export interface CompactionMark { kind: 'compaction'; id: string }
 export type TodoStatus = 'pending' | 'in_progress' | 'completed'
 export interface TodoEntry {
@@ -50,7 +55,7 @@ export interface TodoChatItem {
   title?: string
   todos: TodoEntry[]
 }
-export type ChatItem = ChatMsg | ProcessItem | CompactionMark | TodoChatItem
+export type ChatItem = ChatMsg | ProcessItem | ThoughtItem | CompactionMark | TodoChatItem
 
 export interface AskUserOption { label: string; description?: string }
 export interface AskUserQuestion {
@@ -65,10 +70,12 @@ export interface PendingAsk {
 }
 
 const VERB: Record<string, string> = {
-  search_papers: '检索文献', openalex_search: '检索文献', web_search: '网页搜索',
+  search_papers: '检索文献', openalex_search: '检索文献', web_search: '网页搜索', search_web: '网页搜索',
   extract_pdf: '读取 PDF', fetch_url: '抓取网页', read_url: '抓取网页',
-  write_file: '写入文件', read_file: '读取文件', list_files: '浏览工作区', grep: '检索内文',
+  write_file: '写入文件', read_file: '读取文件', list_files: '浏览工作区', list_dir: '列目录', grep: '检索内文',
   run_code: '运行代码', todo_write: '更新进度', update_plan: '更新进度', ask_user: '询问用户',
+  spawn_subagent: '子代理', wait_subagents: '等待子代理', get_subagent_output: '读子代理结果',
+  kill_subagent: '中止子代理',
 }
 const verb = (name: string): string => VERB[name] ?? name
 const TODO_STATUSES = new Set<TodoStatus>(['pending', 'in_progress', 'completed'])
@@ -200,7 +207,10 @@ export function isLiveTaskEvent(
 }
 
 export function useAgent(client: AgentClient, projectId: string, connected: boolean) {
+  /** 用户面：Thought + 最终答案（无工具过程行） */
   const [items, setItems] = useState<ChatItem[]>([])
+  /** 归因面：完整 process / subagent 步骤（右轨 Progress 等） */
+  const [evidenceItems, setEvidenceItems] = useState<ChatItem[]>([])
   const [running, setRunning] = useState(false)
   const [pendingAsk, setPendingAsk] = useState<PendingAsk | null>(null)
   const [taskId, setTaskId] = useState<string | null>(null) // 给 UI 高亮当前会话
@@ -236,6 +246,10 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
       seenEventIds.current.add(event.id)
       const payload = safeParse(event.payload_json)
       setItems((prev) => {
+        if (!isLiveTaskEvent(event.task_id, taskIdRef.current, epoch, viewEpochRef.current)) return prev
+        return reduceUserFacingItems(prev, event, payload)
+      })
+      setEvidenceItems((prev) => {
         if (!isLiveTaskEvent(event.task_id, taskIdRef.current, epoch, viewEpochRef.current)) return prev
         return reduceChatItems(prev, event, payload)
       })
@@ -333,6 +347,7 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
     if (forProjectId) projectIdRef.current = forProjectId
     switchTo(null, projectIdRef.current)
     setItems([])
+    setEvidenceItems([])
     setRunning(false)
   }
 
@@ -343,6 +358,7 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
     if (id === taskIdRef.current) return
     switchTo(id, pid)
     setItems([])
+    setEvidenceItems([])
     setRunning(isRunning)
     client.subscribe(id, pid)
   }
@@ -370,7 +386,7 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
   }
 
   return {
-    items, running, pendingAsk, send, stop, answerAsk,
+    items, evidenceItems, running, pendingAsk, send, stop, answerAsk,
     newConversation, selectConversation, taskId, ctxUsage,
   }
 }
@@ -381,7 +397,165 @@ export function sealRunningProcesses(items: ChatItem[]): ChatItem[] {
   return items.map((it) => (it.kind === 'process' && it.running ? { ...it, running: false } : it))
 }
 
-/** 纯函数归约:同一个 event 进来,prev → next。导出供单测。 */
+function markThoughtsDone(prev: ChatItem[]): ChatItem[] {
+  if (!prev.some((it) => it.kind === 'thought' && !it.done)) return prev
+  return prev.map((it) => (it.kind === 'thought' && !it.done ? { ...it, done: true } : it))
+}
+
+function upsertThought(prev: ChatItem[], eventId: string, chunk: string, done = false): ChatItem[] {
+  const text = chunk.trim()
+  if (!text && !done) return prev
+  const idx = (() => {
+    for (let i = prev.length - 1; i >= 0; i--) {
+      if (prev[i]!.kind === 'thought') return i
+    }
+    return -1
+  })()
+  if (idx >= 0) {
+    const cur = prev[idx] as ThoughtItem
+    const nextContent = text
+      ? (cur.content ? `${cur.content}\n\n${text}` : text)
+      : cur.content
+    const next: ThoughtItem = { ...cur, content: nextContent, done: done || cur.done }
+    return prev.map((it, i) => (i === idx ? next : it))
+  }
+  if (!text) return prev
+  return [...prev, { kind: 'thought', id: `thought-${eventId}`, content: text, done }]
+}
+
+function dropStreamingAssistant(prev: ChatItem[]): ChatItem[] {
+  const last = prev[prev.length - 1]
+  if (last?.kind === 'msg' && last.role === 'assistant' && last.streaming) {
+    return prev.slice(0, -1)
+  }
+  return prev
+}
+
+/**
+ * 用户面归约（Claude 档）：
+ * - 无 process / subagent 过程行
+ * - reasoningContent → Thought（默认折叠由组件负责）
+ * - 带 toolCalls 的 model_step 正文不进大气泡
+ * - 无工具的正文 / 最终 reply 路径 → 助手气泡
+ * - todo 仍展示
+ */
+export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Record<string, unknown>): ChatItem[] {
+  switch (event.kind) {
+    case 'user': {
+      const images = Array.isArray(p.images) ? (p.images as ImageData[]) : undefined
+      const uploads = parseUploadRefs(p.uploads)
+      // 新 user turn：上一轮 thought 标 done
+      const base = markThoughtsDone(prev)
+      return [...base, {
+        kind: 'msg',
+        id: event.id,
+        role: 'user',
+        content: String(p.content ?? ''),
+        ...(images?.length ? { images } : {}),
+        ...(uploads.length ? { uploads } : {}),
+      }]
+    }
+    case 'text_delta': {
+      const text = String(p.text ?? '')
+      if (!text) return prev
+      const last = prev[prev.length - 1]
+      if (last?.kind === 'msg' && last.role === 'assistant' && last.streaming) {
+        return [...prev.slice(0, -1), { ...last, content: last.content + text }]
+      }
+      return [...prev, { kind: 'msg', id: event.id, role: 'assistant', content: text, streaming: true }]
+    }
+    case 'tool_call_start':
+    case 'subagent_started':
+    case 'subagent_completed':
+    case 'subagent_interrupted':
+    case 'subagent_demoted':
+      return prev
+    case 'model_step': {
+      const content = typeof p.content === 'string' ? p.content.trim() : ''
+      const tools = Array.isArray(p.toolCalls) ? p.toolCalls : []
+      const reasoning = typeof p.reasoningContent === 'string' ? p.reasoningContent.trim() : ''
+      let next = prev
+      if (reasoning) next = upsertThought(next, event.id, reasoning, false)
+
+      if (tools.length > 0) {
+        // 工具轮：丢掉半成品流式泡，正文不当最终答案
+        next = dropStreamingAssistant(next)
+        return next
+      }
+
+      // 无工具 = 可展示的正文
+      let streamingIdx = -1
+      for (let i = next.length - 1; i >= 0; i -= 1) {
+        const it = next[i]
+        if (it?.kind === 'msg' && it.role === 'assistant' && it.streaming) {
+          streamingIdx = i
+          break
+        }
+      }
+      if (streamingIdx >= 0) {
+        const out = next.slice()
+        if (content) {
+          out[streamingIdx] = { kind: 'msg', id: event.id, role: 'assistant', content }
+          return markThoughtsDone(out)
+        }
+        // 空正文无工具：去掉半成品泡
+        out.splice(streamingIdx, 1)
+        if (tools.length === 0 && !content) {
+          return [...markThoughtsDone(out), {
+            kind: 'msg',
+            id: event.id,
+            role: 'error',
+            content: '模型返回了空回复（常见于思考模式耗尽输出额度）。请重试，或在设置中换模型。',
+          }]
+        }
+        return markThoughtsDone(out)
+      }
+      if (content) {
+        return markThoughtsDone([...next, { kind: 'msg', id: event.id, role: 'assistant', content }])
+      }
+      if (!reasoning) {
+        return [...next, {
+          kind: 'msg',
+          id: event.id,
+          role: 'error',
+          content: '模型返回了空回复（常见于思考模式耗尽输出额度）。请重试，或在设置中换模型。',
+        }]
+      }
+      return next
+    }
+    case 'tool_call': {
+      const name = String(p.name ?? 'tool')
+      if (isTodoTool(name)) {
+        const list = todoFromToolArgs(p.args)
+        return list ? upsertTodo(prev, event.id, list) : prev
+      }
+      return prev
+    }
+    case 'tool_result': {
+      const name = String(p.name ?? '')
+      if (isTodoTool(name)) {
+        const list = todoFromLlmContent(typeof p.llmContent === 'string' ? p.llmContent : '')
+        return list ? upsertTodo(prev, event.id, list) : prev
+      }
+      return prev
+    }
+    case 'reply':
+      return markThoughtsDone(prev)
+    case 'status_change': {
+      const to = String(p.to ?? '')
+      if (!['canceled', 'failed', 'done', 'interrupted'].includes(to)) return prev
+      return markThoughtsDone(prev)
+    }
+    case 'compaction':
+      return [...prev, { kind: 'compaction', id: event.id }]
+    case 'error':
+      return markThoughtsDone([...prev, { kind: 'msg', id: event.id, role: 'error', content: String(p.error ?? '出错了') }])
+    default:
+      return prev
+  }
+}
+
+/** 证据面归约:同一个 event 进来,prev → next。完整 process/subagent。 */
 export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<string, unknown>): ChatItem[] {
   switch (event.kind) {
     case 'user': {
@@ -570,6 +744,11 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
     default:
       return prev
   }
+}
+
+/** 证据面别名（与 reduceChatItems 相同） */
+export function reduceEvidenceItems(prev: ChatItem[], event: TaskEvent, p: Record<string, unknown>): ChatItem[] {
+  return reduceChatItems(prev, event, p)
 }
 
 /** 完成态摘要:write/edit 优先展示 path;旧事件无 path 时「完成(无 path)」 */

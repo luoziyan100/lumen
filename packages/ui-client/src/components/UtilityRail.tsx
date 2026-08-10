@@ -47,17 +47,24 @@ function TodoMark({ status }: { status: TodoEntry['status'] }) {
   return <span className="rail-todo-mark is-pending" aria-hidden />
 }
 
-export function UtilityRail({ assets, onOpen, items, running, onUploadShared }: {
+export function UtilityRail({ assets, onOpen, items, evidenceItems, running, onUploadShared }: {
   assets: Asset[]
   onOpen: (a: Asset) => void
+  /** 用户面 items（Todo 等） */
   items: ChatItem[]
+  /** 归因面：完整工具过程（主对话默认不渲染 process） */
+  evidenceItems?: ChatItem[]
   running: boolean
   /** 有则显示「上传到共享区」 */
   onUploadShared?: (files: File[]) => void
 }) {
   const todo: TodoChatItem | undefined = [...items].reverse().find((it): it is TodoChatItem => it.kind === 'todo')
-  const proc: ProcessItem | undefined = !todo && running
-    ? [...items].reverse().find((it): it is ProcessItem => it.kind === 'process' && it.running)
+  const evidence = evidenceItems ?? items
+  // 无 Todo 时：展示最近一条 running process；结束后也展示最后一条 process 摘要（归因）
+  const proc: ProcessItem | undefined = !todo
+    ? (running
+      ? [...evidence].reverse().find((it): it is ProcessItem => it.kind === 'process' && it.running)
+      : [...evidence].reverse().find((it): it is ProcessItem => it.kind === 'process'))
     : undefined
   const [dirOpen, setDirOpen] = useState(true)
   // 默认 300:主窗略收后右轨同步;key 升 v4 使旧 320 缓存不锁死

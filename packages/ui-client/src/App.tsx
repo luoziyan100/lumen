@@ -40,6 +40,7 @@ import { ArrowDownIcon, CheckIcon, CopyIcon, PanelIcon, RailIcon } from './compo
 import { UtilityRail } from './components/UtilityRail'
 import { ReaderPane } from './components/ReaderPane'
 import { ProcessRow } from './components/ProcessRow'
+import { ThoughtRow } from './components/ThoughtRow'
 import { TodoCard } from './components/TodoCard'
 import { ThinkingIndicator } from './components/ThinkingIndicator'
 import { TurnPreviewRail } from './components/TurnPreviewRail'
@@ -195,7 +196,7 @@ function AppInner() {
   }
 
   const {
-    items, running, pendingAsk, send, stop, answerAsk,
+    items, evidenceItems, running, pendingAsk, send, stop, answerAsk,
     newConversation, selectConversation, taskId, ctxUsage,
   } = useAgent(client, projectId, connected)
   taskIdForUnreadRef.current = taskId
@@ -830,11 +831,12 @@ function AppInner() {
   )
 
   const lastItem = items[items.length - 1]
-  const lastRunning = lastItem?.kind === 'process' && lastItem.running
+  // 工具忙碌看证据面（用户面已不挂 process）
+  const toolsBusy = evidenceItems.some((it) => it.kind === 'process' && it.running)
   // 正文已在流:不要叠「思考中」,否则多一个高度扰动源
   const lastStreamingAssistant =
     lastItem?.kind === 'msg' && lastItem.role === 'assistant' && Boolean(lastItem.streaming)
-  const showThinking = running && !lastRunning && !pendingAsk && !lastStreamingAssistant
+  const showThinking = running && !toolsBusy && !pendingAsk && !lastStreamingAssistant
   const showReader = ws.open != null
   // 右栏可见 = 阅读器或工作目录轨;标题栏钮必须两边都能收,不能只拨 drawer
   const rightPaneOpen = showReader || drawer
@@ -931,7 +933,9 @@ function AppInner() {
                   return <div key={it.id} className="ctx-divider"><span>已整理更早的上下文 · 细节在工作区与历史记录</span></div>
                 }
                 if (it.kind === 'todo') return <TodoCard key={it.id} todo={it} />
-                if (it.kind === 'process') return <ProcessRow key={it.id} block={it} />
+                if (it.kind === 'thought') return <ThoughtRow key={it.id} thought={it} />
+                // 用户面默认不渲染 process（证据面在右轨）;兼容旧状态残留
+                if (it.kind === 'process') return null
                 if (it.role === 'assistant') {
                   const streamingWidget = Boolean(it.streaming) || (running && !finalAssistantIds.has(it.id))
                   if (!finalAssistantIds.has(it.id)) {
@@ -1082,6 +1086,7 @@ function AppInner() {
             assets={ws.assets}
             onOpen={(a) => { void openAssetBound(a) }}
             items={items}
+            evidenceItems={evidenceItems}
             running={running}
             onUploadShared={(files) => { void uploadShared(files) }}
           />
