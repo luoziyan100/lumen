@@ -161,6 +161,7 @@ test('多轮记忆:submit 后 continueTask,第二轮能看到第一轮完整对�
   const { base, store } = await makeEnv(t)
   const model = new ScriptedModel([
     assistantReply('第一轮回答:扩散模型逐步去噪'),
+    assistantReply('扩散模型简述'), // 侧栏 title 生成(execute 终态 await)
     assistantReply('第二轮回答:相比 GAN 它训练更稳'),
   ])
   const runtime = new AgentRuntime({
@@ -174,7 +175,9 @@ test('多轮记忆:submit 后 continueTask,第二轮能看到第一轮完整对�
   assert.equal(runtime.continueTask(taskId, '它和 GAN 比呢'), true)
   await runtime.waitFor(taskId)
 
-  const secondCall = model.calls[1] // 第二轮(continue)喂给模型的线程
+  // 第 3 次 chat = continue 的主轮(前两次:答 + title)
+  const secondCall = model.calls[2]
+  assert.ok(secondCall, 'continue 应再调模型')
   assert.ok(secondCall.some((m) => m.role === 'user' && m.content === '扩散模型是什么'), '应看到第一轮 user')
   assert.ok(secondCall.some((m) => m.role === 'assistant' && m.content.includes('第一轮回答')), '应看到第一轮 assistant')
   assert.ok(secondCall.some((m) => m.role === 'user' && m.content === '它和 GAN 比呢'), '应看到第二轮 user')
@@ -196,7 +199,9 @@ test('listAssets:只列 PDF 原件 + 生成 .md,过滤 txt 抽取物与 search �
     store, model: new ScriptedModel([]),
     sessionDir: path.join(base, 'sessions'), workspacesDir: path.join(base, 'workspaces'), mainTools: [],
   })
-  const ws = new FsWorkspace({ root: path.join(base, 'workspaces', 'p') })
+  // 会话工作区(listAssets 无 taskId 只返 shared,不把项目根遗留冒充 session)
+  const taskId = runtime.createDraft('p', 'list-assets')
+  const ws = new FsWorkspace({ root: path.join(base, 'workspaces', 'p', 'sessions', taskId) })
   await ws.writeBytes('papers/clark.pdf', new Uint8Array([37, 80, 68, 70]))
   await ws.writeFile('papers/clark.txt', '抽取中间物,应过滤')
   await ws.writeFile('notes/analysis.md', '# 分析')
@@ -204,7 +209,7 @@ test('listAssets:只列 PDF 原件 + 生成 .md,过滤 txt 抽取物与 search �
   await ws.writeFile('drafts/review.md', '# 综述')
   await ws.writeFile('reports/out.html', '<h1>x</h1>')
 
-  const assets = await runtime.listAssets('p')
+  const assets = await runtime.listAssets('p', taskId)
   const paths = assets.map((a) => a.path).sort()
   assert.ok(paths.includes('papers/clark.pdf'), '应含 PDF 原件')
   assert.ok(paths.includes('notes/analysis.md') && paths.includes('drafts/review.md'), '应含生成 .md')

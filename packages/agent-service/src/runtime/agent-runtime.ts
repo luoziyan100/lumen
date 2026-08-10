@@ -58,6 +58,9 @@ import {
   generateTaskTitle,
   shouldBackfillTitle,
 } from './task-title.ts'
+import { SubagentCoordinator } from '../subagent/coordinator.ts'
+import { SubagentStore } from '../subagent/store.ts'
+import { openDatabase, type DB } from '../storage/db.ts'
 
 export type { UploadRef }
 
@@ -87,6 +90,10 @@ export interface AgentRuntimeConfig {
   maxDepth?: number
   buildSystemPrompt?: (info: RuntimeContextInfo) => string
   contextInfo?: () => RuntimeContextInfo
+  /** 子 Agent 协调器(T0);不传则 runtime 用 db 自建 */
+  subagentCoordinator?: SubagentCoordinator
+  /** 供自建 SubagentStore(当未注入 coordinator) */
+  db?: DB
   /** 上下文折叠；不传用 DEFAULT_CONTEXT_FOLD。显式传 {} 可关闭（测试用） */
   contextFold?: ForModelOptions
   /** 上下文预算(方案 B,owner 拍板 2026-07-14):不传或无 window = 整套水位/压缩/落盘不启用,行为与旧版一致 */
@@ -192,9 +199,19 @@ export class AgentRuntime {
   private readonly titleInflight = new Set<string>()
   private titleBackfillActive = 0
   private readonly titleBackfillQueue: Array<{ taskId: string; model?: ModelPort }> = []
+  /** 子 Agent 协调器(T0) */
+  readonly subagents: SubagentCoordinator
 
   constructor(config: AgentRuntimeConfig) {
     this.cfg = config
+    if (config.subagentCoordinator) {
+      this.subagents = config.subagentCoordinator
+    } else if (config.db) {
+      this.subagents = new SubagentCoordinator(new SubagentStore(config.db), config.store)
+    } else {
+      // 老测试未传 db:独立 :memory: 协调器(不与 store 同库——测试若测子 agent 应显式注入 db)
+      this.subagents = new SubagentCoordinator(new SubagentStore(openDatabase(':memory:')), config.store)
+    }
   }
 
   private askKey(taskId: string, toolCallId: string): string {
@@ -423,6 +440,16 @@ export class AgentRuntime {
   cancel(taskId: string): void {
     this.rejectPendingAsks(taskId, new DOMException('The operation was aborted.', 'AbortError'))
     this.running.get(taskId)?.controller.abort()
+    // 整 task 取消:级联杀全部子(R1.3 cancelTask)
+    this.subagents?.cancelByParentTask(taskId)
+  }
+
+  /** 只停当前 turn:中止主 loop + 杀 parent_turn_id 匹配的子 */
+  cancelTurn(taskId: string): void {
+    const turnId = this.cfg.store.getActiveTurnId(taskId)
+    this.rejectPendingAsks(taskId, new DOMException('The operation was aborted.', 'AbortError'))
+    this.running.get(taskId)?.controller.abort()
+    if (turnId) this.subagents?.cancelByParentTurn(taskId, turnId)
   }
 
   /** 软归档:若在跑先 cancel,再写 archived_at;列表不再返回 */
@@ -666,16 +693,23 @@ export class AgentRuntime {
 
   /**
    * 服务启动时调用：上个进程死亡时仍 'running' 的任务标记为 interrupted（可 resume）。
+   * 同时关闭残留 active_turn_id(turn_end interrupted)。
+   * 并 sweep 子 Agent queued|running|cancelling → interrupted。
    * 不自动续跑——续跑花钱，交给用户/UI 决定。
    */
   sweepInterrupted(): number {
     let swept = 0
     for (const task of this.cfg.store.findInterrupted()) {
       if (task.status === 'running' && !this.running.has(task.id)) {
+        // 先关 turn 再改 task 状态
+        if (task.active_turn_id) {
+          this.cfg.store.endTurn(task.id, 'interrupted', { reason: 'service_restart' })
+        }
         this.cfg.store.updateTaskStatus(task.id, 'interrupted', '服务中断时任务未完成；resume 可续跑')
         swept += 1
       }
     }
+    if (this.subagents) swept += this.subagents.sweepInterrupted()
     return swept
   }
 
@@ -828,13 +862,8 @@ export class AgentRuntime {
       const stored = this.cfg.store.appendEvent(taskId, event.kind, event.payload, event.agentRole)
       for (const entry of toSessionEntries(taskId, event)) appendSessionEntry(this.cfg.sessionDir, entry)
       this.notify(taskId, stored)
-      // 首条非空 reply → 异步起侧栏短标题
-      if (event.kind === 'reply') {
-        const reply = typeof (event.payload as { reply?: unknown } | undefined)?.reply === 'string'
-          ? (event.payload as { reply: string }).reply.trim()
-          : ''
-        if (reply) void this.scheduleTitleIfNeeded(taskId, modelForTitle)
-      }
+      // 标题生成改在 execute 终态 await(避免与下一轮 continue / worker 抢模型调用)
+      void modelForTitle
     }
   }
 
@@ -858,8 +887,12 @@ export class AgentRuntime {
       roles: this.cfg.roles ?? {},
       maxDepth: limits.maxDepth,
     })
+    const turnId = this.cfg.store.beginTurn(task.id)
+    this.subagents?.openSpawnAdmission(task.id)
     const ctx: ToolContext = {
       taskId: task.id,
+      sessionId: task.id,
+      turnId,
       agentRole: 'main',
       depth: 0,
       spawn,
@@ -870,6 +903,7 @@ export class AgentRuntime {
         model,
         imageStore: this.cfg.imageBridge?.store,
         askUser: this.makeAskUserWaiter(task.id),
+        subagents: this.subagents,
       },
     }
     const memoryTools = createMemoryTools(this.memoryDir(task.project_id)) // 跨会话记忆:仅主 agent,worker 不带
@@ -893,6 +927,8 @@ export class AgentRuntime {
         const events = this.cfg.store.listEvents(task.id)
         const compacted = this.appendCompaction(task, events, estimateWatermark(events).estimatedTotal)
         if (compacted) {
+          // compaction 后 rehydrate 未消费的子完成 reminder(R1.2)
+          this.subagents?.rehydrateReminders(task.id)
           const rebuilt = rebuildThread(compacted, { systemPrompt: this.systemPrompt(task.project_id), userText: task.goal })
           result = await runAgent({
             thread: rebuilt, model, tools, limits, ctx, signal,
@@ -910,21 +946,30 @@ export class AgentRuntime {
             : 'failed'
       const lastError = result.status === 'error' ? result.reply
         : result.status === 'exhausted' ? '预算耗尽（步数或墙钟）；resume 可续跑' : null
+      const turnEndStatus = result.status === 'aborted' ? 'canceled'
+        : result.status === 'exhausted' ? 'interrupted'
+          : result.status === 'done' ? 'done' : 'failed'
+      this.cfg.store.endTurn(task.id, turnEndStatus)
       this.cfg.store.updateTaskStatus(task.id, status, lastError)
       this.notifyStatus(task.id)
       this.emitContextUsage(task.id) // 水位事件(方案 B):UI 仪表用
       this.endSession(task.id, status, Date.now() - startedAt)
-      // done/interrupted 兜底:空 reply 先结束时此处再试一次
+      // done/interrupted:等标题生成完再释放 running,避免 continue 与 title 抢同一 ModelPort
       if (status === 'done' || status === 'interrupted') {
-        void this.scheduleTitleIfNeeded(task.id, modelOverride)
+        await this.scheduleTitleIfNeeded(task.id, modelOverride)
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+      this.cfg.store.endTurn(task.id, 'failed', { error: message })
       this.cfg.store.updateTaskStatus(task.id, 'failed', message)
       this.notifyStatus(task.id)
       appendSessionEntry(this.cfg.sessionDir, { type: 'error', task_id: task.id, timestamp: new Date().toISOString(), error: message })
       this.endSession(task.id, 'failed', Date.now() - startedAt)
     } finally {
+      // 若异常路径未 endTurn,确保清空
+      if (this.cfg.store.getActiveTurnId(task.id)) {
+        this.cfg.store.endTurn(task.id, 'interrupted', { reason: 'execute_finally' })
+      }
       this.rejectPendingAsks(task.id, new DOMException('The operation was aborted.', 'AbortError'))
       this.running.delete(task.id)
     }
@@ -956,6 +1001,8 @@ export class AgentRuntime {
     }
     const stored = this.cfg.store.appendEvent(task.id, 'compaction', payload, 'main')
     this.notify(task.id, stored)
+    // R1.2: 未消费的子完成 reminder 按表 rehydrate(不扫事件流去重)
+    this.subagents.rehydrateReminders(task.id)
     return this.cfg.store.listEvents(task.id)
   }
 

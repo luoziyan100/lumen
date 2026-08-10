@@ -3,14 +3,15 @@
  * [OUTPUT]: openDatabase / DB —— 打开 SQLite 并跑增量 migration
  * [POS]: §存储层根。表结构搬自 old_lumen migration v8（tasks/task_events），只增不改;
  *        v6:tasks.archived_at 软归档;v7:projects.archived_at 软归档;v8:tasks.title 侧栏短名(≠goal);
- *        v9:tasks.pinned_at 侧栏置顶(NULL=未钉;钉内按钉时排序,不跟活跃跳)
+ *        v9:tasks.pinned_at 侧栏置顶(NULL=未钉;钉内按钉时排序,不跟活跃跳);
+ *        v10:tasks.active_turn_id + subagents 表(子 Agent T0,见 briefs/active/subagent-system.md)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import Database from 'better-sqlite3'
 
 export type DB = Database.Database
 
-const SCHEMA_VERSION = 9
+const SCHEMA_VERSION = 10
 
 export function openDatabase(filename: string): DB {
   const db = new Database(filename)
@@ -109,6 +110,44 @@ function migrate(db: DB): void {
   if (current < 9) {
     // 侧栏置顶:NULL=未钉;有 ISO=钉上时间(list 钉档优先,钉内按此倒序)
     db.exec(`ALTER TABLE tasks ADD COLUMN pinned_at TEXT`)
+  }
+
+  if (current < 10) {
+    // 主 task 当前 turn;子 Agent 表(reminder_consumed 真源/状态机/并发)
+    db.exec(`ALTER TABLE tasks ADD COLUMN active_turn_id TEXT`)
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS subagents (
+        id                   TEXT PRIMARY KEY,
+        parent_task_id       TEXT NOT NULL,
+        parent_turn_id       TEXT NOT NULL,
+        parent_subagent_id   TEXT,
+        subagent_type        TEXT NOT NULL,
+        description          TEXT NOT NULL DEFAULT '',
+        status               TEXT NOT NULL,
+        depth                INTEGER NOT NULL DEFAULT 1,
+        isolation            TEXT NOT NULL DEFAULT 'none',
+        cwd_root             TEXT,
+        worktree_path        TEXT,
+        snapshot_ref         TEXT,
+        surface_completion   INTEGER NOT NULL DEFAULT 1,
+        reminder_consumed    INTEGER NOT NULL DEFAULT 0,
+        completion_summary   TEXT,
+        last_error           TEXT,
+        active_turn_id       TEXT,
+        prompt_tokens        INTEGER NOT NULL DEFAULT 0,
+        completion_tokens    INTEGER NOT NULL DEFAULT 0,
+        total_tokens         INTEGER NOT NULL DEFAULT 0,
+        tool_calls           INTEGER NOT NULL DEFAULT 0,
+        turns                INTEGER NOT NULL DEFAULT 0,
+        created_at           TEXT NOT NULL,
+        updated_at           TEXT NOT NULL,
+        finished_at          TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_subagents_parent_task ON subagents(parent_task_id);
+      CREATE INDEX IF NOT EXISTS idx_subagents_parent_sub ON subagents(parent_subagent_id);
+      CREATE INDEX IF NOT EXISTS idx_subagents_status ON subagents(status);
+      CREATE INDEX IF NOT EXISTS idx_subagents_parent_turn ON subagents(parent_turn_id);
+    `)
   }
 
   db.pragma(`user_version = ${SCHEMA_VERSION}`)

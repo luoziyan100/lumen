@@ -145,6 +145,7 @@ export function createService(config: ServiceConfig = {}): Service {
 
   const runtime = new AgentRuntime({
     store,
+    db,
     model,
     sessionDir: path.join(home, 'sessions'),
     workspacesDir,

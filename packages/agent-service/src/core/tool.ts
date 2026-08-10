@@ -66,6 +66,13 @@ export interface ToolContext {
   toolCallId?: string
   /** Seatbelt 额外只读根(skills 目录);run_code 注入 */
   skillReadRoots?: string[]
+  /**
+   * 当前执行会话的 active turn(主=主 turn;子=子 turn)。
+   * spawn 时 parent_turn_id := turnId。subagent T0 起注入。
+   */
+  turnId?: string
+  /** 当前 agent session id(主 task id 或 subagent_id) */
+  sessionId?: string
 }
 
 export interface Tool {

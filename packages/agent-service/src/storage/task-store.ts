@@ -24,6 +24,8 @@ export interface Task {
   archived_at?: string | null
   /** ISO 时间;NULL/缺省 = 未置顶;钉档内按此倒序(≠活跃时间) */
   pinned_at?: string | null
+  /** 当前主 turn id;NULL=无在跑 turn(subagent T0) */
+  active_turn_id?: string | null
 }
 
 export type TaskEventKind =
@@ -41,6 +43,13 @@ export type TaskEventKind =
   | 'budget_extension'
   | 'compaction'
   | 'context_usage'
+  | 'turn_start'
+  | 'turn_end'
+  | 'subagent_started'
+  | 'subagent_completed'
+  | 'subagent_interrupted'
+  | 'subagent_completion_reminder'
+  | 'subagent_completion_reminder_consumed'
 
 /** 高频/可重放冗余:只广播不落库 */
 export const EPHEMERAL_EVENT_KINDS = new Set<string>(['text_delta', 'tool_call_start'])
@@ -83,6 +92,7 @@ export class TaskStore {
     listEvents: ReturnType<DB['prepare']>
     listEventsAfter: ReturnType<DB['prepare']>
     findInterrupted: ReturnType<DB['prepare']>
+    setActiveTurn: ReturnType<DB['prepare']>
   }
   private readonly appendTx: (taskId: string, kind: string, payloadJson: string, agentRole: string | null) => TaskEvent
 
@@ -118,6 +128,7 @@ export class TaskStore {
       findInterrupted: db.prepare(
         "SELECT * FROM tasks WHERE status IN ('running','interrupted') AND archived_at IS NULL ORDER BY updated_at DESC",
       ),
+      setActiveTurn: db.prepare('UPDATE tasks SET active_turn_id=?, updated_at=? WHERE id=?'),
     }
     this.appendTx = db.transaction((taskId: string, kind: string, payloadJson: string, agentRole: string | null): TaskEvent => {
       const seq = (this.stmts.maxSeq.get(taskId) as { m: number }).m + 1
@@ -205,5 +216,30 @@ export class TaskStore {
 
   findInterrupted(): Task[] {
     return this.stmts.findInterrupted.all() as Task[]
+  }
+
+  /** 主 turn 开始:写 active_turn_id + turn_start 事件 */
+  beginTurn(taskId: string, turnId?: string): string {
+    const id = turnId ?? `turn-${uuid()}`
+    const ts = now()
+    this.stmts.setActiveTurn.run(id, ts, taskId)
+    this.appendEvent(taskId, 'turn_start', { turn_id: id, scope: 'main' })
+    return id
+  }
+
+  /** 主 turn 结束:turn_end + 清空 active_turn_id */
+  endTurn(taskId: string, status: string, extra?: Record<string, unknown>): void {
+    const task = this.getTask(taskId)
+    const turnId = task?.active_turn_id
+    if (turnId) {
+      this.appendEvent(taskId, 'turn_end', { turn_id: turnId, status, scope: 'main', ...extra })
+    }
+    this.stmts.setActiveTurn.run(null, now(), taskId)
+  }
+
+  getActiveTurnId(taskId: string): string | null {
+    const t = this.getTask(taskId)
+    const v = t?.active_turn_id
+    return v != null && String(v).trim() !== '' ? String(v) : null
   }
 }
