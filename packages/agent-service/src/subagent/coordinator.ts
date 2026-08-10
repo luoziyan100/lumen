@@ -574,4 +574,11 @@ export class SubagentCoordinator {
   listByParentTask(parentTaskId: string): SubagentRecord[] {
     return this.store.listByParentTask(parentTaskId)
   }
+
+  setWorkspacePaths(
+    id: string,
+    paths: { cwd_root?: string | null; worktree_path?: string | null; snapshot_ref?: string | null },
+  ): void {
+    this.store.setWorkspacePaths(id, paths)
+  }
 }

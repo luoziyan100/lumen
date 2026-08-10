@@ -27,3 +27,10 @@ export {
   type AgentDefinition,
 } from './resolution.ts'
 export { ChildRunner, type ChildRunnerDeps, type StartChildInput, type ChildRunHandle } from './runner.ts'
+export {
+  materializeWorktree,
+  removeWorktree,
+  resolveGitRoot,
+  expandUserPath,
+  type WorktreeResult,
+} from './worktree.ts'

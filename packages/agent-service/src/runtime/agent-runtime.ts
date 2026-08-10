@@ -900,6 +900,15 @@ export class AgentRuntime {
       allTools: this.cfg.mainTools,
       roles: this.cfg.roles ?? {},
       maxDepth: limits.maxDepth,
+      worktreeRoot: this.subagents.config.worktree_root,
+      resolveGitRoot: (parentTaskId) => {
+        // 项目 source_path 优先；无 git 则 null → worktree spawn 显式失败
+        const t = this.cfg.store.getTask(parentTaskId)
+        const projectId = t?.project_id ?? task.project_id
+        const source = this.cfg.projects?.getProject(projectId)?.source_path
+        if (source && source.trim()) return source.trim()
+        return null
+      },
       makeWorkspace: (parentTaskId, cwdRoot) => {
         const t = this.cfg.store.getTask(parentTaskId)
         const projectId = t?.project_id ?? task.project_id

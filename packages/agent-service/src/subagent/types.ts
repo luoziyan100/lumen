@@ -50,6 +50,8 @@ export const SUBAGENT_ERROR = {
   SPAWN_BLOCKED: 'subagent_spawn_blocked',
   DEPTH_EXCEEDED: 'subagent_depth_exceeded',
   TYPE_UNKNOWN: 'subagent_type_unknown',
+  /** isolation=worktree 物化失败；禁止 fallback none */
+  WORKTREE_FAILED: 'subagent_worktree_failed',
 } as const
 
 export type SubagentErrorCode = (typeof SUBAGENT_ERROR)[keyof typeof SUBAGENT_ERROR]

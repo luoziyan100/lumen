@@ -1,9 +1,10 @@
 /**
- * [INPUT]: coordinator + resolution + core/runAgent
- * [OUTPUT]: ChildRunner —— 登记 spawn、物化 workspace、跑 runAgent、usage 上报 complete
- * [POS]: subagent T3 L3；与主 runtime 共用内核，独立 turn/session/Abort
+ * [INPUT]: coordinator + resolution + core/runAgent + worktree
+ * [OUTPUT]: ChildRunner —— 登记 spawn、物化 workspace/worktree、跑 runAgent、usage 上报
+ * [POS]: subagent T3/T5 L3；与主 runtime 共用内核，独立 turn/session/Abort
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
+import * as path from 'node:path'
 import { Thread } from '../core/thread.ts'
 import { runAgent } from '../core/loop.ts'
 import { createSpawnFn, type RoleDef } from '../core/spawn.ts'
@@ -11,6 +12,7 @@ import type { ModelPort } from '../core/model-port.ts'
 import type { Limits } from '../core/limits.ts'
 import type { AgentEvent } from '../core/types.ts'
 import type { Tool, ToolContext, Workspace } from '../core/tool.ts'
+import { FsWorkspace } from '../workspace/fs-workspace.ts'
 import type { SubagentCoordinator } from './coordinator.ts'
 import {
   buildChildTools,
@@ -18,13 +20,18 @@ import {
   type AgentDefinition,
 } from './resolution.ts'
 import { isWriteCapableToolset } from './tool-kind.ts'
+import {
+  expandUserPath,
+  materializeWorktree,
+  resolveGitRoot as findGitRoot,
+} from './worktree.ts'
 import type {
   CapabilityMode,
   IsolationMode,
   SpawnImmediateResult,
   SubagentStatus,
 } from './types.ts'
-import { SUBAGENT_ERROR } from './types.ts'
+import { DEFAULT_SUBAGENT_CONFIG, SUBAGENT_ERROR } from './types.ts'
 
 export interface ChildRunnerDeps {
   coordinator: SubagentCoordinator
@@ -32,7 +39,7 @@ export interface ChildRunnerDeps {
   /** 父侧全量工具宇宙，经 buildChildTools 裁剪 */
   allTools: Tool[]
   /**
-   * 物化 child workspace。
+   * 物化 child workspace（isolation=none）。
    * parentTaskId = 用户 task；cwdRoot = 虚拟条带（如 workers/<id>/），null = 与 task 同根。
    */
   makeWorkspace: (parentTaskId: string, cwdRoot: string | null) => Workspace | Promise<Workspace>
@@ -43,6 +50,13 @@ export interface ChildRunnerDeps {
   maxDepth?: number
   /** parent capability 天花板 */
   parentCapability?: CapabilityMode
+  /**
+   * isolation=worktree 时解析 git 仓库根。
+   * 返回 null → spawn 显式失败（禁止 fallback none）。
+   */
+  resolveGitRoot?: (parentTaskId: string) => string | null | Promise<string | null>
+  /** worktree 父目录；默认 config.worktree_root */
+  worktreeRoot?: string
 }
 
 export interface StartChildInput {
@@ -114,6 +128,7 @@ export class ChildRunner {
     const writeCapable = isWriteCapableToolset(tools)
     void effectiveCapability
 
+    const isolation: IsolationMode = input.isolation ?? def.isolationDefault
     const reg = this.deps.coordinator.registerSpawn({
       parent_task_id: input.parent_task_id,
       parent_turn_id: input.parent_turn_id,
@@ -121,7 +136,7 @@ export class ChildRunner {
       subagent_type: def.name,
       description: input.description,
       depth: input.depth ?? 1,
-      isolation: input.isolation ?? def.isolationDefault,
+      isolation,
       model_cwd: input.model_cwd,
       write_capable: writeCapable,
       surface_completion: true,
@@ -135,6 +150,23 @@ export class ChildRunner {
     }
 
     const rec = reg.record
+
+    // T5: worktree 物化——失败则终态 failed，禁止改 isolation=none
+    if (isolation === 'worktree') {
+      const wt = await this.materializeForChild(rec.id, input.parent_task_id)
+      if (!wt.ok) {
+        this.deps.coordinator.complete(rec.id, 'failed', {
+          last_error: wt.error,
+          completion_summary: wt.error,
+        })
+        return {
+          success: false,
+          error_code: wt.error_code,
+          error: wt.error,
+        }
+      }
+    }
+
     const running = this.deps.coordinator.markRunning(rec.id)
     if (!running) {
       return {
@@ -170,6 +202,43 @@ export class ChildRunner {
       ...immediate,
       handle: { subagent_id: rec.id, done },
     }
+  }
+
+  private async materializeForChild(
+    subagentId: string,
+    parentTaskId: string,
+  ): Promise<{ ok: true; path: string } | { ok: false; error_code: string; error: string }> {
+    let gitRoot: string | null = null
+    if (this.deps.resolveGitRoot) {
+      gitRoot = await this.deps.resolveGitRoot(parentTaskId)
+    }
+    if (gitRoot) gitRoot = findGitRoot(gitRoot) ?? gitRoot
+    if (!gitRoot || !findGitRoot(gitRoot)) {
+      return {
+        ok: false,
+        error_code: SUBAGENT_ERROR.WORKTREE_FAILED,
+        error: 'no git repository for worktree isolation (refusing fallback to none)',
+      }
+    }
+
+    const rootBase = expandUserPath(
+      this.deps.worktreeRoot
+        ?? this.deps.coordinator.config.worktree_root
+        ?? DEFAULT_SUBAGENT_CONFIG.worktree_root,
+    )
+    const worktreePath = path.join(rootBase, subagentId)
+    const result = materializeWorktree({ repoRoot: gitRoot, worktreePath })
+    if (!result.ok) {
+      return { ok: false, error_code: result.error_code, error: result.error }
+    }
+
+    // 落盘 worktree_path；cwd_root 对 worktree 无意义（根即 worktree）
+    this.deps.coordinator.setWorkspacePaths(subagentId, {
+      worktree_path: result.path,
+      cwd_root: null,
+      snapshot_ref: result.ref,
+    })
+    return { ok: true, path: result.path }
   }
 
   private async runLoop(args: {
@@ -220,7 +289,14 @@ export class ChildRunner {
     }
 
     try {
-      const workspace = await this.deps.makeWorkspace(rec.parent_task_id, rec.cwd_root)
+      // worktree：Workspace 根 = 物化目录；none：会话根或 workers 条带
+      const fresh = this.deps.coordinator.get(id) ?? rec
+      let workspace: Workspace
+      if (fresh.isolation === 'worktree' && fresh.worktree_path) {
+        workspace = new FsWorkspace({ root: fresh.worktree_path })
+      } else {
+        workspace = await this.deps.makeWorkspace(fresh.parent_task_id, fresh.cwd_root)
+      }
       const maxDepth = this.deps.maxDepth ?? this.deps.coordinator.config.max_depth
       const spawn = createSpawnFn({
         model,
@@ -271,8 +347,8 @@ export class ChildRunner {
         tool_calls: toolCalls,
         turns,
         usage,
-        cwd_root: rec.cwd_root,
-        worktree_path: rec.worktree_path,
+        cwd_root: fresh.cwd_root,
+        worktree_path: fresh.worktree_path,
       })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
