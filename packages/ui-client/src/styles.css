@@ -1622,22 +1622,20 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .composer-btn-send:disabled {
   color: rgba(220, 224, 230, 0.28);
 }
+/* 停止 = 与发送同一套 liquid-glass 壳;不另刷暖底,否则盖住色散边 */
 .composer-btn-stop {
-  /* 停止保留暖警示,仍吃 liquid-glass 壳 */
-  background: rgba(220, 120, 90, 0.28);
-  border-color: rgba(240, 160, 130, 0.35);
-  color: #fff;
-  box-shadow:
-    0 1px 0 rgba(255, 220, 200, 0.35) inset,
-    0 -1px 0 rgba(0, 0, 0, 0.28) inset,
-    0 10px 24px -12px rgba(180, 60, 40, 0.45);
-}
-.composer-btn-stop:hover:not(:disabled) {
-  background: rgba(220, 120, 90, 0.42);
-  border-color: rgba(240, 160, 130, 0.55);
+  color: rgba(236, 238, 242, 0.95);
 }
 .composer-btn-stop:active { transform: scale(0.96); }
-.stop-square { width: 11px; height: 11px; background: currentColor; border-radius: 2.5px; }
+/* 扫光相位与发送错开,避免同拍齐闪 */
+.composer-btn-stop.liquid-glass::before { animation-delay: -0.9s; }
+.stop-square {
+  width: 11px;
+  height: 11px;
+  background: currentColor;
+  border-radius: 2.5px;
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.12);
+}
 
 /* 待发送图片 chips:可点开放大 */
 .attach-row { display: flex; gap: var(--s-2); flex-wrap: wrap; padding: 0 4px; }
