@@ -12,12 +12,17 @@ import { StatusOrb } from './StatusOrb'
 
 export function ProcessRow({ block }: { block: ProcessItem }) {
   const [open, setOpen] = useState(false)
+  const last = block.steps[block.steps.length - 1]
+  const focus = block.steps.slice().reverse().find((s) => !s.done) ?? last
+  // 运行中：当前步文案（带 …）；收口后：末步完成摘要，单步直接「读取文件 · 完成」
   const head = block.running
-    ? (block.steps[block.steps.length - 1]?.label ?? '研究中…')
-    : `研究过程 · ${block.steps.length} 步`
+    ? (focus?.label ?? '研究中…')
+    : (block.steps.length === 1 && last
+      ? last.label
+      : `研究过程 · ${block.steps.length} 步`)
   const orbState = orbStateFromSteps(block.steps)
   return (
-    <div className={`proc ${block.running ? 'proc-running' : ''}`}>
+    <div className={`proc ${block.running ? 'proc-running' : 'proc-done'}`}>
       <button
         type="button"
         className="proc-head"

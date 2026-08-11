@@ -1167,6 +1167,34 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .bubble { max-width: 92%; white-space: pre-wrap; line-height: var(--lh-body-lg); }
 .bubble-user { align-self: flex-end; background: var(--vellum); padding: 10px 14px; border-radius: var(--radius-lg); box-shadow: var(--shadow-1); }
 .bubble-assistant { align-self: stretch; font-family: var(--font-serif); font-size: var(--t-body-lg); }
+/* 中间轮旁白：弱化为「还在想」，终稿才升成正文字重 */
+.bubble-assistant.is-provisional {
+  color: var(--ink-soft);
+  font-size: var(--t-body);
+  font-family: var(--font-sans, inherit);
+  opacity: 0.92;
+  max-width: 92%;
+}
+/* 流式光标：有字在出 / 流停但未定稿时仍闪，避免「像说完了」 */
+.bubble-assistant.is-streaming::after {
+  content: '';
+  display: inline-block;
+  width: 0.55em;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: currentColor;
+  opacity: 0.55;
+  border-radius: 1px;
+  animation: stream-caret 1s steps(1) infinite;
+}
+@keyframes stream-caret {
+  0%, 49% { opacity: 0.55; }
+  50%, 100% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bubble-assistant.is-streaming::after { animation: none; opacity: 0.35; }
+}
 
 /* 用户超长 prompt:预览 clamp + CurtainFold 揭开全文 */
 .msg-fold { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -1875,6 +1903,8 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 /* 运行态指示改 thinking-orbs(.proc-orb);侧栏 sb-dot 仍用 proc-pulse */
 @keyframes proc-pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: .42; transform: scale(.72); } }
 .proc-label { flex: 1; }
+.proc-running .proc-label { color: var(--ink-soft); }
+.proc-done .proc-label { color: var(--ink-mute); }
 .proc-toggle { color: var(--ink-mute); font-size: var(--t-body-sm); flex: none; }
 .proc-steps { list-style: none; margin: var(--s-1) 0 0; padding: var(--s-2) 0 var(--s-2) var(--s-5); display: flex; flex-direction: column; gap: var(--s-2); }
 .proc-step { display: flex; align-items: center; gap: var(--s-3); color: var(--ink-soft); font-size: var(--t-body-sm); }

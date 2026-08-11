@@ -831,12 +831,16 @@ function AppInner() {
   )
 
   const lastItem = items[items.length - 1]
-  // 工具忙碌看证据面（用户面已不挂 process）
-  const toolsBusy = evidenceItems.some((it) => it.kind === 'process' && it.running)
-  // 正文已在流:不要叠「思考中」,否则多一个高度扰动源
+  // 工具真在跑（任一面 process.running）；完成后 running=false 让出思考指示
+  const toolsBusy =
+    items.some((it) => it.kind === 'process' && it.running)
+    || evidenceItems.some((it) => it.kind === 'process' && it.running)
+  // 终稿流式中；provisional 旁白也算「有字在出」，不叠第二套思考指示
   const lastStreamingAssistant =
-    lastItem?.kind === 'msg' && lastItem.role === 'assistant' && Boolean(lastItem.streaming)
-  // 重连中也要露出 Retry n/m（即便证据面 process 未封口）
+    lastItem?.kind === 'msg'
+    && lastItem.role === 'assistant'
+    && Boolean(lastItem.streaming)
+  // 工具间隙 / 首 token 前 / 重连：必须有动效，避免「像说完了但不能发」
   const showThinking =
     running && !pendingAsk && !lastStreamingAssistant && (!toolsBusy || Boolean(modelRetry))
   const showReader = ws.open != null
@@ -939,10 +943,19 @@ function AppInner() {
                 // 进行中展示 process；终局归约会卸下 process（消失再出答案）
                 if (it.kind === 'process') return <ProcessRow key={it.id} block={it} />
                 if (it.role === 'assistant') {
-                  const streamingWidget = Boolean(it.streaming) || (running && !finalAssistantIds.has(it.id))
-                  if (!finalAssistantIds.has(it.id)) {
+                  const isProvisional = Boolean(it.provisional)
+                  const streamingWidget =
+                    Boolean(it.streaming)
+                    || (running && isProvisional)
+                    || (running && !finalAssistantIds.has(it.id) && !isProvisional)
+                  // 中间旁白：弱样式 + 流式光标，不当终稿（无复制、不进 final 轨）
+                  if (isProvisional || !finalAssistantIds.has(it.id)) {
                     return (
-                      <div key={it.id} id={msgAnchorId(it.id)} className="bubble bubble-assistant">
+                      <div
+                        key={it.id}
+                        id={msgAnchorId(it.id)}
+                        className={`bubble bubble-assistant${isProvisional ? ' is-provisional' : ''}${streamingWidget ? ' is-streaming' : ''}`}
+                      >
                         <AssistantContent content={it.content} isStreaming={streamingWidget} onSendMessage={(t) => { void send(t) }} />
                       </div>
                     )

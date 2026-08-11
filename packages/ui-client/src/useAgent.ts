@@ -24,6 +24,11 @@ export interface ChatMsg {
   uploads?: UploadRef[]
   /** 真流式中:text_delta 累积;model_step 定稿后清除 */
   streaming?: boolean
+  /**
+   * 中间轮旁白（尚未确认是终稿）。视觉弱化为工作稿，不进复制钮/终稿轨。
+   * tool 出现或 model_step 带 tools 时折叠进 Thought；无工具定稿时清除。
+   */
+  provisional?: boolean
 }
 export interface ProcStep {
   id: string
@@ -469,6 +474,27 @@ function dropStreamingAssistant(prev: ChatItem[]): ChatItem[] {
   return prev
 }
 
+/**
+ * 中间旁白 → Thought：工具出现前模型常把「下一步打算」流进 content。
+ * 若直接当大气泡会像终稿（静默 + 停发），转接工具时又硬切。
+ */
+function demoteProvisionalAssistantToThought(prev: ChatItem[], eventId: string): ChatItem[] {
+  let idx = -1
+  for (let i = prev.length - 1; i >= 0; i -= 1) {
+    const it = prev[i]
+    if (it?.kind === 'msg' && it.role === 'assistant' && (it.streaming || it.provisional)) {
+      idx = i
+      break
+    }
+  }
+  if (idx < 0) return prev
+  const msg = prev[idx] as ChatMsg
+  const body = msg.content.trim()
+  let next = prev.filter((_, i) => i !== idx)
+  if (body) next = upsertThought(next, eventId, body, false)
+  return next
+}
+
 /** 终局：过程块从用户面消失（非折叠，而是整块卸下） */
 function stripProcessItems(prev: ChatItem[]): ChatItem[] {
   if (!prev.some((it) => it.kind === 'process')) return prev
@@ -477,9 +503,10 @@ function stripProcessItems(prev: ChatItem[]): ChatItem[] {
 
 /**
  * 用户面归约（Claude 两阶段）：
- * - **进行中**：展示 tool/subagent 过程（透明度），reasoning → Thought
- * - **终局**（无工具的定稿正文 / reply / 终态）：过程块**卸下消失**，只留 Thought(折叠)+最终答案
- * - 工具轮中间正文不进大气泡；todo 仍展示
+ * - **进行中**：tool 过程可见；中间 content 旁白 → Thought（不当终稿大气泡）
+ * - **text_delta**：先标 provisional；有过程时不卸过程（避免「说完了」假象）
+ * - **终局**（无工具定稿 / reply）：过程卸下，Thought 收起，只留最终答案
+ * - todo 仍展示
  */
 export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Record<string, unknown>): ChatItem[] {
   switch (event.kind) {
@@ -500,17 +527,31 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
     case 'text_delta': {
       const text = String(p.text ?? '')
       if (!text) return prev
-      // 最终回答开始流式时：过程先卸下（「消失再出结果」）
-      let next = stripProcessItems(prev)
-      const last = next[next.length - 1]
+      // 已有过程 = 工具轮中途：旁白与过程并存，不卸过程（否则像终稿+停发割裂）
+      // 尚无过程：也先 provisional 流式，等 model_step 再决定升格/折进 Thought
+      const last = prev[prev.length - 1]
       if (last?.kind === 'msg' && last.role === 'assistant' && last.streaming) {
-        return [...next.slice(0, -1), { ...last, content: last.content + text }]
+        return [...prev.slice(0, -1), {
+          ...last,
+          content: last.content + text,
+          provisional: true,
+        }]
       }
-      return [...next, { kind: 'msg', id: event.id, role: 'assistant', content: text, streaming: true }]
+      return [...prev, {
+        kind: 'msg',
+        id: event.id,
+        role: 'assistant',
+        content: text,
+        streaming: true,
+        provisional: true,
+      }]
     }
-    // 进行中：过程可见（复用证据面 process 逻辑）
+    // 进行中：过程可见；若有流式旁白先折进 Thought，避免正文→工具硬切
     case 'tool_call_start':
-    case 'subagent_started':
+    case 'subagent_started': {
+      const demoted = demoteProvisionalAssistantToThought(prev, event.id)
+      return reduceChatItems(demoted, event, p)
+    }
     case 'subagent_completed':
     case 'subagent_interrupted':
     case 'subagent_demoted':
@@ -523,10 +564,15 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
       if (reasoning) next = upsertThought(next, event.id, reasoning, false)
 
       if (tools.length > 0) {
-        // 工具轮：丢掉半成品流式泡；过程块保持（进行中可见）
-        // 不因正文 seal process（避免碎成多条）
-        next = dropStreamingAssistant(next)
-        // 若尚无 process，不在这里开——等 tool_call_start
+        // 工具轮：旁白进 Thought；过程保持（进行中可见）
+        next = demoteProvisionalAssistantToThought(next, event.id)
+        // model_step 的 content 若没走过 text_delta，也并入 Thought
+        if (content) {
+          const lastThought = [...next].reverse().find((it) => it.kind === 'thought') as ThoughtItem | undefined
+          if (!lastThought || !lastThought.content.includes(content.slice(0, Math.min(40, content.length)))) {
+            next = upsertThought(next, event.id, content, false)
+          }
+        }
         return next
       }
 
@@ -536,7 +582,7 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
       let streamingIdx = -1
       for (let i = next.length - 1; i >= 0; i -= 1) {
         const it = next[i]
-        if (it?.kind === 'msg' && it.role === 'assistant' && it.streaming) {
+        if (it?.kind === 'msg' && it.role === 'assistant' && (it.streaming || it.provisional)) {
           streamingIdx = i
           break
         }
@@ -577,7 +623,8 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
         const list = todoFromToolArgs(p.args)
         return list ? upsertTodo(prev, event.id, list) : prev
       }
-      return reduceChatItems(prev, event, p)
+      const demoted = demoteProvisionalAssistantToThought(prev, event.id)
+      return reduceChatItems(demoted, event, p)
     }
     case 'tool_result': {
       const name = String(p.name ?? '')
@@ -588,23 +635,33 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
       return reduceChatItems(prev, event, p)
     }
     case 'reply':
-      // 终局：卸过程 + 收 Thought
-      return markThoughtsDone(stripProcessItems(prev))
+      // 终局：卸过程 + 收 Thought；残留 provisional 升格为定稿
+      return markThoughtsDone(stripProcessItems(finalizeProvisional(prev)))
     case 'status_change': {
       const to = String(p.to ?? '')
       if (!['canceled', 'failed', 'done', 'interrupted'].includes(to)) return prev
-      return markThoughtsDone(stripProcessItems(prev))
+      return markThoughtsDone(stripProcessItems(finalizeProvisional(prev)))
     }
     case 'compaction':
       return [...prev, { kind: 'compaction', id: event.id }]
     case 'error':
       return markThoughtsDone(stripProcessItems([
-        ...prev,
+        ...finalizeProvisional(prev),
         { kind: 'msg', id: event.id, role: 'error', content: String(p.error ?? '出错了') },
       ]))
     default:
       return prev
   }
+}
+
+/** reply/error 时把未升格的 provisional 定成普通助手泡（避免内容蒸发） */
+function finalizeProvisional(prev: ChatItem[]): ChatItem[] {
+  return prev.map((it) => {
+    if (it.kind === 'msg' && it.role === 'assistant' && (it.streaming || it.provisional)) {
+      return { kind: 'msg', id: it.id, role: 'assistant', content: it.content }
+    }
+    return it
+  })
 }
 
 /** 证据面归约:同一个 event 进来,prev → next。完整 process/subagent。 */
@@ -730,14 +787,14 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
       }
       const path = payloadPath ?? fallbackPath
       const label = summarize(name, typeof p.llmContent === 'string' ? p.llmContent : '', path)
-      return prev.map((it) => it.kind === 'process'
-        ? {
-            ...it,
-            steps: it.steps.map((s) => (s.id === id
-              ? { ...s, done: true, label, ...(path ? { path } : {}) }
-              : s)),
-          }
-        : it)
+      return prev.map((it) => {
+        if (it.kind !== 'process') return it
+        const steps = it.steps.map((s) => (s.id === id
+          ? { ...s, done: true, label, ...(path ? { path } : {}) }
+          : s))
+        // 全部完成 → running=false：球冻结 + 让出「思考中」指示（避免假 running 堵死动效）
+        return { ...it, steps, running: steps.some((s) => !s.done) }
+      })
     }
     case 'reply':
       return sealRunningProcesses(prev)
