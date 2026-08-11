@@ -3,13 +3,11 @@
  * [OUTPUT]: scrollDebugEnabled / scrollDebugLog —— 只读观测,默认关闭
  * [POS]: useStickToBottom V1 结案 H1/H2/H5;不改变行为
  *
- * 开启(任选其一,刷新后生效):
- *   localStorage.setItem('lumen:scrollDebug', '1')
- *   或 URL ?scrollDebug=1
- * 关闭:
- *   localStorage.removeItem('lumen:scrollDebug')
- * 导出最近日志:
- *   copy(JSON.stringify(window.__LUMEN_SCROLL_LOG__, null, 2))
+ * 桌面 App 无浏览器控制台 —— 用应用内 HUD(ScrollDebugHud):
+ *   快捷键 ⌃⌥⇧S 开关 → 复现跳动 → 「复制日志」粘贴到聊天
+ * 开发者备选:
+ *   localStorage.setItem('lumen:scrollDebug', '1') / removeItem
+ *   URL ?scrollDebug=1
  */
 
 export type ScrollDebugEvent = {

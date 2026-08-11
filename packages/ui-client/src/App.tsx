@@ -43,6 +43,7 @@ import { ProcessRow } from './components/ProcessRow'
 import { ThoughtRow } from './components/ThoughtRow'
 import { TodoCard } from './components/TodoCard'
 import { ThinkingIndicator } from './components/ThinkingIndicator'
+import { ScrollDebugHud } from './components/ScrollDebugHud'
 import { TurnPreviewRail } from './components/TurnPreviewRail'
 import { buildTurnRailItems, msgAnchorId } from './components/turnRail'
 import { AssistantContent } from './components/widget/AssistantContent'
@@ -1141,6 +1142,8 @@ function AppInner() {
           onClose={() => { setSettingsOpen(false); refreshModel() }}
         />
       )}
+      {/* 桌面无浏览器控制台:⌃⌥⇧S 开滚动诊断,复制日志贴聊天 */}
+      <ScrollDebugHud />
     </div>
   )
 }
