@@ -1222,6 +1222,9 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   aspect-ratio: 1;
 }
 .think-label { color: var(--ink-mute); font-size: var(--t-body-sm); letter-spacing: 0.02em; }
+/* 模型连接重试：Codex 档 Retry n/m，略提权色 */
+.think-status.is-retrying .think-label { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.think-detail { color: var(--ink-mute); font-weight: 400; }
 
 /* 悬停复制(2026-07-10 owner 定):只配给用户输入 + 每轮的最终输出;
    钮在消息"下方"的动作行里(回答=左下,输入=右下),平时隐身,悬停浮现 */

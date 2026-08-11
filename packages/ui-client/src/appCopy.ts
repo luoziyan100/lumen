@@ -126,6 +126,8 @@ export const WORKSPACE_DRAWER_COPY = {
 /** 对话流等待态 / 滚动跳转 */
 export const APP_STATUS_COPY = {
   thinking: '思考中',
+  /** 模型连接重试（对齐 Codex Retry n/m） */
+  retry: (attempt: number, maxAttempts: number) => `Retry ${attempt}/${maxAttempts}`,
   jumpToLatest: '回到最新',
 } as const
 

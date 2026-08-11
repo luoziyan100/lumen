@@ -16,7 +16,7 @@ export interface AnswerUserPayload {
 }
 /**
  * 任务事件。kind 含 durable(model_step/tool_call/…)与 ephemeral:
- * text_delta / tool_call_start —— 仅 live 推送(seq 常为 -1),不入重放。
+ * text_delta / tool_call_start / model_retry —— 仅 live 推送(seq 常为 -1),不入重放。
  */
 export interface TaskEvent {
   id: string

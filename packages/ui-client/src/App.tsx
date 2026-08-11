@@ -196,7 +196,7 @@ function AppInner() {
   }
 
   const {
-    items, evidenceItems, running, pendingAsk, send, stop, answerAsk,
+    items, evidenceItems, running, pendingAsk, modelRetry, send, stop, answerAsk,
     newConversation, selectConversation, taskId, ctxUsage,
   } = useAgent(client, projectId, connected)
   taskIdForUnreadRef.current = taskId
@@ -836,7 +836,9 @@ function AppInner() {
   // 正文已在流:不要叠「思考中」,否则多一个高度扰动源
   const lastStreamingAssistant =
     lastItem?.kind === 'msg' && lastItem.role === 'assistant' && Boolean(lastItem.streaming)
-  const showThinking = running && !toolsBusy && !pendingAsk && !lastStreamingAssistant
+  // 重连中也要露出 Retry n/m（即便证据面 process 未封口）
+  const showThinking =
+    running && !pendingAsk && !lastStreamingAssistant && (!toolsBusy || Boolean(modelRetry))
   const showReader = ws.open != null
   // 右栏可见 = 阅读器或工作目录轨;标题栏钮必须两边都能收,不能只拨 drawer
   const rightPaneOpen = showReader || drawer
@@ -995,7 +997,17 @@ function AppInner() {
                 }
                 return <div key={it.id} id={msgAnchorId(it.id)} className={`bubble bubble-${it.role}`}>{it.content}</div>
               })}
-              {showThinking && <ThinkingIndicator />}
+              {showThinking && (
+                <ThinkingIndicator
+                  label={
+                    modelRetry
+                      ? APP_STATUS_COPY.retry(modelRetry.attempt, modelRetry.maxAttempts)
+                      : APP_STATUS_COPY.thinking
+                  }
+                  retrying={Boolean(modelRetry)}
+                  detail={modelRetry?.reason}
+                />
+              )}
             </div>
             {!isEmpty && !messagesPinned && (
               <button

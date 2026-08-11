@@ -1,10 +1,10 @@
 /**
  * [INPUT]: AgentClient 的事件流 / submit·continue·subscribe·answerUser
- * [OUTPUT]: useAgent → items(用户面)/evidenceItems(归因面)/running/…;
+ * [OUTPUT]: useAgent → items(用户面)/evidenceItems(归因面)/running/modelRetry/…;
  *           reduceUserFacingItems(Claude 档:Thought+最终答案)/reduceChatItems=证据面全量;
  *           sealRunningProcesses;isLiveTaskEvent / viewEpoch
  * [POS]: UI 对话状态核;用户面默认不渲染工具过程;证据面给右轨/排障;
- *        todo_write 仍进用户面;ask_user→pendingAsk;上传知情 chip
+ *        todo_write 仍进用户面;ask_user→pendingAsk;model_retry→Retry n/m;上传知情 chip
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * user 也走事件流,不在前端乐观插入。taskId 按项目键存 localStorage。
@@ -67,6 +67,13 @@ export interface AskUserQuestion {
 export interface PendingAsk {
   toolCallId: string
   questions: AskUserQuestion[]
+}
+
+/** 模型连接重试（ephemeral model_retry；对齐 Codex Retry n/m） */
+export interface ModelRetryState {
+  attempt: number
+  maxAttempts: number
+  reason?: string
 }
 
 const VERB: Record<string, string> = {
@@ -213,6 +220,8 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
   const [evidenceItems, setEvidenceItems] = useState<ChatItem[]>([])
   const [running, setRunning] = useState(false)
   const [pendingAsk, setPendingAsk] = useState<PendingAsk | null>(null)
+  /** 模型连接重试中：ThinkingIndicator 显示 Retry n/m */
+  const [modelRetry, setModelRetry] = useState<ModelRetryState | null>(null)
   const [taskId, setTaskId] = useState<string | null>(null) // 给 UI 高亮当前会话
   const [ctxUsage, setCtxUsage] = useState<number | null>(null) // 上下文水位 0-1(context_usage 事件)
   const taskIdRef = useRef<string | null>(null)
@@ -230,6 +239,7 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
     openAskIds.current = new Set()
     setCtxUsage(null)
     setPendingAsk(null)
+    setModelRetry(null)
     setTaskId(id)
     const key = `lumen:taskId:${forProjectId}`
     if (id) localStorage.setItem(key, id)
@@ -259,6 +269,28 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
           setCtxUsage(r)
         }
       }
+      // 模型连接重试：ephemeral，连上/出字/终态即清
+      if (event.kind === 'model_retry') {
+        if (!isLiveTaskEvent(event.task_id, taskIdRef.current, epoch, viewEpochRef.current)) return
+        const attempt = Number(payload.attempt)
+        const maxAttempts = Number(payload.maxAttempts)
+        if (Number.isFinite(attempt) && Number.isFinite(maxAttempts) && maxAttempts > 0) {
+          const reason = typeof payload.reason === 'string' && payload.reason.trim()
+            ? payload.reason.trim()
+            : undefined
+          setModelRetry({ attempt, maxAttempts, reason })
+        }
+      }
+      if (
+        event.kind === 'text_delta'
+        || event.kind === 'tool_call_start'
+        || event.kind === 'model_step'
+        || event.kind === 'tool_call'
+      ) {
+        if (isLiveTaskEvent(event.task_id, taskIdRef.current, epoch, viewEpochRef.current)) {
+          setModelRetry(null)
+        }
+      }
       if (event.kind === 'tool_call' && String(payload.name ?? '') === 'ask_user') {
         if (!isLiveTaskEvent(event.task_id, taskIdRef.current, epoch, viewEpochRef.current)) return
         const toolCallId = String(payload.id ?? '')
@@ -278,6 +310,7 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
       if (event.kind === 'reply' || event.kind === 'error') {
         if (!isLiveTaskEvent(event.task_id, taskIdRef.current, epoch, viewEpochRef.current)) return
         setRunning(false)
+        setModelRetry(null)
         openAskIds.current = new Set()
         setPendingAsk(null)
       }
@@ -287,6 +320,7 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
         if (['canceled', 'failed', 'done', 'interrupted'].includes(to)) {
           openAskIds.current = new Set()
           setPendingAsk(null)
+          setModelRetry(null)
         }
       }
     })
@@ -294,6 +328,7 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
       if (code === 4401) setItems((prev) => [...prev, { kind: 'msg', id: `c-${Date.now()}`, role: 'error', content: '连接被拒:未授权(刷新页面重试)。' }])
       // 断线必须收回思考态——否则会出现永远「思考中」且无用户气泡
       setRunning(false)
+      setModelRetry(null)
       void code
     })
     return () => { offEvent(); offClose() }
@@ -315,6 +350,7 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
     activePath?: string | null,
   ): Promise<void> {
     setRunning(true)
+    setModelRetry(null)
     const pid = projectIdRef.current
     const epoch = viewEpochRef.current
     try {
@@ -329,6 +365,7 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
     } catch (err) {
       if (viewEpochRef.current !== epoch) return
       setRunning(false)
+      setModelRetry(null)
       const msg = err instanceof Error ? err.message : String(err)
       const preview = text.trim().slice(0, 80)
       setItems((prev) => {
@@ -373,6 +410,7 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
       if (taskIdRef.current) client.cancelTurn(taskIdRef.current, projectIdRef.current)
     } catch { /* 已断线则本地收尾即可 */ }
     setRunning(false)
+    setModelRetry(null)
     setPendingAsk(null)
     openAskIds.current = new Set()
   }
@@ -386,7 +424,7 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
   }
 
   return {
-    items, evidenceItems, running, pendingAsk, send, stop, answerAsk,
+    items, evidenceItems, running, pendingAsk, modelRetry, send, stop, answerAsk,
     newConversation, selectConversation, taskId, ctxUsage,
   }
 }

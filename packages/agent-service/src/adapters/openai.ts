@@ -13,7 +13,7 @@
  */
 import type { ChatHandlers, ModelPort, ModelResponse } from '../core/model-port.ts'
 import type { Message, ToolCall, ToolSpec } from '../core/types.ts'
-import { postJsonWithRetry, resolveModelMaxAttempts, type RetryOptions } from './retry.ts'
+import { postJsonWithRetry, resolveModelMaxAttempts, shortRetryReason, type RetryOptions } from './retry.ts'
 import { createTextDeltaCoalescer } from './stream-coalesce.ts'
 import {
   applyOpenAISseData,
@@ -311,6 +311,11 @@ export function createOpenAIStreamFetchTransport(options: OpenAIFetchTransportOp
           // 429/5xx 可在建连阶段重试
           if ([408, 429, 500, 502, 503, 504, 529].includes(response.status) && attempt < maxConnectAttempts - 1) {
             lastError = new Error(`OpenAI stream failed (${response.status}): ${text}`)
+            handlers?.onRetry?.({
+              attempt: attempt + 1,
+              maxAttempts: maxConnectAttempts,
+              reason: `HTTP ${response.status}`,
+            })
             const jitter = Math.floor(Math.random() * 200)
             await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** attempt + jitter))
             continue
@@ -353,6 +358,11 @@ export function createOpenAIStreamFetchTransport(options: OpenAIFetchTransportOp
           if (attempt > 0) wrapped.message = `${wrapped.message} (retried ${attempt + 1}/${maxConnectAttempts})`
           throw wrapped
         }
+        handlers?.onRetry?.({
+          attempt: attempt + 1,
+          maxAttempts: maxConnectAttempts,
+          reason: shortRetryReason(error),
+        })
         const jitter = Math.floor(Math.random() * 200)
         await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** attempt + jitter))
       }

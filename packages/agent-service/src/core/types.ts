@@ -44,6 +44,7 @@ export interface ToolSpec {
 export type AgentEventKind =
   | 'text_delta' // ephemeral:正文增量,不入库
   | 'tool_call_start' // ephemeral:工具名尽早露出,不入库
+  | 'model_retry' // ephemeral:模型连接重试(Retry n/m),不入库
   | 'model_step'
   | 'tool_call'
   | 'tool_result'

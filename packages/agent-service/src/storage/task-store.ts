@@ -34,6 +34,7 @@ export type TaskEventKind =
   | 'context_init'
   | 'text_delta' // live-only:runtime 不入库
   | 'tool_call_start' // live-only:runtime 不入库
+  | 'model_retry' // live-only:模型连接重试,不入库
   | 'model_step'
   | 'tool_call'
   | 'tool_result'
@@ -53,7 +54,7 @@ export type TaskEventKind =
   | 'subagent_completion_reminder_consumed'
 
 /** 高频/可重放冗余:只广播不落库 */
-export const EPHEMERAL_EVENT_KINDS = new Set<string>(['text_delta', 'tool_call_start'])
+export const EPHEMERAL_EVENT_KINDS = new Set<string>(['text_delta', 'tool_call_start', 'model_retry'])
 
 export interface TaskEvent {
   id: string

@@ -13,10 +13,22 @@ export interface ModelResponse {
   usage?: Usage
 }
 
+/** 模型连接重试信息（1-based attempt = 刚失败的那次） */
+export interface ModelRetryInfo {
+  /** 刚失败的尝试序号（1-based） */
+  attempt: number
+  /** 总尝试上限（含第一次） */
+  maxAttempts: number
+  /** 短原因（如 fetch failed / 429） */
+  reason?: string
+}
+
 /** 流式回调:适配器 coalesce 后再调,避免 WS 洪水 */
 export interface ChatHandlers {
   onTextDelta?: (text: string) => void
   onToolCallStart?: (id: string, name: string) => void
+  /** 建连/读流可重试失败后、即将退避再试时（ephemeral，对齐 Codex Retry n/m） */
+  onRetry?: (info: ModelRetryInfo) => void
 }
 
 export interface ModelPort {

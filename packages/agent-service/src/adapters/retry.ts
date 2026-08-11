@@ -31,6 +31,23 @@ export interface RetryOptions {
   timeoutMs?: number
   /** 测试注入 */
   fetchImpl?: typeof fetch
+  /** 即将退避再试时回调（attempt 为刚失败的 1-based 序号） */
+  onRetry?: (info: { attempt: number; maxAttempts: number; reason?: string }) => void
+}
+
+/** 从 Error 抽短 reason，给 UI Retry 行 */
+export function shortRetryReason(error: unknown): string | undefined {
+  if (error instanceof HttpStatusError) return `HTTP ${error.status}`
+  if (error instanceof Error) {
+    const m = error.message
+    if (/fetch failed/i.test(m)) return 'fetch failed'
+    if (/timeout|TimeoutError/i.test(m)) return 'timeout'
+    if (/ECONNRESET|socket/i.test(m)) return 'socket'
+    if (/429|overloaded|rate/i.test(m)) return 'rate limit'
+    // 截断避免把整段 HTML/JSON 塞进 UI
+    return m.length > 48 ? `${m.slice(0, 45)}…` : m
+  }
+  return undefined
 }
 
 export class HttpStatusError extends Error {
@@ -105,6 +122,11 @@ export async function postJsonWithRetry(
       lastError = error // 网络错 / 单次超时(TimeoutError) / 可重试状态码
     }
     if (attempt < maxAttempts - 1) {
+      options.onRetry?.({
+        attempt: attempt + 1,
+        maxAttempts,
+        reason: shortRetryReason(lastError),
+      })
       // 指数退避 + 小抖动，避免惊群
       const jitter = Math.floor(Math.random() * 200)
       await sleep(baseDelayMs * 2 ** attempt + jitter, signal)

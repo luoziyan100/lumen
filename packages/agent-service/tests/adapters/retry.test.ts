@@ -75,3 +75,28 @@ test('单次超时可重试：挂死的请求被超时打断并重试，次数�
   )
   assert.equal(calls, 2, '每次超时算一次尝试，重试到次数耗尽')
 })
+
+test('onRetry：即将再试时回调 attempt/maxAttempts', async () => {
+  let calls = 0
+  const retries: Array<{ attempt: number; maxAttempts: number; reason?: string }> = []
+  const fetchImpl: typeof fetch = async () => {
+    calls += 1
+    return calls < 3 ? jsonResponse(529, { error: 'overloaded' }) : jsonResponse(200, { ok: true })
+  }
+  await postJsonWithRetry('http://x/', {}, {}, 'test', {
+    fetchImpl,
+    baseDelayMs: 1,
+    maxAttempts: 5,
+    onRetry: (info) => retries.push(info),
+  })
+  assert.equal(calls, 3)
+  assert.equal(retries.length, 2)
+  assert.deepEqual(
+    retries.map((r) => ({ attempt: r.attempt, maxAttempts: r.maxAttempts })),
+    [
+      { attempt: 1, maxAttempts: 5 },
+      { attempt: 2, maxAttempts: 5 },
+    ],
+  )
+  assert.ok(retries[0]?.reason?.includes('529') || retries[0]?.reason?.includes('HTTP'))
+})
