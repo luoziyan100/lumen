@@ -90,6 +90,11 @@ export function MermaidBlock({ chart }: { chart: string }) {
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
   const [pending, setPending] = useState(true)
+  /** 锁定已渲高度,避免 pending↔SVG 在列表中塌缩引发滚动跳动(诊断 P1) */
+  const [lockMinH, setLockMinH] = useState(0)
+
+  // 按源码行数估占位高度,减轻「几十 px → 几千 px」一跳
+  const estimateMinH = Math.min(560, Math.max(140, original.split('\n').length * 26 + 48))
 
   useEffect(() => {
     if (!original) {
@@ -97,6 +102,7 @@ export function MermaidBlock({ chart }: { chart: string }) {
       setError(null)
       setDetail(null)
       setPending(false)
+      setLockMinH(0)
       return
     }
     let cancelled = false
@@ -115,6 +121,7 @@ export function MermaidBlock({ chart }: { chart: string }) {
     setError(null)
     setDetail(null)
     setSvg(null)
+    if (!lockMinH) setLockMinH(estimateMinH)
     ;(async () => {
       try {
         const mermaid = (await import('mermaid')).default
@@ -163,6 +170,12 @@ export function MermaidBlock({ chart }: { chart: string }) {
         setDetail(null)
         setView('preview')
         setPending(false)
+        // 下一帧量真实高度锁住,后续重渲不塌
+        requestAnimationFrame(() => {
+          if (cancelled) return
+          const h = hostRef.current?.offsetHeight ?? 0
+          if (h > 0) setLockMinH(h)
+        })
       } catch (e) {
         if (cancelled) return
         const msg = e instanceof Error ? e.message : '流程图渲染失败'
@@ -248,7 +261,13 @@ export function MermaidBlock({ chart }: { chart: string }) {
   )
 
   return (
-    <div ref={hostRef} className="mermaid-block" role="img" aria-label="流程图">
+    <div
+      ref={hostRef}
+      className="mermaid-block"
+      role="img"
+      aria-label="流程图"
+      style={lockMinH > 0 ? { minHeight: lockMinH } : undefined}
+    >
       {toolbar}
       <div className="mermaid-scroll">
         {pending ? (
