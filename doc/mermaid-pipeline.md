@@ -26,6 +26,7 @@
 | 日期 | 变更 | 作者 |
 |------|------|------|
 | 2026-08-11 | 初版：锁定 S4′、Phase A/B/C、AT、非目标、锚点 | 会话决策落盘 |
+| 2026-08-11 | 外部 AI 审计反馈复核：采纳 kind 门控 / 实现约束 / 本地观测 / 错误映射；驳回或降级不当项（见 §13） | 主会话对照源码与产品形态 |
 
 ---
 
@@ -126,7 +127,9 @@
 3. **repair 上限**：同一图源（建议 `hash(source)`）自动+手动合计 **≤ 1 次** 模型调用（除非用户明确二次请求且产品允许再 1 次——默认不允许自动二次）。  
 4. **repair 范围**：模型只被允许输出修正后的 mermaid 围栏；不得要求重写整篇研究结论。  
 5. **落库不变**：`task_events` 中历史 `reply` 内容不因 UI repair 被 patch。  
-6. **真实路径**：测试与验收禁止 mock「渲染成功」冒充 parse 通过（项目铁律）。
+6. **真实路径**：测试与验收禁止 mock「渲染成功」冒充 parse 通过（项目铁律）。  
+7. **语法规则按图类型门控**：flowchart 专用规则不得套用到 sequence/class/er 等；`unknown` **只降级、不做形状/箭头类修复**（见 §5）。  
+8. **确定性 repair 不得改节点 ID**：只允许改标签文本/引号/无害空白与全局弯引号；改 ID 会导致边断链。
 
 ---
 
@@ -191,38 +194,72 @@ validateMermaid(source: string, mermaidApi) →
 - 鉴权与 task 归属与现有 WS 命令一致。  
 - 单次 completion；`maxSteps`/工具：禁止工具或强制 0 工具。  
 - 从模型输出中**只抽取第一个** ` ```mermaid ` 围栏 body。  
-- 超时与失败映射为 `type: error`，不得悬挂。
+- 超时与失败映射为 `type: error`，不得悬挂。  
+- **Repair system/user 文案必须包含**（实现清单，不可只写在风险表）：  
+  - 「只修正 Mermaid **语法**，保持节点关系与图意」  
+  - 「**不要**重写围栏外的研究结论或整篇回复」  
+  - 「只输出一个 ` ```mermaid ` 代码块，不要前言后语」
 
 **客户端约束**
 
 - 成功：仅更新该 `MermaidBlock` 本地展示 state，再跑 prepare → parse → render。  
 - 仍失败：保持降级卡；文案说明自动修复未成功。  
-- 展示可选微提示：「图已在本地修正（历史消息正文未改）」。
+- 展示可选微提示：「图已在本地修正（历史消息正文未改）」。  
+- **会话内内存缓存**（不落库）：`hash(原文)` → `{ preparedSource?, svg?, mode }`，同会话再次挂载同图时跳过重复 parse/render（源变更则失效）。
 
 ---
 
 ## 5. 确定性语法规则（Phase A 最小集）
 
-实现必须覆盖；每条应有单测。
+实现必须覆盖；每条应有单测。**先 `detectDiagramKind`，再按「适用类型」应用规则。**
 
-| ID | 规则 | 典型输入 | 预期 |
-|----|------|----------|------|
-| R1 | 弯引号规范化 | `“标签”` | 直引号 |
-| R2 | 未加引号标签含 `{}` | `S[.../{sessionId}]` | `S[".../{sessionId}"]`（形状括号类型保持） |
-| R3 | 未加引号标签含 `()` 等危险符 | 路径/函数式文案 | 标签加双引号 |
-| R4 | 已加引号标签 | `A["a{b}"]` | **不**重复包裹、不破坏转义 |
-| R5 | 常见错误箭头 | 独立 ` -> ` | ` --> `（避免误伤） |
-| R6 | 错误摘要 | 长 lexer 消息 | ≤3 行人类可读摘要 |
+| ID | 规则 | 适用类型 | 典型输入 | 预期 |
+|----|------|----------|----------|------|
+| R1 | 弯引号规范化 | **全部**（含 unknown） | `“标签”` | 直引号 |
+| R2 | 未加引号标签含 `{}` | **仅** `flowchart` / `graph` | `S[.../{sessionId}]` | `S[".../{sessionId}"]`（外层形状括号保持） |
+| R3 | 未加引号标签含 `()` 等危险符 | **仅** `flowchart` / `graph` | 路径/函数式文案 | 标签加双引号 |
+| R4 | 已加引号标签不二次处理 | **仅** 对 R2/R3 扫描生效时 | `A["a{b}"]` / `A["say \"hi\""]` | **不**重复包裹、不截断转义 |
+| R5 | 常见错误箭头 ` -> ` → ` --> ` | **仅** `flowchart` / `graph` | flowchart 边 | 改为 `-->`；**禁止**用于 sequence（`A->B:` 合法） |
+| R6 | 错误摘要 | 渲染失败路径（全部 kind） | 长 lexer 消息 | 见 §5.2 |
 
-**故意不做（A 阶段）**：猜测补全缺失的 `end`、删除节点、改写图意。
+**未知类型 `unknown`**：只跑 R1（弯引号）+ 颜色 sanitize；**禁止** R2/R3/R5；parse 失败则降级并文案「未能识别图类型或语法无效」，不得伪装成 flowchart 专属错误。
 
-### 5.1 Prompt 规则（与 R* 镜像，写入 persona）
+**故意不做（A 阶段）**：猜测补全缺失的 `end`、删除节点、改写图意、修改节点 ID。
+
+### 5.1 实现约束（防正则误伤）
+
+1. **配对扫描，禁止朴素子串 match**：识别节点形状时，扫描 `[]`/`()`/`{}`/`(())` 等需括号配对；**跳过已在双引号内的片段**；引号内 `\"` 不结束字符串。  
+2. **R4 优先于 R2/R3**：已引号闭合的标签整段跳过。  
+3. **禁止改节点 ID**：只改标签体或引号；边 `A --> B` 的 `A`/`B` 标识符不得被重写。  
+4. **repair 后再官方 parse**：规则输出仍失败 → 降级（架构已保证）。  
+5. **单测必含**：合法 `sequenceDiagram`（含 `A->B:`）、合法 `classDiagram`（含 `class Foo {`）、`A["say \"hi\""]`、触发案例 flowchart。
+
+### 5.2 错误摘要（R6）格式
+
+```
+第 {line} 行附近 · {人话}
+```
+
+- `line`：优先取 mermaid 错误对象的 `loc`/消息中的 `line N`；不可得则省略行号。  
+- **常见 token → 人话映射（最小表，可扩展）**：
+
+| token / 模式 | 人话 |
+|--------------|------|
+| `DIAMOND_START` / 标签内未预期 `{` | 标签里的 `{` 未加引号（路径模板请写成 `ID["...{x}"]`） |
+| `PQ` / 引号相关 | 引号未配对或使用了弯引号 |
+| `EOF` / 未闭合 | 可能缺少 `end` 或围栏未闭合 |
+| 默认 | 截断后的官方消息首行（≤120 字） |
+
+完整 lexer 列表仅放在 UI「详情」折叠内。
+
+### 5.3 Prompt 规则（与 R* 镜像，写入 persona）
 
 1. 节点/边标签一律 `ID["..."]` 或菱形 `ID{"..."}`（文字在引号内）。  
 2. 含路径、模板、`{}`、`()`、`/` 的文案必须在引号内。  
 3. 短 ID + 长标签；禁止用保留字 `end` 作节点 ID。  
-4. `subgraph` / `alt` / `loop` 与 `end` 成对。  
-5. 优先 `flowchart TD|LR` 与 `-->`；复杂交互优先 `show-widget`。
+4. **输出前自检**：数 `subgraph`/`alt`/`loop` 开启次数与 `end` 次数，**必须相等**后再结束围栏。  
+5. 优先 `flowchart TD|LR` 与 `-->`；复杂交互优先 `show-widget`。  
+6. sequence 用 `A->>B: 消息` 等序列语法，勿把 flowchart 习惯硬套进 sequence。
 
 ---
 
@@ -234,15 +271,16 @@ validateMermaid(source: string, mermaidApi) →
 |------|----------|
 | pending | 「正在绘制…」 |
 | ok | SVG；工具条：放大、复制原文、**源码/预览**切换 |
-| error | 短错误 + 源码（默认可见）；复制原文；**尝试修复**（Phase B） |
+| error | 短错误（§5.2）+ 源码（默认可见）；复制原文；**尝试修复**（Phase B） |
 | repairing | 修复中禁用重复点击 |
 
 ### 6.2 反模式检查表（验收必查）
 
 - [ ] 失败时图块未消失  
 - [ ] 默认不展示完整 `Expecting 'SQE', ...` 长列表（可「详情」展开）  
-- [ ] 未知 diagram 类型不伪装成 flowchart 语法错误（若可检测 kind）  
-- [ ] 复制内容为权威原文（见不变式 1）
+- [ ] 未知 diagram 类型不伪装成 flowchart 语法错误  
+- [ ] 复制内容为权威原文（见不变式 1）  
+- [ ] 合法 sequence/class 样例不被 R2/R3/R5 改坏（见 §5.1）
 
 ---
 
@@ -252,11 +290,12 @@ validateMermaid(source: string, mermaidApi) →
 
 | 工作项 | 交付物 |
 |--------|--------|
-| A1 | 新建语法模块 + 单测（R1–R6，至少含 session 复现 fixture） |
-| A2 | `MermaidBlock`：prepare → parse → render |
-| A3 | 错误 UI 压缩 + 源码可见 |
+| A1 | 新建语法模块 + 单测（R1–R6 **含 kind 门控**；session 复现 + sequence/class 负向） |
+| A2 | `MermaidBlock`：prepare → parse → render；**内存 hash 缓存** |
+| A3 | 错误 UI 压缩（§5.2）+ 源码可见 |
 | A4 | Preview / Code 切换 |
-| A5 | `persona.ts` 规则段更新 |
+| A5 | `persona.ts` 规则段更新（含 end 自检） |
+| A6 | **本地观测计数**（§7.1；dev/log，非强制远程上报） |
 
 **Phase A 验收（AT-A）**
 
@@ -267,15 +306,18 @@ validateMermaid(source: string, mermaidApi) →
 | AT-A3 | 故意破坏语法且规则无法修 | 短错误 + 源码可见；非空白 | V1 |
 | AT-A4 | 点击复制 | 剪贴板为输入原文 | V1 |
 | AT-A5 | 现有 `mermaid-sanitize` 测试 | 全绿 | V1 |
+| AT-A6 | 合法 `sequenceDiagram` 含 `A->B:` | repair **后**仍 parse 成功（R5 未误伤） | V1 |
+| AT-A7 | 合法 `classDiagram` 含 `class Foo {` | 同上（R2 未误伤） | V1 |
 
 ### Phase B — 有限 repair（agent-service + UI）
 
 | 工作项 | 交付物 |
 |--------|--------|
 | B1 | WS `repair_mermaid` 与 handler |
-| B2 | 单次无工具 completion + 抽围栏 |
+| B2 | 单次无工具 completion + 抽围栏；**prompt 含 §4.3 三条禁令** |
 | B3 | MermaidBlock「尝试修复」接线 |
 | B4 | 同源限次（hash）+ 超时 |
+| B5 | 观测：llm_repair 尝试/成功计数（§7.1） |
 
 **Phase B 验收（AT-B）**
 
@@ -286,14 +328,35 @@ validateMermaid(source: string, mermaidApi) →
 | AT-B3 | 修复成功后刷新/重载会话 | **落库正文仍为原文**；展示策略按实现说明（本地修正不落库） |
 | AT-B4 | 修复过程中断网/超时 | error 回执；UI 不悬挂 |
 
+### 7.1 观测层（Phase C 可证伪前提；Lumen 本地优先）
+
+**原则**：Lumen 是本地研究客户端，**不强制**远程埋点/用户遥测；但必须有**可聚合的本地计数**，否则 Phase C「高频/不可接受」不可审计。
+
+| 指标 | 记录方式 | 用途 |
+|------|----------|------|
+| `mermaid_parse_ok` / `mermaid_parse_fail` | 内存计数 + 可选 `console.debug` / agent-service 侧日志 | 失败率 |
+| `mermaid_rule_hit.{R2,R3,…}` | 同上 | 哪条规则在干活 |
+| `mermaid_rule_then_parse_ok` | 规则改写后 parse 成功次数 | 规则有效性 |
+| `mermaid_llm_repair_attempt` / `_ok` | Phase B | repair ROI |
+
+**Phase C 触发阈值（默认，可用数据推翻）**
+
+| 条件 | 建议阈值 |
+|------|----------|
+| C1 end 平衡启发 | 连续 2 周本地统计中，**规则后仍 fail** 且错误摘要匹配「缺少 end/EOF」占比 **≥ 30%** 的 fail 样本 |
+| C4 JSON 出图 | 规则+LLM repair 后仍 fail 的会话占比 **≥ 15%**（样本 n≥20 图）或 owner 书面指定 |
+| C2 自动 repair | owner 明确要求；或手动 repair 点击率高且成功率 ≥ 70% |
+
+未达样本量时 **不上 C**，避免拍脑袋。
+
 ### Phase C — 可选增强
 
 | 项 | 说明 | 触发条件 |
 |----|------|----------|
-| C1 | subgraph/`end` 平衡启发 | A/B 后仍高频结构错 |
-| C2 | 设置「失败时自动 repair 一次」 | 用户明确要求少点击 |
+| C1 | subgraph/`end` 平衡启发 | §7.1 阈值 |
+| C2 | 设置「失败时自动 repair 一次」 | §7.1 或 owner |
 | C3 | maid safe 规则子集移植 | 规则债增加时 |
-| C4 | S5 JSON→Mermaid | S4′ 后失败率仍不可接受 |
+| C4 | S5 JSON→Mermaid | §7.1 阈值 |
 
 ---
 
@@ -310,8 +373,9 @@ validateMermaid(source: string, mermaidApi) →
 
 | 风险 | 缓解 | 回退 |
 |------|------|------|
-| 规则误伤合法图 | 单测 R4；仅未引号路径触发 | 关闭 repair 规则 flag / 回退 commit |
-| repair 改坏图意 | prompt 只修语法；限 1 次 | 用户切源码看原文 |
+| 规则误伤合法图 | **kind 门控**；配对扫描+跳过已引号；sequence/class 负向单测 | 关闭 syntax repair flag |
+| 改 ID 导致断边 | 不变式 8；单测 | — |
+| repair 改坏图意 | prompt 三条禁令（§4.3）；限 1 次 | 用户切源码看原文 |
 | 费用 | 默认手动触发 repair | 不启用自动 |
 | parity 漂移 | 锁定 package 版本；parse/render 同 import | — |
 
@@ -373,3 +437,25 @@ validateMermaid(source: string, mermaidApi) →
 - [@probelabs/maid](https://github.com/probelabs/maid)  
 - 产品对照：Claude Code/Preview；Cursor 失败消失（反例）；Codex 外置渲染（旁路参考）  
 - 内部 HDD 选型：S4′（本会话 2026-08-11）
+
+---
+
+## 13. 外部 AI 审计反馈 · 主会话裁定（2026-08-11）
+
+> 审计方**未读本仓库源码**；下列裁定结合 `MermaidBlock` / `mermaidSanitize` / persona 与 Lumen 本地优先形态。
+
+| # | 审计主张 | 裁定 | 处理 |
+|---|----------|------|------|
+| 1 | R2/R3/R5 必须按图类型门控；unknown 不套 flowchart 规则 | **真问题** | 已写入不变式 7、§5 适用类型列、AT-A6/A7 |
+| 2 | Phase C 缺「高频」可证伪定义，需埋点 | **真问题，力度需适配** | 采纳**本地计数**（§7.1），**不**强制远程上报（与 Lumen 本地研究客户端不符） |
+| 3 | 正则引号/转义误伤；禁止改节点 ID | **真问题** | §5.1 实现约束 + 不变式 8 |
+| 4a | R5 仅 flowchart | **真**（#1 子集） | 已门控 |
+| 4b | 错误摘要用 loc + token 人话表 | **真，体验增强** | §5.2 |
+| 4c | persona 输出前数 end | **真，零成本** | §5.3 第 4 条强化 |
+| 4d | hash 内存缓存 | **真，小优化** | §4.3 客户端 + A2 |
+| 5 | Phase B 协议 OK；prompt 勿丢「只改语法」 | **真确认** | §4.3 已列三条必写文案 |
+| — | 「方案整体可按 Phase A 开工」 | **同意** | 方向不变 |
+| — | 暗示需完整前端「上报」体系才可 C | **过重** | 用 §7.1 本地观测即可开证伪 |
+| — | 暗示正则「几乎不可用」 | **过当** | 配对扫描 + 同源 parse 兜底；业界普遍规则层+parse |
+
+**未改结论**：S4′ 漏斗与 Phase 划分不变；审计补强的是 **门控与实现纪律**，不是推翻选型。
