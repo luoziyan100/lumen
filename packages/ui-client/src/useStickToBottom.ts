@@ -9,6 +9,7 @@
  */
 import { useEffect, useEffectEvent, useRef, useState, type RefObject } from 'react'
 import { captureVisibleMsgAnchor, restoreMsgAnchor, type VisibleMsgAnchor } from './scrollMsgAnchor.ts'
+import { scrollDebugEnabled, scrollDebugLog } from './scrollDebug.ts'
 
 export interface StickToBottomOptions {
   bottomGapPx?: number
@@ -74,10 +75,18 @@ export function useStickToBottom(
 
   const applySticky = useEffectEvent((next: boolean) => {
     if (stickyRef.current === next) return
+    const prev = stickyRef.current
     stickyRef.current = next
     setPinned(next)
     const el = scrollerRef.current
     if (el) el.style.overflowAnchor = next ? 'none' : 'auto'
+    scrollDebugLog('sticky→', {
+      sticky: next,
+      note: `${prev}->${next}`,
+      scrollTop: el?.scrollTop,
+      gap: el ? distanceFromBottom(el) : undefined,
+      contentH: contentHeight(),
+    })
   })
 
   const markGesture = useEffectEvent(() => {
@@ -118,19 +127,47 @@ export function useStickToBottom(
     if (hasGesture()) {
       refreshMsgAnchor()
       lastHeightRef.current = contentHeight()
+      scrollDebugLog('stabilize-skip-gesture', {
+        sticky: false,
+        gesture: true,
+        scrollTop: el.scrollTop,
+        contentH: contentHeight(),
+      })
       return
     }
-    restoreMsgAnchor(el, msgAnchorRef.current)
+    const topBefore = el.scrollTop
+    const delta = restoreMsgAnchor(el, msgAnchorRef.current)
     lastScrollTopRef.current = el.scrollTop
     lastHeightRef.current = contentHeight()
     // 修正后刷新锚点,供下一次突变使用
     msgAnchorRef.current = captureVisibleMsgAnchor(el)
+    if (scrollDebugEnabled() && Math.abs(delta) > 1) {
+      scrollDebugLog('stabilize-H5', {
+        sticky: false,
+        scrollTop: el.scrollTop,
+        deltaTop: el.scrollTop - topBefore,
+        contentH: contentHeight(),
+        note: `anchorDelta=${Math.round(delta)} id=${msgAnchorRef.current?.id ?? '?'}`,
+      })
+    }
   })
 
   const scrollToBottom = useEffectEvent((behavior: ScrollBehavior = 'auto') => {
     const el = scrollerRef.current
     if (!el || !enabled) return
     if (!stickyRef.current || hasGesture()) return
+
+    const topBefore = el.scrollTop
+    scrollDebugLog('scrollToBottom-H1', {
+      sticky: true,
+      programmatic: true,
+      gesture: hasGesture(),
+      scrollTop: topBefore,
+      gap: distanceFromBottom(el),
+      contentH: contentHeight(),
+      lastH: lastHeightRef.current,
+      note: behavior,
+    })
 
     programmaticRef.current = true
     ignoreScrollRef.current = true
@@ -156,6 +193,12 @@ export function useStickToBottom(
           node.scrollTop = node.scrollHeight
           lastScrollTopRef.current = node.scrollTop
           lastHeightRef.current = h
+          scrollDebugLog('scrollToBottom-rAF-grow', {
+            sticky: true,
+            scrollTop: node.scrollTop,
+            contentH: h,
+            deltaTop: node.scrollTop - topBefore,
+          })
         }
       }
       releaseProgrammaticSoon()
@@ -177,12 +220,29 @@ export function useStickToBottom(
     }
     if (!force && prev > 0 && h <= prev) return
     lastHeightRef.current = h
+    scrollDebugLog('follow', {
+      sticky: true,
+      contentH: h,
+      lastH: prev,
+      note: force ? 'force' : `grew ${Math.round(prev)}→${Math.round(h)}`,
+    })
     scrollToBottom('auto')
   })
 
   /** sticky:合并多次 RO(mermaid 逐个落位);manual:锚定可见消息 */
   const onContentResized = useEffectEvent(() => {
     if (!enabled) return
+    const h = contentHeight()
+    const prev = lastHeightRef.current
+    scrollDebugLog('content-resize-H2?', {
+      sticky: stickyRef.current,
+      gesture: hasGesture(),
+      contentH: h,
+      lastH: prev,
+      scrollTop: scrollerRef.current?.scrollTop,
+      gap: scrollerRef.current ? distanceFromBottom(scrollerRef.current) : undefined,
+      note: stickyRef.current ? '→settle-follow' : '→stabilize',
+    })
     if (stickyRef.current) {
       if (hasGesture()) return
       if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current)

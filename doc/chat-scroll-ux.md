@@ -63,8 +63,28 @@
 
 ---
 
-## 6. 修订记录
+## 6. 滚动调试（只读，结案 H1/H2/H5）
+
+默认关闭，**不改变滚动行为**。
+
+```js
+// DevTools 控制台
+localStorage.setItem('lumen:scrollDebug', '1')  // 开启后刷新
+// 复现跳动后：
+copy(JSON.stringify(window.__LUMEN_SCROLL_LOG__, null, 2))
+localStorage.removeItem('lumen:scrollDebug')    // 关闭
+```
+
+| 日志 tag | 含义 | 支持假设 |
+|----------|------|----------|
+| `scrollToBottom-H1` / `follow` | 程序贴底 | H1 |
+| `content-resize` + sticky=0 | 高度变但未贴底 | H2 候选 |
+| `stabilize-H5` + 大 deltaTop | manual 锚定修正 | H5 |
+| `sticky→` 反复 1↔0 | sticky 抖动 | H1/H4 |
+
+## 7. 修订记录
 
 | 日期 | 变更 |
 |------|------|
 | 2026-08-11 | 初版：三意图 + 五条验收 + 实现合同 |
+| 2026-08-11 | 增加 scrollDebug 只读观测开关 |
