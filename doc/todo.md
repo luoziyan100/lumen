@@ -18,11 +18,25 @@
 6. **UI**：右轨 **Progress** 为主呈现；对话流 Todo 卡次要；与 ProcessRow 分家（Todo ≠ 工具流水账）。
 7. **兼容**：历史 `update_plan` 事件仍可归约；工具名 `update_plan` 仅作别名读入旧形状。
 
+## 终态收口（HDD 2026-08-11）
+
+**问题**:模型常在最终 `reply` 前省掉最后一次 `todo_write`，末项停在 `in_progress`；`task.status=done` 但右轨仍转圈「正在…」(V2: task-5bacbbc0)。
+
+**产品保证**(不靠模型自觉):
+
+| 层 | 行为 |
+|----|------|
+| 归约 | `reply` / 终态 `status_change` / `error` → `sealOpenTodos`：非 `completed` → `completed` |
+| 右轨 | `running=false` 时 `in_progress` 不转圈，计数视同完成 |
+
+**非保证**:`drafts/todo.md` 磁盘可能仍停在 2/3（仅 UI/事件归约收口）；若需磁盘一致另开 agent-service 终态写回。
+
 ## 非目标
 
 - Claude V2 `TaskCreate` / `TaskUpdate` / `status: deleted`
 - 用户在 Progress 上打勾写回
 - 独立项目管理实体、甘特、跨会话任务板
+- 仅靠 persona「完成立刻标 completed」保证 UI 诚实（软纪律，不构成保证）
 
 ## 实现锚点
 

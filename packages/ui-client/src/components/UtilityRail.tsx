@@ -42,13 +42,15 @@ function AssetGroup({ label, items, onOpen }: { label: string; items: Asset[]; o
   )
 }
 
-function TodoMark({ status }: { status: TodoEntry['status'] }) {
+/** live=会话仍在跑时才转圈;task 已停仍 in_progress 时降级为静态度(双保险) */
+function TodoMark({ status, live }: { status: TodoEntry['status']; live: boolean }) {
   if (status === 'completed') return <span className="rail-todo-mark" aria-hidden>✓</span>
-  if (status === 'in_progress') return <span className="rail-todo-mark is-run" aria-hidden />
+  if (status === 'in_progress' && live) return <span className="rail-todo-mark is-run" aria-hidden />
+  if (status === 'in_progress') return <span className="rail-todo-mark" aria-hidden>✓</span>
   return <span className="rail-todo-mark is-pending" aria-hidden />
 }
 
-export function UtilityRail({ assets, onOpen, items, onUploadShared }: {
+export function UtilityRail({ assets, onOpen, items, onUploadShared, running = false }: {
   assets: Asset[]
   onOpen: (a: Asset) => void
   /** 用户面 items（Todo 等） */
@@ -66,7 +68,10 @@ export function UtilityRail({ assets, onOpen, items, onUploadShared }: {
   const sharedFileRef = useRef<HTMLInputElement>(null)
   const shared = assets.filter(isShared)
   const session = assets.filter((a) => !isShared(a))
-  const todoDone = todo ? todo.todos.filter((t) => t.status === 'completed').length : 0
+  // 会话已停:in_progress 视同完成(停转圈/计数);pending 仍空着(中断未做)
+  const todoDone = todo
+    ? todo.todos.filter((t) => t.status === 'completed' || (!running && t.status === 'in_progress')).length
+    : 0
   const todoN = todo?.todos.length ?? 0
 
   function onPickShared(e: ChangeEvent<HTMLInputElement>): void {
@@ -86,14 +91,18 @@ export function UtilityRail({ assets, onOpen, items, onUploadShared }: {
             <span className="rail-count">{todoDone}/{todoN}</span>
           </h3>
           <ul className="rail-todo-steps">
-            {todo.todos.map((t) => (
-              <li key={t.id} className={`rail-todo-step is-${t.status}`}>
-                <TodoMark status={t.status} />
-                <span className="rail-todo-label">
-                  {t.status === 'in_progress' ? t.activeForm : t.content}
-                </span>
-              </li>
-            ))}
+            {todo.todos.map((t) => {
+              const effective: TodoEntry['status'] =
+                t.status === 'in_progress' && !running ? 'completed' : t.status
+              return (
+                <li key={t.id} className={`rail-todo-step is-${effective}`}>
+                  <TodoMark status={t.status} live={running} />
+                  <span className="rail-todo-label">
+                    {effective === 'in_progress' ? t.activeForm : t.content}
+                  </span>
+                </li>
+              )
+            })}
           </ul>
         </section>
       )}

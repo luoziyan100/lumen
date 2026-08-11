@@ -5,6 +5,7 @@
  *           sealRunningProcesses;isLiveTaskEvent / viewEpoch
  * [POS]: UI 对话状态核;用户面默认不渲染工具过程;证据面给右轨/排障;
  *        todo_write 仍进用户面;ask_user→pendingAsk;model_retry→Retry n/m;上传知情 chip
+ *        终态 sealOpenTodos:reply/done 等收口未勾 Todo(HDD:假 in_progress,见 doc/todo.md)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * user 也走事件流,不在前端乐观插入。taskId 按项目键存 localStorage。
@@ -440,6 +441,30 @@ export function sealRunningProcesses(items: ChatItem[]): ChatItem[] {
   return items.map((it) => (it.kind === 'process' && it.running ? { ...it, running: false } : it))
 }
 
+/**
+ * 轮次终态收口 Todo:模型常忘最后一次 todo_write 把 in_progress→completed,
+ * 右轨会假「正在…」(HDD task-5bacbbc0 V2)。
+ * done/reply 路径:未完成项一律 completed(交付已结束,清单对齐事实)。
+ */
+export function sealOpenTodos(items: ChatItem[]): ChatItem[] {
+  let changed = false
+  const next = items.map((it) => {
+    if (it.kind !== 'todo') return it
+    if (!it.todos.some((t) => t.status !== 'completed')) return it
+    changed = true
+    return {
+      ...it,
+      todos: it.todos.map((t) => (t.status === 'completed' ? t : { ...t, status: 'completed' as const })),
+    }
+  })
+  return changed ? next : items
+}
+
+/** 终局组合:卸过程 + 收 Thought + 收口 Todo */
+function sealTurnEnd(items: ChatItem[]): ChatItem[] {
+  return sealOpenTodos(markThoughtsDone(stripProcessItems(finalizeProvisional(items))))
+}
+
 function markThoughtsDone(prev: ChatItem[]): ChatItem[] {
   if (!prev.some((it) => it.kind === 'thought' && !it.done)) return prev
   return prev.map((it) => (it.kind === 'thought' && !it.done ? { ...it, done: true } : it))
@@ -671,20 +696,20 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
       return reduceChatItems(prev, event, p)
     }
     case 'reply':
-      // 终局：卸过程 + 收 Thought；残留 provisional 升格为定稿
-      return markThoughtsDone(stripProcessItems(finalizeProvisional(prev)))
+      // 终局：卸过程 + 收 Thought + 收口 Todo；残留 provisional 升格为定稿
+      return sealTurnEnd(prev)
     case 'status_change': {
       const to = String(p.to ?? '')
       if (!['canceled', 'failed', 'done', 'interrupted'].includes(to)) return prev
-      return markThoughtsDone(stripProcessItems(finalizeProvisional(prev)))
+      return sealTurnEnd(prev)
     }
     case 'compaction':
       return [...prev, { kind: 'compaction', id: event.id }]
     case 'error':
-      return markThoughtsDone(stripProcessItems([
+      return sealOpenTodos(markThoughtsDone(stripProcessItems([
         ...finalizeProvisional(prev),
         { kind: 'msg', id: event.id, role: 'error', content: String(p.error ?? '出错了') },
-      ]))
+      ])))
     default:
       return prev
   }
@@ -817,12 +842,12 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
       })
     }
     case 'reply':
-      return sealRunningProcesses(prev)
+      return sealOpenTodos(sealRunningProcesses(prev))
     case 'status_change': {
-      // 取消/失败等终态:把还在跑的过程块全部收尾
+      // 取消/失败等终态:过程块 + 未勾 Todo 一并收口
       const to = String(p.to ?? '')
       if (!['canceled', 'failed', 'done', 'interrupted'].includes(to)) return prev
-      return sealRunningProcesses(prev)
+      return sealOpenTodos(sealRunningProcesses(prev))
     }
     case 'compaction':
       // 确定性压缩标记(方案 B):旧细节归档,给一条弱分隔线
