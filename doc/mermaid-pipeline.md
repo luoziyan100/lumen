@@ -1,6 +1,6 @@
 # Mermaid 渲染管线（校验 · 清洗 · 修复 · 降级）
 
-状态: **现行（决策已锁定，实现按 Phase 推进）** · 2026-08-11  
+状态: **现行（Phase A 已落地；Phase B 待建）** · 2026-08-11  
 分支语境: `experiment/glass-ui`（与 glass 主题、MermaidBlock 同栈）  
 决策编号: **S4′**（HDD 选型 + 外部调研交叉验证）
 
@@ -27,6 +27,7 @@
 |------|------|------|
 | 2026-08-11 | 初版：锁定 S4′、Phase A/B/C、AT、非目标、锚点 | 会话决策落盘 |
 | 2026-08-11 | 外部 AI 审计反馈复核：采纳 kind 门控 / 实现约束 / 本地观测 / 错误映射；驳回或降级不当项（见 §13） | 主会话对照源码与产品形态 |
+| 2026-08-11 | Phase A 落地：mermaidSyntax + MermaidBlock 管线 + persona 规则 + 单测 | 实现 |
 
 ---
 
@@ -392,13 +393,13 @@ validateMermaid(source: string, mermaidApi) →
 
 | 能力 | 路径 | 状态 |
 |------|------|------|
-| 语法 repair | `packages/ui-client/src/mermaidSyntax.ts`（拟） | **待建** |
+| 语法 repair | `packages/ui-client/src/mermaidSyntax.ts` | **Phase A 已落地** |
 | 颜色 sanitize | `packages/ui-client/src/mermaidSanitize.ts` | 已有（仅颜色） |
-| 渲染块 | `packages/ui-client/src/components/MermaidBlock.tsx` | 待接管线 |
+| 渲染块 | `packages/ui-client/src/components/MermaidBlock.tsx` | **Phase A 管线已接** |
 | Markdown 入口 | `packages/ui-client/src/components/Markdown.tsx` | 已有 |
-| 语法单测 | `packages/ui-client/tests/mermaid-syntax.test.ts`（拟） | **待建** |
+| 语法单测 | `packages/ui-client/tests/mermaid-syntax.test.ts` | **已落地** |
 | 颜色单测 | `packages/ui-client/tests/mermaid-sanitize.test.ts` | 已有 |
-| Persona | `packages/agent-service/src/agents/persona.ts` | 待补规则 |
+| Persona | `packages/agent-service/src/agents/persona.ts` | **Phase A 规则已补** |
 | Repair 协议 | `packages/agent-service/src/protocol/messages.ts` 等 | **Phase B 待建** |
 
 ---

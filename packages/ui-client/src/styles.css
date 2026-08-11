@@ -2040,6 +2040,31 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .mermaid-pending { color: var(--ink-mute); font-size: var(--t-caption); font-family: var(--font-sans); }
 .mermaid-fallback { display: flex; flex-direction: column; gap: var(--s-2); }
 .mermaid-error { color: var(--danger); font-size: var(--t-caption); font-family: var(--font-sans); }
+.mermaid-error-detail-toggle {
+  align-self: flex-start;
+  margin: 0; padding: 0;
+  border: none; background: none;
+  color: var(--ink-mute); font: inherit; font-size: var(--t-caption);
+  cursor: pointer;
+}
+.mermaid-error-detail-toggle:hover { color: var(--ink-soft); }
+.mermaid-error-detail {
+  margin: 0;
+  padding: var(--s-2);
+  border-radius: var(--radius-sm);
+  background: var(--paper-deep);
+  color: var(--ink-mute);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-x: auto;
+  max-height: 8rem;
+}
+.mermaid-error-detail code { background: none; padding: 0; font-family: var(--font-mono); white-space: pre-wrap; }
+.mermaid-view-toggle { display: inline-flex; gap: 2px; }
+.mermaid-tool.is-active {
+  background: var(--sand);
+  color: var(--ink);
+}
 .mermaid-source {
   margin: 0; padding: var(--s-3);
   background: var(--card); border: 1px solid var(--sand); border-radius: var(--radius-md);
