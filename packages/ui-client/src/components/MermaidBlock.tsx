@@ -82,19 +82,19 @@ export function MermaidBlock({ chart }: { chart: string }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const reactId = useId().replace(/:/g, '')
   const original = chart.trim()
-  const [svg, setSvg] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [detail, setDetail] = useState<string | null>(null)
+  // 同步读缓存:避免 remount 首帧 pending 把 ~3.5k 图塌成占位(V1 contentH 振荡)
+  const cached0 = original ? renderCache.get(hashSource(original)) : undefined
+  const estimateMinH = Math.min(560, Math.max(140, (original || '').split('\n').length * 26 + 48))
+  const [svg, setSvg] = useState<string | null>(() => cached0?.svg ?? null)
+  const [error, setError] = useState<string | null>(() => cached0?.error ?? null)
+  const [detail, setDetail] = useState<string | null>(() => cached0?.detail ?? null)
   const [showDetail, setShowDetail] = useState(false)
-  const [view, setView] = useState<ViewMode>('preview')
+  const [view, setView] = useState<ViewMode>(() => (cached0?.error ? 'code' : 'preview'))
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [pending, setPending] = useState(true)
+  const [pending, setPending] = useState(() => Boolean(original) && !cached0)
   /** 锁定已渲高度,避免 pending↔SVG 在列表中塌缩引发滚动跳动(诊断 P1) */
-  const [lockMinH, setLockMinH] = useState(0)
-
-  // 按源码行数估占位高度,减轻「几十 px → 几千 px」一跳
-  const estimateMinH = Math.min(560, Math.max(140, original.split('\n').length * 26 + 48))
+  const [lockMinH, setLockMinH] = useState(() => (cached0?.svg ? estimateMinH : 0))
 
   useEffect(() => {
     if (!original) {
@@ -114,6 +114,13 @@ export function MermaidBlock({ chart }: { chart: string }) {
       setDetail(cached.detail)
       setPending(false)
       setView(cached.error ? 'code' : 'preview')
+      // 有 SVG 时至少锁估计高度,下一帧量真实高度
+      if (cached.svg && !lockMinH) setLockMinH(estimateMinH)
+      requestAnimationFrame(() => {
+        if (cancelled) return
+        const h = hostRef.current?.offsetHeight ?? 0
+        if (h > 0) setLockMinH((prev) => Math.max(prev, h))
+      })
       return
     }
 

@@ -11,6 +11,9 @@ import {
   shouldResetHeightBaseline,
   isWithinGestureWindow,
   isMeaningfulScrollUp,
+  isMeaningfulScrollDown,
+  shouldEnterSticky,
+  shouldLeaveSticky,
 } from '../src/useStickToBottom.ts'
 
 function fakeScroller(partial: {
@@ -67,5 +70,66 @@ describe('OpenWork 手势契约', () => {
     assert.equal(isMeaningfulScrollUp(100, 80, 16), true) // -20
     assert.equal(isMeaningfulScrollUp(100, 90, 16), false) // -10 抖动
     assert.equal(isMeaningfulScrollUp(100, 120, 16), false) // 下滑
+  })
+
+  it('下滑检测', () => {
+    assert.equal(isMeaningfulScrollDown(100, 120, 16), true)
+    assert.equal(isMeaningfulScrollDown(100, 110, 16), false)
+  })
+})
+
+describe('V1 sticky 进出(mermaid 高度塌缩)', () => {
+  it('仅 gap 变小不进 sticky(布局塌缩)', () => {
+    assert.equal(shouldEnterSticky({
+      gap: 0,
+      bottomGapPx: 4,
+      scrolledUp: false,
+      scrolledTowardBottom: false,
+      heightRecentlyCollapsed: false,
+    }), false)
+  })
+
+  it('大塌缩护栏内即使下滑也不进(防同帧抽动)', () => {
+    assert.equal(shouldEnterSticky({
+      gap: 0,
+      bottomGapPx: 4,
+      scrolledUp: false,
+      scrolledTowardBottom: true,
+      heightRecentlyCollapsed: true,
+    }), false)
+  })
+
+  it('用户向下滚到贴底才进 sticky', () => {
+    assert.equal(shouldEnterSticky({
+      gap: 2,
+      bottomGapPx: 4,
+      scrolledUp: false,
+      scrolledTowardBottom: true,
+      heightRecentlyCollapsed: false,
+    }), true)
+  })
+
+  it('上滑或手势离底离开 sticky', () => {
+    assert.equal(shouldLeaveSticky({
+      gap: 100,
+      bottomGapPx: 4,
+      leaveBottomGapPx: 64,
+      scrolledUp: true,
+      gestured: false,
+    }), true)
+    assert.equal(shouldLeaveSticky({
+      gap: 20,
+      bottomGapPx: 4,
+      leaveBottomGapPx: 64,
+      scrolledUp: false,
+      gestured: true,
+    }), true)
+    assert.equal(shouldLeaveSticky({
+      gap: 2,
+      bottomGapPx: 4,
+      leaveBottomGapPx: 64,
+      scrolledUp: false,
+      gestured: false,
+    }), false)
   })
 })

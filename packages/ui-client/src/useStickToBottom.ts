@@ -5,6 +5,10 @@
  *
  * OpenWork: 手势窗 + 程序化可打断 + 只跟内容增高
  * opensquilla: 高度突变时 anchor 可见消息,用户手势 cancel 自动修正
+ *
+ * V1 2026-08-11 日志结案:
+ *   contentH ~3.5k 振荡 → gap 被挤到贴底阈值 → 误 sticky→true → follow 拽底
+ *   修: 进 sticky 必须用户意图(手势/下滑);大塌缩后 guard;RO 重绑不得 force 拽底
  * [PROTOCOL]: 变更时更新此头部与 doc/chat-scroll-ux.md
  */
 import { useEffect, useEffectEvent, useRef, useState, type RefObject } from 'react'
@@ -18,6 +22,10 @@ export interface StickToBottomOptions {
   gestureWindowMs?: number
   /** sticky 下多次 RO 合并贴底的静默窗 ms。默认 140(mermaid 逐个落位) */
   followSettleMs?: number
+  /** 内容高度一次塌缩超过该 px 后,短时禁止仅因 gap 进 sticky。默认 80 */
+  collapseGuardPx?: number
+  /** 塌缩护栏时长 ms。默认 800 */
+  collapseGuardMs?: number
   enabled?: boolean
   contentRef?: RefObject<HTMLElement | null>
 }
@@ -48,6 +56,43 @@ export function isMeaningfulScrollUp(prevTop: number, nextTop: number, threshold
   return nextTop - prevTop <= -thresholdPx
 }
 
+export function isMeaningfulScrollDown(prevTop: number, nextTop: number, thresholdPx: number): boolean {
+  return nextTop - prevTop >= thresholdPx
+}
+
+/**
+ * 是否应进入 sticky。
+ * 禁止: 仅因布局塌缩导致 gap 变小就 re-sticky(V1 mermaid 抽动主因)。
+ * 禁止: 上滑后手势窗(600ms)残留 + gap 被挤小 → 误吸。
+ * 只认「本帧向下滚且已贴底」;「回到最新」走 pin()。
+ */
+export function shouldEnterSticky(args: {
+  gap: number
+  bottomGapPx: number
+  scrolledUp: boolean
+  /** scrollTop 本帧增加(向更新内容方向) */
+  scrolledTowardBottom: boolean
+  heightRecentlyCollapsed: boolean
+}): boolean {
+  if (args.scrolledUp) return false
+  if (args.heightRecentlyCollapsed) return false
+  if (args.gap > args.bottomGapPx) return false
+  return args.scrolledTowardBottom
+}
+
+export function shouldLeaveSticky(args: {
+  gap: number
+  bottomGapPx: number
+  leaveBottomGapPx: number
+  scrolledUp: boolean
+  gestured: boolean
+}): boolean {
+  if (args.scrolledUp) return true
+  if (args.gestured && args.gap > args.bottomGapPx) return true
+  if (args.gap > args.leaveBottomGapPx) return true
+  return false
+}
+
 export function useStickToBottom(
   scrollerRef: RefObject<HTMLElement | null>,
   contentKey: unknown,
@@ -58,6 +103,8 @@ export function useStickToBottom(
   const upwardThresholdPx = options.upwardThresholdPx ?? 16
   const gestureWindowMs = options.gestureWindowMs ?? 600
   const followSettleMs = options.followSettleMs ?? 140
+  const collapseGuardPx = options.collapseGuardPx ?? 80
+  const collapseGuardMs = options.collapseGuardMs ?? 800
   const enabled = options.enabled ?? true
   const contentRef = options.contentRef
 
@@ -68,10 +115,31 @@ export function useStickToBottom(
   const lastScrollTopRef = useRef(0)
   const lastHeightRef = useRef(0)
   const lastGestureAtRef = useRef(0)
+  /** 最近一次内容大塌缩时刻;护栏内禁止布局误进 sticky */
+  const lastCollapseAtRef = useRef(0)
+  /** 本 hook 实例是否已做过首次 force 贴底(防 RO 重绑拽底) */
+  const didInitFollowRef = useRef(false)
   const rafRef = useRef(0)
   const settleTimerRef = useRef(0)
   const progReleaseRafRef = useRef(0)
   const msgAnchorRef = useRef<VisibleMsgAnchor | null>(null)
+
+  const heightRecentlyCollapsed = useEffectEvent((): boolean =>
+    Date.now() - lastCollapseAtRef.current < collapseGuardMs,
+  )
+
+  const noteHeightSample = useEffectEvent((h: number) => {
+    const prev = lastHeightRef.current
+    if (prev > 0 && h < prev - collapseGuardPx) {
+      lastCollapseAtRef.current = Date.now()
+      scrollDebugLog('height-collapse', {
+        sticky: stickyRef.current,
+        contentH: h,
+        lastH: prev,
+        note: `Δ=${Math.round(h - prev)}`,
+      })
+    }
+  })
 
   const applySticky = useEffectEvent((next: boolean) => {
     if (stickyRef.current === next) return
@@ -234,6 +302,7 @@ export function useStickToBottom(
     if (!enabled) return
     const h = contentHeight()
     const prev = lastHeightRef.current
+    noteHeightSample(h)
     scrollDebugLog('content-resize-H2?', {
       sticky: stickyRef.current,
       gesture: hasGesture(),
@@ -244,6 +313,11 @@ export function useStickToBottom(
       note: stickyRef.current ? '→settle-follow' : '→stabilize',
     })
     if (stickyRef.current) {
+      // 回缩只改基线,不追(合同);增高再 settle follow
+      if (shouldResetHeightBaseline(prev, h)) {
+        lastHeightRef.current = h
+        return
+      }
       if (hasGesture()) return
       if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current)
       settleTimerRef.current = window.setTimeout(() => {
@@ -337,7 +411,10 @@ export function useStickToBottom(
       const prevTop = lastScrollTopRef.current
       const gap = distanceFromBottom(el)
       const scrolledUp = isMeaningfulScrollUp(prevTop, top, upwardThresholdPx)
+      // 进 sticky 用 1px 阈值:贴底细滑也要能吸回;离 sticky 仍用 upwardThresholdPx 防抖
+      const scrolledTowardBottom = top > prevTop + 0.5
       const gestured = hasGesture()
+      const collapsed = heightRecentlyCollapsed()
 
       if (programmaticRef.current && (gestured || scrolledUp)) {
         programmaticRef.current = false
@@ -351,13 +428,24 @@ export function useStickToBottom(
         return
       }
 
-      if (scrolledUp || (gestured && gap > bottomGapPx)) {
+      // V1: 禁止「高度塌缩 → gap 变小 → 误 sticky → follow」拉锯
+      if (shouldLeaveSticky({
+        gap,
+        bottomGapPx,
+        leaveBottomGapPx,
+        scrolledUp,
+        gestured,
+      })) {
         applySticky(false)
-      } else if (gap <= bottomGapPx) {
+      } else if (shouldEnterSticky({
+        gap,
+        bottomGapPx,
+        scrolledUp,
+        scrolledTowardBottom,
+        heightRecentlyCollapsed: collapsed,
+      })) {
         applySticky(true)
         msgAnchorRef.current = null
-      } else if (gap > leaveBottomGapPx) {
-        applySticky(false)
       }
 
       lastScrollTopRef.current = top
@@ -396,16 +484,25 @@ export function useStickToBottom(
 
     lastHeightRef.current = content.offsetHeight
     lastScrollTopRef.current = el.scrollTop
-    msgAnchorRef.current = captureVisibleMsgAnchor(el)
+    if (!stickyRef.current) {
+      msgAnchorRef.current = captureVisibleMsgAnchor(el)
+    }
 
     const ro = new ResizeObserver(() => {
       onContentResized()
     })
     ro.observe(content)
 
-    applySticky(true)
-    // 首屏贴底(无 settle 延迟)
-    runFollowNow(true)
+    // 禁止 RO 重绑时 applySticky(true)+force 拽底(V1: follow force 与 sticky 同 ms)
+    // 仅本实例首次观察且当前仍 sticky 时 force 贴一次
+    if (stickyRef.current) {
+      if (!didInitFollowRef.current) {
+        didInitFollowRef.current = true
+        runFollowNow(true)
+      } else {
+        runFollowNow(false)
+      }
+    }
 
     return () => {
       ro.disconnect()
@@ -416,7 +513,7 @@ export function useStickToBottom(
       if (progReleaseRafRef.current) cancelAnimationFrame(progReleaseRafRef.current)
       progReleaseRafRef.current = 0
     }
-  }, [scrollerRef, contentRef, enabled, onContentResized, applySticky, runFollowNow])
+  }, [scrollerRef, contentRef, enabled, onContentResized, runFollowNow])
 
   useEffect(() => {
     if (!enabled) return
