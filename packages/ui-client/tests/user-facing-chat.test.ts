@@ -1,6 +1,6 @@
 /**
  * [INPUT]: reduceUserFacingItems / reduceChatItems（证据面）
- * [OUTPUT]: Claude 档 AT：主列表无 process、Thought、最终答案；证据面仍有过程
+ * [OUTPUT]: H1 Turn-scoped ToolGroup + Claude 两阶段 AT
  * [POS]: HDD AT1–AT6 回归
  */
 import { describe, it } from 'node:test'
@@ -174,5 +174,56 @@ describe('user-facing Claude 两阶段', () => {
       },
     })
     assert.ok(u.some((i) => i.kind === 'todo'))
+  })
+
+  it('H1 AT1: 同 turn ≥5 次工具仍只有 1 块 process', () => {
+    let u: ChatItem[] = []
+    u = applyUser(u, 'user', 'u1', { content: '深挖' })
+    for (let i = 1; i <= 5; i += 1) {
+      const id = `t${i}`
+      const name = i % 2 === 0 ? 'read_file' : 'run_code'
+      u = applyUser(u, 'tool_call_start', `s${i}`, { id, name })
+      u = applyUser(u, 'tool_result', `r${i}`, { id, name, llmContent: 'ok' })
+    }
+    assert.equal(u.filter((i) => i.kind === 'process').length, 1, '同 turn 不得堆多卡')
+    const proc = u.find((i) => i.kind === 'process')
+    assert.ok(proc && proc.kind === 'process')
+    if (proc?.kind === 'process') {
+      assert.equal(proc.steps.length, 5)
+      assert.equal(proc.running, false)
+      assert.ok(proc.steps.every((s) => s.done))
+    }
+  })
+
+  it('H1 AT2: running=false 后新工具复活同一块而非新卡', () => {
+    let u: ChatItem[] = []
+    u = applyUser(u, 'user', 'u1', { content: 'x' })
+    u = applyUser(u, 'tool_call_start', 's1', { id: 'a', name: 'run_code' })
+    u = applyUser(u, 'tool_result', 'r1', { id: 'a', name: 'run_code', llmContent: '1' })
+    let proc = u.find((i) => i.kind === 'process')
+    if (proc?.kind === 'process') assert.equal(proc.running, false)
+    u = applyUser(u, 'tool_call_start', 's2', { id: 'b', name: 'read_file' })
+    assert.equal(u.filter((i) => i.kind === 'process').length, 1)
+    proc = u.find((i) => i.kind === 'process')
+    if (proc?.kind === 'process') {
+      assert.equal(proc.running, true)
+      assert.equal(proc.steps.length, 2)
+      assert.equal(proc.steps[0]?.done, true)
+      assert.equal(proc.steps[1]?.done, false)
+    }
+  })
+
+  it('H1 AT3: 新 user turn 开新过程块（上一轮已卸或隔离）', () => {
+    let u: ChatItem[] = []
+    u = applyUser(u, 'user', 'u1', { content: '第一轮' })
+    u = applyUser(u, 'tool_call_start', 's1', { id: 'a', name: 'run_code' })
+    u = applyUser(u, 'tool_result', 'r1', { id: 'a', name: 'run_code', llmContent: 'ok' })
+    u = applyUser(u, 'model_step', 'm1', { content: '答一', toolCalls: [] })
+    assert.equal(u.filter((i) => i.kind === 'process').length, 0, '终局卸过程')
+    u = applyUser(u, 'user', 'u2', { content: '第二轮' })
+    u = applyUser(u, 'tool_call_start', 's2', { id: 'b', name: 'read_file' })
+    assert.equal(u.filter((i) => i.kind === 'process').length, 1)
+    const proc = u.find((i) => i.kind === 'process')
+    if (proc?.kind === 'process') assert.equal(proc.steps.length, 1)
   })
 })

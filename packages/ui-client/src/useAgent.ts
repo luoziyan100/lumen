@@ -502,9 +502,45 @@ function stripProcessItems(prev: ChatItem[]): ChatItem[] {
 }
 
 /**
- * 用户面归约（Claude 两阶段）：
- * - **进行中**：tool 过程可见；中间 content 旁白 → Thought（不当终稿大气泡）
- * - **text_delta**：先标 provisional；有过程时不卸过程（避免「说完了」假象）
+ * H1 Turn-scoped ToolGroup：本 user turn 内至多一块 process。
+ * 在最后一个 user 之后找最后一条 process（不论 running）。
+ */
+function findTurnProcessIndex(prev: ChatItem[]): number {
+  let lastUser = -1
+  for (let i = prev.length - 1; i >= 0; i -= 1) {
+    const it = prev[i]
+    if (it?.kind === 'msg' && it.role === 'user') {
+      lastUser = i
+      break
+    }
+  }
+  for (let i = prev.length - 1; i > lastUser; i -= 1) {
+    if (prev[i]?.kind === 'process') return i
+  }
+  return -1
+}
+
+/**
+ * 追加/复活本 turn 唯一过程块：running=false 后新工具仍续写，不 new 第二张卡。
+ * 更新后把块挪到列表末尾，贴近「思考中」与当前焦点。
+ */
+function appendProcessStep(prev: ChatItem[], step: ProcStep): ChatItem[] {
+  const idx = findTurnProcessIndex(prev)
+  if (idx < 0) {
+    return [...prev, { kind: 'process', id: `proc-${step.id}`, steps: [step], running: true }]
+  }
+  const proc = prev[idx] as ProcessItem
+  const steps = proc.steps.some((s) => s.id === step.id)
+    ? proc.steps.map((s) => (s.id === step.id ? { ...s, ...step, done: false } : s))
+    : [...proc.steps, step]
+  const without = prev.filter((_, i) => i !== idx)
+  return [...without, { ...proc, steps, running: true }]
+}
+
+/**
+ * 用户面归约（H1 = Claude 两阶段 × Turn-scoped ToolGroup）：
+ * - **进行中**：本 turn **至多一块** process（steps 续写，含 running=false 后复活）
+ * - 中间 content 旁白 → Thought；text_delta 标 provisional，不卸过程
  * - **终局**（无工具定稿 / reply）：过程卸下，Thought 收起，只留最终答案
  * - todo 仍展示
  */
@@ -695,12 +731,7 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
       if (isTodoTool(name)) return prev // Todo 等完整 tool_call
       const id = String(p.id ?? event.id)
       const step: ProcStep = { id, name, done: false, label: `${verb(name)}…` }
-      const last = prev[prev.length - 1]
-      if (last?.kind === 'process' && last.running) {
-        if (last.steps.some((s) => s.id === id)) return prev
-        return [...prev.slice(0, -1), { ...last, steps: [...last.steps, step] }]
-      }
-      return [...prev, { kind: 'process', id: `proc-${id}`, steps: [step], running: true }]
+      return appendProcessStep(prev, step)
     }
     case 'model_step': {
       const content = typeof p.content === 'string' ? p.content.trim() : ''
@@ -758,18 +789,7 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
         label: `${verb(name)}…`,
         ...(path ? { path } : {}),
       }
-      const last = prev[prev.length - 1]
-      if (last && last.kind === 'process' && last.running) {
-        if (last.steps.some((s) => s.id === id)) {
-          // tool_call_start 已占位:补 path
-          return [...prev.slice(0, -1), {
-            ...last,
-            steps: last.steps.map((s) => (s.id === id ? { ...s, ...step, done: false } : s)),
-          }]
-        }
-        return [...prev.slice(0, -1), { ...last, steps: [...last.steps, step] }]
-      }
-      return [...prev, { kind: 'process', id: `proc-${id}`, steps: [step], running: true }]
+      return appendProcessStep(prev, step)
     }
     case 'tool_result': {
       const name = String(p.name ?? '')
@@ -817,12 +837,7 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
         done: false,
         label: `子代理 ${stype}：${desc}`,
       }
-      const last = prev[prev.length - 1]
-      if (last?.kind === 'process' && last.running) {
-        if (last.steps.some((s) => s.id === step.id)) return prev
-        return [...prev.slice(0, -1), { ...last, steps: [...last.steps, step] }]
-      }
-      return [...prev, { kind: 'process', id: `proc-sub-${sid}`, steps: [step], running: true }]
+      return appendProcessStep(prev, step)
     }
     case 'subagent_completed':
     case 'subagent_interrupted':
