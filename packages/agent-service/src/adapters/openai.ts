@@ -239,42 +239,104 @@ export function createOpenAIFetchTransport(options: OpenAIFetchTransportOptions)
     )) as OpenAIResponseBody
 }
 
-/** 生产流式:stream:true + SSE;瞬时失败不重试首包后字节(避免重复 delta) */
+function formatFetchError(error: unknown, label: string): Error {
+  const parts: string[] = []
+  let cur: unknown = error
+  const seen = new Set<unknown>()
+  for (let depth = 0; depth < 6 && cur != null && !seen.has(cur); depth += 1) {
+    seen.add(cur)
+    if (cur instanceof Error) {
+      const code = (cur as Error & { code?: string }).code
+      parts.push(code ? `${cur.message} [${code}]` : cur.message)
+      cur = cur.cause
+      continue
+    }
+    parts.push(String(cur))
+    break
+  }
+  const detail = parts.filter(Boolean).join(' ← ') || 'unknown'
+  return new Error(`${label}: ${detail}`)
+}
+
+function isRetryableNetworkError(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === 'AbortError') return false
+  if (error instanceof DOMException && error.name === 'TimeoutError') return true
+  let cur: unknown = error
+  for (let i = 0; i < 4 && cur != null; i += 1) {
+    if (cur instanceof Error) {
+      const code = (cur as Error & { code?: string }).code
+      if (code && ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EPIPE', 'ENOTFOUND', 'EAI_AGAIN', 'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT'].includes(code)) {
+        return true
+      }
+      if (/fetch failed|network|socket|ECONNRESET|ETIMEDOUT/i.test(cur.message)) return true
+      cur = cur.cause
+      continue
+    }
+    break
+  }
+  return false
+}
+
+/** 生产流式:stream:true + SSE;仅对「建连失败」做有限重试，首包后不重试（避免重复 delta） */
 export function createOpenAIStreamFetchTransport(options: OpenAIFetchTransportOptions): OpenAIStreamTransport {
   const url = `${options.baseUrl.replace(/\/$/, '')}${options.path ?? '/v1/chat/completions'}`
   const doFetch = options.retry?.fetchImpl ?? fetch
   const timeoutMs = options.retry?.timeoutMs ?? 600_000
+  const maxConnectAttempts = options.retry?.maxAttempts ?? 3
+  const baseDelayMs = options.retry?.baseDelayMs ?? 500
   return async (request, signal, handlers) => {
     if (signal?.aborted) throw new DOMException('This operation was aborted', 'AbortError')
-    const attemptSignal = AbortSignal.any([
-      ...(signal ? [signal] : []),
-      AbortSignal.timeout(timeoutMs),
-    ])
-    const response = await doFetch(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${options.apiKey}` },
-      body: JSON.stringify({ ...request, stream: true }),
-      signal: attemptSignal,
-    })
-    if (!response.ok) {
-      const text = await response.text().catch(() => '')
-      throw new Error(`OpenAI stream failed (${response.status}): ${text}`)
-    }
-    if (!response.body) throw new Error('OpenAI stream: empty body')
+    let lastError: unknown
+    for (let attempt = 0; attempt < maxConnectAttempts; attempt += 1) {
+      if (signal?.aborted) throw new DOMException('This operation was aborted', 'AbortError')
+      const attemptSignal = AbortSignal.any([
+        ...(signal ? [signal] : []),
+        AbortSignal.timeout(timeoutMs),
+      ])
+      try {
+        const response = await doFetch(url, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${options.apiKey}` },
+          body: JSON.stringify({ ...request, stream: true }),
+          signal: attemptSignal,
+        })
+        if (!response.ok) {
+          const text = await response.text().catch(() => '')
+          // 429/5xx 可在建连阶段重试
+          if ([408, 429, 500, 502, 503, 504, 529].includes(response.status) && attempt < maxConnectAttempts - 1) {
+            lastError = new Error(`OpenAI stream failed (${response.status}): ${text}`)
+            await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** attempt))
+            continue
+          }
+          throw new Error(`OpenAI stream failed (${response.status}): ${text}`)
+        }
+        if (!response.body) throw new Error('OpenAI stream: empty body')
 
-    const accum = createOpenAIStreamAccum()
-    const coalesce = createTextDeltaCoalescer(handlers)
-    const streamHandlers: ChatHandlers = {
-      onTextDelta: coalesce.push,
-      onToolCallStart: handlers?.onToolCallStart,
+        const accum = createOpenAIStreamAccum()
+        const coalesce = createTextDeltaCoalescer(handlers)
+        const streamHandlers: ChatHandlers = {
+          onTextDelta: coalesce.push,
+          onToolCallStart: handlers?.onToolCallStart,
+        }
+        // 首包已出：读流错误不再重试整请求
+        await consumeSseDataStream(
+          response.body,
+          (data) => applyOpenAISseData(accum, data, streamHandlers),
+          attemptSignal,
+        )
+        coalesce.flush()
+        return finalizeOpenAIStreamAccum(accum)
+      } catch (error) {
+        if (signal?.aborted) throw error
+        if (error instanceof DOMException && error.name === 'AbortError') throw error
+        lastError = error
+        if (!isRetryableNetworkError(error) || attempt >= maxConnectAttempts - 1) {
+          throw formatFetchError(error, 'OpenAI stream')
+        }
+        await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** attempt))
+      }
     }
-    await consumeSseDataStream(
-      response.body,
-      (data) => applyOpenAISseData(accum, data, streamHandlers),
-      attemptSignal,
-    )
-    coalesce.flush()
-    return finalizeOpenAIStreamAccum(accum)
+    throw formatFetchError(lastError, 'OpenAI stream')
   }
 }
 

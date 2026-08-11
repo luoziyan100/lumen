@@ -38,8 +38,26 @@ function isAbort(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
 }
 
+/**
+ * 展开 Error.cause 链（Node undici 的 TypeError "fetch failed" 真因常在 cause.code）。
+ * 避免 UI 只看到无信息的 "fetch failed"。
+ */
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+  const parts: string[] = []
+  let cur: unknown = error
+  const seen = new Set<unknown>()
+  for (let depth = 0; depth < 6 && cur != null && !seen.has(cur); depth += 1) {
+    seen.add(cur)
+    if (cur instanceof Error) {
+      const code = (cur as Error & { code?: string }).code
+      parts.push(code ? `${cur.message} [${code}]` : cur.message)
+      cur = cur.cause
+      continue
+    }
+    parts.push(String(cur))
+    break
+  }
+  return parts.filter(Boolean).join(' ← ') || 'unknown error'
 }
 
 export async function runAgent(input: RunAgentInput): Promise<RunAgentResult> {
