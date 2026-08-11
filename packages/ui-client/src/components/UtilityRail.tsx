@@ -2,13 +2,14 @@
  * [INPUT]: Asset(含 scope);ChatItem;icons;useResizable;WORKSPACE_SCOPE_COPY;filterComposerFiles
  * [OUTPUT]: UtilityRail —— Todo Progress + 工作目录(共享区 / 本会话)
  * [POS]: 右轨;阅读器打开时由 ReaderPane 替换;共享区上传与 composer 同宽准入;
- *        Progress 主投影 Todo(见 doc/todo.md);无 Todo 时回退工具 process 步骤;
- *        工作目录开合走 CurtainFold;默认宽 300(随主窗 1160 略收;旧 280@1080 / 320@1200)
+ *        Progress **仅** Todo(见 doc/todo.md);普通 tool 过程在主对话 ProcessRow，
+ *        不在此刷「网页搜索·完成」长列表（复杂任务十几轮会爆长）;
+ *        工作目录开合走 CurtainFold;默认宽 300
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useRef, useState, type ChangeEvent, type CSSProperties } from 'react'
 import type { Asset } from '../agent-client'
-import type { ChatItem, ProcessItem, TodoChatItem, TodoEntry } from '../useAgent'
+import type { ChatItem, TodoChatItem, TodoEntry } from '../useAgent'
 import { WORKSPACE_SCOPE_COPY } from '../appCopy'
 import { filterComposerFiles } from '../composerAccept'
 import { CurtainFold } from './CurtainFold'
@@ -47,25 +48,18 @@ function TodoMark({ status }: { status: TodoEntry['status'] }) {
   return <span className="rail-todo-mark is-pending" aria-hidden />
 }
 
-export function UtilityRail({ assets, onOpen, items, evidenceItems, running, onUploadShared }: {
+export function UtilityRail({ assets, onOpen, items, onUploadShared }: {
   assets: Asset[]
   onOpen: (a: Asset) => void
   /** 用户面 items（Todo 等） */
   items: ChatItem[]
-  /** 归因面：完整工具过程（主对话默认不渲染 process） */
+  /** @deprecated 保留 prop 兼容；右轨不再渲染普通 tool process 长列表 */
   evidenceItems?: ChatItem[]
-  running: boolean
+  running?: boolean
   /** 有则显示「上传到共享区」 */
   onUploadShared?: (files: File[]) => void
 }) {
   const todo: TodoChatItem | undefined = [...items].reverse().find((it): it is TodoChatItem => it.kind === 'todo')
-  const evidence = evidenceItems ?? items
-  // 无 Todo 时：展示最近一条 running process；结束后也展示最后一条 process 摘要（归因）
-  const proc: ProcessItem | undefined = !todo
-    ? (running
-      ? [...evidence].reverse().find((it): it is ProcessItem => it.kind === 'process' && it.running)
-      : [...evidence].reverse().find((it): it is ProcessItem => it.kind === 'process'))
-    : undefined
   const [dirOpen, setDirOpen] = useState(true)
   // 默认 300:主窗略收后右轨同步;key 升 v4 使旧 320 缓存不锁死
   const { width, handleProps } = useResizable({ edge: 'left', min: 260, max: 540, fallback: 300, storageKey: 'lumen:railWidth.v4' })
@@ -84,6 +78,7 @@ export function UtilityRail({ assets, onOpen, items, evidenceItems, running, onU
   return (
     <aside className="rail" aria-label="工具轨" style={{ '--rail-w': `${width}px` } as CSSProperties}>
       <div className="rail-resize" role="separator" aria-orientation="vertical" aria-label="调整工作目录宽度(双击复位)" title="拖拽调宽 · 双击复位" {...handleProps} />
+      {/* 仅 Todo 占「进度」：搜索/抓取/跑代码等普通工具只在主对话过程块，不在此铺长列表 */}
       {todo && todo.todos.length > 0 && (
         <section className="rail-card glass-beam">
           <h3 className="rail-h">
@@ -97,19 +92,6 @@ export function UtilityRail({ assets, onOpen, items, evidenceItems, running, onU
                 <span className="rail-todo-label">
                   {t.status === 'in_progress' ? t.activeForm : t.content}
                 </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      {!todo && proc && (
-        <section className="rail-card glass-beam">
-          <h3 className="rail-h">进度</h3>
-          <ul className="proc-steps rail-steps">
-            {proc.steps.map((s) => (
-              <li key={s.id} className="proc-step">
-                <span className={`proc-step-dot ${s.done ? 'is-done' : ''}`} />
-                <span>{s.label}</span>
               </li>
             ))}
           </ul>
