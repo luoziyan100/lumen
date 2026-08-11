@@ -10,6 +10,7 @@ import {
   distanceFromBottom,
   isNearBottom,
   shouldFollowScrollHeight,
+  shouldResetHeightBaseline,
 } from '../src/useStickToBottom.ts'
 
 function fakeScroller(partial: {
@@ -65,11 +66,23 @@ describe('shouldFollowScrollHeight', () => {
     assert.equal(shouldFollowScrollHeight(200, 150, false), false)
   })
 
-  it('force 时回缩也追(contentKey / 回到最新)', () => {
+  it('force 时回缩也追(仅「回到最新」pin,contentKey 不再 force)', () => {
     assert.equal(shouldFollowScrollHeight(200, 150, true), true)
   })
 
   it('尚无基线时跟随', () => {
     assert.equal(shouldFollowScrollHeight(0, 80, false), true)
+  })
+})
+
+describe('shouldResetHeightBaseline', () => {
+  it('回缩时下移基线', () => {
+    assert.equal(shouldResetHeightBaseline(200, 150), true)
+  })
+  it('增高不下移', () => {
+    assert.equal(shouldResetHeightBaseline(150, 200), false)
+  })
+  it('无基线不处理', () => {
+    assert.equal(shouldResetHeightBaseline(0, 100), false)
   })
 })

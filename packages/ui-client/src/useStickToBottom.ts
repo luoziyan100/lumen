@@ -2,7 +2,8 @@
  * [INPUT]: 消息列表滚动容器 ref;内容增长依赖(items/running)
  * [OUTPUT]: useStickToBottom / isNearBottom / shouldFollowScrollHeight —— 流式贴底;上滑即松手
  * [POS]: 对话列滚动体验核;对标 Claude:生成中可上下滑;与 TurnRail 的 scrollIntoView 互不抢权;
- *        高度回缩不追滚,避免 KaTeX/重排把视口在 prompt↔输出间振荡
+ *        高度回缩不追滚,只下移基线,避免 mermaid/KaTeX/表格非单调增高 + contentKey force
+ *        把视口在「最新输出 ↔ 上一段」之间拉锯
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useEffect, useEffectEvent, useRef, useState, type RefObject } from 'react'
@@ -27,13 +28,23 @@ export function isNearBottom(el: HTMLElement, threshold = 64): boolean {
 }
 
 /**
- * 是否应用贴底跟随。高度回缩时不追(force 除外:contentKey/点「回到最新」)。
- * 根因:流式 Markdown/KaTeX 高度非单调 → 盲跟会在 prompt 与输出尖之间振荡。
+ * 是否应用贴底滚动。
+ * - 增高/等高:跟随
+ * - 回缩:默认不追(force 仅用于「回到最新」主动 pin)
+ * 根因:流式 Markdown/mermaid/KaTeX 高度非单调 → force 盲追会在上下两段间振荡。
  */
 export function shouldFollowScrollHeight(prev: number, next: number, force: boolean): boolean {
   if (force) return true
   if (prev <= 0) return true
   return next >= prev
+}
+
+/**
+ * 回缩时是否应下移高度基线(不滚动)。
+ * 下移后后续增长可继续跟随;若基线卡在历史峰值,会在 mermaid 定稿后长时间不贴底。
+ */
+export function shouldResetHeightBaseline(prev: number, next: number): boolean {
+  return prev > 0 && next < prev
 }
 
 export function useStickToBottom(
@@ -81,7 +92,11 @@ export function useStickToBottom(
       const prev = lastHeightRef.current
       const forceNow = forceFollowRef.current
       forceFollowRef.current = false
-      if (!shouldFollowScrollHeight(prev, h, forceNow)) return
+      if (!shouldFollowScrollHeight(prev, h, forceNow)) {
+        // 回缩:只更新基线,不 scrollTo —— 避免 mermaid pending↔SVG 与 force 叠成上下跳
+        if (shouldResetHeightBaseline(prev, h)) lastHeightRef.current = h
+        return
+      }
       lastHeightRef.current = h
       scrollToBottom('auto')
     })
@@ -135,7 +150,7 @@ export function useStickToBottom(
     }
   }, [scrollerRef, enabled, unpinThreshold, repinThreshold, applyPinned])
 
-  // 结构变化跟随;不听 characterData(每个 text_delta 改字会抖,改由 contentKey force)
+  // 结构/尺寸变化跟随(子节点 RO 覆盖气泡增高;不 force,回缩只调基线)
   useEffect(() => {
     if (!enabled) return
     const el = scrollerRef.current
@@ -149,9 +164,9 @@ export function useStickToBottom(
       for (const child of el.children) ro.observe(child)
       scheduleFollow(false)
     })
-    // 只盯子树增删,不盯 characterData——流式改字走 contentKey
     mo.observe(el, { childList: true, subtree: true })
 
+    // 挂载时贴一次底
     scheduleFollow(true)
     return () => {
       ro.disconnect()
@@ -161,10 +176,11 @@ export function useStickToBottom(
     }
   }, [scrollerRef, enabled, scheduleFollow])
 
-  // 文本增长等:强制贴底一次(即使中间有高度回缩噪声)
+  // 文本/步骤增长:触发检查,但不 force(避免 mermaid/表格高度回缩时硬拽)
+  // 增高仍由 shouldFollow + RO 双通道跟上
   useEffect(() => {
     if (!enabled) return
-    scheduleFollow(true)
+    scheduleFollow(false)
   }, [contentKey, enabled, scheduleFollow])
 
   return { pin, pinned }
