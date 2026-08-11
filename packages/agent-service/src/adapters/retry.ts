@@ -1,15 +1,29 @@
 /**
- * [OUTPUT]: postJsonWithRetry / HttpStatusError —— 带单次超时与指数退避的 JSON POST
+ * [OUTPUT]: postJsonWithRetry / HttpStatusError / DEFAULT_MODEL_MAX_ATTEMPTS —— 带超时与指数退避的 JSON POST
  * [POS]: adapters 网络缝的可靠性层（claude/openai transport 共用）
  *
  * 语义：
  * - 可重试：网络错误、单次尝试超时、408/429/5xx/529 —— 后台长任务不能被一次抖动杀死
  * - 不重试：其余 4xx（请求本身错，重试无意义）
  * - 调用方取消（signal）：立刻生效，不重试、不等退避
+ *
+ * 次数对齐：Codex 流式可见 retry 1/5…5/5；Claude Code 连接默认约 10 次。
+ * Lumen 默认 5（环境变量 LUMEN_MODEL_MAX_ATTEMPTS 可调 1–10）。
  */
 
+/** Codex 档默认 5；可用 LUMEN_MODEL_MAX_ATTEMPTS 提到 10（Claude Code 连接档） */
+export function resolveModelMaxAttempts(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = env.LUMEN_MODEL_MAX_ATTEMPTS
+  if (raw == null || raw === '') return 5
+  const n = Number(raw)
+  if (!Number.isFinite(n)) return 5
+  return Math.min(10, Math.max(1, Math.floor(n)))
+}
+
+export const DEFAULT_MODEL_MAX_ATTEMPTS = 5
+
 export interface RetryOptions {
-  /** 总尝试次数（含第一次）。默认 4 */
+  /** 总尝试次数（含第一次）。默认 resolveModelMaxAttempts() → 5 */
   maxAttempts?: number
   /** 退避基数（指数翻倍：base, 2base, 4base…）。默认 500ms */
   baseDelayMs?: number
@@ -61,7 +75,7 @@ export async function postJsonWithRetry(
   options: RetryOptions = {},
   signal?: AbortSignal,
 ): Promise<unknown> {
-  const maxAttempts = options.maxAttempts ?? 4
+  const maxAttempts = options.maxAttempts ?? resolveModelMaxAttempts()
   const baseDelayMs = options.baseDelayMs ?? 500
   const timeoutMs = options.timeoutMs ?? 120_000
   const doFetch = options.fetchImpl ?? fetch
@@ -90,7 +104,16 @@ export async function postJsonWithRetry(
       if (error instanceof HttpStatusError && !RETRYABLE_STATUS.has(error.status)) throw error
       lastError = error // 网络错 / 单次超时(TimeoutError) / 可重试状态码
     }
-    if (attempt < maxAttempts - 1) await sleep(baseDelayMs * 2 ** attempt, signal)
+    if (attempt < maxAttempts - 1) {
+      // 指数退避 + 小抖动，避免惊群
+      const jitter = Math.floor(Math.random() * 200)
+      await sleep(baseDelayMs * 2 ** attempt + jitter, signal)
+    }
+  }
+  // 耗尽仍失败：带上 attempt 信息
+  if (lastError instanceof Error) {
+    lastError.message = `${lastError.message} (retried ${maxAttempts}x)`
+    throw lastError
   }
   throw lastError
 }

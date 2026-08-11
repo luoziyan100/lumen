@@ -13,7 +13,7 @@
  */
 import type { ChatHandlers, ModelPort, ModelResponse } from '../core/model-port.ts'
 import type { Message, ToolCall, ToolSpec } from '../core/types.ts'
-import { postJsonWithRetry, type RetryOptions } from './retry.ts'
+import { postJsonWithRetry, resolveModelMaxAttempts, type RetryOptions } from './retry.ts'
 import { createTextDeltaCoalescer } from './stream-coalesce.ts'
 import {
   applyOpenAISseData,
@@ -277,12 +277,17 @@ function isRetryableNetworkError(error: unknown): boolean {
   return false
 }
 
-/** 生产流式:stream:true + SSE;仅对「建连失败」做有限重试，首包后不重试（避免重复 delta） */
+/**
+ * 生产流式:stream:true + SSE。
+ * 重试策略（对齐 Codex 5 档 / 可 LUMEN_MODEL_MAX_ATTEMPTS=10 对齐 Claude Code）：
+ * - 建连失败 / 429·5xx / 读流失败且尚未向 UI 推送任何 delta → 整请求重试
+ * - 已推送 text/tool 后再断流 → 不重试（避免重复 delta）
+ */
 export function createOpenAIStreamFetchTransport(options: OpenAIFetchTransportOptions): OpenAIStreamTransport {
   const url = `${options.baseUrl.replace(/\/$/, '')}${options.path ?? '/v1/chat/completions'}`
   const doFetch = options.retry?.fetchImpl ?? fetch
   const timeoutMs = options.retry?.timeoutMs ?? 600_000
-  const maxConnectAttempts = options.retry?.maxAttempts ?? 3
+  const maxConnectAttempts = options.retry?.maxAttempts ?? resolveModelMaxAttempts()
   const baseDelayMs = options.retry?.baseDelayMs ?? 500
   return async (request, signal, handlers) => {
     if (signal?.aborted) throw new DOMException('This operation was aborted', 'AbortError')
@@ -293,6 +298,7 @@ export function createOpenAIStreamFetchTransport(options: OpenAIFetchTransportOp
         ...(signal ? [signal] : []),
         AbortSignal.timeout(timeoutMs),
       ])
+      let emittedToUi = false
       try {
         const response = await doFetch(url, {
           method: 'POST',
@@ -305,7 +311,8 @@ export function createOpenAIStreamFetchTransport(options: OpenAIFetchTransportOp
           // 429/5xx 可在建连阶段重试
           if ([408, 429, 500, 502, 503, 504, 529].includes(response.status) && attempt < maxConnectAttempts - 1) {
             lastError = new Error(`OpenAI stream failed (${response.status}): ${text}`)
-            await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** attempt))
+            const jitter = Math.floor(Math.random() * 200)
+            await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** attempt + jitter))
             continue
           }
           throw new Error(`OpenAI stream failed (${response.status}): ${text}`)
@@ -315,10 +322,15 @@ export function createOpenAIStreamFetchTransport(options: OpenAIFetchTransportOp
         const accum = createOpenAIStreamAccum()
         const coalesce = createTextDeltaCoalescer(handlers)
         const streamHandlers: ChatHandlers = {
-          onTextDelta: coalesce.push,
-          onToolCallStart: handlers?.onToolCallStart,
+          onTextDelta: (t) => {
+            emittedToUi = true
+            coalesce.push(t)
+          },
+          onToolCallStart: (id, name) => {
+            emittedToUi = true
+            handlers?.onToolCallStart?.(id, name)
+          },
         }
-        // 首包已出：读流错误不再重试整请求
         await consumeSseDataStream(
           response.body,
           (data) => applyOpenAISseData(accum, data, streamHandlers),
@@ -330,13 +342,24 @@ export function createOpenAIStreamFetchTransport(options: OpenAIFetchTransportOp
         if (signal?.aborted) throw error
         if (error instanceof DOMException && error.name === 'AbortError') throw error
         lastError = error
-        if (!isRetryableNetworkError(error) || attempt >= maxConnectAttempts - 1) {
-          throw formatFetchError(error, 'OpenAI stream')
+        // 已向 UI 推送过内容则不可整请求重试（否则重复 delta）
+        const canRetry =
+          !emittedToUi
+          && attempt < maxConnectAttempts - 1
+          && (isRetryableNetworkError(error)
+            || (error instanceof Error && /stream failed \((408|429|5\d\d)\)/.test(error.message)))
+        if (!canRetry) {
+          const wrapped = formatFetchError(error, 'OpenAI stream')
+          if (attempt > 0) wrapped.message = `${wrapped.message} (retried ${attempt + 1}/${maxConnectAttempts})`
+          throw wrapped
         }
-        await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** attempt))
+        const jitter = Math.floor(Math.random() * 200)
+        await new Promise((r) => setTimeout(r, baseDelayMs * 2 ** attempt + jitter))
       }
     }
-    throw formatFetchError(lastError, 'OpenAI stream')
+    const final = formatFetchError(lastError, 'OpenAI stream')
+    final.message = `${final.message} (retried ${maxConnectAttempts}/${maxConnectAttempts})`
+    throw final
   }
 }
 

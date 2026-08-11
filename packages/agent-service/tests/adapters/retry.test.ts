@@ -1,6 +1,22 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { postJsonWithRetry, HttpStatusError } from '../../src/adapters/retry.ts'
+import {
+  postJsonWithRetry,
+  HttpStatusError,
+  resolveModelMaxAttempts,
+  DEFAULT_MODEL_MAX_ATTEMPTS,
+} from '../../src/adapters/retry.ts'
+
+test('resolveModelMaxAttempts：默认 5；env 可调 1–10', () => {
+  assert.equal(DEFAULT_MODEL_MAX_ATTEMPTS, 5)
+  assert.equal(resolveModelMaxAttempts({}), 5)
+  assert.equal(resolveModelMaxAttempts({ LUMEN_MODEL_MAX_ATTEMPTS: '' }), 5)
+  assert.equal(resolveModelMaxAttempts({ LUMEN_MODEL_MAX_ATTEMPTS: '10' }), 10)
+  assert.equal(resolveModelMaxAttempts({ LUMEN_MODEL_MAX_ATTEMPTS: '1' }), 1)
+  assert.equal(resolveModelMaxAttempts({ LUMEN_MODEL_MAX_ATTEMPTS: '99' }), 10, '上限 10')
+  assert.equal(resolveModelMaxAttempts({ LUMEN_MODEL_MAX_ATTEMPTS: '0' }), 1, '下限 1')
+  assert.equal(resolveModelMaxAttempts({ LUMEN_MODEL_MAX_ATTEMPTS: 'abc' }), 5)
+})
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
