@@ -27,6 +27,12 @@ export interface StickToBottomOptions {
   /** 手势保护窗 ms。默认 600(OpenWork SCROLL_GESTURE_WINDOW) */
   gestureWindowMs?: number
   enabled?: boolean
+  /**
+   * 内容根节点(消息列表内层)。只观察其高度增长再贴底,
+   * 避免 composer 变高导致 scroller clientHeight 变化误触发 follow。
+   * 缺省则回退为 scroller 自身。
+   */
+  contentRef?: RefObject<HTMLElement | null>
 }
 
 export function distanceFromBottom(el: HTMLElement): number {
@@ -67,6 +73,7 @@ export function useStickToBottom(
   const upwardThresholdPx = options.upwardThresholdPx ?? 16
   const gestureWindowMs = options.gestureWindowMs ?? 600
   const enabled = options.enabled ?? true
+  const contentRef = options.contentRef
 
   const stickyRef = useRef(true)
   const [pinned, setPinned] = useState(true)
@@ -139,6 +146,13 @@ export function useStickToBottom(
     })
   })
 
+  const contentHeight = useEffectEvent((): number => {
+    const content = contentRef?.current
+    if (content) return content.offsetHeight
+    const el = scrollerRef.current
+    return el ? el.scrollHeight : 0
+  })
+
   const scheduleFollow = useEffectEvent((force = false) => {
     if (rafRef.current) return
     rafRef.current = requestAnimationFrame(() => {
@@ -149,13 +163,14 @@ export function useStickToBottom(
       if (!force && hasGesture()) return
       if (!stickyRef.current) return
 
-      const h = el.scrollHeight
+      // 跟「内容高度」而非 scroller.scrollHeight(含 padding/视口变化)
+      const h = contentHeight()
       const prev = lastHeightRef.current
       if (!shouldFollowScrollHeight(prev, h, force)) {
         if (shouldResetHeightBaseline(prev, h)) lastHeightRef.current = h
         return
       }
-      // 仅内容增高(或 force pin)时贴底;clientHeight 变化且高度未增则不必硬拽
+      // 仅内容增高(或 force pin)时贴底
       if (!force && prev > 0 && h <= prev) return
       lastHeightRef.current = h
       scrollToBottom('auto')
@@ -293,40 +308,32 @@ export function useStickToBottom(
     hasGesture,
   ])
 
-  // 只观察内容增高 → sticky 且无手势时贴底(OpenWork RO 模型)
+  // 只观察内容根高度(OpenWork contentRef);不观察 scroller 自身,避免输入框变高误跟
   useEffect(() => {
     if (!enabled) return
     const el = scrollerRef.current
     if (!el) return
+    const content = contentRef?.current ?? el
 
-    lastHeightRef.current = el.scrollHeight
+    lastHeightRef.current = content.offsetHeight
     lastScrollTopRef.current = el.scrollTop
 
     const ro = new ResizeObserver(() => {
       scheduleFollow(false)
     })
-    ro.observe(el)
-    for (const child of el.children) ro.observe(child)
+    ro.observe(content)
 
-    const mo = new MutationObserver(() => {
-      for (const child of el.children) ro.observe(child)
-      scheduleFollow(false)
-    })
-    mo.observe(el, { childList: true, subtree: true })
-
-    // 挂载贴底
     applySticky(true)
     scheduleFollow(true)
 
     return () => {
       ro.disconnect()
-      mo.disconnect()
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       rafRef.current = 0
       if (progReleaseRafRef.current) cancelAnimationFrame(progReleaseRafRef.current)
       progReleaseRafRef.current = 0
     }
-  }, [scrollerRef, enabled, scheduleFollow, applySticky])
+  }, [scrollerRef, contentRef, enabled, scheduleFollow, applySticky])
 
   useEffect(() => {
     if (!enabled) return

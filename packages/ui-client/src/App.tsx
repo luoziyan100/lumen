@@ -768,6 +768,8 @@ function AppInner() {
 
   const turnRailItems = useMemo(() => buildTurnRailItems(items), [items])
   const messagesRef = useRef<HTMLDivElement>(null)
+  /** 消息内容根:贴底 RO 只盯它,composer 改视口高度不会误跟(doc/chat-scroll-ux.md) */
+  const messagesContentRef = useRef<HTMLDivElement>(null)
   const pinMessagesRef = useRef<() => void>(() => {})
   const [activeTurnId, setActiveTurnId] = useState<string | null>(null)
 
@@ -783,6 +785,7 @@ function AppInner() {
   }, [items, running])
   const { pin: pinMessages, pinned: messagesPinned } = useStickToBottom(messagesRef, stickContentKey, {
     enabled: !isEmptyChat(items, running),
+    contentRef: messagesContentRef,
   })
   pinMessagesRef.current = pinMessages
 
@@ -933,6 +936,7 @@ function AppInner() {
               key={taskId ?? `draft:${projectId}`}
               className={`messages ${isEmpty ? 'messages-empty' : ''}`}
             >
+              <div ref={messagesContentRef} className="messages-content">
               {isEmpty && <EmptyState />}
               {items.map((it) => {
                 if (it.kind === 'compaction') {
@@ -1021,6 +1025,7 @@ function AppInner() {
                   detail={modelRetry?.reason}
                 />
               )}
+              </div>
             </div>
             {!isEmpty && !messagesPinned && (
               <button
