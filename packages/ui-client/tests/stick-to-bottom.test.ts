@@ -11,6 +11,7 @@ import {
   isNearBottom,
   shouldFollowScrollHeight,
   shouldResetHeightBaseline,
+  pinIntentFromGesture,
 } from '../src/useStickToBottom.ts'
 
 function fakeScroller(partial: {
@@ -84,5 +85,41 @@ describe('shouldResetHeightBaseline', () => {
   })
   it('无基线不处理', () => {
     assert.equal(shouldResetHeightBaseline(0, 100), false)
+  })
+})
+
+describe('pinIntentFromGesture', () => {
+  const t = { unpinThreshold: 80, repinThreshold: 40 }
+
+  it('轻上滑:即使 gap 很小也 unpin(根因:旧逻辑 gap≤28 会立刻 re-pin)', () => {
+    assert.equal(
+      pinIntentFromGesture({ deltaY: -10, gap: 20, ...t }),
+      'unpin',
+    )
+  })
+
+  it('下滑且近底:repin', () => {
+    assert.equal(
+      pinIntentFromGesture({ deltaY: 30, gap: 20, ...t }),
+      'repin',
+    )
+  })
+
+  it('下滑但离底远:hold', () => {
+    assert.equal(
+      pinIntentFromGesture({ deltaY: 30, gap: 200, ...t }),
+      'hold',
+    )
+  })
+
+  it('scroll 兜底:只大 gap 松钉,小 gap 不自动 repin', () => {
+    assert.equal(
+      pinIntentFromGesture({ deltaY: 0, gap: 20, fromScrollEvent: true, ...t }),
+      'hold',
+    )
+    assert.equal(
+      pinIntentFromGesture({ deltaY: 0, gap: 100, fromScrollEvent: true, ...t }),
+      'unpin',
+    )
   })
 })
