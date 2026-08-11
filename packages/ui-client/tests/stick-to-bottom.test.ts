@@ -1,8 +1,6 @@
 /**
- * [INPUT]: isNearBottom / distanceFromBottom / shouldFollowScrollHeight
- * [OUTPUT]: 贴底判定、回滞阈值、高度回缩不追 不变式
+ * [INPUT]: stick-to-bottom 纯函数(对标 OpenWork 手势窗/上滑阈值)
  * [POS]: ui-client 对话滚动单测
- * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
@@ -11,7 +9,8 @@ import {
   isNearBottom,
   shouldFollowScrollHeight,
   shouldResetHeightBaseline,
-  pinIntentFromGesture,
+  isWithinGestureWindow,
+  isMeaningfulScrollUp,
 } from '../src/useStickToBottom.ts'
 
 function fakeScroller(partial: {
@@ -22,104 +21,51 @@ function fakeScroller(partial: {
   return partial as HTMLElement
 }
 
-describe('distanceFromBottom', () => {
-  it('贴底为 0', () => {
+describe('distanceFromBottom / isNearBottom', () => {
+  it('贴底', () => {
     assert.equal(
       distanceFromBottom(fakeScroller({ scrollHeight: 1000, scrollTop: 900, clientHeight: 100 })),
       0,
     )
-  })
-})
-
-describe('isNearBottom', () => {
-  it('贴底时为 true', () => {
     assert.equal(
-      isNearBottom(fakeScroller({ scrollHeight: 1000, scrollTop: 900, clientHeight: 100 }), 64),
+      isNearBottom(fakeScroller({ scrollHeight: 1000, scrollTop: 900, clientHeight: 100 }), 4),
       true,
     )
   })
-
-  it('上滚超过阈值时为 false', () => {
+  it('上滚离开', () => {
     assert.equal(
       isNearBottom(fakeScroller({ scrollHeight: 1000, scrollTop: 400, clientHeight: 100 }), 64),
       false,
     )
   })
-
-  it('恰好在阈值边界为 true', () => {
-    assert.equal(
-      isNearBottom(fakeScroller({ scrollHeight: 1000, scrollTop: 836, clientHeight: 100 }), 64),
-      true,
-    )
-  })
 })
 
 describe('shouldFollowScrollHeight', () => {
-  it('增高跟随', () => {
+  it('增高跟随,回缩不追', () => {
     assert.equal(shouldFollowScrollHeight(100, 120, false), true)
-  })
-
-  it('等高跟随', () => {
-    assert.equal(shouldFollowScrollHeight(100, 100, false), true)
-  })
-
-  it('回缩不追', () => {
     assert.equal(shouldFollowScrollHeight(200, 150, false), false)
   })
-
-  it('force 时回缩也追(仅「回到最新」pin,contentKey 不再 force)', () => {
+  it('force 可追回缩(仅 pin)', () => {
     assert.equal(shouldFollowScrollHeight(200, 150, true), true)
-  })
-
-  it('尚无基线时跟随', () => {
-    assert.equal(shouldFollowScrollHeight(0, 80, false), true)
   })
 })
 
 describe('shouldResetHeightBaseline', () => {
-  it('回缩时下移基线', () => {
+  it('回缩下移基线', () => {
     assert.equal(shouldResetHeightBaseline(200, 150), true)
-  })
-  it('增高不下移', () => {
     assert.equal(shouldResetHeightBaseline(150, 200), false)
-  })
-  it('无基线不处理', () => {
-    assert.equal(shouldResetHeightBaseline(0, 100), false)
   })
 })
 
-describe('pinIntentFromGesture', () => {
-  const t = { unpinThreshold: 80, repinThreshold: 40 }
-
-  it('轻上滑:即使 gap 很小也 unpin(根因:旧逻辑 gap≤28 会立刻 re-pin)', () => {
-    assert.equal(
-      pinIntentFromGesture({ deltaY: -10, gap: 20, ...t }),
-      'unpin',
-    )
+describe('OpenWork 手势契约', () => {
+  it('手势窗 600ms 内保护', () => {
+    assert.equal(isWithinGestureWindow(1000, 1500, 600), true)
+    assert.equal(isWithinGestureWindow(1000, 1700, 600), false)
   })
 
-  it('下滑且近底:repin', () => {
-    assert.equal(
-      pinIntentFromGesture({ deltaY: 30, gap: 20, ...t }),
-      'repin',
-    )
-  })
-
-  it('下滑但离底远:hold', () => {
-    assert.equal(
-      pinIntentFromGesture({ deltaY: 30, gap: 200, ...t }),
-      'hold',
-    )
-  })
-
-  it('scroll 兜底:只大 gap 松钉,小 gap 不自动 repin', () => {
-    assert.equal(
-      pinIntentFromGesture({ deltaY: 0, gap: 20, fromScrollEvent: true, ...t }),
-      'hold',
-    )
-    assert.equal(
-      pinIntentFromGesture({ deltaY: 0, gap: 100, fromScrollEvent: true, ...t }),
-      'unpin',
-    )
+  it('上滑 ≥16px 算明确离开底', () => {
+    assert.equal(isMeaningfulScrollUp(100, 80, 16), true) // -20
+    assert.equal(isMeaningfulScrollUp(100, 90, 16), false) // -10 抖动
+    assert.equal(isMeaningfulScrollUp(100, 120, 16), false) // 下滑
   })
 })

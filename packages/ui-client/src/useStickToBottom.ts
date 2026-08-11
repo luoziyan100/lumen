@@ -1,77 +1,60 @@
 /**
- * [INPUT]: 消息列表滚动容器 ref;内容增长依赖(items/running)
- * [OUTPUT]: useStickToBottom / isNearBottom / shouldFollowScrollHeight —— 流式贴底;上滑即松手
- * [POS]: 对话列滚动体验核;对标 Claude:生成中可上下滑;与 TurnRail 的 scrollIntoView 互不抢权
+ * [INPUT]: 消息列表滚动容器 ref; contentKey(文本/步骤增长信号)
+ * [OUTPUT]: useStickToBottom —— stickyBottom / manual 双态贴底
+ * [POS]: 对话列滚动核
  *
- * 第一性:
- * 1) 贴底 = 内容增高时视口跟着看最新;不是「距底 < N 就永远钉死」
- * 2) 上滑 = 明确松钉,允许连续滚过本轮长文/图;禁止「轻滑 20px 又 re-pin 拉回底」
- * 3) 高度回缩只改基线不追滚,避免 mermaid/表格非单调增高振荡
+ * 对标 OpenWork scroll-controller + opensquilla autoScroll:
+ * - 用户上滑手势后 600ms 内禁止任何自动 scrollTo(bottom)(含 ResizeObserver)
+ * - 以 scrollTop 增量判定「上滑」≥16px，打断进行中的程序化贴底
+ * - 程序化贴底设 programmatic 旗;手势与上滑均可立刻取消
+ * - sticky 仅在真正贴底(gap≤阈值)或用户点「回到最新」时成立
+ * - 高度回缩不追滚
+ *
+ * 参考:
+ * - openwork/.../surface/scroll-controller.ts
+ * - opensquilla scrollToBottom 前 re-check autoScroll
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useEffect, useEffectEvent, useRef, useState, type RefObject } from 'react'
 
 export interface StickToBottomOptions {
-  /** 距底大于此 → 视为已离开底部(兜底松钉)。默认 80 */
-  unpinThreshold?: number
-  /** 用户**向下**滚且距底小于此 → 重新钉住。默认 40 */
-  repinThreshold?: number
-  /** false 时不跟随(例如空态)。默认 true */
+  /** 距底 ≤ 此视为「在底」(sticky 判定)。默认 4 */
+  bottomGapPx?: number
+  /** 距底 > 此且非手势时也可解除 sticky(兜底)。默认 64 */
+  leaveBottomGapPx?: number
+  /** 上滑多少 px 算明确离开底部。默认 16(OpenWork MANUAL_BROWSE_UPWARD_THRESHOLD) */
+  upwardThresholdPx?: number
+  /** 手势保护窗 ms。默认 600(OpenWork SCROLL_GESTURE_WINDOW) */
+  gestureWindowMs?: number
   enabled?: boolean
 }
 
-/** 距底像素 */
 export function distanceFromBottom(el: HTMLElement): number {
   return el.scrollHeight - el.scrollTop - el.clientHeight
 }
 
-/** 纯函数:是否贴底(导出供单测);默认用松钉阈值 */
 export function isNearBottom(el: HTMLElement, threshold = 64): boolean {
   return distanceFromBottom(el) <= threshold
 }
 
-/**
- * 是否应用贴底滚动。
- * - 增高/等高:跟随
- * - 回缩:默认不追(force 仅用于「回到最新」主动 pin)
- */
 export function shouldFollowScrollHeight(prev: number, next: number, force: boolean): boolean {
   if (force) return true
   if (prev <= 0) return true
   return next >= prev
 }
 
-/** 回缩时下移高度基线(不滚动) */
 export function shouldResetHeightBaseline(prev: number, next: number): boolean {
   return prev > 0 && next < prev
 }
 
-export type PinGestureIntent = 'unpin' | 'repin' | 'hold'
+/** 是否仍在手势保护窗内 */
+export function isWithinGestureWindow(lastGestureAt: number, now: number, windowMs: number): boolean {
+  return now - lastGestureAt < windowMs
+}
 
-/**
- * 手势如何改钉态(纯函数,单测契约)。
- * - 上滑/上拨:一律 unpin(哪怕 gap 只有 10px)——否则轻滑会被 re-pin 顶回底,动量整段飞过本轮
- * - 下滑且已近底:repin
- * - scroll 兜底:仅 gap 很大时 unpin; **绝不**仅因 gap 小而 repin
- */
-export function pinIntentFromGesture(opts: {
-  /** 负 = 看历史, 正 = 看更新; 0 = 非 wheel/未知 */
-  deltaY: number
-  gap: number
-  unpinThreshold: number
-  repinThreshold: number
-  /** true = 来自 scroll 事件的兜底,无方向 */
-  fromScrollEvent?: boolean
-}): PinGestureIntent {
-  const { deltaY, gap, unpinThreshold, repinThreshold, fromScrollEvent } = opts
-  if (fromScrollEvent) {
-    // 只松不钉:避免「上滑 20px → gap=20 ≤ repin → 立刻钉死」
-    if (gap > unpinThreshold) return 'unpin'
-    return 'hold'
-  }
-  if (deltaY < 0) return 'unpin'
-  if (deltaY > 0 && gap <= repinThreshold) return 'repin'
-  return 'hold'
+/** scrollTop 变化是否算「明确上滑」 */
+export function isMeaningfulScrollUp(prevTop: number, nextTop: number, thresholdPx: number): boolean {
+  return nextTop - prevTop <= -thresholdPx
 }
 
 export function useStickToBottom(
@@ -79,33 +62,124 @@ export function useStickToBottom(
   contentKey: unknown,
   options: StickToBottomOptions = {},
 ): { pin: () => void; pinned: boolean } {
-  const unpinThreshold = options.unpinThreshold ?? 80
-  const repinThreshold = options.repinThreshold ?? 40
+  const bottomGapPx = options.bottomGapPx ?? 4
+  const leaveBottomGapPx = options.leaveBottomGapPx ?? 64
+  const upwardThresholdPx = options.upwardThresholdPx ?? 16
+  const gestureWindowMs = options.gestureWindowMs ?? 600
   const enabled = options.enabled ?? true
-  const pinnedRef = useRef(true)
-  const [pinned, setPinned] = useState(true)
-  /** 程序化 scrollTo 触发的 scroll 事件勿改钉态 */
-  const ignoreScrollRef = useRef(false)
-  const rafRef = useRef(0)
-  const lastHeightRef = useRef(0)
-  const forceFollowRef = useRef(false)
 
-  const applyPinned = useEffectEvent((next: boolean) => {
-    if (pinnedRef.current === next) return
-    pinnedRef.current = next
+  const stickyRef = useRef(true)
+  const [pinned, setPinned] = useState(true)
+  const ignoreScrollRef = useRef(false)
+  const programmaticRef = useRef(false)
+  const lastScrollTopRef = useRef(0)
+  const lastHeightRef = useRef(0)
+  const lastGestureAtRef = useRef(0)
+  const rafRef = useRef(0)
+  const progReleaseRafRef = useRef(0)
+
+  const applySticky = useEffectEvent((next: boolean) => {
+    if (stickyRef.current === next) return
+    stickyRef.current = next
     setPinned(next)
+    const el = scrollerRef.current
+    // OpenWork: sticky 时关 overflow-anchor,浏览时开,减轻浏览器锚点乱跳
+    if (el) el.style.overflowAnchor = next ? 'none' : 'auto'
   })
 
-  const applyIntent = useEffectEvent((intent: PinGestureIntent) => {
-    if (intent === 'unpin') applyPinned(false)
-    else if (intent === 'repin') applyPinned(true)
+  const markGesture = useEffectEvent(() => {
+    lastGestureAtRef.current = Date.now()
+  })
+
+  const hasGesture = useEffectEvent((): boolean =>
+    isWithinGestureWindow(lastGestureAtRef.current, Date.now(), gestureWindowMs),
+  )
+
+  const releaseProgrammaticSoon = useEffectEvent(() => {
+    if (progReleaseRafRef.current) cancelAnimationFrame(progReleaseRafRef.current)
+    progReleaseRafRef.current = requestAnimationFrame(() => {
+      progReleaseRafRef.current = requestAnimationFrame(() => {
+        progReleaseRafRef.current = 0
+        programmaticRef.current = false
+      })
+    })
   })
 
   const scrollToBottom = useEffectEvent((behavior: ScrollBehavior = 'auto') => {
     const el = scrollerRef.current
     if (!el || !enabled) return
+    // OpenWork/opensquilla: 执行前再确认 sticky 与无手势
+    if (!stickyRef.current || hasGesture()) return
+
+    programmaticRef.current = true
     ignoreScrollRef.current = true
-    el.scrollTo({ top: el.scrollHeight, behavior })
+    if (behavior === 'smooth') {
+      el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+      lastScrollTopRef.current = el.scrollTop
+      releaseProgrammaticSoon()
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          ignoreScrollRef.current = false
+        })
+      })
+      return
+    }
+    el.scrollTop = el.scrollHeight
+    lastScrollTopRef.current = el.scrollTop
+    lastHeightRef.current = el.scrollHeight
+    requestAnimationFrame(() => {
+      const node = scrollerRef.current
+      if (node && stickyRef.current && !hasGesture()) {
+        node.scrollTop = node.scrollHeight
+        lastScrollTopRef.current = node.scrollTop
+        lastHeightRef.current = node.scrollHeight
+      }
+      releaseProgrammaticSoon()
+      ignoreScrollRef.current = false
+    })
+  })
+
+  const scheduleFollow = useEffectEvent((force = false) => {
+    if (rafRef.current) return
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = 0
+      const el = scrollerRef.current
+      if (!el || !enabled) return
+      // 核心:手势窗内绝不自动贴底(OpenWork RO 守卫)
+      if (!force && hasGesture()) return
+      if (!stickyRef.current) return
+
+      const h = el.scrollHeight
+      const prev = lastHeightRef.current
+      if (!shouldFollowScrollHeight(prev, h, force)) {
+        if (shouldResetHeightBaseline(prev, h)) lastHeightRef.current = h
+        return
+      }
+      // 仅内容增高(或 force pin)时贴底;clientHeight 变化且高度未增则不必硬拽
+      if (!force && prev > 0 && h <= prev) return
+      lastHeightRef.current = h
+      scrollToBottom('auto')
+    })
+  })
+
+  const pin = useEffectEvent(() => {
+    lastGestureAtRef.current = 0 // 主动回到最新,清手势窗
+    applySticky(true)
+    const el = scrollerRef.current
+    if (el) {
+      lastHeightRef.current = el.scrollHeight
+      lastScrollTopRef.current = el.scrollTop
+    }
+    // force 路径:临时允许贴底
+    stickyRef.current = true
+    programmaticRef.current = true
+    ignoreScrollRef.current = true
+    const node = scrollerRef.current
+    if (node) {
+      node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' })
+      lastScrollTopRef.current = node.scrollTop
+    }
+    releaseProgrammaticSoon()
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         ignoreScrollRef.current = false
@@ -113,108 +187,124 @@ export function useStickToBottom(
     })
   })
 
-  const scheduleFollow = useEffectEvent((force = false) => {
-    if (force) forceFollowRef.current = true
-    if (rafRef.current) return
-    rafRef.current = requestAnimationFrame(() => {
-      rafRef.current = 0
-      const el = scrollerRef.current
-      if (!el || !pinnedRef.current || !enabled) return
-      const h = el.scrollHeight
-      const prev = lastHeightRef.current
-      const forceNow = forceFollowRef.current
-      forceFollowRef.current = false
-      if (!shouldFollowScrollHeight(prev, h, forceNow)) {
-        if (shouldResetHeightBaseline(prev, h)) lastHeightRef.current = h
-        return
-      }
-      lastHeightRef.current = h
-      scrollToBottom('auto')
-    })
-  })
-
-  const pin = useEffectEvent(() => {
-    applyPinned(true)
-    forceFollowRef.current = true
-    const el = scrollerRef.current
-    if (el) lastHeightRef.current = el.scrollHeight
-    scrollToBottom('smooth')
-  })
-
-  // 手势:上滑立刻松钉;下滑近底才 re-pin;scroll 只做「离底很远」兜底松钉
+  // 手势标记 + 上滑/下滑改 sticky
   useEffect(() => {
     const el = scrollerRef.current
     if (!el || !enabled) return
 
+    const onGesture = (e: Event): void => {
+      const t = e.target
+      if (t instanceof Element) {
+        const nested = t.closest('[data-scrollable]')
+        if (nested && nested !== el) return
+      }
+      markGesture()
+    }
+
     const onWheel = (e: WheelEvent): void => {
-      const gap = distanceFromBottom(el)
-      applyIntent(pinIntentFromGesture({
-        deltaY: e.deltaY,
-        gap,
-        unpinThreshold,
-        repinThreshold,
-      }))
+      onGesture(e)
+      if (e.deltaY < 0) {
+        // 上滑:立刻 manual(OpenWork)
+        applySticky(false)
+        programmaticRef.current = false
+      }
     }
 
     let touchY = 0
     const onTouchStart = (e: TouchEvent): void => {
+      onGesture(e)
       touchY = e.touches[0]?.clientY ?? 0
     }
     const onTouchMove = (e: TouchEvent): void => {
+      onGesture(e)
       const y = e.touches[0]?.clientY ?? 0
-      const dy = touchY - y // 与 wheel 同号:指上滑内容→看历史→负向意图用 dy>0 表示指下移
-      // 手指下移 = 看历史 → unpin; 手指上移近底 = repin
-      const gap = distanceFromBottom(el)
       if (y - touchY > 6) {
-        applyIntent(pinIntentFromGesture({
-          deltaY: -1,
-          gap,
-          unpinThreshold,
-          repinThreshold,
-        }))
-      } else if (touchY - y > 6) {
-        applyIntent(pinIntentFromGesture({
-          deltaY: 1,
-          gap,
-          unpinThreshold,
-          repinThreshold,
-        }))
+        applySticky(false)
+        programmaticRef.current = false
       }
-      void dy
       touchY = y
     }
 
     const onScroll = (): void => {
+      if (ignoreScrollRef.current && programmaticRef.current) {
+        // 程序化滚动中仍检测用户是否抢了方向
+        const top = el.scrollTop
+        if (hasGesture() || isMeaningfulScrollUp(lastScrollTopRef.current, top, upwardThresholdPx)) {
+          programmaticRef.current = false
+          ignoreScrollRef.current = false
+          applySticky(false)
+          lastScrollTopRef.current = top
+          return
+        }
+        lastScrollTopRef.current = top
+        return
+      }
       if (ignoreScrollRef.current) return
+
+      const top = el.scrollTop
+      const prevTop = lastScrollTopRef.current
       const gap = distanceFromBottom(el)
-      applyIntent(pinIntentFromGesture({
-        deltaY: 0,
-        gap,
-        unpinThreshold,
-        repinThreshold,
-        fromScrollEvent: true,
-      }))
+      const scrolledUp = isMeaningfulScrollUp(prevTop, top, upwardThresholdPx)
+      const gestured = hasGesture()
+
+      // 程序化贴底进行中被用户上滑 → 放弃(OpenWork)
+      if (programmaticRef.current && (gestured || scrolledUp)) {
+        programmaticRef.current = false
+        applySticky(false)
+        lastScrollTopRef.current = top
+        return
+      }
+      if (programmaticRef.current) {
+        lastScrollTopRef.current = top
+        return
+      }
+
+      if (scrolledUp || (gestured && gap > bottomGapPx)) {
+        applySticky(false)
+      } else if (gap <= bottomGapPx) {
+        applySticky(true)
+      } else if (gap > leaveBottomGapPx) {
+        applySticky(false)
+      }
+
+      lastScrollTopRef.current = top
     }
 
     el.addEventListener('wheel', onWheel, { passive: true })
     el.addEventListener('touchstart', onTouchStart, { passive: true })
     el.addEventListener('touchmove', onTouchMove, { passive: true })
+    el.addEventListener('pointerdown', onGesture, { passive: true })
     el.addEventListener('scroll', onScroll, { passive: true })
     return () => {
       el.removeEventListener('wheel', onWheel)
       el.removeEventListener('touchstart', onTouchStart)
       el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('pointerdown', onGesture)
       el.removeEventListener('scroll', onScroll)
     }
-  }, [scrollerRef, enabled, unpinThreshold, repinThreshold, applyIntent])
+  }, [
+    scrollerRef,
+    enabled,
+    bottomGapPx,
+    leaveBottomGapPx,
+    upwardThresholdPx,
+    markGesture,
+    applySticky,
+    hasGesture,
+  ])
 
-  // 结构/尺寸变化跟随
+  // 只观察内容增高 → sticky 且无手势时贴底(OpenWork RO 模型)
   useEffect(() => {
     if (!enabled) return
     const el = scrollerRef.current
     if (!el) return
 
-    const ro = new ResizeObserver(() => scheduleFollow(false))
+    lastHeightRef.current = el.scrollHeight
+    lastScrollTopRef.current = el.scrollTop
+
+    const ro = new ResizeObserver(() => {
+      scheduleFollow(false)
+    })
     ro.observe(el)
     for (const child of el.children) ro.observe(child)
 
@@ -224,14 +314,19 @@ export function useStickToBottom(
     })
     mo.observe(el, { childList: true, subtree: true })
 
+    // 挂载贴底
+    applySticky(true)
     scheduleFollow(true)
+
     return () => {
       ro.disconnect()
       mo.disconnect()
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       rafRef.current = 0
+      if (progReleaseRafRef.current) cancelAnimationFrame(progReleaseRafRef.current)
+      progReleaseRafRef.current = 0
     }
-  }, [scrollerRef, enabled, scheduleFollow])
+  }, [scrollerRef, enabled, scheduleFollow, applySticky])
 
   useEffect(() => {
     if (!enabled) return
