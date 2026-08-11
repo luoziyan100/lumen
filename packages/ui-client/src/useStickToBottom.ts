@@ -131,15 +131,20 @@ export function useStickToBottom(
       })
       return
     }
+    // 只贴一次底;基线只记 content 高度(勿写 scrollHeight——与 contentHeight 量纲差 ≈ 底垫,会吞拍)
     el.scrollTop = el.scrollHeight
     lastScrollTopRef.current = el.scrollTop
-    lastHeightRef.current = el.scrollHeight
+    lastHeightRef.current = contentHeight()
+    // 下一帧仅在「内容又长了一截」时再贴(mermaid 落位),禁止无条件二次强制滚动
     requestAnimationFrame(() => {
       const node = scrollerRef.current
       if (node && stickyRef.current && !hasGesture()) {
-        node.scrollTop = node.scrollHeight
-        lastScrollTopRef.current = node.scrollTop
-        lastHeightRef.current = node.scrollHeight
+        const h = contentHeight()
+        if (h > lastHeightRef.current) {
+          node.scrollTop = node.scrollHeight
+          lastScrollTopRef.current = node.scrollTop
+          lastHeightRef.current = h
+        }
       }
       releaseProgrammaticSoon()
       ignoreScrollRef.current = false
@@ -180,12 +185,6 @@ export function useStickToBottom(
   const pin = useEffectEvent(() => {
     lastGestureAtRef.current = 0 // 主动回到最新,清手势窗
     applySticky(true)
-    const el = scrollerRef.current
-    if (el) {
-      lastHeightRef.current = el.scrollHeight
-      lastScrollTopRef.current = el.scrollTop
-    }
-    // force 路径:临时允许贴底
     stickyRef.current = true
     programmaticRef.current = true
     ignoreScrollRef.current = true
@@ -193,6 +192,7 @@ export function useStickToBottom(
     if (node) {
       node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' })
       lastScrollTopRef.current = node.scrollTop
+      lastHeightRef.current = contentHeight()
     }
     releaseProgrammaticSoon()
     requestAnimationFrame(() => {
