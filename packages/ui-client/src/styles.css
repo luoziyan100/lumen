@@ -27,48 +27,59 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
     radial-gradient(ellipse 42% 32% at 48% 92%, var(--aurora-c), transparent 58%);
 }
 /*
- * 宇宙拿铁 cover = 对话气泡同款 frosted 材质（非冷雾多层渐变）
- * 底：极简中性深灰；壳：半透明白 + blur —— 与 .bubble-assistant 同一套
+ * 宇宙拿铁：frosted 铺在 **canvas 层**（整窗底），不是中间对话大卡片。
+ * 结构：
+ *   .app 实色底（深中性）
+ *   .app::before 全窗半透明白 + blur = 与「模型输出包裹」同款材质的 cover
+ *   侧栏/标题/正文 透明叠在 cover 上，不再单独套一张内容卡
  */
 html[data-skin="cosmic-latte"] {
-  --frost-fill: rgba(255, 255, 255, 0.09);
-  --frost-border: rgba(255, 255, 255, 0.16);
-  --frost-blur: 18px;
-  --frost-radius: 20px;
-  --frost-shadow:
-    0 8px 32px -12px rgba(0, 0, 0, 0.35),
-    inset 0 0 80px rgba(255, 255, 255, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --frost-fill: rgba(255, 255, 255, 0.08);
+  --frost-border: rgba(255, 255, 255, 0.14);
+  --frost-blur: 20px;
 }
 html[data-skin="cosmic-latte"] .app {
-  /* 只留极简深底，不再叠冷雾蓝灰 / 多层白 */
   background-color: #16181e;
   background-image: none;
 }
+/* Canvas cover：全窗 frosted，材质对齐原 bubble 包裹层 */
 html[data-skin="cosmic-latte"] .app::before {
-  display: none;
+  display: block;
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--frost-fill);
+  backdrop-filter: blur(var(--frost-blur)) saturate(1.06);
+  -webkit-backdrop-filter: blur(var(--frost-blur)) saturate(1.06);
+  border: none;
+  box-shadow:
+    inset 0 0 120px rgba(255, 255, 255, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  filter: none;
 }
 html[data-skin="cosmic-latte"] body {
   background: #16181e;
 }
-/* 对话区整列 = cover：与模型输出气泡同材质 */
-html[data-skin="cosmic-latte"] .chat {
-  margin: var(--s-2) var(--s-2) var(--s-2) 0;
-  border-radius: var(--frost-radius);
-  background: var(--frost-fill);
-  border: 1px solid var(--frost-border);
-  backdrop-filter: blur(var(--frost-blur)) saturate(1.08);
-  -webkit-backdrop-filter: blur(var(--frost-blur)) saturate(1.08);
-  box-shadow: var(--frost-shadow);
-  overflow: hidden;
-}
+/* 主内容区 / 对话列：不要卡片壳，透出 canvas cover */
+html[data-skin="cosmic-latte"] .chat,
 html[data-skin="cosmic-latte"] .chat-stage,
-html[data-skin="cosmic-latte"] .messages {
-  background: transparent;
+html[data-skin="cosmic-latte"] .messages,
+html[data-skin="cosmic-latte"] .body {
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 html[data-aurora="0"] .app::before {
   display: block;
   background: linear-gradient(rgba(0, 0, 0, var(--skin-overlay)), rgba(0, 0, 0, var(--skin-overlay)));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .app > * { position: relative; z-index: 1; }
 
@@ -121,18 +132,29 @@ html[data-aurora="0"] .app::before {
     inset 0 0 90px color-mix(in srgb, var(--ember) 6%, transparent),
     inset 0 0 3px 1px rgba(255, 255, 255, 0.14);
 }
-/* 侧栏/标题/卡：与对话 cover、气泡同一套 --frost-* */
-html[data-skin="cosmic-latte"] .glass-card,
+/*
+ * 侧栏/标题：轻于 canvas cover，略抬一点白以便分区，仍是同一 frosted 语言。
+ * 不要做成中间那种「大内容卡」。
+ */
 html[data-skin="cosmic-latte"] .sidebar,
-html[data-skin="cosmic-latte"] .titlebar {
-  background: var(--frost-fill);
-  backdrop-filter: blur(var(--frost-blur)) saturate(1.08);
-  -webkit-backdrop-filter: blur(var(--frost-blur)) saturate(1.08);
+html[data-skin="cosmic-latte"] .titlebar,
+html[data-skin="cosmic-latte"] .glass-card {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px) saturate(1.05);
+  -webkit-backdrop-filter: blur(16px) saturate(1.05);
   border-color: var(--frost-border);
-  box-shadow: var(--frost-shadow);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
 }
 html[data-skin="cosmic-latte"] .titlebar {
   border-bottom-color: var(--frost-border);
+}
+/* 右轨工作区：同样透 canvas cover，避免实心黑块（截图 #2） */
+html[data-skin="cosmic-latte"] .rail,
+html[data-skin="cosmic-latte"] .rail-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px) saturate(1.05);
+  -webkit-backdrop-filter: blur(16px) saturate(1.05);
+  border-color: var(--frost-border);
 }
 .glass-card::before {
   content: '';
@@ -1246,12 +1268,9 @@ html[data-aurora="0"] .composer-dock::before { opacity: 0; }
   font-family: var(--font-serif);
   font-size: var(--t-body-lg);
 }
-/*
- * 对话 cover 已是气泡同款 frosted，正文不再套第二层实心灰卡，
- * 避免「黑底上又叠一块灰玻璃」；仅保留排版间距。
- */
+/* 正文直接落在 canvas frost 上，不要中间大卡片包裹 */
 html[data-skin="cosmic-latte"] .bubble-assistant:not(.is-provisional) {
-  padding: 4px 2px;
+  padding: 0;
   background: transparent;
   border: none;
   box-shadow: none;
@@ -1265,9 +1284,9 @@ html[data-skin="cosmic-latte"] .bubble-user {
   -webkit-backdrop-filter: blur(12px);
 }
 html[data-skin="cosmic-latte"] .thought {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
   padding: 8px 12px;
 }
 /* 中间轮旁白：弱化为「还在想」，终稿才升成正文字重 */
