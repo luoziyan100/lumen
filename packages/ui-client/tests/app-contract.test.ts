@@ -47,3 +47,14 @@ test('navigation icon controls share one visual size', async () => {
   assert.match(css, /\.nav-icon-btn\s*{[^}]*width:\s*36px;[^}]*height:\s*36px;/s)
   assert.match(css, /\.nav-icon-btn svg\s*{[^}]*width:\s*22px;[^}]*height:\s*22px;/s)
 })
+
+test('jump-latest is dock-anchored above the composer, not under it', async () => {
+  const app = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')
+  const css = await readFile(new URL('../src/styles.css', import.meta.url), 'utf8')
+  const dockAt = app.indexOf('className="composer-dock"')
+  const jumpAt = app.indexOf('className="jump-latest"')
+  const dockClose = app.indexOf('</div>', app.indexOf('<ComposerCard'))
+  assert.ok(dockAt > 0 && jumpAt > dockAt && jumpAt < dockClose, 'jump-latest must be a child of composer-dock')
+  assert.match(css, /\.jump-latest\s*{[^}]*bottom:\s*calc\(100%\s*\+\s*var\(--s-3\)\)/s)
+  assert.doesNotMatch(css, /\.jump-latest\s*{[^}]*bottom:\s*\d+px/s)
+})

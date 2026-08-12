@@ -3,7 +3,7 @@
  * [OUTPUT]: App —— 形态 A 装配;项目树(p-*) + 最近平铺历史;轮次轨;TodoCard/ProcessRow/ThinkingIndicator;
  *           ask_user 悬浮问询;composer 暗玻璃;用户超长 prompt 折叠;上传 chip(知情 S4)
  * [POS]: ui-client 根组件;storage project_id ≠ 用户项目;历史不分类进「默认」;
- *        对话列 useStickToBottom:流式贴底;上滑松手可自由阅读;松钉后出「回到最新」;
+ *        对话列 useStickToBottom:流式贴底;上滑松手可自由阅读;松钉后「回到最新」挂 composer-dock 上沿;
  *        标题栏工作区钮:阅读器开时一并关闭(drawer 与 ws.open 双态,不能只拨 drawer);
  *        侧栏未读灯:task_updated 终态且非当前 → unread(localStorage);打开会话清除;
  *        上传=对话事件见 doc/upload-awareness.md;当前稿 activePath 见 artifact-loop P0;
@@ -1030,6 +1030,8 @@ function AppInner() {
               )}
               </div>
             </div>
+          </div>
+          <div className="composer-dock">
             {!isEmpty && !messagesPinned && (
               <button
                 type="button"
@@ -1041,8 +1043,6 @@ function AppInner() {
                 <ArrowDownIcon size={18} />
               </button>
             )}
-          </div>
-          <div className="composer-dock">
             {pendingAsk && (
               <AskUserDialog
                 questions={pendingAsk.questions}
