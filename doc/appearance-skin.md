@@ -1,12 +1,13 @@
 # 外观偏好与皮肤（Appearance / Skin）
 
-状态: **提案 · 待评审**（2026-08-12）  
+状态: **提案 · 修订中（吸收外部审计 F1–F9）**（2026-08-12）  
 类型: 产品 + 工程架构合同（**尚未实现**）  
-作者会话: Lumen UI 工程讨论；供独立 AI / 人审审计  
+作者会话: Lumen UI；外部 AI 源码对照审计已并入 §14  
 对照实现分支: `experiment/glass-ui`（现状为单暗色 Glass Beam）
 
 > 目标：在设置中增加「偏好 / 皮肤」能力，工程上解耦、可测、可演进；  
-> **不**引入对第三方闭源客户端的 CDP 注入方案。
+> **不**引入对第三方闭源客户端的 CDP 注入方案。  
+> **换肤必须传导到 Lumen token 层与 Kumo 控件层**，禁止「自定义区变了、Button/Dialog 仍是旧青瓷」。
 
 ---
 
@@ -17,26 +18,17 @@
 | 章节 | 应判定的内容 | 通过标准 |
 |------|----------------|----------|
 | §1 问题 | 需求是否真实、边界是否清楚 | 问题陈述无可观察歧义 |
-| §2 现状 | 对仓库事实是否准确 | 可对照路径复验，不依赖「据说」 |
-| §3 外部调研 | 类比是否标清等级（非 Lumen 源码） | 每条有来源；未宣称已读闭源实现 |
-| §4 HDD | 假设是否可证伪；证据等级是否诚实 | 事前规划未伪装成 V1 现场复现 |
-| §5 决策 | 架构是否解耦；是否有耦合反模式 | 换肤不要求改业务组件 |
-| §6 合同 | 类型 / 存储 / 应用管道是否可测 | 有单测锚点与 AT 表 |
-| §7 分期 | 爆炸半径是否可控 | Phase A 可独立交付 |
-| §8 非目标 | 是否明确拒绝高风险项 | CDP / 任意 CSS 等已排除 |
-| §9 开放问题 | 是否阻塞 DEV | 评审需勾选或改写 |
+| §2 现状 | 对仓库事实是否准确 | 可对照路径复验 |
+| §3 外部调研 | 类比是否标清等级 | ≤V4，未伪装 V1 |
+| §4 HDD | 假设可证伪；证据等级诚实 | 事前规划未伪装现场复现 |
+| §5 决策 | 解耦 + **Kumo 传导** | 换肤不改业务组件；控件层跟色 |
+| §6 合同 | 类型 / 白名单 / resolve / apply | 可单测；含 Kumo 桥 |
+| §7 分期 | 爆炸半径 | Phase A 含装饰面变量化 + Kumo 引用链 |
+| §8 非目标 | 高风险项排除 | CDP / 任意 CSS 等 |
+| §11 开放问题 | 是否阻塞 DEV | 勾选 |
+| §14 外部审计 | F1–F9 是否闭环 | 每条有采纳/否决 |
 
-**证据等级约定**（与项目 HDD skill 一致）：
-
-| 级 | 含义 |
-|----|------|
-| V1 | 受控复现 |
-| V2 | 本仓库/本机痕迹闭合 |
-| V3 | 部分闭合 |
-| V4 | 外部产品/文档类比 |
-| V5 | 纯推理（**不得单独支撑决策**） |
-
-文中凡写「业界做法」默认 **≤V4**，除非另注。
+**证据等级**：V1 现场 / V2 本仓闭合 / V3 部分 / V4 类比 / V5 纯推理（不得单独支撑决策）。
 
 ---
 
@@ -44,256 +36,246 @@
 
 ### 1.1 用户意图
 
-- 在 **设置** 中增加类似 ChatGPT/Codex 偏好里的 **外观 / 图片主题** 能力。
-- 参考形态：主题卡网格、浅/深/跟随系统、模糊/遮罩、（后续）上传自定义图。
-- 外部参考仓库：[Fei-Away/Codex-Dream-Skin](https://github.com/Fei-Away/Codex-Dream-Skin)（Codex 桌面端**外部**换肤工具）。
+- 设置中增加 **偏好 / 图片主题**（网格、模式、遮罩/模糊、后续上传）。
+- 参考形态：ChatGPT/Codex 偏好 UI；工程参考 [Codex-Dream-Skin](https://github.com/Fei-Away/Codex-Dream-Skin) 的**主题包合同与隔离哲学**，不参考其 CDP 管道。
 
-### 1.2 工程约束（第一性）
+### 1.2 工程约束
 
 | 约束 | 说明 |
 |------|------|
-| 自有宿主 | Lumen 拥有 UI 源码与 WebView，**不需要** CDP 注入闭源壳 |
-| 已有 token | 组件主要消费 CSS 变量（`tokens.css`），换肤应扩展此路径 |
-| 解耦 | 业务组件（Composer / Sidebar / 消息列）**不得**出现 `if (skinId === …)` |
-| 隔离 | 外观偏好与模型 API Key / profile **不得**混存、混 API |
-| 可读性 | 任意壁纸不得牺牲正文对比度（遮罩 / 模糊为产品能力，非装饰可选项） |
+| 自有宿主 | 拥有 UI 源码，不做 CDP |
+| 双消费层 | **Lumen tokens**（`styles.css` 等）+ **Kumo 合同变量**（Button/Dialog/…）必须同源可换 |
+| 解耦 | 业务组件零 `skinId ===` 分支 |
+| 隔离 | 外观 storage ≠ 模型 settings |
+| 可读性 | 壁纸 + overlay/blur 保证正文对比度 |
 
-### 1.3 成功定义（产品）
+### 1.3 成功定义（Phase A）
 
-用户可在设置「偏好」中选择内置皮肤；主界面氛围（背景 / 强调色）即时变化；重启后保持。  
-**不要求** Phase A 即支持社区主题市场或任意用户 CSS。
-
----
-
-## 2. 现状（Lumen · 可复验）
-
-以下基于 `packages/ui-client` 静态核查（审计日 2026-08-12，分支以工作区为准）。
-
-| 项 | 事实 | 路径 / 锚点 | 证据级 |
-|----|------|-------------|--------|
-| 主题挂载 | `<html data-theme="celadon">` 写死 | `packages/ui-client/index.html` | V2 |
-| 设计 token | `:root` 暗色 Glass 变量（约 69 个 `--*`） | `src/tokens.css` | V2 |
-| Kumo 映射 | `theme-celadon.css` + `check:theme` 脚本 | `src/theme-celadon.css`，`scripts/check-theme-celadon.mjs` | V2 |
-| 画布装饰 | `.app` 背景 `--canvas`；`::before` aurora **硬编码 rgba 渐变** | `src/styles.css`（`.app` 段） | V2 |
-| 设置导航 | 仅 `model \| prompt \| service` | `SettingsModal.tsx` `type Pane` | V2 |
-| 外观状态 | **无** `appearance` / `skin` 持久化合同 | 设置与 App localStorage 键扫描 | V2 |
-| Widget 主题 | 从宿主读 CSS 变量注入 iframe | `components/widget/themeVars.ts` | V2 |
-
-**推论（V5→仅作风险，不单独立项）**：换肤若只改一张背景图而不动 aurora 硬编码与 token，会出现「旧光晕透出」；Phase A 必须处理装饰层变量化或按 `data-skin` 关闭默认 aurora。
+用户切换内置皮肤后：**画布背景、强调色、Kumo 主按钮/对话框品牌色**一致变化；刷新保持；消息列表不 remount。
 
 ---
 
-## 3. 外部调研（类比 · ≤V4）
+## 2. 现状（Lumen · 可复验 · 2026-08-12）
 
-### 3.1 Codex-Dream-Skin（开源，可读合同）
+| 项 | 事实 | 路径 | 级 |
+|----|------|------|-----|
+| 主题挂载 | `html data-theme="celadon"` 写死 | `index.html` | V2 |
+| Lumen token | `:root` 暗色变量；**声明约 69 条** `--name:`（审计称「约 100」若计重复/别名需注明口径；以 `grep '^\s*--[a-z].*:' tokens.css` 为准） | `tokens.css` | V2 |
+| Beam 色 | 已有 `--beam-a/b/c` | `tokens.css` L96–98 | V2 |
+| Kumo 映射 | **字面量烘焙**，非 `var(--canvas)` | `theme-celadon.css` L14–85，`[data-theme="celadon"]` | V2 |
+| check:theme | 只校验 **变量名齐全**，不校值/引用链 | `scripts/check-theme-celadon.mjs` | V2 |
+| 画布 aurora | `.app::before` 硬编码青绿/紫/琥珀 rgba | `styles.css` ~L16–23 | V2 |
+| composer 光 | `.composer-dock::before` 同类硬编码渐变 | `styles.css` ~L784–791 | V2 |
+| glass-card | 部分用 `--beam-*`；另有硬编码高光 | `styles.css` `.glass-card` / beam | V2 |
+| liquid-glass | 硬编码白/黑径向 + 动画边 | `styles.css` ~L1337+ | V2 |
+| 设置导航 | 仅 model / prompt / service | `SettingsModal.tsx` | V2 |
+| 外观持久化 | 无 | — | V2 |
+| Widget | **暗壳**返回固定 `LIGHT_DOC_VARS`，**不**镜像宿主 token；仅浅壳镜像 | `themeVars.ts` L82–100 | V2 |
 
-来源：仓库 README / AGENTS.md / docs/PROJECT.md（2026 公开文档）。
+**关键推论（V2）**：仅 patch Lumen `--canvas/--ember` **不会**改变 Kumo Button/Dialog 颜色（F1）。仅改 `.app::before` **不会**去掉 composer/glass/liquid 上的青瓷光（F2）。
 
-| 点 | 内容 | 对 Lumen 的启示 |
-|----|------|-----------------|
-| 形态 | **独立 App**，CDP 注入官方 Codex，**不改** asar/签名 | Lumen **不采用** CDP；学合同不学管道 |
-| 主题包 | `theme.json` + 背景图 + `theme.css`；Studio 另有 manifest/SHA | 后置 Phase 可学 **包契约 + fail-closed** |
-| Safe CSS | 仅允许登记部件；导入与应用双检 | 若将来允许自定义 CSS，必须白名单 |
-| 导入≠启用 | 导入进库，用户显式选择才应用 | **Library vs Active** 分离 |
-| 配置隔离 | 换肤不静默改 API Base/Key | 与 Lumen「模型设置」硬隔离 |
-| 回滚 | 应用失败恢复 last-known-good | Apply 层可保留 previous ResolvedTheme |
+---
 
-### 3.2 VS Code 主题模型（业界通识 · V4）
+## 3. 外部调研（≤V4）
 
-- 主题 = **数据包**（色表 / token 映射），不是改工作台组件源码。
-- 扩展贡献主题；核心通过 semantic token → 实际颜色。
-- 用户设置只选 `workbench.colorTheme` 与有限 overrides。
+| 来源 | 可学 | 不学 |
+|------|------|------|
+| **VS Code** | 主题=数据包；semantic token；扩展贡献 | — |
+| **ChatGPT 偏好** | Appearance 分区；壁纸+遮罩 | 闭源细节 |
+| **DreamSkin** | ZIP 合同、导入≠启用、Safe 边界、与 API 隔离、失败回滚 | CDP 注入、对接其 ZIP 字节兼容 |
 
-**可迁移原则**：皮肤 = 数据；运行时 = 解析 + 应用；UI 壳无皮肤分支。
+解耦通式（业界收敛）：
 
-### 3.3 ChatGPT 类「偏好 / 图片主题」（产品形态 · V4）
-
-公开帮助/设置描述量级：Appearance 独立分区；base theme（system/dark/light）；桌面端另有 accent / background 等（具体字段随版本变，**不绑死字段名**）。
-
-截图级产品能力（用户提供 UI 参考，非 Lumen 实现）：
-
-- 外观模式：浅 / 深 / 跟随系统  
-- 图片主题网格 + 选中态  
-- 模糊 / 覆盖色  
-- 上传自定义（后置）
-
-### 3.4 调研结论表
-
-| 学 | 不学 |
-|----|------|
-| 主题数据包 / registry | CDP 注入自有 App |
-| State → Resolve → Apply | 组件内 skin 分支 |
-| 导入库 ≠ 当前启用 | 与 API 配置耦合 |
-| Safe 边界、fail-closed | 任意用户 CSS 无校验 |
-| 壁纸 + 遮罩保对比度 | 一次做完社区市场 |
+```text
+Preference UI → AppearanceState → resolveTheme() → applyTheme() → CSS vars / data-*
+组件只认 var(--*)，不认 skinId
+```
 
 ---
 
 ## 4. HDD 摘要
 
-### 4.1 分层定位
-
-```text
-L0  Settings「偏好」UI          只表达用户意图
-L1  AppearanceState             真源（可序列化）
-L2  resolveTheme(state)         纯函数 → ResolvedTheme
-L3  applyTheme(resolved)        唯一 DOM 副作用
-L4  组件 / CSS                  只消费 var(--*) 与 data-*
-```
-
-问题主战场：**L1–L3**。先堆皮肤卡 UI 而不建 L1–L3 = 耦合债务。
-
-### 4.2 假设与判定
-
-| ID | 假设 | 类型 | 先验 | 证伪条件 | 判定 |
-|----|------|------|------|----------|------|
-| H1 | Lumen 应一等公民主题引擎，非 CDP 外挂 | 事前架构 | 0.75 | 必须改闭源宿主才能换肤 | ✅ 机制成立（自有源码） |
-| H2 | 解耦关键 = State / Resolve / Apply + 组件零 skin 分支 | 事前架构 | 0.70 | 换皮肤需改 ≥3 业务组件 | ✅ 作为方案前提 |
-| H3 | Phase A = Mode + 内置网格 + overlay/blur，无上传/社区包 | 范围 | 0.65 | 无上传则产品不可用（E2E 否决） | ✅ 默认范围 |
-| H4 | 浅色全量与暗色皮肤同等优先 | 范围 | 0.30 | — | ❌ 不作 A 必达 |
-| H5 | appearance 必须进 agent-service settings API | 范围 | 0.20 | — | ❌ A 用 localStorage 即可 |
-
-**未达 V1/V2 的部分**：H1–H3 为事前架构假设，依赖 Phase A 实现后的 AT/E2E 升格；**不得**在实现前宣称「已验证换肤体验」。
-
-### 4.3 方案 PT（机制可行性）
-
-| ID | 检查 | 结果 |
+| ID | 假设 | 判定 |
 |----|------|------|
-| PT1 | 换 skin 是否只需改 state | 是（目标架构） |
-| PT2 | resolve 可否无 DOM 单测 | 是 |
-| PT3 | 与 model settings 分离 | 是（不同 storage key） |
-| PT4 | 硬编码 aurora 是否挡换肤 | **是风险**；A 必须变量化或按 skin 关闭 |
-| PT5 | Widget 是否跟 token | 是（现有 `themeVars`） |
+| H1 | 一等公民引擎，非 CDP | ✅ |
+| H2 | State / Resolve / Apply + 组件零分支 | ✅ |
+| H3 | Phase A = 内置皮肤 + effects，无上传/社区 | ✅ 默认 |
+| H4 | 浅色与暗色同等优先 | ❌ 不作 A 必达 |
+| H5 | appearance 进 agent-service | ❌ A 用 localStorage |
+| **H6**（审计增补） | **仅 patch Lumen token 不够；必须打通 Kumo 桥** | ✅ **V2 源码闭合** |
 
 ---
 
-## 5. 决策（现行提案）
+## 5. 决策
 
-### 5.1 架构决策记录（ADR 风格）
+### 5.1 ADR
 
-**决策 D1 — 三层管道**  
-采用 `AppearanceState → resolveTheme → applyTheme`；禁止在业务组件中分支皮肤。
+| ID | 决策 |
+|----|------|
+| **D1** | 管道：`AppearanceState → resolveTheme → applyTheme` |
+| **D2** | 双轴：`mode`（对比度基线）× `skinId`（氛围包）+ 用户 `overlay`/`blurPx` |
+| **D3** | 存储：`localStorage` 键 `lumen:appearance.v1`；**不**进模型 settings |
+| **D4** | DOM：`data-appearance` / `data-skin`；**`data-theme="celadon"` 恒驻**（Kumo 选择器锚，见 D7） |
+| **D5** | A 阶段皮肤只写**白名单 Lumen token**；禁止任意 CSS 字符串 |
+| **D6** | 不兼容 DreamSkin ZIP 字节级 |
+| **D7 · F1 解法 (a)** | **`theme-celadon.css` 改为引用 Lumen 语义变量**（见 §5.4），而非在 JS 里枚举 50+ Kumo 键逐个 apply。`check:theme` **升级**：合同名齐全 **且** 关键色变量值为 `var(--…)` 引用链（或维护「Lumen→Kumo 映射表」双向校验） |
+| **D8 · F2** | Phase A **枚举全部装饰硬编码面**并变量化（§5.5），不只 `.app::before` |
+| **D9 · F3** | 皮肤白名单 **扩大**（§6.2）；代码色/光边可随皮肤，或显式「锁死 celadon」——**默认随皮肤** |
+| **D10 · F5** | `preferredScheme` **仅 UI 提示**（缩略图角标）；**不参与** resolve 合并。Mode 唯一决定 `colorScheme` |
+| **D11 · F7** | Widget 内容岛 Phase A **保持**暗壳固定浅色文档变量（有意解耦）；SPEC 不得再写「widget 跟皮肤」。若未来要跟，另开 Phase |
+| **D12 · F9** | `applyTheme` 必须设置 `document.documentElement.style.colorScheme`（及必要时 `color-scheme` CSS）与 `ResolvedTheme.colorScheme` 一致 |
 
-**决策 D2 — 双轴分离**
-
-| 轴 | 字段 | 含义 |
-|----|------|------|
-| Mode | `mode: 'dark' \| 'light' \| 'system'` | 对比度基线（A 可先实现 dark + system 侦听，light 可映射到 dark 或占位） |
-| Skin | `skinId: string` | 氛围包（背景 + token 补丁 + 默认 effects） |
-
-另：**Effects**（`overlay` 0–1、`blurPx`）为用户可调，覆盖 skin 默认。
-
-**决策 D3 — 存储**  
-Phase A：`localStorage` 键 `lumen:appearance.v1`（仅 UI）。  
-**不**写入 agent-service `PublicSettings`，避免与模型配置耦合。
-
-**决策 D4 — 应用面**  
-唯一写 DOM：`document.documentElement` 的 `data-appearance` / `data-skin` + `style.setProperty('--…')`；背景经 `--skin-bg-image` 等变量，由 `.app`（或专用层）消费。
-
-**决策 D5 — 主题数据形态（A）**  
-内置 `SkinDefinition` 注册表（代码内或 JSON 静态 import）。  
-**不**在 A 阶段支持任意 `theme.css` 字符串执行。
-
-**决策 D6 — 与 DreamSkin 包格式**  
-**不兼容** DreamSkin ZIP（选择器与宿主 DOM 不同）。若 Phase C 做包，使用 Lumen 自有 manifest（见 §6.3）。
-
-### 5.2 模块布局（提案路径）
+### 5.2 模块布局
 
 ```text
 packages/ui-client/src/appearance/
-  types.ts       # AppearanceState, SkinDefinition, ResolvedTheme
-  registry.ts    # 内置皮肤
-  resolve.ts     # 纯函数
-  apply.ts       # 唯一副作用
-  store.ts       # load/save lumen:appearance.v1
-  systemMode.ts  # prefers-color-scheme
+  types.ts / registry.ts / resolve.ts / apply.ts / store.ts / systemMode.ts
 
 packages/ui-client/src/components/
-  SettingsModal.tsx   # Pane 增加 'preference'
-  PreferencePane.tsx  # 仅绑定 store API
+  SettingsModal.tsx      # Pane += 'preference'
+  PreferencePane.tsx
+
+packages/ui-client/src/theme-celadon.css   # D7：引用桥（改造）
+packages/ui-client/scripts/check-theme-celadon.mjs  # D7：引用链校验
+packages/ui-client/src/styles.css          # D8：装饰面吃 --aurora-* / --beam-*
+packages/ui-client/src/tokens.css          # 补 --aurora-* 等基线
 ```
 
-### 5.3 数据流
+### 5.3 数据流（修订 · 含 Kumo）
 
 ```text
-PreferencePane ──setState──► store ──subscribe──► App(or AppearanceRoot)
-                                                      │
-                                                      ▼
-                                              resolveTheme(state)
-                                                      │
-                                                      ▼
-                                               applyTheme(resolved)
-                                                      │
-                          ┌───────────────────────────┼──────────────────────┐
-                          ▼                           ▼                      ▼
-                   data-appearance              CSS variables            --skin-bg-*
-                          │                           │                      │
-                          └──────────── components / styles.css / widget ────┘
+PreferencePane → store → resolveTheme(state)
+                              │
+                              ▼
+                       applyTheme(resolved)
+                              │
+         ┌────────────────────┼────────────────────┐
+         ▼                    ▼                    ▼
+  data-appearance      Lumen CSS vars        --skin-bg-* / overlay / blur
+  data-skin            (--canvas, --ember,   color-scheme
+  data-theme=celadon   --beam-*, --aurora-*)
+  (恒驻)                      │
+                              ▼
+              theme-celadon.css 桥：
+              --color-kumo-brand: var(--ember);
+              --color-kumo-canvas: var(--canvas);
+              …（映射表 §5.4）
+                              │
+                              ▼
+              Kumo Button / Dialog / Select / Tooltip / Toasty
 ```
+
+**禁止**第二条 `apply` 路径在业务组件里写 Kumo 变量。
+
+### 5.4 Kumo 桥映射表（D7 · 合同）
+
+原则：Kumo 变量 **只**通过 CSS 引用 Lumen 语义 token；皮肤只 patch Lumen 侧。
+
+| Kumo 变量（节选） | 引用（提案） |
+|-------------------|--------------|
+| `--color-kumo-canvas` | `var(--canvas)` |
+| `--color-kumo-base` | `var(--paper-solid)` |
+| `--color-kumo-elevated` | `var(--card)` |
+| `--color-kumo-recessed` | `var(--paper-deep)` |
+| `--color-kumo-contrast` | `var(--ink)` |
+| `--color-kumo-control` | `var(--paper)` |
+| `--color-kumo-fill` | `var(--vellum)` 或派生 |
+| `--color-kumo-hairline` / `line` | `var(--sand)` / `var(--sand-deep)` |
+| `--color-kumo-focus` | `var(--focus-ring)` |
+| `--color-kumo-brand` | `var(--ember)` |
+| `--color-kumo-brand-hover` | `var(--ember-soft)` |
+| `--color-kumo-danger` 等语义 | `var(--danger)` / `--warning` / `--success` / `--indigo` |
+| `--color-kumo-overlay` | `var(--scrim)` |
+| `--text-color-kumo-default` | `var(--ink)` |
+| `--text-color-kumo-subtle` | `var(--ink-mute)` |
+| `--text-color-kumo-brand` | `var(--ember-soft)` |
+| … | 完整表实现时在 `theme-celadon.css` 注释「桥」区块列出；`check:theme` 校验每个颜色合同变量的值匹配 `/var\(--[a-z0-9-]+\)/`（允许 `light-dark(var(--x), var(--x))`） |
+
+**不采纳 F1-(b)**（JS 枚举全部 Kumo 键 apply）：双份真源、与 check:theme 名校验脱节、皮肤作者要懂 Kumo 合同。
+
+**例外**：badge 多色系若无 Lumen 语义对应，可继续字面量或映射到固定中性，**不得**阻挡 brand/canvas/text 主路径。
+
+### 5.5 装饰面清单（D8 · Phase A 必达）
+
+| 表面 | 现状 | A 目标 |
+|------|------|--------|
+| `.app::before` aurora | 硬编码三色 rgba | `var(--aurora-a/b/c)` + 可 `opacity`；`aurora:false` 时 `display:none` 或透明 |
+| `.composer-dock::before` | 硬编码三色 | 同上或 `--composer-glow-*` 派生自 aurora |
+| `.glass-card` / `.glass-beam` | 已部分 `--beam-*` | 统一只吃 `--beam-a/b/c`；去掉残余硬编码色相 |
+| `.liquid-glass::before` | 白/黑高光动画 | 高光可用中性白；**色相边**若有必须用 beam/ember，禁止写死青绿紫 |
+
+基线在 `tokens.css` 增加（若缺）：
+
+```css
+--aurora-a: …; /* 与当前 rgba 青绿等价的 token */
+--aurora-b: …;
+--aurora-c: …;
+/* --beam-a/b/c 已存在 */
+```
+
+皮肤 `tokens` 可覆盖 beam/aurora，暖皮肤一并换光边。
 
 ---
 
-## 6. 合同（可审计细节）
+## 6. 合同
 
 ### 6.1 AppearanceState（v1）
 
 ```ts
-/** 用户意图真源；可 JSON 序列化 */
 export type AppearanceMode = 'dark' | 'light' | 'system'
 
 export interface AppearanceState {
   version: 1
   mode: AppearanceMode
-  /** registry 内 id；未知 id 解析时回退 default */
   skinId: string
-  /** 0 = 无遮罩，1 = 全黑遮罩；默认建议 0.35–0.55 */
-  overlay: number
-  /** 背景模糊 px；0 = 关 */
+  overlay: number  // 0–1
   blurPx: number
 }
-```
 
-默认值（提案，实现前可微调但须写入单测）：
-
-```ts
-const DEFAULT_APPEARANCE: AppearanceState = {
+export const DEFAULT_APPEARANCE: AppearanceState = {
   version: 1,
   mode: 'dark',
   skinId: 'default',
   overlay: 0.42,
-  blurPx: 0, // 或 24；评审可改，需同步 AT
+  blurPx: 0,
 }
 ```
 
-### 6.2 SkinDefinition（内置）
+### 6.2 SkinDefinition 与白名单（修订 · F3）
 
 ```ts
 export interface SkinDefinition {
   id: string
   name: string
-  /** 设置页缩略图（静态资源 URL） */
   preview: string
-  /** 建议配 dark | light；与 mode 冲突时 resolve 规则见下 */
+  /** 仅 UI：缩略图建议配色角标；resolve 忽略（D10） */
   preferredScheme: 'dark' | 'light'
-  /** 背景：css url() 可用值，或 none */
   backgroundImage: string | null
-  /** 仅允许覆盖白名单 token 键 */
   tokens: Partial<Record<AppearanceTokenName, string>>
   effects?: { overlay?: number; blurPx?: number; aurora?: boolean }
 }
 ```
 
-**Token 白名单（提案 · 实现时锁定列表）**  
-至少包含：`--canvas`, `--paper`, `--paper-solid`, `--card`, `--ink`, `--ink-soft`, `--ink-mute`, `--ember`, `--ember-soft`, `--ember-tint`, `--sand`, `--sand-deep`, `--focus-ring`。  
-**禁止**皮肤补丁写入任意未登记键（resolve 阶段丢弃未知键并 debug 日志）。
+**AppearanceTokenName 白名单（Phase A 锁定 · 可扩不可缩语义）**
+
+| 组 | 键 |
+|----|-----|
+| 表面 | `--canvas`, `--paper`, `--paper-solid`, `--paper-deep`, `--vellum`, `--card`, `--sand`, `--sand-deep`, `--scrim` |
+| 墨 | `--ink`, `--ink-soft`, `--ink-mute`, `--ink-faint` |
+| 强调/语义 | `--ember`, `--ember-soft`, `--ember-tint`, `--moss`, `--moss-tint`, `--indigo`, `--indigo-tint`, `--success`, `--success-bg`, `--warning`, `--warning-bg`, `--danger`, `--danger-bg`, `--danger-line`, `--focus-ring` |
+| 光边/氛围 | `--beam-a`, `--beam-b`, `--beam-c`, `--aurora-a`, `--aurora-b`, `--aurora-c` |
+| 代码 | `--code-keyword`, `--code-string`, `--code-number`, `--code-title`, `--code-type`, `--code-attr` |
+
+未知键：resolve **丢弃** + `console.debug`。  
+**不**把 `--color-kumo-*` 放进皮肤白名单（由桥自动跟随）。
 
 ### 6.3 ResolvedTheme
 
 ```ts
 export interface ResolvedTheme {
-  colorScheme: 'dark' | 'light'  // system 已折叠
+  colorScheme: 'dark' | 'light'
   skinId: string
-  tokens: Record<string, string> // 完整可应用表（基线 ⊕ 补丁）
+  tokens: Record<string, string>  // 白名单全集（基线⊕补丁）
   backgroundImage: string | null
   overlay: number
   blurPx: number
@@ -301,146 +283,131 @@ export interface ResolvedTheme {
 }
 ```
 
-**resolve 规则（提案）**
+**resolve 规则**
 
-1. `mode === 'system'` → 读 `prefers-color-scheme` 得 `colorScheme`。  
-2. 查 `registry[skinId]`，缺失 → `default`。  
-3. `tokens = baseline(colorScheme) ⊕ skin.tokens`（白名单过滤）。  
-4. `overlay/blurPx`：用户 state 优先，否则 skin.effects，否则 DEFAULT。  
-5. `aurora`：skin.effects.aurora ?? (skinId === 'default')。  
-6. Phase A：`colorScheme === 'light'` 若无 light baseline → **回退 dark baseline** 并记 metrics（诚实降级，避免半套浅色）。
+1. `mode==='system'` → `matchMedia('(prefers-color-scheme: dark)')` → `colorScheme`。  
+2. `skin = registry[skinId] ?? registry.default`。  
+3. **`preferredScheme` 不参与计算**（D10）。  
+4. `tokens = baseline(colorScheme) ⊕ filterWhitelist(skin.tokens)`。  
+5. Phase A：无 light baseline → `colorScheme` 强制按 dark baseline 填 token，并 `resolved.colorScheme` 仍可报 light 供 `color-scheme` 实验——**推荐 A：light 模式整体回退 dark token + 日志**，避免半套。  
+6. `overlay` / `blurPx`：`state` 若用户动过则用 state，否则 skin.effects，否则 DEFAULT。（实现可用「是否等于 DEFAULT」粗判；更严可用 `overrides` 位图，非 A 必达。）  
+7. `aurora`：`skin.effects.aurora ?? (skinId === 'default')`。
 
-### 6.4 持久化
+### 6.4 applyTheme 合同
 
-| 键 | 值 | 备注 |
-|----|-----|------|
-| `lumen:appearance.v1` | `AppearanceState` JSON | 坏数据 → DEFAULT + 覆盖写回 |
+1. `document.documentElement.dataset.theme = 'celadon'`（恒驻）。  
+2. `dataset.appearance = colorScheme`；`dataset.skin = skinId`。  
+3. `document.documentElement.style.colorScheme = colorScheme`（F9）。  
+4. 对 `tokens` 每项 `setProperty`。  
+5. 设置 `--skin-bg-image`、`--skin-overlay`、`--skin-blur`（供 `.app` 层消费）。  
+6. **不**直接 setProperty 任何 `--color-kumo-*`（由 CSS 桥完成）。  
+7. 可选：保留 previous ResolvedTheme 引用供失败回滚（非 A 必达）。
 
-版本迁移：将来 v2 时读 v1 字段映射；未知 version → DEFAULT。
+### 6.5 持久化
 
-### 6.5 主题包（Phase C 草案 · 非 A 范围）
+| 键 | 说明 |
+|----|------|
+| `lumen:appearance.v1` | AppearanceState JSON；坏数据 → DEFAULT |
 
-```text
-lumen-skin.zip
-  manifest.json   # id, name, version, preferredScheme, files[], sha256
-  preview.webp
-  background.webp
-  tokens.json     # 仅白名单键，不是任意 CSS
-```
-
-- **不**支持 DreamSkin 的开放 `theme.css` 选择器模型（除非另立 Safe CSS RFC）。  
-- 校验：大小上限、路径穿越拒绝、未知文件 fail-closed（哲学对齐 DreamSkin AGENTS，契约独立）。
+**多窗口**：同 origin WKWebView 共享 localStorage（外部审计 F 确认）；A 不强制 `~/.lumen` 文件。
 
 ### 6.6 设置 IA
 
 ```text
-设置
-├── 模型        （现有）
-├── 提示词      （现有）
-├── 偏好        （新增 · Appearance）
-└── 常驻服务    （现有）
+模型 | 提示词 | 偏好 | 常驻服务
 ```
 
-偏好页控件（A）：
-
-1. 外观模式：深色 / （浅色可选占位）/ 跟随系统  
-2. 皮肤网格：3–6 内置卡  
-3. 覆盖强度、模糊（滑杆或步进）
+偏好：mode · 皮肤网格 · overlay · blur。
 
 ---
 
-## 7. 分期与爆炸半径
+## 7. 分期
 
-| Phase | 交付 | 爆炸半径 | 依赖 |
-|-------|------|----------|------|
-| **A** | 偏好页 + 内置 3–6 skin + overlay/blur + 持久化 + aurora 变量化 | 低–中（CSS 变量与 `.app`） | 无 service |
-| **B** | 本地上传背景 + 用户 library（仍 token 白名单） | 中（文件、配额） | Tauri 文件 API 或 input file |
-| **C** | ZIP 包 + 校验 + 导入库 | 中–高（供应链） | manifest 合同冻结 |
-| **D** | 浅色认真打磨 | 高（全 UI 对比度） | 独立设计验收 |
-
-**推荐 DEV 起点：仅 Phase A。**
+| Phase | 交付 | 必含改造 |
+|-------|------|----------|
+| **A** | 偏好 UI + 3–6 内置皮肤 + 持久化 + **D7 Kumo 桥** + **D8 装饰变量化** | theme-celadon 引用链、check:theme 升级、styles 装饰面 |
+| **B** | 本地上传背景 + library | 文件存储 |
+| **C** | ZIP + tokens.json 白名单校验 | 自有 manifest |
+| **D** | 浅色 baseline 认真打磨 | 全 UI 对比度 + light Kumo 桥 |
 
 ---
 
-## 8. 非目标（明确拒绝）
+## 8. 非目标
 
-| 非目标 | 理由 |
-|--------|------|
-| CDP / 注入官方 Codex 或其它闭源壳 | 与 Lumen 产品无关；安全与维护成本错位 |
-| 组件内 `skinId` 分支 | 破坏解耦；AT5 否决 |
-| 外观写入 agent-service 模型 settings | 配置域污染 |
-| Phase A 任意用户 CSS | XSS / 布局崩溃 |
-| 兼容 DreamSkin ZIP 字节级 | DOM/选择器不同 |
-| Phase A 完整浅色设计系统 | 工作量与 Glass 暗色假设冲突 |
-| 换肤 remount 会话消息列表 | 破坏滚动/状态（AT8） |
-
----
-
-## 9. 验收（AT · 实现前预注册）
-
-实现 Phase A 时必须全部可自动或半自动验证：
-
-| ID | 操作 / 输入 | 预期 |
-|----|-------------|------|
-| AT1 | 打开设置 | 存在「偏好」导航项 |
-| AT2 | 切换内置皮肤 | ≤1 动画帧内背景/强调色变化；无需重启 |
-| AT3 | 杀进程重开 | `skinId` / `mode` / overlay / blur 保持 |
-| AT4 | `resolveTheme` 单测 | 合法 state 稳定输出；非法 skinId → default |
-| AT5 | `rg "skinId\\s*===" packages/ui-client/src/components` | 业务组件零匹配（appearance/ 与 PreferencePane 除外） |
-| AT6 | 切换皮肤 | 不调用 `updateSettings` / 不改 profiles |
-| AT7 | 深色壁纸 + 默认 overlay | 正文 `--ink` 对比度抽查可接受（文档化抽查方法） |
-| AT8 | 换肤时 | `messages` 容器不因 key=skin 强制 remount |
-| AT9 | 默认 `skinId=default` | 观感不低于当前 Glass（回归截图或人工） |
-
-**E2E（人）**  
-- E1：三套皮肤来回切换观感  
-- E2：重启保持  
-- E3：进行中任务换肤不丢会话状态  
+- CDP / 注入闭源客户端  
+- 业务组件 skin 分支  
+- 外观写入模型 settings  
+- Phase A 任意用户 CSS  
+- DreamSkin ZIP 兼容  
+- Phase A 完整浅色设计系统  
+- 换肤 remount messages  
+- Phase A 让 widget 内容岛跟随暗壳皮肤（D11）  
+- F1 方案 (b)：JS 枚举 apply 全部 Kumo 变量（除非 (a) 被证伪）
 
 ---
 
-## 10. 实现锚点（落地时填写）
+## 9. 验收 AT（修订）
+
+| ID | 预期 |
+|----|------|
+| AT1 | 设置有「偏好」 |
+| AT2a | 切换皮肤后 **Lumen token 驱动区**（侧栏/气泡/强调）≤1 帧变化 |
+| AT2b | 切换皮肤后 **Kumo Button 品牌色 / Dialog 表面**与 `--ember/--card` 一致（抽查设置页按钮） |
+| AT2c | 背景图：token 即时；**图片可在 load 后**显示（不得要求 webp 同步 1 帧） |
+| AT3 | 重启保持 state |
+| AT4 | resolve 单测：非法 skinId → default；白名单过滤 |
+| AT5 | `components/` 下无业务 `skinId===`（允许 appearance/、PreferencePane） |
+| AT6 | 不调用模型 `updateSettings` |
+| AT7 | 默认 overlay 下正文可读；暖皮肤下 beam/aurora 非残留青绿（目视） |
+| AT8 | 换肤不 remount messages 根 |
+| AT9 | `default` 皮肤观感 ≥ 当前 Glass 基线 |
+| AT10 | `npm run check:theme` 通过 **名齐全 + 引用链**（D7） |
+| AT11 | `document.documentElement.style.colorScheme` 与 resolved 一致 |
+| AT12 | 暗壳下 widget 仍为浅色内容岛（D11 回归，防止误改） |
+
+**E2E（人）**：三皮肤切换含设置内 Kumo 按钮；重启；进行中会话换肤。
+
+---
+
+## 10. 实现锚点
 
 | 角色 | 路径 | 状态 |
 |------|------|------|
-| 类型/resolve/apply/store | `packages/ui-client/src/appearance/*` | 未建 |
-| 设置页 | `SettingsModal.tsx` + `PreferencePane.tsx` | 未建 |
-| Token 基线 | `tokens.css` / 可选 `tokens-light.css` | 现状仅暗色 |
-| 画布消费变量 | `styles.css` `.app` | 需改 aurora |
-| Widget | `themeVars.ts` | 已有读宿主能力 |
-| 文档 | 本文 `doc/appearance-skin.md` | 提案 |
-| 单测 | `tests/appearance-resolve.test.ts` 等 | 未建 |
+| appearance/* | `src/appearance/` | 未建 |
+| 偏好 UI | PreferencePane + SettingsModal | 未建 |
+| Kumo 桥 | `theme-celadon.css` | **待改引用** |
+| check:theme | `scripts/check-theme-celadon.mjs` | **待升级** |
+| 装饰面 | `styles.css` + `tokens.css` aurora | **待变量化** |
+| 本文 | `doc/appearance-skin.md` | 修订提案 |
 
 ---
 
-## 11. 开放问题（评审须勾选）
+## 11. 开放问题（含审计补项）
 
-请评审方对下列项给出 **采纳 / 修改 / 否决**：
-
-- [ ] **Q1** Phase A 是否接受 **dark 优先**，light 诚实降级到 dark baseline？  
-- [ ] **Q2** 内置皮肤资源：纯 CSS 渐变占位 vs 仓库内置 webp（体积预算？）  
-- [ ] **Q3** `blurPx` 默认 0 还是非 0（性能：大模糊在弱 GPU 上的成本）？  
-- [ ] **Q4** 用户自定义是否必须进 Phase B，A 绝不做上传？  
-- [ ] **Q5** `lumen:appearance.v1` 是否足够，或需要进 `~/.lumen/` 文件以便多窗口一致（Tauri 多实例）？  
+- [ ] **Q1** Phase A light：诚实回退 dark token？  
+- [ ] **Q2** 内置皮肤：CSS 渐变占位 vs 仓库 webp（体积）？  
+- [ ] **Q3** `blurPx` 默认 0？  
+- [ ] **Q4** 上传严格 Phase B？  
+- [ ] **Q5** ~~多窗口 localStorage~~ → **关闭**（审计：同 origin 已共享）  
+- [ ] **Q6 · F1** 确认采纳 **(a) CSS 引用桥**（默认）还是否决改 (b)？  
+- [ ] **Q7 · F3** 代码语法色是否必须随皮肤（默认是）？  
+- [ ] **Q8** badge 多色 Kumo 键：保持字面量中性 或 逐个映射？  
 
 ---
 
-## 12. 评审检查清单（给审计 AI 的操作表）
+## 12. 评审检查清单
 
-请逐条输出 **PASS / FAIL / N/A** 与一句理由：
-
-1. 问题与成功标准是否可测？  
-2. §2 现状是否可被路径复验、有无过时断言？  
-3. 外部调研是否误标为 V1/V2？  
-4. 是否存在「未验证却当事实」的 V5 决策？  
-5. State/Resolve/Apply 是否真解耦，有无隐藏第二写 DOM 点？  
-6. 与模型设置隔离是否完整？  
-7. Token 白名单是否足以防止主题补丁污染？  
-8. Phase A 范围是否可独立上线？  
-9. AT 表是否覆盖回归与安全（AT5/AT6/AT8）？  
-10. 非目标是否足够防止范围膨胀（CDP/任意 CSS/DreamSkin 兼容）？  
-11. 开放问题是否阻塞编码，或可带默认继续？  
-12. 本文是否误称「已实现」？（正确状态应为提案）
+1. 问题可测？  
+2. §2 可复验？含 Kumo 字面量与多装饰面？  
+3. 外部调研未虚标 V1？  
+4. F1 是否闭合（桥方案可实施）？  
+5. 数据流是否含 Kumo？  
+6. 与模型设置隔离？  
+7. 白名单是否含 beam/aurora/code？  
+8. Phase A 范围是否含 D7+D8？  
+9. AT2 是否拆 token/Kumo/背景图？  
+10. 非目标是否挡住 CDP/任意 CSS/(b) 双真源？  
+11. 是否误称已实现？  
 
 ---
 
@@ -448,23 +415,61 @@ lumen-skin.zip
 
 | 日期 | 变更 |
 |------|------|
-| 2026-08-12 | 初版提案：调研 + HDD + 解耦架构 + Phase A 合同；待评审，未实现 |
+| 2026-08-12 | 初版提案 |
+| 2026-08-12 | **吸收外部源码审计 F1–F9**：D7 Kumo 引用桥、D8 装饰面枚举、扩白名单、data-theme 恒驻、preferredScheme 语义、widget/AT/color-scheme 修正；附录 §14 |
 
 ---
 
-## 附录 A · 反模式速查
+## 14. 外部审计响应（源码对照 · 正式附录）
+
+审计方：独立 AI；方法：读 SPEC + `tokens.css` / `theme-celadon.css` / `check-theme-celadon.mjs` / `styles.css` / `themeVars.ts` / Settings。  
+本仓复核：F1/F2/F4/F7 **V2 成立**。
+
+| ID | 严重度 | 摘要 | 本仓复核 | **决议** |
+|----|--------|------|----------|----------|
+| **F1** | 红 | Kumo 字面量，换肤不进控件 | `theme-celadon.css` 全为 `light-dark(#…)`；check 只校名 | **采纳 (a)**：改引用链 + check 升级。**拒绝 (b)** 默认 |
+| **F2** | 橙 | 装饰硬编码面多于 `.app` | composer-dock / glass / liquid-glass 确认 | **Phase A 必达** §5.5 清单 |
+| **F3** | 黄 | 白名单过窄 | 缺 paper-deep/code/beam 等 | **扩白名单** §6.2 |
+| **F4** | 黄 | `data-theme` 与 skin 关系未定 | 映射挂 `[data-theme=celadon]` | **`data-theme=celadon` 恒驻**；skin 另锚（D4/D7） |
+| **F5** | 黄 | preferredScheme 无行为 | 属 SPEC 洞 | **仅 UI 提示，resolve 忽略**（D10） |
+| **F6** | 白 | token「约 69」口径 | `^\s*--.*:` 计 69；「100」需统一口径 | 正文改为 **约 69 条声明**；审计记录保留 |
+| **F7** | 白 | Widget 不跟暗壳 token | `hostChromeIsDark` → LIGHT_DOC_VARS | **A 保持有意解耦**；改写 PT5 断言（D11） |
+| **F8** | 白 | AT2「1 帧」对 webp 过严 | 合理 | **AT2a/b/c 拆分** |
+| **F9** | 白 | 缺 color-scheme 合同 | `:root{color-scheme:dark}` | **apply 必写**（D12） |
+| 多窗口 Q5 | — | localStorage 已共享 | 同意 | **关闭 Q5 担忧** |
+
+### 14.1 为什么 F1 选 (a) 不选 (b)
+
+| | (a) CSS 桥 | (b) JS 枚举 Kumo |
+|--|------------|------------------|
+| 真源 | 皮肤只碰 Lumen token | 皮肤或 apply 双份 Kumo |
+| check:theme | 可验引用 | 名校验与运行时脱节 |
+| 皮肤作者 | 只懂 Lumen 语义 | 要懂 Kumo 合同 |
+| 升级 kumo | 映射表加行 | apply 列表加行 |
+
+(a) 与 VS Code「semantic → 实际」同构；(b) 是补丁机器。
+
+### 14.2 残余风险（实现时）
+
+1. `light-dark(var(--x), var(--x))` 在部分引擎行为需实机测（A 以 dark 为主可先 `var(--x)` 单值）。  
+2. Kumo 升级引入新颜色 token：check:theme 引用规则可能对「尚无 Lumen 对应」的键放行字面量——需在脚本中 **allowlist 字面量键**。  
+3. liquid-glass 中性高光与彩色 beam 分离不当会显脏——需设计抽查。
+
+---
+
+## 附录 A · 反模式
 
 | 反模式 | 后果 |
 |--------|------|
-| `if (skin === 'mist')` 写在 Composer | 每新皮肤改 N 处 |
-| 设置保存时 `updateSettings({ ..., skin })` | 模型配置域污染、权限与备份纠缠 |
-| 皮肤 = 一整份复制的 `styles.css` | 无法维护、合并冲突 |
-| 用户粘贴任意 CSS | XSS、把 `pointer-events` 弄没 |
-| 换肤 `key={skinId}` 挂在 messages 根 | 丢失滚动位置与进行中 UI 状态 |
+| 只 patch `--ember` 不改 Kumo 桥 | 半套皮肤（F1） |
+| 只变量化 `.app::before` | 输入岛仍青瓷光（F2） |
+| 皮肤白名单含 `--color-kumo-*` | 双真源、绕过桥 |
+| 去掉 `data-theme=celadon` | Kumo 映射整块失效 |
+| `key={skinId}` 挂 messages | 丢滚动与进行中态 |
 
-## 附录 B · 参考链接
+## 附录 B · 参考
 
 - Codex-Dream-Skin: https://github.com/Fei-Away/Codex-Dream-Skin  
-- 本仓库 token / 主题: `packages/ui-client/src/tokens.css`, `theme-celadon.css`, `index.html`  
-- 设置壳: `packages/ui-client/src/components/SettingsModal.tsx`  
-- 项目 HDD skill: `.claude/skills/hdd/SKILL.md`  
+- `packages/ui-client/src/tokens.css`, `theme-celadon.css`, `styles.css`, `components/widget/themeVars.ts`  
+- `packages/ui-client/scripts/check-theme-celadon.mjs`  
+- HDD: `.claude/skills/hdd/skill` → `hdd/SKILL.md`  
