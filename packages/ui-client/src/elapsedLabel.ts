@@ -15,14 +15,13 @@ export function elapsedMs(startedAt?: string, endedAt?: string, now = Date.now()
   return Math.max(0, end - start)
 }
 
-/** 3.2秒 / 12秒 / 1分12秒 */
+/** 进行中计时: 3.2s / 46m 51.5s(对标 Claude live + 参考 LoadingState) */
 export function formatElapsed(ms: number): string {
-  const sec = ms / 1000
-  if (sec < 10) return `${sec.toFixed(1)}秒`
-  if (sec < 60) return `${Math.round(sec)}秒`
-  const m = Math.floor(sec / 60)
-  const s = Math.round(sec % 60)
-  return `${m}分${s}秒`
+  const total = Math.max(0, ms / 1000)
+  if (total < 60) return `${total.toFixed(1)}s`
+  const m = Math.floor(total / 60)
+  const s = total % 60
+  return `${m}m ${s.toFixed(1)}s`
 }
 
 export function useElapsedLabel(startedAt?: string, endedAt?: string): string | null {

@@ -2011,7 +2011,8 @@ html[data-skin="cosmic-latte"] .thought {
 .thought-head:hover { color: var(--ink-soft); }
 .thought-label { font-weight: 500; }
 .thought-label.is-shimmer,
-.proc-label.is-shimmer {
+.proc-label.is-shimmer,
+.think-label.is-shimmer {
   color: transparent;
   background-image: linear-gradient(90deg, var(--ink-mute) 32%, var(--ink) 50%, var(--ink-mute) 68%);
   background-size: 220% 100%;
@@ -2025,7 +2026,8 @@ html[data-skin="cosmic-latte"] .thought {
 }
 @media (prefers-reduced-motion: reduce) {
   .thought-label.is-shimmer,
-  .proc-label.is-shimmer {
+  .proc-label.is-shimmer,
+  .think-label.is-shimmer {
     animation: none;
     color: var(--ink-soft);
     background: none;

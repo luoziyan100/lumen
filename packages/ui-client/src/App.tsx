@@ -203,6 +203,24 @@ function AppInner() {
     newConversation, selectConversation, taskId, ctxUsage,
   } = useAgent(client, projectId, connected)
   taskIdForUnreadRef.current = taskId
+  /** 本轮思考钟:点发送起跳;draft→正式 taskId 不断钟;停跑/切会话清零 */
+  const [thinkStartedAt, setThinkStartedAt] = useState<string | null>(null)
+  const thinkClockKeyRef = useRef<string | null>(null)
+  useEffect(() => {
+    const key = running ? (taskId ?? 'draft') : null
+    if (!key) {
+      thinkClockKeyRef.current = null
+      setThinkStartedAt(null)
+      return
+    }
+    if (thinkClockKeyRef.current === key) return
+    if (thinkClockKeyRef.current === 'draft' && taskId) {
+      thinkClockKeyRef.current = taskId
+      return
+    }
+    thinkClockKeyRef.current = key
+    setThinkStartedAt(new Date().toISOString())
+  }, [running, taskId])
   const [askBusy, setAskBusy] = useState(false)
   const [skills, setSkills] = useState<SkillInfo[]>([])
   const [skillsManageOpen, setSkillsManageOpen] = useState(false)
@@ -847,8 +865,13 @@ function AppInner() {
     && lastItem.role === 'assistant'
     && Boolean(lastItem.streaming)
   // 工具间隙 / 首 token 前 / 重连：必须有动效，避免「像说完了但不能发」
+  const hasOpenThought = items.some((it) => it.kind === 'thought' && !it.done)
   const showThinking =
-    running && !pendingAsk && !lastStreamingAssistant && (!toolsBusy || Boolean(modelRetry))
+    running
+    && !pendingAsk
+    && !lastStreamingAssistant
+    && !hasOpenThought
+    && (!toolsBusy || Boolean(modelRetry))
   const showReader = ws.open != null
   // 右栏可见 = 阅读器或工作目录轨;标题栏钮必须两边都能收,不能只拨 drawer
   const rightPaneOpen = showReader || drawer
@@ -946,7 +969,15 @@ function AppInner() {
                   return <div key={it.id} className="ctx-divider"><span>已整理更早的上下文 · 细节在工作区与历史记录</span></div>
                 }
                 if (it.kind === 'todo') return <TodoCard key={it.id} todo={it} />
-                if (it.kind === 'thought') return <ThoughtRow key={it.id} thought={it} />
+                if (it.kind === 'thought') {
+                  return (
+                    <ThoughtRow
+                      key={it.id}
+                      thought={it}
+                      clockStart={it.done ? undefined : (thinkStartedAt ?? it.startedAt)}
+                    />
+                  )
+                }
                 // 进行中展示 process；终局归约会卸下 process（消失再出答案）
                 if (it.kind === 'process') return <ProcessRow key={it.id} block={it} />
                 if (it.role === 'assistant') {
@@ -1026,6 +1057,7 @@ function AppInner() {
                   }
                   retrying={Boolean(modelRetry)}
                   detail={modelRetry?.reason}
+                  startedAt={thinkStartedAt}
                 />
               )}
               </div>

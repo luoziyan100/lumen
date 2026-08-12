@@ -18,7 +18,8 @@
 - `HtmlViewer.tsx` — 工作区 HTML 预览:复用 `widget/WidgetFrame`(allow-scripts + CSP,无 same-origin)
 - `StatusOrb.tsx` — 行内点云球:thinking-orbs **原生 size=20**(禁 64→CSS 缩,否则九态糊成虚线圈);支持 `paused` 冻帧
 - `ProcessRow.tsx` — 可折叠过程块(`CurtainFold` + 步骤 cascade);长轨迹只露最近 6 步;运行中 shimmer + 等宽计时;左侧 `StatusOrb` 按焦点工具态(`orbStateFromSteps`);与 ThinkingIndicator 的 breathing 分离
-- `ThoughtRow.tsx` — 同 turn 一条思考轨迹;运行中 shimmer「思考中」+ 计时;收口「思考了 Xs」默认收起
+- `ThoughtRow.tsx` — 同 turn 一条思考轨迹;运行中 shimmer「思考中」+ live 计时;收口只留 Thought process 摘要(不报秒)
+- `ThinkingIndicator.tsx` — 首 token 前等待:光圈 + shimmer + live 计时;有开放 Thought 时不叠
 - `TodoCard.tsx` — 会话 Todo 次要卡(`todo_write`→`kind:'todo'`);主呈现右轨 Progress(见 `doc/todo.md`)
 - `AskUserDialog.tsx` — `ask_user` 悬浮问询卡;多题 Claude 式一页一题 + `i of n` 切换;「其他」幽灵输入;见 `doc/ask-user.md`
 - `ComposerCard.tsx` — 对话输入暗玻璃岛;`+` Skills;/ 斜杠;模型芯片;拖放;液态抛光;待发图放大;当前稿 chip(activePath);见 `doc/ui-design.md` §0
@@ -26,7 +27,6 @@
 - `ManageSkillsDialog.tsx` — Manage skills:列表/添加文件夹·SKILL.md/卸载(Kumo Dialog,禁 glass-beam);行左 `SkillIcon`
 - `CollapsibleUserText.tsx` — 用户超长 prompt 默认折叠(>9 行或 >750 字);预览 clamp + `CurtainFold` 揭开全文;助手消息不折
 - `MsgFileChips.tsx` — 用户气泡附件 chip(上传知情 S4);点开读阅读器;见 `doc/upload-awareness.md`
-- `ThinkingIndicator.tsx` — 模型等待态(尚无过程行/尚无流式正文):`StatusOrb` breathing +「思考中」;正文 `streaming` 时不叠;侧栏 sb-dot 仍脉冲点
 - `Markdown.tsx` — .md 文档与纯文本段渲染:GFM + KaTeX + 代码高亮 + ` ```mermaid ` → MermaidBlock;流式 `deferMath` 暂缓 KaTeX/mermaid 防高度抖
 - `MermaidBlock.tsx` — mermaid.js 动态加载;securityLevel=strict;主题读青瓷 token;悬停工具条放大/复制源码;失败回退源码
 - `widget/` — 对话网页沙箱(`show-widget` 围栏 → iframe);见 `widget/CLAUDE.md`

@@ -1,7 +1,7 @@
 /**
- * [INPUT]: ThoughtItem;useElapsedLabel;APP_STATUS_COPY
+ * [INPUT]: ThoughtItem;可选 clockStart;useElapsedLabel;APP_STATUS_COPY
  * [OUTPUT]: ThoughtRow —— 一轮一条可展开思考轨迹
- * [POS]: 对话流;运行中 shimmer + 计时;收口后「思考了 Xs」默认收起
+ * [POS]: 对话流;运行中 shimmer + live 计时;收口后只留 Thought process 摘要,不报秒数
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useEffect, useState } from 'react'
@@ -10,17 +10,21 @@ import { useElapsedLabel } from '../elapsedLabel'
 import type { ThoughtItem } from '../useAgent'
 import { CurtainFold } from './CurtainFold'
 
-export function ThoughtRow({ thought }: { thought: ThoughtItem }) {
-  const [open, setOpen] = useState(!thought.done)
+export function ThoughtRow({
+  thought,
+  clockStart,
+}: {
+  thought: ThoughtItem
+  /** 本轮开始时刻(用户点发送);比 thought.startedAt 更早,覆盖首 token 前的等待 */
+  clockStart?: string
+}) {
+  const [open, setOpen] = useState(false)
   useEffect(() => {
     if (thought.done) setOpen(false)
   }, [thought.done])
-  const elapsed = useElapsedLabel(thought.startedAt, thought.done ? thought.endedAt : undefined)
+  const elapsed = useElapsedLabel(thought.done ? undefined : (clockStart ?? thought.startedAt))
   const preview = thought.content.trim()
-  const short = preview.length > 280 ? `${preview.slice(0, 280)}…` : preview
-  const label = thought.done
-    ? (elapsed ? APP_STATUS_COPY.thoughtDone(elapsed) : APP_STATUS_COPY.thoughtDoneFallback)
-    : APP_STATUS_COPY.thoughtActive
+  const label = thought.done ? APP_STATUS_COPY.thoughtSettled : APP_STATUS_COPY.thoughtActive
   return (
     <div className={`thought ${thought.done ? 'is-done' : 'is-run'}`}>
       <button
@@ -37,7 +41,7 @@ export function ThoughtRow({ thought }: { thought: ThoughtItem }) {
       </button>
       <CurtainFold open={open}>
         <div className="thought-body">
-          <pre className="thought-text">{open ? preview : short}</pre>
+          <pre className="thought-text">{preview}</pre>
         </div>
       </CurtainFold>
     </div>

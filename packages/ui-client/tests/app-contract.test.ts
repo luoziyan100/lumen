@@ -48,6 +48,13 @@ test('navigation icon controls share one visual size', async () => {
   assert.match(css, /\.nav-icon-btn svg\s*{[^}]*width:\s*22px;[^}]*height:\s*22px;/s)
 })
 
+test('settled thought is a summary label, not a duration', async () => {
+  const { APP_STATUS_COPY } = await import('../src/appCopy.ts')
+  assert.equal(APP_STATUS_COPY.thoughtSettled, 'Thought process')
+  assert.equal(APP_STATUS_COPY.thoughtActive, '思考中')
+  assert.equal('thoughtDone' in APP_STATUS_COPY, false)
+})
+
 test('jump-latest is dock-anchored above the composer, not under it', async () => {
   const app = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')
   const css = await readFile(new URL('../src/styles.css', import.meta.url), 'utf8')

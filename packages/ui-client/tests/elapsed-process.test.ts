@@ -5,14 +5,13 @@ import { partitionProcessSteps, stepChip, PROCESS_RECENT_KEEP } from '../src/pro
 import type { ProcStep } from '../src/useAgent.ts'
 
 describe('formatElapsed', () => {
-  it('under 10s keeps one decimal', () => {
-    assert.equal(formatElapsed(3200), '3.2秒')
+  it('under 60s keeps one decimal and s suffix', () => {
+    assert.equal(formatElapsed(3200), '3.2s')
+    assert.equal(formatElapsed(12_400), '12.4s')
   })
-  it('under 60s rounds to seconds', () => {
-    assert.equal(formatElapsed(12_400), '12秒')
-  })
-  it('minutes use 分秒', () => {
-    assert.equal(formatElapsed(72_000), '1分12秒')
+  it('minutes use m + one-decimal s', () => {
+    assert.equal(formatElapsed(72_000), '1m 12.0s')
+    assert.equal(formatElapsed(2_811_500), '46m 51.5s')
   })
 })
 

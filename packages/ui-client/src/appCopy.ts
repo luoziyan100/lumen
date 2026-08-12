@@ -130,8 +130,8 @@ export const APP_STATUS_COPY = {
   retry: (attempt: number, maxAttempts: number) => `Retry ${attempt}/${maxAttempts}`,
   jumpToLatest: '回到最新',
   thoughtActive: '思考中',
-  thoughtDone: (elapsed: string) => `思考了 ${elapsed}`,
-  thoughtDoneFallback: '思考过程',
+  /** 收口后不再报秒数:边跑边想是多段,时长没意义 */
+  thoughtSettled: 'Thought process',
   processTools: (n: number) => `${n} 个工具`,
   processMore: (n: number) => `+${n} 项更早`,
   processRecent: '只看最近',

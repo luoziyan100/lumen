@@ -13,7 +13,7 @@
 | `agent-client.ts` | 浏览器侧 WS 客户端;含 listProjects/…/Skills;`uploadFile`→UploadReceipt;submit/continue 可带 uploads[];⚠ 协议类型手工内联 |
 | `useAgent.ts` | 事件流 → ChatItem;`uploads[]`→气泡 chip;`text_delta` 累积 streaming 泡 / `model_step` 定稿;`tool_call_start` 尽早过程行;`ask_user`→pendingAsk |
 | `useStickToBottom.ts` | 对话列贴底跟随;上滑即松钉;回滞再钉;高度回缩不追(抑流式振荡);松钉出「回到最新」;`.messages { overflow-anchor: none }` |
-| `elapsedLabel.ts` | 思考/工具耗时文案(`3.2秒` / `1分12秒`)与 live hook |
+| `elapsedLabel.ts` | 进行中计时(`3.2s` / `46m 51.5s`);收口 Thought 不报秒 |
 | `processSteps.ts` | 过程步窗口化(默认最近 6)+ 路径 chip |
 | `useWorkspace.ts` | 资产列表:无会话仅 shared;有会话 shared+session;切新对话乐观清 session 防串味 |
 | `tokens.css` | **设计系统唯一真源**(青瓷 v2):表面三级 / 语义五色 / 阴影 0–3 / 字体分工;头注释即规范 |
