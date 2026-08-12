@@ -15,7 +15,7 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   background-size: cover;
   background-position: center;
 }
-/* 画布 aurora（D8）;遮罩用 --skin-overlay 叠在渐变上 */
+/* 画布 aurora（D8）;遮罩用 --skin-overlay；拿铁多一层暖星云 */
 .app::before {
   content: '';
   position: absolute; inset: 0; z-index: 0;
@@ -25,6 +25,14 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
     radial-gradient(ellipse 52% 42% at 12% 18%, var(--aurora-a), transparent 62%),
     radial-gradient(ellipse 46% 38% at 88% 28%, var(--aurora-b), transparent 62%),
     radial-gradient(ellipse 42% 32% at 48% 92%, var(--aurora-c), transparent 58%);
+}
+html[data-skin="cosmic-latte"] .app::before {
+  background:
+    linear-gradient(rgba(26, 18, 12, var(--skin-overlay)), rgba(26, 18, 12, var(--skin-overlay))),
+    radial-gradient(ellipse 70% 55% at 18% 22%, var(--aurora-a), transparent 58%),
+    radial-gradient(ellipse 55% 48% at 78% 30%, var(--aurora-b), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 48% 88%, var(--aurora-c), transparent 55%),
+    radial-gradient(ellipse 40% 35% at 60% 60%, rgba(253, 244, 227, 0.06), transparent 70%);
 }
 html[data-aurora="0"] .app::before {
   background: linear-gradient(rgba(0, 0, 0, var(--skin-overlay)), rgba(0, 0, 0, var(--skin-overlay)));
@@ -70,14 +78,20 @@ html[data-aurora="0"] .app::before {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background: color-mix(in srgb, var(--card) 78%, transparent);
-  backdrop-filter: blur(14px) saturate(1.28);
-  -webkit-backdrop-filter: blur(14px) saturate(1.28);
-  border: 1px solid color-mix(in srgb, var(--sand-deep) 55%, rgba(255, 255, 255, 0.28));
+  /* 跟皮肤 --card；拿铁试样: 奶油半透 + 琥珀内光 + 咖啡外影 */
+  background: var(--card);
+  backdrop-filter: blur(8px) saturate(1.05);
+  -webkit-backdrop-filter: blur(8px) saturate(1.05);
+  border: 1px solid color-mix(in srgb, var(--sand-deep) 70%, rgba(255, 255, 255, 0.22));
   box-shadow:
-    var(--shadow-2),
-    inset 0 0 90px color-mix(in srgb, var(--ember) 6%, transparent),
-    inset 0 0 3px 1px rgba(255, 255, 255, 0.14);
+    4px 4px 20px 0 color-mix(in srgb, var(--scrim) 55%, transparent),
+    inset 0 0 150px color-mix(in srgb, var(--ember) 8%, transparent),
+    inset 0 0 4px 2px rgba(255, 255, 255, 0.12);
+}
+/* Cosmic Latte：更贴试样 blur/饱和度 */
+html[data-skin="cosmic-latte"] .glass-card {
+  backdrop-filter: blur(8px) saturate(1);
+  -webkit-backdrop-filter: blur(8px) saturate(1);
 }
 .glass-card::before {
   content: '';

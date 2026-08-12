@@ -84,6 +84,14 @@ describe('resolveTheme', () => {
     assert.notEqual(c.tokens['--paper'], d.tokens['--paper'])
     assert.notEqual(c.tokens['--card'], m.tokens['--card'])
   })
+
+  it('宇宙拿铁：奶油玻璃 + 琥珀强调（cosmic-latte.html）', () => {
+    const r = resolveTheme({ ...DEFAULT_APPEARANCE, skinId: 'cosmic-latte' }, 'dark')
+    assert.equal(r.skinId, 'cosmic-latte')
+    assert.match(r.tokens['--card'] ?? '', /253,\s*244,\s*227/)
+    assert.equal(r.tokens['--ember'], '#f59e0b')
+    assert.equal(r.tokens['--indigo'], '#3b82f6')
+  })
 })
 
 describe('normalizeAppearance', () => {

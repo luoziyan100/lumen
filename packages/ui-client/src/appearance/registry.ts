@@ -200,7 +200,74 @@ export const SKIN_CLAY: SkinDefinition = {
   effects: { aurora: true, overlay: 0, blurPx: 0 },
 }
 
-const ALL: SkinDefinition[] = [SKIN_DEFAULT, SKIN_MIST, SKIN_SKY, SKIN_CLAY]
+/**
+ * Cosmic Latte — 来自 doc/skin/cosmic-latte.html 玻璃卡试样
+ * 奶油半透玻璃 + 琥珀内光 + 咖啡阴影；辅色点缀 #3b82f6
+ */
+export const SKIN_COSMIC_LATTE: SkinDefinition = {
+  id: 'cosmic-latte',
+  name: '宇宙拿铁',
+  description: 'Cosmic Latte：暖奶油玻璃 + 琥珀光晕（试样式）',
+  preview: 'linear-gradient(145deg, #1a120c 0%, #3d2a18 35%, #78716c 55%, #f59e0b 78%, #fdf4e3 100%)',
+  accents: ['#f59e0b', '#fdf4e3', '#3b82f6'],
+  preferredScheme: 'dark',
+  backgroundImage: null,
+  tokens: t({
+    // 深咖啡宇宙底
+    '--canvas': '#1a120c',
+    // 试样卡：rgba(253,244,227,0.08) 抬到可读的玻璃纸面
+    '--paper': 'rgba(253, 244, 227, 0.10)',
+    '--paper-solid': 'rgba(40, 30, 22, 0.92)',
+    '--paper-deep': 'rgba(28, 20, 14, 0.95)',
+    '--vellum': 'rgba(253, 244, 227, 0.08)',
+    // 卡片 ≈ 试样 .glass-card
+    '--card': 'rgba(253, 244, 227, 0.10)',
+    '--sand': 'rgba(255, 255, 255, 0.12)',
+    '--sand-deep': 'rgba(255, 255, 255, 0.20)',
+    // 试样 shadow 主色 120,53,15
+    '--scrim': 'rgba(120, 53, 15, 0.45)',
+    '--ink': '#FDF8F0',
+    '--ink-soft': 'rgba(253, 248, 240, 0.88)',
+    '--ink-mute': 'rgba(230, 214, 190, 0.62)',
+    '--ink-faint': 'rgba(210, 190, 165, 0.40)',
+    // amber-500 #f59e0b（试样 inset glow）
+    '--ember': '#f59e0b',
+    '--ember-soft': '#fbbf24',
+    '--ember-tint': 'rgba(245, 158, 11, 0.12)',
+    '--moss': '#d4a574',
+    '--moss-tint': 'rgba(212, 165, 116, 0.14)',
+    // 试样头像描边蓝
+    '--indigo': '#3b82f6',
+    '--indigo-tint': 'rgba(59, 130, 246, 0.16)',
+    '--focus-ring': 'rgba(59, 130, 246, 0.40)',
+    '--warning': '#fbbf24',
+    '--warning-bg': 'rgba(251, 191, 36, 0.14)',
+    '--danger': '#e07a5f',
+    '--danger-bg': 'rgba(224, 122, 95, 0.12)',
+    '--danger-line': 'rgba(224, 122, 95, 0.36)',
+    '--beam-a': '#fbbf24',
+    '--beam-b': '#f59e0b',
+    '--beam-c': '#fde68a',
+    // 宇宙拿铁星云：奶油 + 琥珀 + 淡蓝
+    '--aurora-a': 'rgba(253, 244, 227, 0.14)',
+    '--aurora-b': 'rgba(245, 158, 11, 0.16)',
+    '--aurora-c': 'rgba(59, 130, 246, 0.10)',
+    '--code-string': '#f0c070',
+    '--code-type': '#d4a574',
+    '--code-attr': '#c4b8a8',
+    // 实色面：咖啡深棕（对齐试样阴影族）
+    '--surface-base': '#241810',
+    '--surface-elevated': '#322418',
+    '--surface-recessed': '#140e0a',
+    '--surface-control': '#2a1e14',
+    '--surface-fill': '#3a2c1c',
+    '--surface-fill-hover': '#4a3a28',
+    '--surface-interact': '#403224',
+  }),
+  effects: { aurora: true, overlay: 0.08, blurPx: 0 },
+}
+
+const ALL: SkinDefinition[] = [SKIN_DEFAULT, SKIN_COSMIC_LATTE, SKIN_MIST, SKIN_SKY, SKIN_CLAY]
 
 export const SKIN_REGISTRY: Record<string, SkinDefinition> = Object.fromEntries(
   ALL.map((s) => [s.id, s]),
