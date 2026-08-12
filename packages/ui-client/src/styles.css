@@ -10,17 +10,24 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
-  background: var(--canvas);
+  background-color: var(--canvas);
+  background-image: var(--skin-bg-image);
+  background-size: cover;
+  background-position: center;
 }
-/* Glass 实验:画布 aurora(不挡交互) */
+/* 画布 aurora（D8）;遮罩用 --skin-overlay 叠在渐变上 */
 .app::before {
   content: '';
   position: absolute; inset: 0; z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 52% 42% at 12% 18%, rgba(56, 210, 180, 0.18), transparent 62%),
-    radial-gradient(ellipse 46% 38% at 88% 28%, rgba(140, 100, 255, 0.16), transparent 62%),
-    radial-gradient(ellipse 42% 32% at 48% 92%, rgba(255, 200, 80, 0.09), transparent 58%);
+    linear-gradient(rgba(0, 0, 0, var(--skin-overlay)), rgba(0, 0, 0, var(--skin-overlay))),
+    radial-gradient(ellipse 52% 42% at 12% 18%, var(--aurora-a), transparent 62%),
+    radial-gradient(ellipse 46% 38% at 88% 28%, var(--aurora-b), transparent 62%),
+    radial-gradient(ellipse 42% 32% at 48% 92%, var(--aurora-c), transparent 58%);
+}
+html[data-aurora="0"] .app::before {
+  background: linear-gradient(rgba(0, 0, 0, var(--skin-overlay)), rgba(0, 0, 0, var(--skin-overlay)));
 }
 .app > * { position: relative; z-index: 1; }
 
@@ -786,12 +793,13 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   position: absolute; z-index: -1;
   left: 6%; right: 6%; bottom: -22px; height: 88px;
   background:
-    radial-gradient(ellipse 55% 70% at 30% 50%, rgba(56, 220, 190, 0.34), transparent 70%),
-    radial-gradient(ellipse 50% 70% at 72% 40%, rgba(140, 100, 255, 0.28), transparent 70%),
-    radial-gradient(ellipse 40% 55% at 50% 80%, rgba(255, 200, 80, 0.12), transparent 70%);
+    radial-gradient(ellipse 55% 70% at 30% 50%, var(--aurora-a), transparent 70%),
+    radial-gradient(ellipse 50% 70% at 72% 40%, var(--aurora-b), transparent 70%),
+    radial-gradient(ellipse 40% 55% at 50% 80%, var(--aurora-c), transparent 70%);
   filter: blur(20px);
   pointer-events: none;
 }
+html[data-aurora="0"] .composer-dock::before { opacity: 0; }
 .chat-empty .composer-dock {
   position: relative; z-index: auto; bottom: auto; margin: var(--s-3) auto var(--s-10);
 }
@@ -2233,6 +2241,60 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
 .ctx-divider span { flex: none; }
 .ctx-meter { font-size: 12px; color: var(--ink-soft); }
 .ctx-meter-high { color: var(--danger); }
+
+/* ---- 设置 · 偏好皮肤 ---- */
+.pref-pane { display: flex; flex-direction: column; gap: var(--s-5); min-height: 0; }
+.pref-hint { margin: 0; max-width: 42em; }
+.pref-section { display: flex; flex-direction: column; gap: var(--s-3); }
+.pref-h {
+  margin: 0; font-size: var(--t-caption); font-weight: var(--w-semi);
+  color: var(--ink-mute); letter-spacing: var(--ls-caps); text-transform: uppercase;
+}
+.pref-mode-row { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.pref-mode-btn {
+  appearance: none; border: 1px solid var(--sand-deep); background: var(--paper);
+  color: var(--ink-soft); font: inherit; font-size: var(--t-body-sm);
+  padding: 8px 14px; border-radius: var(--radius-md); cursor: pointer;
+}
+.pref-mode-btn:hover { border-color: var(--ink-faint); color: var(--ink); }
+.pref-mode-btn.is-active {
+  border-color: var(--ember); color: var(--ink); background: var(--ember-tint);
+}
+.pref-skin-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: var(--s-3);
+}
+.pref-skin-card {
+  position: relative; display: flex; flex-direction: column; gap: 8px;
+  padding: 8px; border: 1px solid var(--sand); border-radius: var(--radius-lg);
+  background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+}
+.pref-skin-card:hover { border-color: var(--sand-deep); }
+.pref-skin-card.is-active {
+  border-color: var(--ember);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ember) 50%, transparent);
+}
+.pref-skin-swatch {
+  display: block; height: 72px; border-radius: var(--radius-md);
+  border: 1px solid var(--sand);
+}
+.pref-skin-name { font-size: var(--t-body-sm); font-weight: var(--w-medium); }
+.pref-skin-badge {
+  font-size: 10px; color: var(--ink-mute); letter-spacing: 0.04em;
+}
+.pref-skin-check {
+  position: absolute; top: 12px; right: 12px;
+  width: 22px; height: 22px; border-radius: 999px;
+  display: grid; place-items: center;
+  background: var(--ember); color: var(--surface-canvas); font-size: 12px; font-weight: 700;
+}
+.pref-slider {
+  display: flex; align-items: center; gap: var(--s-3);
+}
+.pref-slider input[type='range'] { flex: 1; min-width: 0; accent-color: var(--ember); }
+.pref-slider-label {
+  flex: none; min-width: 3.5em; font-size: var(--t-caption); color: var(--ink-mute);
+  font-variant-numeric: tabular-nums;
+}
 
 /* ---- 滚动诊断 HUD(桌面无控制台;⌃⌥⇧S) ---- */
 .scroll-debug-hud {

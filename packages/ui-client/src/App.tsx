@@ -36,6 +36,7 @@ import { ManageSkillsDialog } from './components/ManageSkillsDialog'
 import { filterComposerFiles } from './composerAccept'
 import { SearchModal } from './components/SearchModal'
 import { SettingsModal } from './components/SettingsModal'
+import { useAppearance } from './appearance'
 import { ArrowDownIcon, CheckIcon, CopyIcon, PanelIcon, RailIcon } from './components/icons'
 import { UtilityRail } from './components/UtilityRail'
 import { ReaderPane } from './components/ReaderPane'
@@ -82,6 +83,7 @@ export function App() {
 
 function AppInner() {
   const toast = useKumoToastManager()
+  const { state: appearance, setAppearance } = useAppearance()
   const client = useMemo(() => new AgentClient(SERVICE_URL, SERVICE_TOKEN), [])
   const [connected, setConnected] = useState(false)
   // 连接生命周期:断线必须把 connected 打回 false 并自动重连——否则 UI 假在线,send 静默失败。
@@ -1140,6 +1142,8 @@ function AppInner() {
           activeProfileId={selectedProfileId}
           onChanged={refreshModel}
           onClose={() => { setSettingsOpen(false); refreshModel() }}
+          appearance={appearance}
+          onAppearanceChange={setAppearance}
         />
       )}
       {/* 桌面无浏览器控制台:⌃⌥⇧S 开滚动诊断,复制日志贴聊天 */}

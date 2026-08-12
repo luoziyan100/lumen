@@ -17,8 +17,10 @@ import {
   type LaunchdStatus,
 } from '../ensureAgent'
 import { BackIcon, CloseIcon, MinusIcon, PlayIcon, PlusIcon, TrashIcon } from './icons'
+import { PreferencePane } from './PreferencePane'
+import type { AppearanceState } from '../appearance'
 
-type Pane = 'model' | 'prompt' | 'service'
+type Pane = 'model' | 'prompt' | 'preference' | 'service'
 type ModelView = 'list' | 'edit'
 
 type ProfileForm = {
@@ -54,6 +56,8 @@ export function SettingsModal({
   onClose,
   activeProfileId,
   onChanged,
+  appearance,
+  onAppearanceChange,
 }: {
   client: AgentClient
   onClose: () => void
@@ -61,6 +65,8 @@ export function SettingsModal({
   activeProfileId?: string | null
   /** 启用/删除后通知外层刷新芯片 */
   onChanged?: () => void
+  appearance?: AppearanceState
+  onAppearanceChange?: (partial: Partial<AppearanceState>) => void
 }) {
   const [pane, setPane] = useState<Pane>('model')
   const [view, setView] = useState<ModelView>('list')
@@ -204,6 +210,7 @@ export function SettingsModal({
           <div className="settings-nav-title">设置</div>
           <button className={`settings-nav-item ${pane === 'model' ? 'is-active' : ''}`} onClick={() => { setPane('model'); setView('list') }}>模型</button>
           <button className={`settings-nav-item ${pane === 'prompt' ? 'is-active' : ''}`} onClick={() => setPane('prompt')}>{SYSTEM_PROMPT_COPY.nav}</button>
+          <button className={`settings-nav-item ${pane === 'preference' ? 'is-active' : ''}`} onClick={() => setPane('preference')}>偏好</button>
           <button className={`settings-nav-item ${pane === 'service' ? 'is-active' : ''}`} onClick={() => setPane('service')}>{BACKGROUND_SERVICE_COPY.nav}</button>
         </nav>
 
@@ -391,6 +398,13 @@ export function SettingsModal({
                 <Button type="submit" variant="primary" size="sm">保存</Button>
               </div>
             </form>
+          )}
+
+          {pane === 'preference' && appearance && onAppearanceChange && (
+            <PreferencePane state={appearance} onChange={onAppearanceChange} />
+          )}
+          {pane === 'preference' && (!appearance || !onAppearanceChange) && (
+            <p className="set-hint">外观偏好不可用</p>
           )}
 
           {pane === 'service' && (

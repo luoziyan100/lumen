@@ -28,6 +28,21 @@
   --sand:         rgba(255, 255, 255, 0.06);
   --sand-deep:    rgba(255, 255, 255, 0.14);
 
+  /* ---- 实色伴生(Kumo Solid 槽;doc/appearance-skin.md R4/R5)---- */
+  --surface-canvas:      var(--canvas);
+  --surface-base:        #14161C;
+  --surface-elevated:    #1E212A;
+  --surface-recessed:    #101218;
+  --surface-control:     #1A1D26;
+  --surface-fill:        #252833;
+  --surface-fill-hover:  #2E323E;
+  --surface-interact:    #2A2F3C;
+
+  /* ---- 皮肤背景层(applyTheme 写入)---- */
+  --skin-bg-image: none;
+  --skin-overlay: 0.42;
+  --skin-blur: 0px;
+
   /* ---- 墨色(浅字压暗底)---- */
   --ink:          #E8EAEE;
   --ink-soft:     rgba(232, 234, 238, 0.82);
@@ -96,6 +111,11 @@
   --beam-a: #5EF0D0;
   --beam-b: #A78BFA;
   --beam-c: #FDE68A;
+
+  /* ---- 画布 aurora 色(装饰面变量化 D8)---- */
+  --aurora-a: rgba(56, 210, 180, 0.18);
+  --aurora-b: rgba(140, 100, 255, 0.16);
+  --aurora-c: rgba(255, 200, 80, 0.09);
 
   /* ---- 动效 ---- */
   --dur-fast: 120ms; --dur-base: 180ms; --dur-slow: 280ms; --dur-reader: 400ms;

@@ -1,86 +1,84 @@
 /**
- * Kumo 青瓷主题(celadon)——Glass Beam 全窗实验映射(2026-08-04)
+ * Kumo 青瓷主题桥 —— 引用 Lumen 语义 / 实色伴生 token
+ * doc/appearance-skin.md D7/D15：禁止字面量烘焙主路径;Solid 槽走 --surface-*
  *
- * 实验分支 experiment/glass-ui:light-dark 两侧同为暗玻璃值,强制与 tokens.css 对齐。
- * 回退暖纸:还原本文件与 tokens.css 至 main。
- * 变量合同仍以 @cloudflare/kumo theme-kumo.css 为准;升级后跑 check:theme。
- *
- * 挂载:index.html <html data-theme="celadon">
+ * 挂载:index.html <html data-theme="celadon">（恒驻）
+ * 校验:npm run check:theme
  */
 
 @layer base {
   [data-theme="celadon"] {
-    /* ---- 表面 ---- */
-    --color-kumo-canvas:   light-dark(#0B0C10, #0B0C10);
-    --color-kumo-base:     light-dark(#14161C, #14161C);
-    --color-kumo-elevated: light-dark(#1E212A, #1E212A);
-    --color-kumo-recessed: light-dark(#101218, #101218);
-    --color-kumo-contrast: light-dark(#E8EAEE, #E8EAEE);
-    --color-kumo-control:  light-dark(#1A1D26, #1A1D26);
+    /* ---- 表面 Solid（R4）---- */
+    --color-kumo-canvas:   var(--surface-canvas);
+    --color-kumo-base:     var(--surface-base);
+    --color-kumo-elevated: var(--surface-elevated);
+    --color-kumo-recessed: var(--surface-recessed);
+    --color-kumo-contrast: var(--ink);
+    --color-kumo-control:  var(--surface-control);
 
-    /* ---- 填充与交互 ---- */
-    --color-kumo-fill:       light-dark(#252833, #252833);
-    --color-kumo-fill-hover: light-dark(#2E323E, #2E323E);
-    --color-kumo-tint:       light-dark(#1C2030, #1C2030);
-    --color-kumo-interact:   light-dark(#2A2F3C, #2A2F3C);
+    /* ---- 填充 Solid ---- */
+    --color-kumo-fill:       var(--surface-fill);
+    --color-kumo-fill-hover: var(--surface-fill-hover);
+    --color-kumo-tint:       var(--surface-base);
+    --color-kumo-interact:   var(--surface-interact);
 
-    /* ---- 线与焦点 ---- */
-    --color-kumo-hairline: light-dark(rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.10));
-    --color-kumo-line:     light-dark(rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.16));
-    --color-kumo-focus:    light-dark(rgba(120, 220, 200, 0.45), rgba(120, 220, 200, 0.45));
+    /* ---- 线与焦点 Tint ---- */
+    --color-kumo-hairline: var(--sand);
+    --color-kumo-line:     var(--sand-deep);
+    --color-kumo-focus:    var(--focus-ring);
 
-    /* ---- 品牌 ---- */
-    --color-kumo-brand:       light-dark(#6BC49A, #6BC49A);
-    --color-kumo-brand-hover: light-dark(#8AD4B0, #8AD4B0);
+    /* ---- 品牌 Solid ---- */
+    --color-kumo-brand:       var(--ember);
+    --color-kumo-brand-hover: var(--ember-soft);
 
     /* ---- 语义 ---- */
-    --color-kumo-danger:       light-dark(#E08A72, #E08A72);
-    --color-kumo-danger-tint:  light-dark(#3D231C, #3D231C);
-    --color-kumo-warning:      light-dark(#D4A94F, #D4A94F);
-    --color-kumo-warning-tint: light-dark(#3A2F17, #3A2F17);
-    --color-kumo-success:      light-dark(#7FCF9E, #7FCF9E);
-    --color-kumo-success-tint: light-dark(#1F3326, #1F3326);
-    --color-kumo-info:         light-dark(#8FB8CE, #8FB8CE);
-    --color-kumo-info-tint:    light-dark(#1E2E36, #1E2E36);
+    --color-kumo-danger:       var(--danger);
+    --color-kumo-danger-tint:  var(--danger-bg);
+    --color-kumo-warning:      var(--warning);
+    --color-kumo-warning-tint: var(--warning-bg);
+    --color-kumo-success:      var(--success);
+    --color-kumo-success-tint: var(--success-bg);
+    --color-kumo-info:         var(--indigo);
+    --color-kumo-info-tint:    var(--indigo-tint);
 
-    /* ---- 遮罩与阴影 ---- */
-    --color-kumo-overlay:     light-dark(rgba(0, 0, 0, 0.52), rgba(0, 0, 0, 0.52));
-    --color-kumo-shadow-drop: light-dark(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45));
-    --color-kumo-shadow-edge: light-dark(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55));
-    --color-kumo-tip-shadow:  light-dark(rgba(0, 0, 0, 0.50), rgba(0, 0, 0, 0.50));
-    --color-kumo-tip-stroke:  light-dark(rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.16));
+    /* ---- 遮罩与阴影 Tint / 字面量(无 Lumen 对等)---- */
+    --color-kumo-overlay:     var(--scrim);
+    --color-kumo-shadow-drop: rgba(0, 0, 0, 0.45);
+    --color-kumo-shadow-edge: rgba(0, 0, 0, 0.55);
+    --color-kumo-tip-shadow:  rgba(0, 0, 0, 0.50);
+    --color-kumo-tip-stroke:  var(--sand-deep);
 
     /* ---- 横幅 ---- */
-    --color-kumo-banner-info:    light-dark(#20303A, #20303A);
-    --color-kumo-banner-warning: light-dark(#3A2F17, #3A2F17);
+    --color-kumo-banner-info:    var(--indigo-tint);
+    --color-kumo-banner-warning: var(--warning-bg);
 
-    /* ---- 徽章 ---- */
-    --color-kumo-badge-blue:     light-dark(#223440, #223440);
-    --color-kumo-badge-green:    light-dark(#21382A, #21382A);
-    --color-kumo-badge-red:      light-dark(#3D231C, #3D231C);
-    --color-kumo-badge-orange:   light-dark(#3A2F17, #3A2F17);
-    --color-kumo-badge-purple:   light-dark(#2E2838, #2E2838);
-    --color-kumo-badge-teal:     light-dark(#1F3733, #1F3733);
-    --color-kumo-badge-neutral:  light-dark(#2A303A, #2A303A);
-    --color-kumo-badge-inverted: light-dark(#E8EAEE, #E8EAEE);
+    /* ---- 徽章 literalAllowlist（无对应 Lumen 原语）---- */
+    --color-kumo-badge-blue:     #223440;
+    --color-kumo-badge-green:    #21382A;
+    --color-kumo-badge-red:      #3D231C;
+    --color-kumo-badge-orange:   #3A2F17;
+    --color-kumo-badge-purple:   #2E2838;
+    --color-kumo-badge-teal:     #1F3733;
+    --color-kumo-badge-neutral:  #2A303A;
+    --color-kumo-badge-inverted: var(--ink);
 
-    /* ---- 文字 ---- */
-    --text-color-kumo-default:     light-dark(#E8EAEE, #E8EAEE);
-    --text-color-kumo-strong:      light-dark(#F4F6F8, #F4F6F8);
-    --text-color-kumo-subtle:      light-dark(#A7B0BC, #A7B0BC);
-    --text-color-kumo-placeholder: light-dark(#7E8896, #7E8896);
-    --text-color-kumo-inactive:    light-dark(#576070, #576070);
-    --text-color-kumo-inverse:     light-dark(#12141A, #12141A);
-    --text-color-kumo-brand:       light-dark(#8AD4B0, #8AD4B0);
-    --text-color-kumo-link:        light-dark(#9CC3D8, #9CC3D8);
-    --text-color-kumo-info:        light-dark(#9CC3D8, #9CC3D8);
-    --text-color-kumo-success:     light-dark(#A2CCB1, #A2CCB1);
-    --text-color-kumo-warning:     light-dark(#DDB868, #DDB868);
-    --text-color-kumo-danger:      light-dark(#E89880, #E89880);
+    /* ---- 文字 Ink ---- */
+    --text-color-kumo-default:     var(--ink);
+    --text-color-kumo-strong:      var(--ink);
+    --text-color-kumo-subtle:      var(--ink-mute);
+    --text-color-kumo-placeholder: var(--ink-faint);
+    --text-color-kumo-inactive:    var(--ink-faint);
+    --text-color-kumo-inverse:     var(--surface-canvas);
+    --text-color-kumo-brand:       var(--ember-soft);
+    --text-color-kumo-link:        var(--indigo);
+    --text-color-kumo-info:        var(--indigo);
+    --text-color-kumo-success:     var(--moss);
+    --text-color-kumo-warning:     var(--warning);
+    --text-color-kumo-danger:      var(--danger);
 
-    --text-color-kumo-badge-inverted:       light-dark(#12141A, #12141A);
-    --text-color-kumo-badge-neutral-subtle: light-dark(#A7B0BC, #A7B0BC);
-    --text-color-kumo-badge-orange-subtle:  light-dark(#DDB868, #DDB868);
-    --text-color-kumo-badge-teal-subtle:    light-dark(#9CC8BF, #9CC8BF);
+    --text-color-kumo-badge-inverted:       var(--surface-canvas);
+    --text-color-kumo-badge-neutral-subtle: var(--ink-mute);
+    --text-color-kumo-badge-orange-subtle:  var(--warning);
+    --text-color-kumo-badge-teal-subtle:    var(--moss);
   }
 }
