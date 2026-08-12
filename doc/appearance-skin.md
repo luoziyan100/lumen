@@ -197,7 +197,7 @@ PreferencePane → store → resolveTheme(state)
 
 | 伴生 token（新 · 原语 · 可被皮肤 patch） | default 值（= 今日 Kumo） | 色相应对的玻璃 token（仅文档关联，非自动） |
 |------------------------------------------|---------------------------|-----------------------------------------------|
-| `--surface-canvas` | `#0B0C10` | `--canvas`（已是实色） |
+| `--surface-canvas` | `#0B0C10` | 见 **R5**：与 `--canvas` **合同恒等** |
 | `--surface-base` | `#14161C` | `--paper-solid` 的实色 peer |
 | `--surface-elevated` | `#1E212A` | `--card` peer |
 | `--surface-recessed` | `#101218` | `--paper-deep` peer |
@@ -205,6 +205,16 @@ PreferencePane → store → resolveTheme(state)
 | `--surface-fill` | `#252833` | **不要**用 `--vellum`（9% 白） |
 | `--surface-fill-hover` | `#2E323E` | fill hover |
 | `--surface-interact` | `#2A2F3C` | interact |
+
+**R5 · `--canvas` ↔ `--surface-canvas`（写死）**
+
+| 规则 | 内容 |
+|------|------|
+| 合同 | Phase A 起二者 **语义恒等**：同一画布实色。default 均为 `#0B0C10`。 |
+| 桥 | `--color-kumo-canvas: var(--surface-canvas)`（**只引伴生键**，不写「或 var(--canvas)」双路径）。 |
+| 基线 | `tokens.css` 中推荐 `--surface-canvas: var(--canvas)` **或** 二者同字面量；若用 alias，则 `--canvas` 为原语、`--surface-canvas` 为别名——**此时 surface-canvas 按 §6.2.1 别名纪律：皮肤 patch 只动 `--canvas`，伴生跟随**。 |
+| 变更 | 任一皮肤/基线改画布色：**必须同步**（patch 原语或成对字面量）。禁止只改其一导致「壳底 / Kumo 画布」漂移。 |
+| 未来 | 若某皮肤要「带玻璃感的壳底」：只改 Lumen 另键（勿把 `--canvas` 改半透明），**不得**污染 `--surface-canvas` 的 Solid 不变量。 |
 
 皮肤若只改玻璃 `--card` 而忘改 `--surface-elevated`：Lumen 卡片氛围变、Kumo 面仍旧——**允许**（两层解耦）；推荐预置皮肤 **成对 patch** 玻璃+伴生。  
 **禁止**为省事把 Kumo elevated 接到 `var(--card)`。
@@ -215,7 +225,7 @@ PreferencePane → store → resolveTheme(state)
 
 | Kumo 变量 | 引用 | 槽类型 |
 |-----------|------|--------|
-| `--color-kumo-canvas` | `var(--surface-canvas)` 或 `var(--canvas)` | Solid（canvas 已实色） |
+| `--color-kumo-canvas` | `var(--surface-canvas)` | Solid（R5：不引 `--canvas` 双路径） |
 | `--color-kumo-base` | `var(--surface-base)` | Solid |
 | `--color-kumo-elevated` | `var(--surface-elevated)` | Solid |
 | `--color-kumo-recessed` | `var(--surface-recessed)` | Solid |
@@ -228,15 +238,32 @@ PreferencePane → store → resolveTheme(state)
 | `--color-kumo-focus` | `var(--focus-ring)` | Tint |
 | `--color-kumo-brand` | `var(--ember)` | Solid（ember 为实色 hex） |
 | `--color-kumo-brand-hover` | `var(--ember-soft)` | Solid |
-| `--color-kumo-danger` 等 | `var(--danger)` / `var(--warning)` / `var(--success)` / `var(--indigo)` | Solid / 语义 |
+| `--color-kumo-danger` | `var(--danger)` | Solid |
+| `--color-kumo-warning` | `var(--warning)` | Solid |
+| `--color-kumo-success` | `var(--success)` | Solid · **R6：`--success` 是别名**（见下） |
+| `--color-kumo-info` | `var(--indigo)` | Solid |
 | `--color-kumo-overlay` | `var(--scrim)` | Tint |
 | `--text-color-kumo-default` | `var(--ink)` | Ink |
 | `--text-color-kumo-subtle` | `var(--ink-mute)` | Ink |
 | `--text-color-kumo-brand` | `var(--ember-soft)` | Ink |
 | badge 等多色 | literalAllowlist 字面量 | — |
 
+**R6 · 桥可引别名 ≠ 皮肤可 patch**
+
+- 桥写 `--color-kumo-success: var(--success)` **合法**：运行时 `success → moss` 级联，换肤 patch `--moss` 即可跟色。  
+- `--success` **仍不在**皮肤白名单（§6.2.1）。皮肤写 `tokens["--success"]` → resolve **丢弃**。  
+- 文档读者勿因桥表示例出现 `--success` 而将其当作可调原语。
+
 完整表落在 `theme-celadon.css`「桥」注释区。  
-`check:theme`：颜色合同变量须为 `var(--…)` **或** literalAllowlist；另维护 **solidSlotList**：列在 solid 的 Kumo 键 **禁止** 引用 `--paper`/`--card`/`--vellum`/`--paper-deep`/`--paper-solid`（半透明族）。
+
+**check:theme 合同（D7 + R4 + R7）**
+
+| 规则 | 内容 |
+|------|------|
+| 名齐全 | 覆盖 Kumo 颜色合同变量（字号 exempt 照旧） |
+| 引用或字面量 | 值匹配 `var(--…)` **或** 落在 `literalAllowlist` |
+| solidSlotList | Solid 槽 Kumo 键 **禁止** 引用玻璃半透明族：`--paper`/`--card`/`--vellum`/`--paper-deep`/`--paper-solid` |
+| **R7 · 白名单完备** | 皮肤 `AppearanceTokenName` 白名单 **必须包含全部** `--surface-*` 伴生键（与 solid 源一致）；缺键 = check 失败。Phase C `tokens.json` 校验 **复用同一白名单常量**（单源，禁止两套列表漂移） |
 
 **不采纳 F1-(b)**。
 
@@ -486,7 +513,10 @@ export interface ResolvedTheme {
 - [ ] **Q8** badge 多色 Kumo 键：literalAllowlist 字面量中性（默认）？  
 - [x] **Q9 · R1** D12 禁止 light 写宿主 color-scheme（已写入 §6.4）  
 - [x] **Q10 · R3** 原语/别名边界（已写入 §6.2.1）  
-- [x] **Q11 · R4** Solid 伴生 token + 桥禁玻璃半透明（已写入 §5.4.1 / D15）  
+- [x] **Q11 · R4** Solid 伴生 token + 桥禁玻璃半透明（§5.4.1 / D15）  
+- [x] **Q12 · R5** `--canvas` ↔ `--surface-canvas` 合同恒等（§5.4.1）  
+- [x] **Q13 · R6** 桥可引 `--success` 别名；皮肤仍不可 patch（§5.4.2）  
+- [x] **Q14 · R7** 白名单必须含全部 `--surface-*`；与 solidSlot 同检（check 合同）  
 
 ---
 
@@ -507,6 +537,7 @@ export interface ResolvedTheme {
 13. **R2**：预置皮肤是否全 dark preferredScheme？  
 14. **R3**：别名表与白名单是否互斥、baseline 是否保留 var()？  
 15. **R4**：Solid 槽是否禁玻璃 token？伴生 `--surface-*` 与 AT9/AT2b alpha？  
+16. **R5–R7**：canvas 恒等、桥引别名注释、白名单含 surface 完备性？  
 
 ---
 
@@ -517,7 +548,8 @@ export interface ResolvedTheme {
 | 2026-08-12 | 初版提案 |
 | 2026-08-12 | **吸收外部源码审计 F1–F9**；附录 §14 |
 | 2026-08-12 | **二轮 R1–R3**；附录 §15 |
-| 2026-08-12 | **四轮 R4**：玻璃/实色分槽、`--surface-*` 伴生、桥 solidSlotList、AT2b alpha / AT9b；附录 §16；状态改为可实现评审 |
+| 2026-08-12 | **四轮 R4**：玻璃/实色分槽、`--surface-*`、AT9b；附录 §16；可实现评审 |
+| 2026-08-12 | **五轮 R5–R7**：canvas↔surface-canvas 恒等；桥引 success 别名注释；check 白名单完备；附录 §17 |
 
 ---
 
@@ -608,6 +640,23 @@ CSS `var(--success)` → `var(--moss)` 是**有意一层别名**，不是 apply 
 | 聊天区玻璃氛围 | `--card` / `--paper` / aurora / beam |
 | Kumo 按钮/菜单实色面 | **成对** `--surface-elevated` / `--surface-fill` / … |
 | 品牌色 | `--ember`（桥到 kumo-brand，实色） |
+| 成功语义色 | **`--moss`**（勿 patch `--success`；桥经 success 别名跟随） |
+| 画布 | **`--canvas`**（R5：surface-canvas 跟随或成对同步） |
+
+---
+
+## 17. 五轮审计响应（R5–R7 · 文档打磨）
+
+审计方：外部 AI；结论：R4 已干净闭环，**可进入实现评审**；R5–R7 不阻塞编码。  
+本仓决议：**全部采纳**，并入正文。
+
+| ID | 摘要 | **决议** |
+|----|------|----------|
+| **R5** | `surface-canvas` vs `canvas` 偶合等价 | **合同恒等**；桥只引 `surface-canvas`；变更须同步（§5.4.1） |
+| **R6** | 桥表示例出现 `--success` 别名易误解 | 注：**桥可引、皮肤不可 patch**（§5.4.2） |
+| **R7** | surface 进白名单与 solidSlot 双规则 | check：**白名单必须含全部 `--surface-*`**；与 Phase C 共用常量 |
+
+**实现评审放行条件（审计共识）**：F1→R4 合同闭环 + AT 可验；R5–R7 为防漂移注释；Q2/Q3/Q4/Q8 产品决策不挡 DEV。
 
 ---
 
@@ -624,6 +673,8 @@ CSS `var(--success)` → `var(--moss)` 是**有意一层别名**，不是 apply 
 | **皮肤 patch `--success` 字面量** | **切断 moss 别名（R3）** |
 | **预置 light 角标 + dark 基线** | **空头 UI（R2）** |
 | **`kumo-fill: var(--vellum)` 等玻璃→实色槽** | **控件变透、AT9 挂（R4）** |
+| **只改 `--canvas` 不改/不同步 surface-canvas** | **壳底与 Kumo 画布漂移（R5）** |
+| **误以为桥里的 `--success` 可皮肤 patch** | **静默丢弃或双义（R6）** |
 
 ## 附录 B · 参考
 
