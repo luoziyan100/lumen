@@ -85,14 +85,16 @@ describe('resolveTheme', () => {
     assert.notEqual(c.tokens['--card'], m.tokens['--card'])
   })
 
-  it('宇宙拿铁：半透明白霜玻璃 + 冷色辅色（非咖啡黄）', () => {
+  it('宇宙拿铁：半透明白霜 + canvas 非死黑（与玻璃统一）', () => {
     const r = resolveTheme({ ...DEFAULT_APPEARANCE, skinId: 'cosmic-latte' }, 'dark')
     assert.equal(r.skinId, 'cosmic-latte')
     assert.match(r.tokens['--card'] ?? '', /255,\s*255,\s*255/)
     assert.match(r.tokens['--paper'] ?? '', /255,\s*255,\s*255/)
     assert.equal(r.tokens['--indigo'], '#3b82f6')
-    // 强调不为琥珀黄
     assert.notEqual(r.tokens['--ember']?.toLowerCase(), '#f59e0b')
+    // canvas 抬到冷雾灰蓝，不再是 #0B0C10 死黑
+    assert.notEqual((r.tokens['--canvas'] ?? '').toLowerCase(), '#0b0c10')
+    assert.notEqual((r.tokens['--canvas'] ?? '').toLowerCase(), '#0c1018')
   })
 })
 

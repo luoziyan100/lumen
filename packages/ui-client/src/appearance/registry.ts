@@ -215,27 +215,27 @@ export const SKIN_COSMIC_LATTE: SkinDefinition = {
   preferredScheme: 'dark',
   backgroundImage: null,
   tokens: t({
-    // 冷深底（雾林夜色，让白玻璃可读）
-    '--canvas': '#0c1018',
-    // 半透明白 / 极淡霜——对齐试样 0.08 量级，略抬一点保证侧栏可辨
-    '--paper': 'rgba(255, 255, 255, 0.07)',
-    '--paper-solid': 'rgba(18, 22, 30, 0.88)',
-    '--paper-deep': 'rgba(12, 16, 24, 0.92)',
-    '--vellum': 'rgba(255, 255, 255, 0.06)',
-    // 卡片 = 试样 glass：几乎透明的白
-    '--card': 'rgba(255, 255, 255, 0.08)',
-    '--sand': 'rgba(255, 255, 255, 0.10)',
-    '--sand-deep': 'rgba(255, 255, 255, 0.18)',
-    '--scrim': 'rgba(0, 0, 0, 0.48)',
-    // 浅字压深底
-    '--ink': '#F0F2F5',
-    '--ink-soft': 'rgba(240, 242, 245, 0.86)',
-    '--ink-mute': 'rgba(200, 206, 214, 0.58)',
-    '--ink-faint': 'rgba(180, 188, 200, 0.38)',
-    // 辅色：试样蓝 #3b82f6；强调用冷白蓝而非琥珀黄
-    '--ember': '#7EB6FF',
-    '--ember-soft': '#A8CFFF',
-    '--ember-tint': 'rgba(126, 182, 255, 0.12)',
+    /*
+     * canvas 与玻璃统一：不再是「死黑墙」。
+     * 基色抬到冷雾蓝灰，aurora 叠白雾——白玻璃才有景可透。
+     */
+    '--canvas': '#1a2332',
+    // 半透明白霜（试样量级）
+    '--paper': 'rgba(255, 255, 255, 0.08)',
+    '--paper-solid': 'rgba(28, 36, 48, 0.72)',
+    '--paper-deep': 'rgba(22, 30, 42, 0.78)',
+    '--vellum': 'rgba(255, 255, 255, 0.07)',
+    '--card': 'rgba(255, 255, 255, 0.09)',
+    '--sand': 'rgba(255, 255, 255, 0.11)',
+    '--sand-deep': 'rgba(255, 255, 255, 0.20)',
+    '--scrim': 'rgba(8, 12, 20, 0.42)',
+    '--ink': '#F2F4F8',
+    '--ink-soft': 'rgba(242, 244, 248, 0.88)',
+    '--ink-mute': 'rgba(200, 208, 220, 0.62)',
+    '--ink-faint': 'rgba(180, 190, 205, 0.40)',
+    '--ember': '#8EC0FF',
+    '--ember-soft': '#B8D8FF',
+    '--ember-tint': 'rgba(142, 192, 255, 0.14)',
     '--moss': '#8AB4A8',
     '--moss-tint': 'rgba(138, 180, 168, 0.12)',
     '--indigo': '#3b82f6',
@@ -246,24 +246,23 @@ export const SKIN_COSMIC_LATTE: SkinDefinition = {
     '--danger': '#e08878',
     '--danger-bg': 'rgba(224, 136, 120, 0.12)',
     '--danger-line': 'rgba(224, 136, 120, 0.34)',
-    '--beam-a': 'rgba(255, 255, 255, 0.55)',
-    '--beam-b': 'rgba(126, 182, 255, 0.45)',
-    '--beam-c': 'rgba(180, 190, 210, 0.40)',
-    // 极淡星云：白雾 + 一点冷蓝，不要琥珀
-    '--aurora-a': 'rgba(255, 255, 255, 0.06)',
-    '--aurora-b': 'rgba(120, 160, 220, 0.08)',
-    '--aurora-c': 'rgba(80, 100, 140, 0.10)',
+    '--beam-a': 'rgba(255, 255, 255, 0.50)',
+    '--beam-b': 'rgba(140, 190, 255, 0.42)',
+    '--beam-c': 'rgba(200, 210, 230, 0.38)',
+    // 雾层：白 + 冷蓝（给 glass 当「景」）
+    '--aurora-a': 'rgba(255, 255, 255, 0.14)',
+    '--aurora-b': 'rgba(160, 190, 230, 0.16)',
+    '--aurora-c': 'rgba(90, 120, 170, 0.18)',
     '--code-string': '#a8c4e0',
     '--code-type': '#90b8c8',
     '--code-attr': '#b0b8c4',
-    // 实色：冷灰蓝（Kumo 仍要实心）
-    '--surface-base': '#141a24',
-    '--surface-elevated': '#1c2430',
-    '--surface-recessed': '#0e1218',
-    '--surface-control': '#181e28',
-    '--surface-fill': '#242c38',
-    '--surface-fill-hover': '#303848',
-    '--surface-interact': '#2a3240',
+    '--surface-base': '#1e2838',
+    '--surface-elevated': '#283448',
+    '--surface-recessed': '#161e2a',
+    '--surface-control': '#222c3c',
+    '--surface-fill': '#2e3a4c',
+    '--surface-fill-hover': '#3a4860',
+    '--surface-interact': '#344258',
   }),
   effects: { aurora: true, overlay: 0, blurPx: 0 },
 }

@@ -27,22 +27,52 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
     radial-gradient(ellipse 42% 32% at 48% 92%, var(--aurora-c), transparent 58%);
 }
 /*
- * 拿铁底:需要「可透出的结构」,白玻璃才读得出 frosted。
- * 纯实心黑 + 0.08 白 = 仍像灰黑;用冷雾层次模拟参考图的景深。
+ * 宇宙拿铁：canvas 与玻璃统一成「冷雾景」
+ * —— 不再单独留一层死黑墙；底 = 雾蓝灰渐变 + 白雾 aurora，
+ *    侧栏/标题/正文玻璃都叠在同一景上。
  */
 html[data-skin="cosmic-latte"] .app {
-  background-color: #0a0e14;
+  background-color: var(--canvas);
   background-image:
-    radial-gradient(ellipse 90% 70% at 20% 15%, rgba(140, 160, 190, 0.22), transparent 55%),
-    radial-gradient(ellipse 70% 55% at 85% 40%, rgba(80, 100, 140, 0.28), transparent 50%),
-    radial-gradient(ellipse 100% 80% at 50% 100%, rgba(40, 50, 70, 0.55), transparent 45%),
-    linear-gradient(180deg, #121820 0%, #0a0e14 45%, #080c12 100%);
+    radial-gradient(ellipse 100% 80% at 15% 10%, rgba(210, 225, 245, 0.20), transparent 50%),
+    radial-gradient(ellipse 80% 70% at 90% 35%, rgba(120, 150, 200, 0.22), transparent 52%),
+    radial-gradient(ellipse 90% 60% at 50% 95%, rgba(60, 80, 120, 0.35), transparent 48%),
+    radial-gradient(ellipse 50% 40% at 60% 55%, rgba(255, 255, 255, 0.06), transparent 70%),
+    linear-gradient(165deg, #2a3548 0%, #1a2332 42%, #141c28 100%);
 }
 html[data-skin="cosmic-latte"] .app::before {
+  /* 整窗再铺一层极淡白雾，与侧栏/气泡同一材质语言 */
   background:
-    radial-gradient(ellipse 80% 60% at 30% 20%, rgba(200, 215, 235, 0.08), transparent 55%),
-    radial-gradient(ellipse 60% 50% at 75% 70%, rgba(100, 120, 160, 0.10), transparent 60%),
-    radial-gradient(ellipse 50% 40% at 50% 100%, rgba(255, 255, 255, 0.04), transparent 50%);
+    radial-gradient(ellipse 70% 55% at 30% 25%, var(--aurora-a), transparent 58%),
+    radial-gradient(ellipse 55% 50% at 78% 65%, var(--aurora-b), transparent 55%),
+    radial-gradient(ellipse 45% 40% at 50% 90%, var(--aurora-c), transparent 50%);
+  /* 轻 blur 让底景发虚，贴近 frosted 背后的雾 */
+  filter: blur(0px);
+}
+html[data-skin="cosmic-latte"] html,
+html[data-skin="cosmic-latte"] body {
+  background: var(--canvas);
+}
+/* 对话舞台：与 canvas 连续，不再是「中间一块纯黑」 */
+html[data-skin="cosmic-latte"] .chat,
+html[data-skin="cosmic-latte"] .chat-stage,
+html[data-skin="cosmic-latte"] .messages {
+  background: transparent;
+}
+html[data-skin="cosmic-latte"] .chat-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  /* 对话区统一铺一层极低可见度白霜，和侧栏/气泡同族 */
+  background: rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(24px) saturate(1.05);
+  -webkit-backdrop-filter: blur(24px) saturate(1.05);
+}
+html[data-skin="cosmic-latte"] .chat-stage > * {
+  position: relative;
+  z-index: 1;
 }
 html[data-aurora="0"] .app::before {
   background: linear-gradient(rgba(0, 0, 0, var(--skin-overlay)), rgba(0, 0, 0, var(--skin-overlay)));
@@ -98,21 +128,25 @@ html[data-aurora="0"] .app::before {
     inset 0 0 90px color-mix(in srgb, var(--ember) 6%, transparent),
     inset 0 0 3px 1px rgba(255, 255, 255, 0.14);
 }
-/* Cosmic Latte：试样式半透明白 + 强 blur、低饱和（对齐参考实拍） */
+/* 侧栏/标题：与 canvas 雾景统一的白霜玻璃（同一材质） */
 html[data-skin="cosmic-latte"] .glass-card,
 html[data-skin="cosmic-latte"] .sidebar,
 html[data-skin="cosmic-latte"] .titlebar {
   background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(20px) saturate(1.05);
-  -webkit-backdrop-filter: blur(20px) saturate(1.05);
-  border-color: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(22px) saturate(1.08);
+  -webkit-backdrop-filter: blur(22px) saturate(1.08);
+  border-color: rgba(255, 255, 255, 0.16);
   box-shadow:
-    4px 4px 24px 0 rgba(0, 0, 0, 0.22),
-    inset 0 0 120px rgba(255, 255, 255, 0.04),
-    inset 0 0 4px 1px rgba(255, 255, 255, 0.12);
+    0 8px 32px -16px rgba(0, 0, 0, 0.28),
+    inset 0 0 100px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 html[data-skin="cosmic-latte"] .sidebar {
+  background: rgba(255, 255, 255, 0.07);
+}
+html[data-skin="cosmic-latte"] .titlebar {
   background: rgba(255, 255, 255, 0.06);
+  border-bottom-color: rgba(255, 255, 255, 0.10);
 }
 .glass-card::before {
   content: '';
