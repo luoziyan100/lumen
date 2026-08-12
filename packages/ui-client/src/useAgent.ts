@@ -7,7 +7,8 @@
  *        todo_write 仍进用户面;ask_user→pendingAsk;model_retry→Retry n/m;上传知情 chip
  *        终态 sealOpenTodos:reply/done 等收口未勾 Todo(HDD:假 in_progress,见 doc/todo.md)
  *        Thought 顺序:本 turn 内插在答案气泡之前(防 text_delta 先占坑导致 Thought 沉底);
- *        同 turn 多段 reasoning 收成一块(子代理 hop 不得堆「Thought process × N」)
+ *        同 turn 多段 reasoning 收成一块(子代理 hop 不得堆「Thought process × N」);
+ *        检索/抓取 URL 收成 ChatMsg.sources,答末 Sources 列表,正文「来源（节选）」剥掉
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * user 也走事件流,不在前端乐观插入。taskId 按项目键存 localStorage。
@@ -16,6 +17,14 @@
 import { useEffect, useRef, useState } from 'react'
 import type { AgentClient, AnswerUserPayload, ImageData, TaskEvent, UploadRef } from './agent-client'
 import { pathFromToolArgs } from './activePath.ts'
+import {
+  mergeSources,
+  extractSourceSection,
+  sourcesFromTool,
+  urlFromToolArgs,
+  titleFromUrl,
+  type SourceCite,
+} from './sourceCite.ts'
 
 export interface ChatMsg {
   kind: 'msg'
@@ -32,6 +41,8 @@ export interface ChatMsg {
    * tool 出现或 model_step 带 tools 时折叠进 Thought；无工具定稿时清除。
    */
   provisional?: boolean
+  /** 本轮检索/抓取过的外链,答末 Sources 用 */
+  sources?: SourceCite[]
 }
 export interface ProcStep {
   id: string
@@ -47,6 +58,7 @@ export interface ProcessItem {
   steps: ProcStep[]
   running: boolean
   startedAt?: string
+  sources?: SourceCite[]
 }
 /** Claude 档：折叠的思考过程（reasoningContent）;同 turn 至多一块 */
 export interface ThoughtItem {
@@ -472,7 +484,8 @@ export function sealOpenTodos(items: ChatItem[]): ChatItem[] {
 
 /** 终局组合:卸过程 + 收 Thought + 收口 Todo */
 function sealTurnEnd(items: ChatItem[], at?: string): ChatItem[] {
-  return sealOpenTodos(markThoughtsDone(stripProcessItems(finalizeProvisional(items)), at))
+  const finalized = finalizeProvisional(items)
+  return sealOpenTodos(markThoughtsDone(stripProcessItems(finalized), at))
 }
 
 function markThoughtsDone(prev: ChatItem[], at?: string): ChatItem[] {
@@ -636,7 +649,8 @@ function demoteProvisionalAssistantToThought(prev: ChatItem[], eventId: string):
 /** 终局：过程块从用户面消失（非折叠，而是整块卸下） */
 function stripProcessItems(prev: ChatItem[]): ChatItem[] {
   if (!prev.some((it) => it.kind === 'process')) return prev
-  return prev.filter((it) => it.kind !== 'process')
+  const sources = collectTurnSources(prev)
+  return decorateLastAssistant(prev.filter((it) => it.kind !== 'process'), sources)
 }
 
 /**
@@ -662,7 +676,7 @@ function findTurnProcessIndex(prev: ChatItem[]): number {
  * 追加/复活本 turn 唯一过程块：running=false 后新工具仍续写，不 new 第二张卡。
  * 更新后把块挪到列表末尾，贴近「思考中」与当前焦点。
  */
-function appendProcessStep(prev: ChatItem[], step: ProcStep, at?: string): ChatItem[] {
+function appendProcessStep(prev: ChatItem[], step: ProcStep, at?: string, extraSources?: SourceCite[]): ChatItem[] {
   const idx = findTurnProcessIndex(prev)
   if (idx < 0) {
     return [...prev, {
@@ -671,14 +685,51 @@ function appendProcessStep(prev: ChatItem[], step: ProcStep, at?: string): ChatI
       steps: [step],
       running: true,
       startedAt: at,
+      ...(extraSources?.length ? { sources: extraSources } : {}),
     }]
   }
   const proc = prev[idx] as ProcessItem
   const steps = proc.steps.some((s) => s.id === step.id)
     ? proc.steps.map((s) => (s.id === step.id ? { ...s, ...step, done: false } : s))
     : [...proc.steps, step]
+  const sources = extraSources?.length ? mergeSources(proc.sources ?? [], extraSources) : proc.sources
   const without = prev.filter((_, i) => i !== idx)
-  return [...without, { ...proc, steps, running: true, startedAt: proc.startedAt ?? at }]
+  return [...without, { ...proc, steps, running: true, startedAt: proc.startedAt ?? at, ...(sources?.length ? { sources } : {}) }]
+}
+
+function collectTurnSources(prev: ChatItem[]): SourceCite[] {
+  const idx = findTurnProcessIndex(prev)
+  if (idx < 0) return []
+  const proc = prev[idx]
+  return proc?.kind === 'process' ? (proc.sources ?? []) : []
+}
+
+function finishAssistant(id: string, content: string, extra: SourceCite[] = []): ChatMsg {
+  const { body, sources: prose } = extractSourceSection(content)
+  const sources = mergeSources(extra, prose)
+  return {
+    kind: 'msg',
+    id,
+    role: 'assistant',
+    content: body,
+    ...(sources.length ? { sources } : {}),
+  }
+}
+
+function decorateLastAssistant(items: ChatItem[], extra: SourceCite[]): ChatItem[] {
+  if (!extra.length && !items.some((it) => it.kind === 'msg' && it.role === 'assistant')) return items
+  for (let i = items.length - 1; i >= 0; i -= 1) {
+    const it = items[i]
+    if (it?.kind === 'msg' && it.role === 'user') break
+    if (it?.kind === 'msg' && it.role === 'assistant') {
+      const next = finishAssistant(it.id, it.content, mergeSources(it.sources ?? [], extra))
+      if (next.content === it.content && (next.sources?.length ?? 0) === (it.sources?.length ?? 0)) return items
+      const out = items.slice()
+      out[i] = { ...it, content: next.content, ...(next.sources?.length ? { sources: next.sources } : {}) }
+      return out
+    }
+  }
+  return items
 }
 
 /**
@@ -766,6 +817,7 @@ function reduceUserFacingInner(prev: ChatItem[], event: TaskEvent, p: Record<str
       if (!content) return next
 
       // —— 终局：无工具定稿 —— 过程消失，只留 Thought + 答案
+      const toolSources = collectTurnSources(next)
       next = stripProcessItems(next)
 
       // thought 插入后下标可能变,须重扫 provisional
@@ -780,7 +832,8 @@ function reduceUserFacingInner(prev: ChatItem[], event: TaskEvent, p: Record<str
       if (streamingIdx >= 0) {
         const out = next.slice()
         if (content) {
-          out[streamingIdx] = { kind: 'msg', id: event.id, role: 'assistant', content }
+          const carried = out[streamingIdx]?.kind === 'msg' ? (out[streamingIdx] as ChatMsg).sources : undefined
+          out[streamingIdx] = finishAssistant(event.id, content, mergeSources(toolSources, carried ?? []))
           return markThoughtsDone(out, event.created_at)
         }
         out.splice(streamingIdx, 1)
@@ -795,7 +848,7 @@ function reduceUserFacingInner(prev: ChatItem[], event: TaskEvent, p: Record<str
         return markThoughtsDone(out, event.created_at)
       }
       if (content) {
-        return markThoughtsDone([...next, { kind: 'msg', id: event.id, role: 'assistant', content }], event.created_at)
+        return markThoughtsDone([...next, finishAssistant(event.id, content, toolSources)], event.created_at)
       }
       if (!reasoning) {
         return [...next, {
@@ -885,7 +938,9 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
       if (isTodoTool(name)) return prev // Todo 等完整 tool_call
       const id = String(p.id ?? event.id)
       const step: ProcStep = { id, name, done: false, label: `${verb(name)}…` }
-      return appendProcessStep(prev, step, event.created_at)
+      const fromUrl = urlFromToolArgs(p.args ?? p)
+      const extra = fromUrl ? [{ url: fromUrl, title: titleFromUrl(fromUrl) }] : []
+      return appendProcessStep(prev, step, event.created_at, extra)
     }
     case 'model_step': {
       const content = typeof p.content === 'string' ? p.content.trim() : ''
@@ -943,7 +998,9 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
         label: `${verb(name)}…`,
         ...(path ? { path } : {}),
       }
-      return appendProcessStep(prev, step, event.created_at)
+      const fromUrl = urlFromToolArgs(p.args)
+      const extra = fromUrl ? [{ url: fromUrl, title: titleFromUrl(fromUrl) }] : []
+      return appendProcessStep(prev, step, event.created_at, extra)
     }
     case 'tool_result': {
       const name = String(p.name ?? '')
@@ -960,14 +1017,17 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
         if (s?.path) { fallbackPath = s.path; break }
       }
       const path = payloadPath ?? fallbackPath
-      const label = summarize(name, typeof p.llmContent === 'string' ? p.llmContent : '', path)
+      const llm = typeof p.llmContent === 'string' ? p.llmContent : ''
+      const label = summarize(name, llm, path)
+      const extra = sourcesFromTool(name, p.args, llm)
       return prev.map((it) => {
         if (it.kind !== 'process') return it
         const steps = it.steps.map((s) => (s.id === id
           ? { ...s, done: true, label, ...(path ? { path } : {}) }
           : s))
+        const sources = extra.length ? mergeSources(it.sources ?? [], extra) : it.sources
         // 全部完成 → running=false：球冻结 + 让出「思考中」指示（避免假 running 堵死动效）
-        return { ...it, steps, running: steps.some((s) => !s.done) }
+        return { ...it, steps, running: steps.some((s) => !s.done), ...(sources?.length ? { sources } : {}) }
       })
     }
     case 'reply':

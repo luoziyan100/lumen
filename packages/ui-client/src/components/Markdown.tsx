@@ -13,6 +13,7 @@ import rehypeHighlight from 'rehype-highlight'
 import 'katex/dist/katex.min.css'
 import './hljs-celadon.css'
 import { MermaidBlock } from './MermaidBlock'
+import { useOpenExternal } from './ExternalLinkDialog'
 
 const REMARK_FULL = [remarkGfm, remarkMath]
 const REHYPE_FULL = [rehypeKatex, rehypeHighlight]
@@ -43,12 +44,30 @@ export function Markdown({
 }) {
   const remarkPlugins = deferMath ? REMARK_STREAM : REMARK_FULL
   const rehypePlugins = deferMath ? REHYPE_STREAM : REHYPE_FULL
+  const openExternal = useOpenExternal()
   return (
     <div className="md-body">
       <ReactMarkdown
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}
         components={{
+          a({ href, children, ...props }) {
+            if (href && /^https?:\/\//i.test(href)) {
+              return (
+                <a
+                  {...props}
+                  href={href}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    openExternal(href)
+                  }}
+                >
+                  {children}
+                </a>
+              )
+            }
+            return <a {...props} href={href}>{children}</a>
+          },
           pre({ children, ...props }) {
             const kids = Children.toArray(children)
             const code = kids[0]

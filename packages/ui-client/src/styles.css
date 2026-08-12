@@ -2164,6 +2164,64 @@ html[data-skin="cosmic-latte"] .thought {
 .md-body li { margin: 0.3em 0; }
 .md-body a { color: var(--indigo); text-decoration: none; border-bottom: 1px solid rgba(58, 94, 112, 0.35); }
 .md-body a:hover { border-bottom-color: var(--indigo); }
+
+/* 答末来源:标题列表,不是裸 URL 段 */
+.source-list {
+  margin-top: 1.15em;
+  padding-top: 0.75em;
+  border-top: 1px solid var(--sand);
+  font-family: var(--font-sans);
+}
+.source-list-head {
+  font-size: var(--t-body-sm);
+  font-weight: var(--w-medium);
+  color: var(--ink-soft);
+  margin-bottom: 0.4em;
+}
+.source-list ul { list-style: disc; margin: 0; padding-left: 1.3em; }
+.source-list li { margin: 0.28em 0; line-height: 1.45; }
+.source-list-link {
+  border: none; background: none; padding: 0;
+  font: inherit; font-size: var(--t-body);
+  color: var(--indigo);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--indigo) 35%, transparent);
+  cursor: pointer; text-align: left;
+}
+.source-list-link:hover { border-bottom-color: var(--indigo); }
+.source-list-more {
+  margin-top: 0.35em; border: none; background: none; padding: 0;
+  font: inherit; font-size: var(--t-caption); color: var(--ink-mute); cursor: pointer;
+}
+.source-list-more:hover { color: var(--ink-soft); }
+
+.ext-link-modal {
+  width: min(440px, calc(100vw - 48px));
+  padding: 22px 22px 18px;
+  border-radius: var(--radius-xl);
+  background: var(--card);
+  border: 1px solid var(--sand-deep);
+  box-shadow: var(--shadow-3);
+  color: var(--ink);
+}
+.ext-link-title { margin: 0 0 8px; font-size: var(--t-display-sm); font-weight: var(--w-semi); }
+.ext-link-hint { margin: 0 0 8px; font-size: var(--t-body-sm); color: var(--ink-soft); }
+.ext-link-url {
+  padding: 10px 12px;
+  border: 1px solid var(--sand);
+  border-radius: var(--radius-md);
+  background: var(--paper-deep);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  word-break: break-all;
+  color: var(--ink);
+}
+.ext-link-remember {
+  display: flex; align-items: flex-start; gap: 8px;
+  margin: 14px 0 0; font-size: var(--t-body-sm); color: var(--ink-soft); cursor: pointer;
+}
+.ext-link-remember input { margin-top: 3px; }
+.ext-link-actions { display: flex; justify-content: flex-end; gap: var(--s-2); margin-top: 18px; }
 .md-body strong { font-weight: var(--w-semi); }
 .md-body code { font-family: var(--font-mono); font-size: 0.86em; background: var(--vellum); padding: 0.12em 0.4em; border-radius: var(--radius-sm); }
 .md-body pre { background: var(--paper-deep); border: 1px solid var(--sand); border-radius: var(--radius-md); padding: var(--s-4); overflow-x: auto; margin: 0.9em 0; }

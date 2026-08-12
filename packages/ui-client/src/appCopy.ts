@@ -135,6 +135,13 @@ export const APP_STATUS_COPY = {
   processTools: (n: number) => `${n} 个工具`,
   processMore: (n: number) => `+${n} 项更早`,
   processRecent: '只看最近',
+  sourcesHeading: 'Sources',
+  sourcesMore: (n: number) => `+${n} more`,
+  linkDialogTitle: '打开外部链接',
+  linkDialogHint: '将离开 Lumen 访问：',
+  linkDialogDontAsk: (host: string) => `不再询问 ${host} 的链接`,
+  linkDialogCancel: '取消',
+  linkDialogOpen: '打开链接',
 } as const
 
 /** Skills 斜杠 / Manage */

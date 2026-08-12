@@ -19,6 +19,8 @@
 - `StatusOrb.tsx` — 行内点云球:thinking-orbs **原生 size=20**(禁 64→CSS 缩,否则九态糊成虚线圈);支持 `paused` 冻帧
 - `ProcessRow.tsx` — 可折叠过程块(`CurtainFold` + 步骤 cascade);长轨迹只露最近 6 步;运行中 shimmer + 等宽计时;左侧 `StatusOrb` 按焦点工具态(`orbStateFromSteps`);与 ThinkingIndicator 的 breathing 分离
 - `ThoughtRow.tsx` — 同 turn 一条思考轨迹;运行中 shimmer「思考中」+ live 计时;收口只留 Thought process 摘要(不报秒)
+- `SourceList.tsx` — 答末来源标题列表;点开走 ExternalLinkGate
+- `ExternalLinkDialog.tsx` — Claude 式外链确认 + 按域名记住
 - `ThinkingIndicator.tsx` — 首 token 前等待:光圈 + shimmer + live 计时;有开放 Thought 时不叠
 - `TodoCard.tsx` — 会话 Todo 次要卡(`todo_write`→`kind:'todo'`);主呈现右轨 Progress(见 `doc/todo.md`)
 - `AskUserDialog.tsx` — `ask_user` 悬浮问询卡;多题 Claude 式一页一题 + `i of n` 切换;「其他」幽灵输入;见 `doc/ask-user.md`

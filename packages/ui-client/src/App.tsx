@@ -37,6 +37,9 @@ import { filterComposerFiles } from './composerAccept'
 import { SearchModal } from './components/SearchModal'
 import { SettingsModal } from './components/SettingsModal'
 import { useAppearance } from './appearance'
+import { extractSourceSection, mergeSources } from './sourceCite'
+import { ExternalLinkGate } from './components/ExternalLinkDialog'
+import { SourceList } from './components/SourceList'
 import { ArrowDownIcon, CheckIcon, CopyIcon, PanelIcon, RailIcon } from './components/icons'
 import { UtilityRail } from './components/UtilityRail'
 import { ReaderPane } from './components/ReaderPane'
@@ -75,7 +78,9 @@ export function App() {
   return (
     <Toasty>
       <TooltipProvider>
-        <AppInner />
+        <ExternalLinkGate>
+          <AppInner />
+        </ExternalLinkGate>
       </TooltipProvider>
     </Toasty>
   )
@@ -998,12 +1003,15 @@ function AppInner() {
                       </div>
                     )
                   }
+                  const peeled = extractSourceSection(it.content)
+                  const sources = mergeSources(it.sources ?? [], peeled.sources)
                   return (
                     <div key={it.id} id={msgAnchorId(it.id)} className="msg-group msg-group-assistant">
                       <div className="bubble bubble-assistant">
-                        <AssistantContent content={it.content} onSendMessage={(t) => { void send(t) }} />
+                        <AssistantContent content={peeled.body} onSendMessage={(t) => { void send(t) }} />
+                        {sources.length ? <SourceList sources={sources} /> : null}
                       </div>
-                      <div className="msg-actions">{copyBtn(it.id, it.content, '复制这条回答')}</div>
+                      <div className="msg-actions">{copyBtn(it.id, peeled.body, '复制这条回答')}</div>
                     </div>
                   )
                 }
