@@ -201,70 +201,71 @@ export const SKIN_CLAY: SkinDefinition = {
 }
 
 /**
- * Cosmic Latte — 来自 doc/skin/cosmic-latte.html 玻璃卡试样
- * 奶油半透玻璃 + 琥珀内光 + 咖啡阴影；辅色点缀 #3b82f6
+ * Cosmic Latte — doc/skin/cosmic-latte.html 的真实读法：
+ * 极低可见度半透明白/霜玻璃叠在深色底上（≈ rgba(255,255,255,0.06~0.10)），
+ * 不是咖啡黄整窗。试样 rgba(253,244,227,0.08) 只是极淡暖白，不能当 canvas 主色。
+ * 参考实拍：冷灰雾景上的 frosted glass + 蓝辅色。
  */
 export const SKIN_COSMIC_LATTE: SkinDefinition = {
   id: 'cosmic-latte',
   name: '宇宙拿铁',
-  description: 'Cosmic Latte：暖奶油玻璃 + 琥珀光晕（试样式）',
-  preview: 'linear-gradient(145deg, #1a120c 0%, #3d2a18 35%, #78716c 55%, #f59e0b 78%, #fdf4e3 100%)',
-  accents: ['#f59e0b', '#fdf4e3', '#3b82f6'],
+  description: '半透明白霜玻璃 · 极低可见度（试样原意）',
+  preview: 'linear-gradient(145deg, #0c1018 0%, #1a2230 40%, #3a4558 70%, #a8b0bc 100%)',
+  accents: ['#ffffff', '#94a3b8', '#3b82f6'],
   preferredScheme: 'dark',
   backgroundImage: null,
   tokens: t({
-    // 深咖啡宇宙底
-    '--canvas': '#1a120c',
-    // 试样卡：rgba(253,244,227,0.08) 抬到可读的玻璃纸面
-    '--paper': 'rgba(253, 244, 227, 0.10)',
-    '--paper-solid': 'rgba(40, 30, 22, 0.92)',
-    '--paper-deep': 'rgba(28, 20, 14, 0.95)',
-    '--vellum': 'rgba(253, 244, 227, 0.08)',
-    // 卡片 ≈ 试样 .glass-card
-    '--card': 'rgba(253, 244, 227, 0.10)',
-    '--sand': 'rgba(255, 255, 255, 0.12)',
-    '--sand-deep': 'rgba(255, 255, 255, 0.20)',
-    // 试样 shadow 主色 120,53,15
-    '--scrim': 'rgba(120, 53, 15, 0.45)',
-    '--ink': '#FDF8F0',
-    '--ink-soft': 'rgba(253, 248, 240, 0.88)',
-    '--ink-mute': 'rgba(230, 214, 190, 0.62)',
-    '--ink-faint': 'rgba(210, 190, 165, 0.40)',
-    // amber-500 #f59e0b（试样 inset glow）
-    '--ember': '#f59e0b',
-    '--ember-soft': '#fbbf24',
-    '--ember-tint': 'rgba(245, 158, 11, 0.12)',
-    '--moss': '#d4a574',
-    '--moss-tint': 'rgba(212, 165, 116, 0.14)',
-    // 试样头像描边蓝
+    // 冷深底（雾林夜色，让白玻璃可读）
+    '--canvas': '#0c1018',
+    // 半透明白 / 极淡霜——对齐试样 0.08 量级，略抬一点保证侧栏可辨
+    '--paper': 'rgba(255, 255, 255, 0.07)',
+    '--paper-solid': 'rgba(18, 22, 30, 0.88)',
+    '--paper-deep': 'rgba(12, 16, 24, 0.92)',
+    '--vellum': 'rgba(255, 255, 255, 0.06)',
+    // 卡片 = 试样 glass：几乎透明的白
+    '--card': 'rgba(255, 255, 255, 0.08)',
+    '--sand': 'rgba(255, 255, 255, 0.10)',
+    '--sand-deep': 'rgba(255, 255, 255, 0.18)',
+    '--scrim': 'rgba(0, 0, 0, 0.48)',
+    // 浅字压深底
+    '--ink': '#F0F2F5',
+    '--ink-soft': 'rgba(240, 242, 245, 0.86)',
+    '--ink-mute': 'rgba(200, 206, 214, 0.58)',
+    '--ink-faint': 'rgba(180, 188, 200, 0.38)',
+    // 辅色：试样蓝 #3b82f6；强调用冷白蓝而非琥珀黄
+    '--ember': '#7EB6FF',
+    '--ember-soft': '#A8CFFF',
+    '--ember-tint': 'rgba(126, 182, 255, 0.12)',
+    '--moss': '#8AB4A8',
+    '--moss-tint': 'rgba(138, 180, 168, 0.12)',
     '--indigo': '#3b82f6',
-    '--indigo-tint': 'rgba(59, 130, 246, 0.16)',
-    '--focus-ring': 'rgba(59, 130, 246, 0.40)',
-    '--warning': '#fbbf24',
-    '--warning-bg': 'rgba(251, 191, 36, 0.14)',
-    '--danger': '#e07a5f',
-    '--danger-bg': 'rgba(224, 122, 95, 0.12)',
-    '--danger-line': 'rgba(224, 122, 95, 0.36)',
-    '--beam-a': '#fbbf24',
-    '--beam-b': '#f59e0b',
-    '--beam-c': '#fde68a',
-    // 宇宙拿铁星云：奶油 + 琥珀 + 淡蓝
-    '--aurora-a': 'rgba(253, 244, 227, 0.14)',
-    '--aurora-b': 'rgba(245, 158, 11, 0.16)',
-    '--aurora-c': 'rgba(59, 130, 246, 0.10)',
-    '--code-string': '#f0c070',
-    '--code-type': '#d4a574',
-    '--code-attr': '#c4b8a8',
-    // 实色面：咖啡深棕（对齐试样阴影族）
-    '--surface-base': '#241810',
-    '--surface-elevated': '#322418',
-    '--surface-recessed': '#140e0a',
-    '--surface-control': '#2a1e14',
-    '--surface-fill': '#3a2c1c',
-    '--surface-fill-hover': '#4a3a28',
-    '--surface-interact': '#403224',
+    '--indigo-tint': 'rgba(59, 130, 246, 0.14)',
+    '--focus-ring': 'rgba(59, 130, 246, 0.42)',
+    '--warning': '#d4b060',
+    '--warning-bg': 'rgba(212, 176, 96, 0.12)',
+    '--danger': '#e08878',
+    '--danger-bg': 'rgba(224, 136, 120, 0.12)',
+    '--danger-line': 'rgba(224, 136, 120, 0.34)',
+    '--beam-a': 'rgba(255, 255, 255, 0.55)',
+    '--beam-b': 'rgba(126, 182, 255, 0.45)',
+    '--beam-c': 'rgba(180, 190, 210, 0.40)',
+    // 极淡星云：白雾 + 一点冷蓝，不要琥珀
+    '--aurora-a': 'rgba(255, 255, 255, 0.06)',
+    '--aurora-b': 'rgba(120, 160, 220, 0.08)',
+    '--aurora-c': 'rgba(80, 100, 140, 0.10)',
+    '--code-string': '#a8c4e0',
+    '--code-type': '#90b8c8',
+    '--code-attr': '#b0b8c4',
+    // 实色：冷灰蓝（Kumo 仍要实心）
+    '--surface-base': '#141a24',
+    '--surface-elevated': '#1c2430',
+    '--surface-recessed': '#0e1218',
+    '--surface-control': '#181e28',
+    '--surface-fill': '#242c38',
+    '--surface-fill-hover': '#303848',
+    '--surface-interact': '#2a3240',
   }),
-  effects: { aurora: true, overlay: 0.08, blurPx: 0 },
+  effects: { aurora: true, overlay: 0, blurPx: 0 },
 }
 
 const ALL: SkinDefinition[] = [SKIN_DEFAULT, SKIN_COSMIC_LATTE, SKIN_MIST, SKIN_SKY, SKIN_CLAY]
