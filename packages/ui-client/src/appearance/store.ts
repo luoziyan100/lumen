@@ -4,6 +4,7 @@
  * [POS]: appearance 持久化;不进 agent-service settings
  */
 
+import { coerceSkinId } from './registry.ts'
 import { DEFAULT_APPEARANCE, type AppearanceMode, type AppearanceState } from './types.ts'
 
 export const APPEARANCE_STORAGE_KEY = 'lumen:appearance.v1'
@@ -14,7 +15,7 @@ export function normalizeAppearance(raw: unknown): AppearanceState {
   if (!raw || typeof raw !== 'object') return { ...DEFAULT_APPEARANCE }
   const o = raw as Record<string, unknown>
   const mode = MODES.has(o.mode as AppearanceMode) ? (o.mode as AppearanceMode) : DEFAULT_APPEARANCE.mode
-  const skinId = typeof o.skinId === 'string' && o.skinId.trim() ? o.skinId.trim() : DEFAULT_APPEARANCE.skinId
+  const skinId = coerceSkinId(typeof o.skinId === 'string' ? o.skinId : DEFAULT_APPEARANCE.skinId)
   let overlay = typeof o.overlay === 'number' && Number.isFinite(o.overlay) ? o.overlay : DEFAULT_APPEARANCE.overlay
   overlay = Math.min(1, Math.max(0, overlay))
   let blurPx = typeof o.blurPx === 'number' && Number.isFinite(o.blurPx) ? o.blurPx : DEFAULT_APPEARANCE.blurPx

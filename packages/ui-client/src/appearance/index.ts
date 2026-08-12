@@ -17,7 +17,7 @@ export {
   DEFAULT_APPEARANCE,
   TOKEN_ALIASES,
 } from './types.ts'
-export { listSkins, getSkin, SKIN_REGISTRY } from './registry.ts'
+export { listSkins, getSkin, SKIN_REGISTRY, coerceSkinId, SKIN_DEFAULT } from './registry.ts'
 export { resolveTheme, filterWhitelist, DARK_BASELINE } from './resolve.ts'
 export { applyTheme } from './apply.ts'
 export { loadAppearance, saveAppearance, normalizeAppearance, APPEARANCE_STORAGE_KEY } from './store.ts'
@@ -62,6 +62,8 @@ export function useAppearance(): {
     setState((prev) => {
       const next = { ...prev, ...partial, version: 1 as const }
       saveAppearance(next)
+      // 同步 apply：不依赖 useEffect 时序，点选立刻生效
+      applyTheme(resolveTheme(next))
       return next
     })
   }, [])

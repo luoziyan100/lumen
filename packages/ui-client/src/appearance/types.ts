@@ -97,8 +97,12 @@ export const TOKEN_ALIASES: Record<string, string> = {
 export interface SkinDefinition {
   id: string
   name: string
-  /** 设置页缩略：CSS 渐变或色串 */
+  /** 一行说明（卡片副文案） */
+  description?: string
+  /** 设置页缩略：CSS 渐变 */
   preview: string
+  /** 卡片底部强调色点（2–3 个 hex） */
+  accents?: string[]
   preferredScheme: 'dark' | 'light'
   backgroundImage: string | null
   tokens: Partial<Record<AppearanceTokenName, string>>

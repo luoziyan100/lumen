@@ -1,11 +1,11 @@
 /**
- * [INPUT]: useAppearance state/setAppearance; listSkins
- * [OUTPUT]: PreferencePane —— 设置「偏好」:外观模式 + 皮肤网格 + overlay/blur
- * [POS]: SettingsModal pane=preference;只写 AppearanceState,不碰 DOM
+ * [INPUT]: AppearanceState + onChange
+ * [OUTPUT]: PreferencePane —— 必须单选一套皮肤;预览渐变 + 强调色点;点选同步生效
+ * [POS]: SettingsModal pane=preference
  * [PROTOCOL]: doc/appearance-skin.md Phase A
  */
 import type { AppearanceMode, AppearanceState, SkinDefinition } from '../appearance'
-import { listSkins } from '../appearance'
+import { coerceSkinId, listSkins } from '../appearance'
 
 const MODE_ITEMS: { id: AppearanceMode; label: string }[] = [
   { id: 'dark', label: '深色' },
@@ -21,6 +21,7 @@ export function PreferencePane({
   onChange: (partial: Partial<AppearanceState>) => void
 }) {
   const skins = listSkins()
+  const activeId = coerceSkinId(state.skinId)
 
   return (
     <div className="pref-pane">
@@ -28,7 +29,8 @@ export function PreferencePane({
         <h2 className="settings-h">偏好</h2>
       </div>
       <p className="set-hint pref-hint">
-        外观与皮肤仅保存在本机，不写入模型配置。Phase A 以深色基线为准；选「浅色」时界面仍用深色 token（完整浅色主题后续提供）。
+        须选择一套皮肤（默认「青瓷默认」= 当前 Lumen）。仅保存在本机，不写入模型配置。
+        「浅色」模式 Phase A 仍用深色 token，完整浅色主题后续提供。
       </p>
 
       <section className="pref-section">
@@ -49,13 +51,13 @@ export function PreferencePane({
       </section>
 
       <section className="pref-section">
-        <h3 className="pref-h">皮肤</h3>
-        <div className="pref-skin-grid">
+        <h3 className="pref-h">皮肤 <span className="pref-h-req">必选 · 当前 {skins.find((s) => s.id === activeId)?.name ?? '青瓷默认'}</span></h3>
+        <div className="pref-skin-grid" role="radiogroup" aria-label="皮肤">
           {skins.map((s) => (
             <SkinCard
               key={s.id}
               skin={s}
-              active={state.skinId === s.id}
+              active={activeId === s.id}
               onSelect={() => onChange({ skinId: s.id })}
             />
           ))}
@@ -107,16 +109,30 @@ function SkinCard({
   return (
     <button
       type="button"
+      role="radio"
       className={`pref-skin-card${active ? ' is-active' : ''}`}
       onClick={onSelect}
-      aria-pressed={active}
-      aria-label={skin.name}
+      aria-checked={active}
+      aria-label={`${skin.name}${active ? '（已选）' : ''}`}
     >
-      <span className="pref-skin-swatch" style={{ background: skin.preview }} />
-      <span className="pref-skin-name">{skin.name}</span>
-      {skin.preferredScheme === 'dark' ? (
+      <span
+        className="pref-skin-swatch"
+        style={{ backgroundImage: skin.preview }}
+        aria-hidden
+      >
+        {skin.accents && skin.accents.length > 0 ? (
+          <span className="pref-skin-dots">
+            {skin.accents.map((c) => (
+              <span key={c} className="pref-skin-dot" style={{ background: c }} />
+            ))}
+          </span>
+        ) : null}
+      </span>
+      <span className="pref-skin-meta">
+        <span className="pref-skin-name">{skin.name}</span>
+        {skin.description ? <span className="pref-skin-desc">{skin.description}</span> : null}
         <span className="pref-skin-badge">深色</span>
-      ) : null}
+      </span>
       {active ? <span className="pref-skin-check" aria-hidden>✓</span> : null}
     </button>
   )

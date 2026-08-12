@@ -2260,32 +2260,63 @@ html[data-aurora="0"] .composer-dock::before { opacity: 0; }
 .pref-mode-btn.is-active {
   border-color: var(--ember); color: var(--ink); background: var(--ember-tint);
 }
+.pref-h-req {
+  margin-left: var(--s-2); font-weight: var(--w-regular); text-transform: none;
+  letter-spacing: 0; color: var(--ink-mute); font-size: var(--t-caption);
+}
 .pref-skin-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: var(--s-3);
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: var(--s-3);
 }
 .pref-skin-card {
-  position: relative; display: flex; flex-direction: column; gap: 8px;
-  padding: 8px; border: 1px solid var(--sand); border-radius: var(--radius-lg);
-  background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+  position: relative; display: flex; flex-direction: column; gap: 0;
+  padding: 0; overflow: hidden;
+  border: 1.5px solid var(--sand-deep); border-radius: var(--radius-lg);
+  background: var(--surface-elevated); color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
-.pref-skin-card:hover { border-color: var(--sand-deep); }
+.pref-skin-card:hover { border-color: var(--ink-faint); }
 .pref-skin-card.is-active {
   border-color: var(--ember);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ember) 50%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--ember) 55%, transparent),
+    0 8px 24px -12px color-mix(in srgb, var(--ember) 40%, transparent);
 }
 .pref-skin-swatch {
-  display: block; height: 72px; border-radius: var(--radius-md);
-  border: 1px solid var(--sand);
+  display: block; flex: none;
+  width: 100%; height: 88px; min-height: 88px;
+  background-color: var(--surface-base);
+  background-size: cover;
+  background-position: center;
+  border-bottom: 1px solid var(--sand);
 }
-.pref-skin-name { font-size: var(--t-body-sm); font-weight: var(--w-medium); }
+.pref-skin-dots {
+  position: absolute; left: 10px; bottom: 10px;
+  display: flex; gap: 5px;
+}
+.pref-skin-card .pref-skin-swatch { position: relative; }
+.pref-skin-dot {
+  width: 10px; height: 10px; border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+.pref-skin-meta {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 12px 12px;
+}
+.pref-skin-name { font-size: var(--t-body-sm); font-weight: var(--w-semi); color: var(--ink); }
+.pref-skin-desc {
+  font-size: 11px; line-height: 1.35; color: var(--ink-mute);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
 .pref-skin-badge {
-  font-size: 10px; color: var(--ink-mute); letter-spacing: 0.04em;
+  margin-top: 4px; font-size: 10px; color: var(--ink-faint); letter-spacing: 0.04em;
 }
 .pref-skin-check {
-  position: absolute; top: 12px; right: 12px;
-  width: 22px; height: 22px; border-radius: 999px;
+  position: absolute; top: 10px; right: 10px; z-index: 2;
+  width: 24px; height: 24px; border-radius: 999px;
   display: grid; place-items: center;
-  background: var(--ember); color: var(--surface-canvas); font-size: 12px; font-weight: 700;
+  background: var(--ember); color: #0B0C10; font-size: 13px; font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 .pref-slider {
   display: flex; align-items: center; gap: var(--s-3);
