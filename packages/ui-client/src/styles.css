@@ -26,10 +26,21 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
     radial-gradient(ellipse 46% 38% at 88% 28%, var(--aurora-b), transparent 62%),
     radial-gradient(ellipse 42% 32% at 48% 92%, var(--aurora-c), transparent 58%);
 }
-/* 拿铁：冷雾底光，不要琥珀黄 */
+/*
+ * 拿铁底:需要「可透出的结构」,白玻璃才读得出 frosted。
+ * 纯实心黑 + 0.08 白 = 仍像灰黑;用冷雾层次模拟参考图的景深。
+ */
+html[data-skin="cosmic-latte"] .app {
+  background-color: #0a0e14;
+  background-image:
+    radial-gradient(ellipse 90% 70% at 20% 15%, rgba(140, 160, 190, 0.22), transparent 55%),
+    radial-gradient(ellipse 70% 55% at 85% 40%, rgba(80, 100, 140, 0.28), transparent 50%),
+    radial-gradient(ellipse 100% 80% at 50% 100%, rgba(40, 50, 70, 0.55), transparent 45%),
+    linear-gradient(180deg, #121820 0%, #0a0e14 45%, #080c12 100%);
+}
 html[data-skin="cosmic-latte"] .app::before {
   background:
-    radial-gradient(ellipse 80% 60% at 30% 20%, rgba(180, 200, 230, 0.07), transparent 55%),
+    radial-gradient(ellipse 80% 60% at 30% 20%, rgba(200, 215, 235, 0.08), transparent 55%),
     radial-gradient(ellipse 60% 50% at 75% 70%, rgba(100, 120, 160, 0.10), transparent 60%),
     radial-gradient(ellipse 50% 40% at 50% 100%, rgba(255, 255, 255, 0.04), transparent 50%);
 }
@@ -1206,7 +1217,61 @@ html[data-aurora="0"] .composer-dock::before { opacity: 0; }
 }
 .bubble { max-width: 92%; white-space: pre-wrap; line-height: var(--lh-body-lg); }
 .bubble-user { align-self: flex-end; background: var(--vellum); padding: 10px 14px; border-radius: var(--radius-lg); box-shadow: var(--shadow-1); }
-.bubble-assistant { align-self: stretch; font-family: var(--font-serif); font-size: var(--t-body-lg); }
+/*
+ * 助手正文默认无壳(2026-07 定:对话列不铺卡片底)——所以换肤只改 canvas 时,
+ * 「文字输出区」永远像一块实心黑底。宇宙拿铁等 frosted 皮肤必须给正文加玻璃层。
+ */
+.bubble-assistant {
+  align-self: stretch;
+  font-family: var(--font-serif);
+  font-size: var(--t-body-lg);
+}
+/* Cosmic Latte: 参考 frosted 卡——半透明白 + 中等 blur,不是实心色块 */
+html[data-skin="cosmic-latte"] .bubble-assistant:not(.is-provisional) {
+  position: relative;
+  padding: 14px 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
+  box-shadow:
+    0 8px 32px -12px rgba(0, 0, 0, 0.35),
+    inset 0 0 80px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+html[data-skin="cosmic-latte"] .bubble-assistant:not(.is-provisional)::before {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(to left top, rgba(255, 255, 255, 0.08) 0%, transparent 52%);
+  z-index: 0;
+}
+html[data-skin="cosmic-latte"] .bubble-assistant:not(.is-provisional) > * {
+  position: relative;
+  z-index: 1;
+}
+html[data-skin="cosmic-latte"] .bubble-user {
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(14px) saturate(1.05);
+  -webkit-backdrop-filter: blur(14px) saturate(1.05);
+}
+html[data-skin="cosmic-latte"] .thought,
+html[data-skin="cosmic-latte"] .proc-row,
+html[data-skin="cosmic-latte"] .think-status {
+  /* 过程/思考条也略抬玻璃,避免只正文一块白 */
+}
+html[data-skin="cosmic-latte"] .thought {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 14px;
+  padding: 8px 12px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
 /* 中间轮旁白：弱化为「还在想」，终稿才升成正文字重 */
 .bubble-assistant.is-provisional {
   color: var(--ink-soft);
