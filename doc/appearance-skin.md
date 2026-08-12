@@ -1,13 +1,14 @@
 # 外观偏好与皮肤（Appearance / Skin）
 
-状态: **提案 · 修订中（吸收外部审计 F1–F9）**（2026-08-12）  
+状态: **提案 · 修订中（F1–F9 + 二轮 R1–R3）**（2026-08-12）  
 类型: 产品 + 工程架构合同（**尚未实现**）  
-作者会话: Lumen UI；外部 AI 源码对照审计已并入 §14  
+作者会话: Lumen UI；外部 AI 审计 §14 / 二轮 §15  
 对照实现分支: `experiment/glass-ui`（现状为单暗色 Glass Beam）
 
 > 目标：在设置中增加「偏好 / 皮肤」能力，工程上解耦、可测、可演进；  
 > **不**引入对第三方闭源客户端的 CDP 注入方案。  
-> **换肤必须传导到 Lumen token 层与 Kumo 控件层**，禁止「自定义区变了、Button/Dialog 仍是旧青瓷」。
+> **换肤必须传导到 Lumen token 层与 Kumo 控件层**，禁止「自定义区变了、Button/Dialog 仍是旧青瓷」。  
+> **宿主 `color-scheme` 不得破坏 widget 内容岛判定**（见 D12 / R1）。
 
 ---
 
@@ -60,7 +61,7 @@
 | 项 | 事实 | 路径 | 级 |
 |----|------|------|-----|
 | 主题挂载 | `html data-theme="celadon"` 写死 | `index.html` | V2 |
-| Lumen token | `:root` 暗色变量；**声明约 69 条** `--name:`（审计称「约 100」若计重复/别名需注明口径；以 `grep '^\s*--[a-z].*:' tokens.css` 为准） | `tokens.css` | V2 |
+| Lumen token | `:root` **69 条行首** `--name:` 声明；其中 **5 处** 值为 `var(--其它token)` 别名（`--success`→moss 等，见 §6.2.1） | `tokens.css` | V2 |
 | Beam 色 | 已有 `--beam-a/b/c` | `tokens.css` L96–98 | V2 |
 | Kumo 映射 | **字面量烘焙**，非 `var(--canvas)` | `theme-celadon.css` L14–85，`[data-theme="celadon"]` | V2 |
 | check:theme | 只校验 **变量名齐全**，不校值/引用链 | `scripts/check-theme-celadon.mjs` | V2 |
@@ -123,7 +124,9 @@ Preference UI → AppearanceState → resolveTheme() → applyTheme() → CSS va
 | **D9 · F3** | 皮肤白名单 **扩大**（§6.2）；代码色/光边可随皮肤，或显式「锁死 celadon」——**默认随皮肤** |
 | **D10 · F5** | `preferredScheme` **仅 UI 提示**（缩略图角标）；**不参与** resolve 合并。Mode 唯一决定 `colorScheme` |
 | **D11 · F7** | Widget 内容岛 Phase A **保持**暗壳固定浅色文档变量（有意解耦）；SPEC 不得再写「widget 跟皮肤」。若未来要跟，另开 Phase |
-| **D12 · F9** | `applyTheme` 必须设置 `document.documentElement.style.colorScheme`（及必要时 `color-scheme` CSS）与 `ResolvedTheme.colorScheme` 一致 |
+| **D12 · R1（修订 F9）** | **禁止**在 Phase A 把宿主 `documentElement` 的 `color-scheme` 写成 `light`。宿主 **保持 `color-scheme: dark`**（tokens 基线或 apply 强制 dark），以保护 `hostChromeIsDark()` → 浅色内容岛（见 §6.4）。`data-appearance` 可记用户意图；**原生控件/滚动条的 light 跟色推到 Phase D**，且须同步改 `hostChromeIsDark` 合同 |
+| **D13 · R3** | Token **原语 vs 别名**写死：皮肤只 patch 原语；别名仅 CSS `var(--原语)`，**不进**皮肤白名单（§6.2.1） |
+| **D14 · R2** | Phase A 预置皮肤一律 `preferredScheme: 'dark'` 且按 dark 基线设计；禁止「角标 light、实际 dark 基线」的空头皮肤（§6.2.2） |
 
 ### 5.2 模块布局
 
@@ -152,8 +155,8 @@ PreferencePane → store → resolveTheme(state)
          ┌────────────────────┼────────────────────┐
          ▼                    ▼                    ▼
   data-appearance      Lumen CSS vars        --skin-bg-* / overlay / blur
-  data-skin            (--canvas, --ember,   color-scheme
-  data-theme=celadon   --beam-*, --aurora-*)
+  data-skin            (--canvas, --ember,   **宿主 color-scheme 固定 dark（A）**
+  data-theme=celadon   --beam-*, --aurora-*)  （R1：勿写 light 砸 widget）
   (恒驻)                      │
                               ▼
               theme-celadon.css 桥：
@@ -163,9 +166,14 @@ PreferencePane → store → resolveTheme(state)
                               │
                               ▼
               Kumo Button / Dialog / Select / Tooltip / Toasty
+                              │
+              hostChromeIsDark(documentElement) === true（A 合同）
+                              ▼
+              Widget 内容岛 → LIGHT_DOC_VARS（D11）
 ```
 
-**禁止**第二条 `apply` 路径在业务组件里写 Kumo 变量。
+**禁止**第二条 `apply` 路径在业务组件里写 Kumo 变量。  
+**禁止** Phase A 用用户 mode=light 改写宿主 `color-scheme`（R1）。
 
 ### 5.4 Kumo 桥映射表（D7 · 合同）
 
@@ -256,18 +264,51 @@ export interface SkinDefinition {
 }
 ```
 
-**AppearanceTokenName 白名单（Phase A 锁定 · 可扩不可缩语义）**
+**AppearanceTokenName 白名单（Phase A · 仅「原语」· D13）**
+
+皮肤 **可以** patch 的键（字面量色 / 独立语义）：
 
 | 组 | 键 |
 |----|-----|
 | 表面 | `--canvas`, `--paper`, `--paper-solid`, `--paper-deep`, `--vellum`, `--card`, `--sand`, `--sand-deep`, `--scrim` |
 | 墨 | `--ink`, `--ink-soft`, `--ink-mute`, `--ink-faint` |
-| 强调/语义 | `--ember`, `--ember-soft`, `--ember-tint`, `--moss`, `--moss-tint`, `--indigo`, `--indigo-tint`, `--success`, `--success-bg`, `--warning`, `--warning-bg`, `--danger`, `--danger-bg`, `--danger-line`, `--focus-ring` |
+| 强调原语 | `--ember`, `--ember-soft`, `--ember-tint`, `--moss`, `--moss-tint`, `--indigo`, `--indigo-tint` |
+| 语义原语（字面量） | `--warning`, `--warning-bg`, `--danger`, `--danger-bg`, `--danger-line`, `--focus-ring` |
 | 光边/氛围 | `--beam-a`, `--beam-b`, `--beam-c`, `--aurora-a`, `--aurora-b`, `--aurora-c` |
-| 代码 | `--code-keyword`, `--code-string`, `--code-number`, `--code-title`, `--code-type`, `--code-attr` |
+| 代码原语（字面量） | `--code-string`, `--code-type`, `--code-attr` |
 
-未知键：resolve **丢弃** + `console.debug`。  
+未知键 / 别名键：resolve **丢弃** + `console.debug`。  
 **不**把 `--color-kumo-*` 放进皮肤白名单（由桥自动跟随）。
+
+#### 6.2.1 Token 别名表（R3 · 写死 · 不可被皮肤单独 patch）
+
+以下在 `tokens.css` 基线中为 **`var(--原语)`**，成功色永远跟 moss、keyword 永远跟 ember 等。  
+**设计意图：别名不是第二套可调色，是语义别名。** 皮肤改原语 → CSS 级联自动更新别名。
+
+| 别名（禁入白名单） | 基线定义 | 跟随原语 |
+|--------------------|----------|----------|
+| `--success` | `var(--moss)` | `--moss` |
+| `--success-bg` | `var(--moss-tint)` | `--moss-tint` |
+| `--code-keyword` | `var(--ember)` | `--ember` |
+| `--code-number` | `var(--warning)` | `--warning` |
+| `--code-title` | `var(--indigo)` | `--indigo` |
+
+**实现纪律**
+
+1. `baseline` 输出必须保留上表别名 → `var(--原语)`，**禁止** resolve 把别名展开成烘焙色再 setProperty（否则丢级联）。  
+2. 皮肤 `tokens` 若含别名键 → **丢弃**（与未知键相同）。  
+3. 若未来要「success 独立于 moss」→ 先改 tokens 基线为字面量，再把该键移入白名单；不得静默双义。  
+4. `check:theme`（D7）：Kumo 颜色合同变量须匹配引用；**无 Lumen 对应**的键进 **literalAllowlist**（badge 等），**不得**因强制引用阻断 kumo 升级。
+
+#### 6.2.2 preferredScheme 与 Phase A 皮肤库（R2 · D14）
+
+| 规则 | 内容 |
+|------|------|
+| R2-1 | Phase A **全部预置皮肤** `preferredScheme: 'dark'`，token 按 dark 基线绘制 |
+| R2-2 | **禁止** 预置 `preferredScheme: 'light'` 而 resolve 仍吃 dark baseline（空头角标） |
+| R2-3 | UI：仅当 `preferredScheme === resolved 实际基线 scheme` 时显示「浅/深」角标；冲突时 **不显示** 角标或显示「深色基线」说明，不得画 light 徽章 |
+| R2-4 | 用户 `mode: light` 在 Phase A：token 仍 dark baseline（诚实回退）+ 设置页文案提示「浅色完整主题即将推出」；**不**改宿主 color-scheme（R1） |
+| R2-5 | 真正的 light 皮肤仅 Phase D：同时具备 light baseline tokens + 更新 hostChromeIsDark 合同后，才允许 `preferredScheme: 'light'` |
 
 ### 6.3 ResolvedTheme
 
@@ -285,23 +326,34 @@ export interface ResolvedTheme {
 
 **resolve 规则**
 
-1. `mode==='system'` → `matchMedia('(prefers-color-scheme: dark)')` → `colorScheme`。  
+1. `mode==='system'` → `matchMedia('(prefers-color-scheme: dark)')` 得 **用户意图 scheme**（仅写入 `data-appearance` / 日志，见 apply）。  
 2. `skin = registry[skinId] ?? registry.default`。  
-3. **`preferredScheme` 不参与计算**（D10）。  
-4. `tokens = baseline(colorScheme) ⊕ filterWhitelist(skin.tokens)`。  
-5. Phase A：无 light baseline → `colorScheme` 强制按 dark baseline 填 token，并 `resolved.colorScheme` 仍可报 light 供 `color-scheme` 实验——**推荐 A：light 模式整体回退 dark token + 日志**，避免半套。  
-6. `overlay` / `blurPx`：`state` 若用户动过则用 state，否则 skin.effects，否则 DEFAULT。（实现可用「是否等于 DEFAULT」粗判；更严可用 `overrides` 位图，非 A 必达。）  
-7. `aurora`：`skin.effects.aurora ?? (skinId === 'default')`。
+3. **`preferredScheme` 不参与 token 合并**（D10）；UI 角标规则见 §6.2.2。  
+4. **Phase A token 基线**：始终 `baseline('dark')`（含别名 `var(--原语)`），**无论** mode 是否 light（R2-4）。  
+5. `tokens = darkBaseline ⊕ filterWhitelist(skin.tokens)`；白名单不含别名键（§6.2.1）。  
+6. `ResolvedTheme.colorScheme`（Phase A）**= `'dark'`** 表示「已应用 token 的 scheme」；用户选择的 mode 可另存 `AppearanceState.mode` 供 UI，**二者勿混**。  
+7. `overlay` / `blurPx`：state 优先，否则 skin.effects，否则 DEFAULT。  
+8. `aurora`：`skin.effects.aurora ?? (skinId === 'default')`。
 
 ### 6.4 applyTheme 合同
 
 1. `document.documentElement.dataset.theme = 'celadon'`（恒驻）。  
-2. `dataset.appearance = colorScheme`；`dataset.skin = skinId`。  
-3. `document.documentElement.style.colorScheme = colorScheme`（F9）。  
-4. 对 `tokens` 每项 `setProperty`。  
-5. 设置 `--skin-bg-image`、`--skin-overlay`、`--skin-blur`（供 `.app` 层消费）。  
-6. **不**直接 setProperty 任何 `--color-kumo-*`（由 CSS 桥完成）。  
-7. 可选：保留 previous ResolvedTheme 引用供失败回滚（非 A 必达）。
+2. `dataset.skin = skinId`。  
+3. `dataset.appearance = AppearanceState.mode` 折叠后的意图（`system`→实际系统偏好字符串 `dark|light`），**仅作 UI/调试锚，不驱动 widget**。  
+4. **宿主 color-scheme（R1 / D12）**  
+   - Phase A：**强制** `document.documentElement` 计算后为 `color-scheme: dark`（推荐：不在 JS 里写 `style.colorScheme='light'`；保持 `tokens.css` `:root { color-scheme: dark }`，apply 若曾被改过则 `style.colorScheme = 'dark'` 复位）。  
+   - **禁止** `style.colorScheme = 'light'`，否则 `hostChromeIsDark` 变 false → widget 走出浅壳镜像分支，冲掉 LIGHT_DOC_VARS 内容岛（与 D11/AT12 冲突）。  
+   - Phase D：若要做真 light 壳，必须 **先** 改 `hostChromeIsDark`（例如优先 `data-widget-chrome="dark-island"` 或固定内容岛策略），再允许宿主 `color-scheme: light`。  
+5. 对 `tokens` 每项 `setProperty`（别名值为 `var(--原语)` 字符串，保留级联）。  
+6. 设置 `--skin-bg-image`、`--skin-overlay`、`--skin-blur`。  
+7. **不**直接 setProperty 任何 `--color-kumo-*`。  
+8. 可选：previous ResolvedTheme 回滚（非 A 必达）。
+
+**hostChromeIsDark 合同说明（实现者必读）**
+
+- 源码：`themeVars.ts` 优先读宿主 `getComputedStyle(el).colorScheme` 是否含 `dark`/`light`；空串才回退 `--canvas` 亮度。  
+- Phase A 不变量：`hostChromeIsDark(document.documentElement) === true`。  
+- 单测/AT12：换任意皮肤与 mode 后仍为 true；widget `collectThemeVars` 仍含 LIGHT_DOC_VARS 键值。
 
 ### 6.5 持久化
 
@@ -352,18 +404,19 @@ export interface ResolvedTheme {
 |----|------|
 | AT1 | 设置有「偏好」 |
 | AT2a | 切换皮肤后 **Lumen token 驱动区**（侧栏/气泡/强调）≤1 帧变化 |
-| AT2b | 切换皮肤后 **Kumo Button 品牌色 / Dialog 表面**与 `--ember/--card` 一致（抽查设置页按钮） |
+| AT2b | 切换皮肤后：设置页 **Kumo 主按钮** computed `background-color` 与 `getPropertyValue('--ember')` 同色相族；Dialog/纸面与 `--card` 一致（目视或采样） |
 | AT2c | 背景图：token 即时；**图片可在 load 后**显示（不得要求 webp 同步 1 帧） |
 | AT3 | 重启保持 state |
-| AT4 | resolve 单测：非法 skinId → default；白名单过滤 |
+| AT4 | resolve 单测：非法 skinId → default；白名单过滤；**别名键被丢弃**；baseline 中 `--success` 仍为 `var(--moss)` |
 | AT5 | `components/` 下无业务 `skinId===`（允许 appearance/、PreferencePane） |
 | AT6 | 不调用模型 `updateSettings` |
 | AT7 | 默认 overlay 下正文可读；暖皮肤下 beam/aurora 非残留青绿（目视） |
 | AT8 | 换肤不 remount messages 根 |
 | AT9 | `default` 皮肤观感 ≥ 当前 Glass 基线 |
-| AT10 | `npm run check:theme` 通过 **名齐全 + 引用链**（D7） |
-| AT11 | `document.documentElement.style.colorScheme` 与 resolved 一致 |
-| AT12 | 暗壳下 widget 仍为浅色内容岛（D11 回归，防止误改） |
+| AT10 | `npm run check:theme` 通过 **名齐全 + 引用链**（D7）；literalAllowlist 键可字面量 |
+| AT11 | Phase A：`getComputedStyle(document.documentElement).colorScheme` **包含 `dark`**；即使用户选 mode=light 也不得变成仅 light（R1） |
+| AT12 | 换肤/换 mode 后 `hostChromeIsDark(documentElement)===true`，且 `collectThemeVars` 走 LIGHT_DOC_VARS（D11） |
+| AT13 | 预置 registry 每项 `preferredScheme==='dark'`（R2） |
 
 **E2E（人）**：三皮肤切换含设置内 Kumo 按钮；重启；进行中会话换肤。
 
@@ -384,14 +437,16 @@ export interface ResolvedTheme {
 
 ## 11. 开放问题（含审计补项）
 
-- [ ] **Q1** Phase A light：诚实回退 dark token？  
+- [x] **Q1** Phase A light：诚实回退 dark token + **不改宿主 color-scheme**（R1/R2 默认采纳；Phase D 再真 light）  
 - [ ] **Q2** 内置皮肤：CSS 渐变占位 vs 仓库 webp（体积）？  
 - [ ] **Q3** `blurPx` 默认 0？  
 - [ ] **Q4** 上传严格 Phase B？  
-- [ ] **Q5** ~~多窗口 localStorage~~ → **关闭**（审计：同 origin 已共享）  
-- [ ] **Q6 · F1** 确认采纳 **(a) CSS 引用桥**（默认）还是否决改 (b)？  
-- [ ] **Q7 · F3** 代码语法色是否必须随皮肤（默认是）？  
-- [ ] **Q8** badge 多色 Kumo 键：保持字面量中性 或 逐个映射？  
+- [x] **Q5** 多窗口 localStorage → **关闭**（同 origin 已共享）  
+- [x] **Q6 · F1** 采纳 **(a) CSS 引用桥**（默认）  
+- [x] **Q7** 代码：原语可随皮肤；**别名 keyword/number/title 跟 ember/warning/indigo**（§6.2.1）；string/type/attr 可独立 patch  
+- [ ] **Q8** badge 多色 Kumo 键：literalAllowlist 字面量中性（默认）？  
+- [x] **Q9 · R1** D12 禁止 light 写宿主 color-scheme（已写入 §6.4）  
+- [x] **Q10 · R3** 原语/别名边界（已写入 §6.2.1）  
 
 ---
 
@@ -408,6 +463,9 @@ export interface ResolvedTheme {
 9. AT2 是否拆 token/Kumo/背景图？  
 10. 非目标是否挡住 CDP/任意 CSS/(b) 双真源？  
 11. 是否误称已实现？  
+12. **R1**：apply 是否禁止 light 宿主 color-scheme？AT11/AT12 是否可验？  
+13. **R2**：预置皮肤是否全 dark preferredScheme？  
+14. **R3**：别名表与白名单是否互斥、baseline 是否保留 var()？  
 
 ---
 
@@ -416,7 +474,8 @@ export interface ResolvedTheme {
 | 日期 | 变更 |
 |------|------|
 | 2026-08-12 | 初版提案 |
-| 2026-08-12 | **吸收外部源码审计 F1–F9**：D7 Kumo 引用桥、D8 装饰面枚举、扩白名单、data-theme 恒驻、preferredScheme 语义、widget/AT/color-scheme 修正；附录 §14 |
+| 2026-08-12 | **吸收外部源码审计 F1–F9**：D7 Kumo 引用桥、D8 装饰面枚举、扩白名单、data-theme 恒驻、preferredScheme 语义、widget/AT 修正；附录 §14 |
+| 2026-08-12 | **二轮 R1–R3**：重写 D12（宿主 color-scheme 不砸 widget）；§6.2.1 原语/别名；§6.2.2 皮肤与 mode 角标；AT11–13；附录 §15 |
 
 ---
 
@@ -432,11 +491,11 @@ export interface ResolvedTheme {
 | **F3** | 黄 | 白名单过窄 | 缺 paper-deep/code/beam 等 | **扩白名单** §6.2 |
 | **F4** | 黄 | `data-theme` 与 skin 关系未定 | 映射挂 `[data-theme=celadon]` | **`data-theme=celadon` 恒驻**；skin 另锚（D4/D7） |
 | **F5** | 黄 | preferredScheme 无行为 | 属 SPEC 洞 | **仅 UI 提示，resolve 忽略**（D10） |
-| **F6** | 白 | token「约 69」口径 | `^\s*--.*:` 计 69；「100」需统一口径 | 正文改为 **约 69 条声明**；审计记录保留 |
-| **F7** | 白 | Widget 不跟暗壳 token | `hostChromeIsDark` → LIGHT_DOC_VARS | **A 保持有意解耦**；改写 PT5 断言（D11） |
+| **F6** | 白 | token 计数 | 二轮更正：69 行首声明、5 处 var 别名；「100」为误计 | **精确写 69**；收回「约」 |
+| **F7** | 白 | Widget 不跟暗壳 token | `hostChromeIsDark` → LIGHT_DOC_VARS | **A 保持有意解耦**（D11） |
 | **F8** | 白 | AT2「1 帧」对 webp 过严 | 合理 | **AT2a/b/c 拆分** |
-| **F9** | 白 | 缺 color-scheme 合同 | `:root{color-scheme:dark}` | **apply 必写**（D12） |
-| 多窗口 Q5 | — | localStorage 已共享 | 同意 | **关闭 Q5 担忧** |
+| **F9** | 白 | color-scheme 合同 | 见 **R1**：不可简单写 light | **D12 修订**（§15） |
+| 多窗口 Q5 | — | localStorage 已共享 | 同意 | **关闭** |
 
 ### 14.1 为什么 F1 选 (a) 不选 (b)
 
@@ -451,9 +510,38 @@ export interface ResolvedTheme {
 
 ### 14.2 残余风险（实现时）
 
-1. `light-dark(var(--x), var(--x))` 在部分引擎行为需实机测（A 以 dark 为主可先 `var(--x)` 单值）。  
-2. Kumo 升级引入新颜色 token：check:theme 引用规则可能对「尚无 Lumen 对应」的键放行字面量——需在脚本中 **allowlist 字面量键**。  
-3. liquid-glass 中性高光与彩色 beam 分离不当会显脏——需设计抽查。
+1. Kumo 桥优先 `var(--x)` 单值（A 全 dark）；`light-dark` 留 Phase D。  
+2. check:theme：**literalAllowlist** 承接无 Lumen 语义的新 Kumo 色键（§5.4 / R3）。  
+3. liquid-glass 中性高光与彩色 beam 分离——设计抽查。
+
+---
+
+## 15. 二轮审计响应（R1–R3）
+
+审计方：同一外部 AI 复审修订 SPEC + 源码。  
+本仓复核：**R1/R3 V2 成立**；R2 为产品/合同补全（采纳）。
+
+| ID | 摘要 | 复核 | **决议** |
+|----|------|------|----------|
+| **R1** | `style.colorScheme=light` 使 `hostChromeIsDark`→false，widget 丢浅色岛 | `themeVars.ts` L33–41 优先 color-scheme | **D12 重写**：Phase A 宿主 **固定 dark**；mode light 不写宿主 scheme；AT11/AT12 |
+| **R2** | preferredScheme 与 dark 回退冲突 → 空头角标 | 合同洞 | **D14 / §6.2.2**：A 预置全 dark；角标与真实基线一致 |
+| **R3** | 跨 token `var()` 别名 vs 白名单歧义 | tokens 中 success/code-* 等 5 别名 | **D13 / §6.2.1**：原语可 patch、别名禁 patch、baseline 保留 `var()` |
+| F6 更正 | 69 声明 / 5 别名 | 同意 | 正文改精确 |
+
+### 15.1 R1 因果（实现者勿再踩）
+
+```text
+apply 写 color-scheme:light
+  → hostChromeIsDark() === false
+  → collectThemeVars 走「浅壳镜像宿主 token」
+  → 不再返回 LIGHT_DOC_VARS
+  → 内容岛被当成浅壳整页换肤  ≠  D11「固定浅色文档岛」
+```
+
+### 15.2 别名不是「递归爆炸」
+
+CSS `var(--success)` → `var(--moss)` 是**有意一层别名**，不是 apply 循环 setProperty。  
+风险仅在于：**白名单若允许 patch `--success` 为字面量**，会切断与 moss 的同步。故别名禁入白名单。
 
 ---
 
@@ -466,6 +554,9 @@ export interface ResolvedTheme {
 | 皮肤白名单含 `--color-kumo-*` | 双真源、绕过桥 |
 | 去掉 `data-theme=celadon` | Kumo 映射整块失效 |
 | `key={skinId}` 挂 messages | 丢滚动与进行中态 |
+| **`documentElement.colorScheme='light'`（A）** | **砸 widget 岛（R1）** |
+| **皮肤 patch `--success` 字面量** | **切断 moss 别名（R3）** |
+| **预置 light 角标 + dark 基线** | **空头 UI（R2）** |
 
 ## 附录 B · 参考
 
