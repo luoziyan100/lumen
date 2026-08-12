@@ -123,12 +123,18 @@ export const WORKSPACE_DRAWER_COPY = {
   internalCollapseGlyph: '',
 } as const
 
-/** 对话流等待态 / 滚动跳转 */
+/** 对话流等待态 / 滚动跳转 / 思考·工具轨迹 */
 export const APP_STATUS_COPY = {
   thinking: '思考中',
   /** 模型连接重试（对齐 Codex Retry n/m） */
   retry: (attempt: number, maxAttempts: number) => `Retry ${attempt}/${maxAttempts}`,
   jumpToLatest: '回到最新',
+  thoughtActive: '思考中',
+  thoughtDone: (elapsed: string) => `思考了 ${elapsed}`,
+  thoughtDoneFallback: '思考过程',
+  processTools: (n: number) => `${n} 个工具`,
+  processMore: (n: number) => `+${n} 项更早`,
+  processRecent: '只看最近',
 } as const
 
 /** Skills 斜杠 / Manage */

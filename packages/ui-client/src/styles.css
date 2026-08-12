@@ -2010,15 +2010,42 @@ html[data-skin="cosmic-latte"] .thought {
 }
 .thought-head:hover { color: var(--ink-soft); }
 .thought-label { font-weight: 500; }
+.thought-label.is-shimmer,
+.proc-label.is-shimmer {
+  color: transparent;
+  background-image: linear-gradient(90deg, var(--ink-mute) 32%, var(--ink) 50%, var(--ink-mute) 68%);
+  background-size: 220% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: ink-shimmer 1.4s linear infinite;
+}
+@keyframes ink-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .thought-label.is-shimmer,
+  .proc-label.is-shimmer {
+    animation: none;
+    color: var(--ink-soft);
+    background: none;
+  }
+}
+.thought-elapsed,
+.proc-elapsed {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-mute);
+  letter-spacing: var(--ls-tight);
+}
 .thought-toggle { color: var(--ink-mute); font-size: var(--t-body-sm); }
 .thought-body { padding: var(--s-2) 0 var(--s-2) var(--s-4); border-left: 1px solid var(--sand); margin-left: 2px; }
 .thought-text {
   margin: 0; white-space: pre-wrap; word-break: break-word;
   font: inherit; font-size: var(--t-body-sm); color: var(--ink-mute); line-height: 1.55;
 }
-.thought-done { margin-top: var(--s-2); font-size: var(--t-body-sm); color: var(--ink-mute); }
-.thought-done-collapsed { padding-left: 0; margin-top: 2px; }
-.thought-done::before { content: '✓ '; opacity: 0.7; }
 
 .proc { align-self: stretch; max-width: 92%; }
 .proc-head { display: flex; align-items: center; gap: var(--s-3); width: 100%; padding: 8px 12px; border: 1px solid var(--sand); border-radius: var(--radius-md); background: var(--paper-deep); color: var(--ink-soft); font: inherit; font-size: var(--t-body-sm); cursor: pointer; text-align: left; box-shadow: var(--shadow-1); }
@@ -2030,10 +2057,27 @@ html[data-skin="cosmic-latte"] .thought {
 .proc-running .proc-label { color: var(--ink-soft); }
 .proc-done .proc-label { color: var(--ink-mute); }
 .proc-toggle { color: var(--ink-mute); font-size: var(--t-body-sm); flex: none; }
-.proc-steps { list-style: none; margin: var(--s-1) 0 0; padding: var(--s-2) 0 var(--s-2) var(--s-5); display: flex; flex-direction: column; gap: var(--s-2); }
-.proc-step { display: flex; align-items: center; gap: var(--s-3); color: var(--ink-soft); font-size: var(--t-body-sm); }
+.proc-steps { list-style: none; margin: var(--s-1) 0 0; padding: var(--s-2) 0 var(--s-2) var(--s-5); display: flex; flex-direction: column; gap: 2px; }
+.proc-step { display: flex; align-items: center; gap: var(--s-2); min-height: 28px; color: var(--ink-soft); font-size: var(--t-body-sm); }
 .proc-step-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--sand-deep); flex: none; }
 .proc-step-dot.is-done { background: var(--ember); }
+.proc-step-label { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proc-step-chip {
+  flex: none; max-width: 42%;
+  padding: 1px 8px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--sand) 70%, transparent);
+  color: var(--ink-mute);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.proc-more {
+  border: none; background: none; padding: 0;
+  color: var(--ink-mute); font: inherit; font-size: var(--t-caption);
+  cursor: pointer;
+}
+.proc-more:hover { color: var(--ink-soft); }
 
 /* ---- 会话 Todo(doc/todo.md):进度清单,≠ ProcessRow ---- */
 .todo-card { align-self: stretch; max-width: 92%; }

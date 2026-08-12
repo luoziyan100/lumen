@@ -17,7 +17,8 @@
 - `PdfViewer.tsx` — pdf.js 竖向连续滚动渲染(锁 4.10.38)
 - `HtmlViewer.tsx` — 工作区 HTML 预览:复用 `widget/WidgetFrame`(allow-scripts + CSP,无 same-origin)
 - `StatusOrb.tsx` — 行内点云球:thinking-orbs **原生 size=20**(禁 64→CSS 缩,否则九态糊成虚线圈);支持 `paused` 冻帧
-- `ProcessRow.tsx` — 可折叠过程块(`CurtainFold` + 步骤 cascade);左侧 `StatusOrb` 按焦点工具态(`orbStateFromSteps`);完成态 `paused` 仍保留形态差异;与 ThinkingIndicator 的 breathing 分离
+- `ProcessRow.tsx` — 可折叠过程块(`CurtainFold` + 步骤 cascade);长轨迹只露最近 6 步;运行中 shimmer + 等宽计时;左侧 `StatusOrb` 按焦点工具态(`orbStateFromSteps`);与 ThinkingIndicator 的 breathing 分离
+- `ThoughtRow.tsx` — 同 turn 一条思考轨迹;运行中 shimmer「思考中」+ 计时;收口「思考了 Xs」默认收起
 - `TodoCard.tsx` — 会话 Todo 次要卡(`todo_write`→`kind:'todo'`);主呈现右轨 Progress(见 `doc/todo.md`)
 - `AskUserDialog.tsx` — `ask_user` 悬浮问询卡;多题 Claude 式一页一题 + `i of n` 切换;「其他」幽灵输入;见 `doc/ask-user.md`
 - `ComposerCard.tsx` — 对话输入暗玻璃岛;`+` Skills;/ 斜杠;模型芯片;拖放;液态抛光;待发图放大;当前稿 chip(activePath);见 `doc/ui-design.md` §0

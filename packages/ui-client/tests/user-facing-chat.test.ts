@@ -231,6 +231,50 @@ describe('user-facing Claude 两阶段', () => {
     }
   })
 
+  it('同 turn 多段 reasoning / 子代理 hop 只留 1 块 Thought', () => {
+    let u: ChatItem[] = []
+    u = applyUser(u, 'user', 'u1', { content: '深挖' })
+    u = applyUser(u, 'model_step', 'm0', {
+      content: '',
+      toolCalls: [{ id: 't1', name: 'spawn_subagent', arguments: {} }],
+      reasoningContent: '先派搜索子代理',
+    })
+    u = applyUser(u, 'tool_call_start', 's1', { id: 't1', name: 'spawn_subagent' })
+    // 子代理收口式:纯 reasoning、无工具、无正文——旧逻辑会 markDone+卸过程
+    u = applyUser(u, 'model_step', 'm1', {
+      content: '',
+      toolCalls: [],
+      reasoningContent: '子代理甲想完了',
+    })
+    assert.equal(u.filter((i) => i.kind === 'process').length, 1, '思考 hop 不得卸过程')
+    assert.equal(u.filter((i) => i.kind === 'thought').length, 1)
+    const th1 = u.find((i) => i.kind === 'thought')
+    if (th1?.kind === 'thought') assert.equal(th1.done, false)
+
+    u = applyUser(u, 'model_step', 'm2', {
+      content: '',
+      toolCalls: [],
+      reasoningContent: '子代理乙也想完了',
+    })
+    assert.equal(u.filter((i) => i.kind === 'thought').length, 1, '不得堆 Thought process × N')
+    const th2 = u.find((i) => i.kind === 'thought')
+    if (th2?.kind === 'thought') {
+      assert.match(th2.content, /先派搜索子代理/)
+      assert.match(th2.content, /子代理乙/)
+      assert.equal(th2.done, false)
+    }
+
+    u = applyUser(u, 'model_step', 'm3', {
+      content: '综合结论在这里。',
+      toolCalls: [],
+      reasoningContent: '可以作答了',
+    })
+    assert.equal(u.filter((i) => i.kind === 'thought').length, 1)
+    assert.equal(u.filter((i) => i.kind === 'process').length, 0)
+    const th3 = u.find((i) => i.kind === 'thought')
+    if (th3?.kind === 'thought') assert.equal(th3.done, true)
+  })
+
   it('H1 AT3: 新 user turn 开新过程块（上一轮已卸或隔离）', () => {
     let u: ChatItem[] = []
     u = applyUser(u, 'user', 'u1', { content: '第一轮' })

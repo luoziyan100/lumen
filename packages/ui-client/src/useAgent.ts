@@ -6,7 +6,8 @@
  * [POS]: UI 对话状态核;用户面默认不渲染工具过程;证据面给右轨/排障;
  *        todo_write 仍进用户面;ask_user→pendingAsk;model_retry→Retry n/m;上传知情 chip
  *        终态 sealOpenTodos:reply/done 等收口未勾 Todo(HDD:假 in_progress,见 doc/todo.md)
- *        Thought 顺序:本 turn 内插在答案气泡之前(防 text_delta 先占坑导致 Thought 沉底)
+ *        Thought 顺序:本 turn 内插在答案气泡之前(防 text_delta 先占坑导致 Thought 沉底);
+ *        同 turn 多段 reasoning 收成一块(子代理 hop 不得堆「Thought process × N」)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * user 也走事件流,不在前端乐观插入。taskId 按项目键存 localStorage。
@@ -40,13 +41,21 @@ export interface ProcStep {
   /** write/edit 路径:来自 tool_call.args 或 tool_result.path */
   path?: string
 }
-export interface ProcessItem { kind: 'process'; id: string; steps: ProcStep[]; running: boolean }
-/** Claude 档：折叠的思考过程（reasoningContent） */
+export interface ProcessItem {
+  kind: 'process'
+  id: string
+  steps: ProcStep[]
+  running: boolean
+  startedAt?: string
+}
+/** Claude 档：折叠的思考过程（reasoningContent）;同 turn 至多一块 */
 export interface ThoughtItem {
   kind: 'thought'
   id: string
   content: string
   done: boolean
+  startedAt?: string
+  endedAt?: string
 }
 export interface CompactionMark { kind: 'compaction'; id: string }
 export type TodoStatus = 'pending' | 'in_progress' | 'completed'
@@ -462,31 +471,34 @@ export function sealOpenTodos(items: ChatItem[]): ChatItem[] {
 }
 
 /** 终局组合:卸过程 + 收 Thought + 收口 Todo */
-function sealTurnEnd(items: ChatItem[]): ChatItem[] {
-  return sealOpenTodos(markThoughtsDone(stripProcessItems(finalizeProvisional(items))))
+function sealTurnEnd(items: ChatItem[], at?: string): ChatItem[] {
+  return sealOpenTodos(markThoughtsDone(stripProcessItems(finalizeProvisional(items)), at))
 }
 
-function markThoughtsDone(prev: ChatItem[]): ChatItem[] {
+function markThoughtsDone(prev: ChatItem[], at?: string): ChatItem[] {
   if (!prev.some((it) => it.kind === 'thought' && !it.done)) return prev
-  return prev.map((it) => (it.kind === 'thought' && !it.done ? { ...it, done: true } : it))
+  const endedAt = at ?? new Date().toISOString()
+  return prev.map((it) => (
+    it.kind === 'thought' && !it.done ? { ...it, done: true, endedAt } : it
+  ))
+}
+
+function lastUserIndex(prev: ChatItem[]): number {
+  for (let i = prev.length - 1; i >= 0; i -= 1) {
+    if (prev[i]?.kind === 'msg' && (prev[i] as ChatMsg).role === 'user') return i
+  }
+  return -1
 }
 
 /**
- * 本 turn 未收口的 thought 下标(最后一个 user 之后、未 done)。
- * 跨 turn 不得把新 reasoning 拼进上一轮已 Done 的 thought。
+ * 本 turn 的 thought 下标(最后一个 user 之后,不论 done)。
+ * 同 turn 新 reasoning 必须续写同一块——子代理/思考 hop 会把 thought 标 done 再开口。
+ * 跨 turn 不得拼进上一轮。
  */
-function findOpenThoughtIdx(prev: ChatItem[]): number {
-  let lastUser = -1
-  for (let i = prev.length - 1; i >= 0; i -= 1) {
-    const it = prev[i]
-    if (it?.kind === 'msg' && it.role === 'user') {
-      lastUser = i
-      break
-    }
-  }
+function findTurnThoughtIdx(prev: ChatItem[]): number {
+  const lastUser = lastUserIndex(prev)
   for (let i = prev.length - 1; i > lastUser; i -= 1) {
-    const it = prev[i]
-    if (it?.kind === 'thought' && !it.done) return i
+    if (prev[i]?.kind === 'thought') return i
   }
   return -1
 }
@@ -497,13 +509,7 @@ function findOpenThoughtIdx(prev: ChatItem[]): number {
  * 旧实现 [...prev, thought] 在 text_delta 已占坑后会变成 answer→thought 倒置。
  */
 function thoughtInsertIndex(prev: ChatItem[]): number {
-  let lastUser = -1
-  for (let i = prev.length - 1; i >= 0; i -= 1) {
-    if (prev[i]?.kind === 'msg' && (prev[i] as ChatMsg).role === 'user') {
-      lastUser = i
-      break
-    }
-  }
+  const lastUser = lastUserIndex(prev)
   // 从尾部往 user 扫:答案气泡(含 provisional)应在 thought 之后,故插入点取最靠前的答案位
   for (let i = lastUser + 1; i < prev.length; i += 1) {
     const it = prev[i]
@@ -512,22 +518,90 @@ function thoughtInsertIndex(prev: ChatItem[]): number {
   return prev.length
 }
 
-function upsertThought(prev: ChatItem[], eventId: string, chunk: string, done = false): ChatItem[] {
+function upsertThought(
+  prev: ChatItem[],
+  eventId: string,
+  chunk: string,
+  done = false,
+  at?: string,
+): ChatItem[] {
   const text = chunk.trim()
   if (!text && !done) return prev
-  const idx = findOpenThoughtIdx(prev)
+  const idx = findTurnThoughtIdx(prev)
   if (idx >= 0) {
     const cur = prev[idx] as ThoughtItem
     const nextContent = text
       ? (cur.content ? `${cur.content}\n\n${text}` : text)
       : cur.content
-    const next: ThoughtItem = { ...cur, content: nextContent, done: done || cur.done }
+    const reopened = Boolean(text)
+    const next: ThoughtItem = {
+      ...cur,
+      content: nextContent,
+      done: reopened ? false : (done || cur.done),
+      startedAt: cur.startedAt ?? at,
+      endedAt: reopened ? undefined : (done ? (at ?? cur.endedAt) : cur.endedAt),
+    }
     return prev.map((it, i) => (i === idx ? next : it))
   }
   if (!text) return prev
-  const at = thoughtInsertIndex(prev)
-  const item: ThoughtItem = { kind: 'thought', id: `thought-${eventId}`, content: text, done }
-  return [...prev.slice(0, at), item, ...prev.slice(at)]
+  const insertAt = thoughtInsertIndex(prev)
+  const item: ThoughtItem = {
+    kind: 'thought',
+    id: `thought-${eventId}`,
+    content: text,
+    done,
+    startedAt: at,
+    ...(done && at ? { endedAt: at } : {}),
+  }
+  return [...prev.slice(0, insertAt), item, ...prev.slice(insertAt)]
+}
+
+function mergeThoughts(thoughts: ThoughtItem[]): ThoughtItem {
+  if (thoughts.length === 1) return thoughts[0]!
+  const contents: string[] = []
+  for (const t of thoughts) {
+    const body = t.content.trim()
+    if (body && !contents.includes(body)) contents.push(body)
+  }
+  const allDone = thoughts.every((t) => t.done)
+  return {
+    kind: 'thought',
+    id: thoughts[0]!.id,
+    content: contents.join('\n\n'),
+    done: allDone,
+    startedAt: thoughts.find((t) => t.startedAt)?.startedAt,
+    endedAt: allDone ? thoughts[thoughts.length - 1]?.endedAt : undefined,
+  }
+}
+
+/** 同 turn 多段 Thought(子代理 hop / 历史回放)收成一块,插在本轮答案之前 */
+export function coalesceTurnThoughts(items: ChatItem[]): ChatItem[] {
+  const out: ChatItem[] = []
+  let i = 0
+  while (i < items.length) {
+    const leadingUser = items[i]?.kind === 'msg' && (items[i] as ChatMsg).role === 'user'
+      ? items[i]
+      : null
+    if (leadingUser) i += 1
+    const thoughts: ThoughtItem[] = []
+    const rest: ChatItem[] = []
+    while (i < items.length) {
+      const cur = items[i]
+      if (cur?.kind === 'msg' && cur.role === 'user') break
+      if (cur?.kind === 'thought') thoughts.push(cur)
+      else if (cur) rest.push(cur)
+      i += 1
+    }
+    if (leadingUser) out.push(leadingUser)
+    if (thoughts.length) {
+      const merged = mergeThoughts(thoughts)
+      const ansAt = rest.findIndex((x) => x.kind === 'msg' && x.role === 'assistant')
+      if (ansAt >= 0) rest.splice(ansAt, 0, merged)
+      else rest.unshift(merged)
+    }
+    out.push(...rest)
+  }
+  return out
 }
 
 function dropStreamingAssistant(prev: ChatItem[]): ChatItem[] {
@@ -588,17 +662,23 @@ function findTurnProcessIndex(prev: ChatItem[]): number {
  * 追加/复活本 turn 唯一过程块：running=false 后新工具仍续写，不 new 第二张卡。
  * 更新后把块挪到列表末尾，贴近「思考中」与当前焦点。
  */
-function appendProcessStep(prev: ChatItem[], step: ProcStep): ChatItem[] {
+function appendProcessStep(prev: ChatItem[], step: ProcStep, at?: string): ChatItem[] {
   const idx = findTurnProcessIndex(prev)
   if (idx < 0) {
-    return [...prev, { kind: 'process', id: `proc-${step.id}`, steps: [step], running: true }]
+    return [...prev, {
+      kind: 'process',
+      id: `proc-${step.id}`,
+      steps: [step],
+      running: true,
+      startedAt: at,
+    }]
   }
   const proc = prev[idx] as ProcessItem
   const steps = proc.steps.some((s) => s.id === step.id)
     ? proc.steps.map((s) => (s.id === step.id ? { ...s, ...step, done: false } : s))
     : [...proc.steps, step]
   const without = prev.filter((_, i) => i !== idx)
-  return [...without, { ...proc, steps, running: true }]
+  return [...without, { ...proc, steps, running: true, startedAt: proc.startedAt ?? at }]
 }
 
 /**
@@ -609,12 +689,16 @@ function appendProcessStep(prev: ChatItem[], step: ProcStep): ChatItem[] {
  * - todo 仍展示
  */
 export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Record<string, unknown>): ChatItem[] {
+  return coalesceTurnThoughts(reduceUserFacingInner(prev, event, p))
+}
+
+function reduceUserFacingInner(prev: ChatItem[], event: TaskEvent, p: Record<string, unknown>): ChatItem[] {
   switch (event.kind) {
     case 'user': {
       const images = Array.isArray(p.images) ? (p.images as ImageData[]) : undefined
       const uploads = parseUploadRefs(p.uploads)
       // 新 user turn：上一轮 thought 标 done；清残留 process
-      const base = markThoughtsDone(stripProcessItems(prev))
+      const base = markThoughtsDone(stripProcessItems(prev), event.created_at)
       return [...base, {
         kind: 'msg',
         id: event.id,
@@ -662,21 +746,24 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
       const reasoning = typeof p.reasoningContent === 'string' ? p.reasoningContent.trim() : ''
       let next = prev
       // 先收 reasoning:upsertThought 会插到本 turn 答案气泡之前(防 text_delta 倒置)
-      if (reasoning) next = upsertThought(next, event.id, reasoning, false)
+      if (reasoning) next = upsertThought(next, event.id, reasoning, false, event.created_at)
 
       if (tools.length > 0) {
         // 工具轮：旁白进 Thought；过程保持（进行中可见）
         next = demoteProvisionalAssistantToThought(next, event.id)
         // model_step 的 content 若没走过 text_delta，也并入 Thought
         if (content) {
-          const open = findOpenThoughtIdx(next)
+          const open = findTurnThoughtIdx(next)
           const lastThought = open >= 0 ? (next[open] as ThoughtItem) : undefined
           if (!lastThought || !lastThought.content.includes(content.slice(0, Math.min(40, content.length)))) {
-            next = upsertThought(next, event.id, content, false)
+            next = upsertThought(next, event.id, content, false, event.created_at)
           }
         }
         return next
       }
+
+      // 纯 reasoning、无正文、无工具 = 思考 hop(子代理/思考模型),不是终局
+      if (!content) return next
 
       // —— 终局：无工具定稿 —— 过程消失，只留 Thought + 答案
       next = stripProcessItems(next)
@@ -694,21 +781,21 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
         const out = next.slice()
         if (content) {
           out[streamingIdx] = { kind: 'msg', id: event.id, role: 'assistant', content }
-          return markThoughtsDone(out)
+          return markThoughtsDone(out, event.created_at)
         }
         out.splice(streamingIdx, 1)
         if (!content && !reasoning) {
-          return [...markThoughtsDone(out), {
+          return [...markThoughtsDone(out, event.created_at), {
             kind: 'msg',
             id: event.id,
             role: 'error',
             content: '模型返回了空回复（常见于思考模式耗尽输出额度）。请重试，或在设置中换模型。',
           }]
         }
-        return markThoughtsDone(out)
+        return markThoughtsDone(out, event.created_at)
       }
       if (content) {
-        return markThoughtsDone([...next, { kind: 'msg', id: event.id, role: 'assistant', content }])
+        return markThoughtsDone([...next, { kind: 'msg', id: event.id, role: 'assistant', content }], event.created_at)
       }
       if (!reasoning) {
         return [...next, {
@@ -718,7 +805,7 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
           content: '模型返回了空回复（常见于思考模式耗尽输出额度）。请重试，或在设置中换模型。',
         }]
       }
-      return markThoughtsDone(next)
+      return markThoughtsDone(next, event.created_at)
     }
     case 'tool_call': {
       const name = String(p.name ?? 'tool')
@@ -739,11 +826,11 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
     }
     case 'reply':
       // 终局：卸过程 + 收 Thought + 收口 Todo；残留 provisional 升格为定稿
-      return sealTurnEnd(prev)
+      return sealTurnEnd(prev, event.created_at)
     case 'status_change': {
       const to = String(p.to ?? '')
       if (!['canceled', 'failed', 'done', 'interrupted'].includes(to)) return prev
-      return sealTurnEnd(prev)
+      return sealTurnEnd(prev, event.created_at)
     }
     case 'compaction':
       return [...prev, { kind: 'compaction', id: event.id }]
@@ -751,7 +838,7 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
       return sealOpenTodos(markThoughtsDone(stripProcessItems([
         ...finalizeProvisional(prev),
         { kind: 'msg', id: event.id, role: 'error', content: String(p.error ?? '出错了') },
-      ])))
+      ]), event.created_at))
     default:
       return prev
   }
@@ -798,7 +885,7 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
       if (isTodoTool(name)) return prev // Todo 等完整 tool_call
       const id = String(p.id ?? event.id)
       const step: ProcStep = { id, name, done: false, label: `${verb(name)}…` }
-      return appendProcessStep(prev, step)
+      return appendProcessStep(prev, step, event.created_at)
     }
     case 'model_step': {
       const content = typeof p.content === 'string' ? p.content.trim() : ''
@@ -856,7 +943,7 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
         label: `${verb(name)}…`,
         ...(path ? { path } : {}),
       }
-      return appendProcessStep(prev, step)
+      return appendProcessStep(prev, step, event.created_at)
     }
     case 'tool_result': {
       const name = String(p.name ?? '')
@@ -904,7 +991,7 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
         done: false,
         label: `子代理 ${stype}：${desc}`,
       }
-      return appendProcessStep(prev, step)
+      return appendProcessStep(prev, step, event.created_at)
     }
     case 'subagent_completed':
     case 'subagent_interrupted':

@@ -1,29 +1,33 @@
 /**
- * [INPUT]: ProcessItem;CurtainFold;StatusOrb;orbStateFromSteps
+ * [INPUT]: ProcessItem;CurtainFold;StatusOrb;orbStateFromSteps;partitionProcessSteps
  * [OUTPUT]: ProcessRow —— 可折叠过程块(Turn-scoped ToolGroup 唯一卡)
- * [POS]: 对话流过程叙事行;与 ThinkingIndicator(尚无工具/轮间思考)分离;进度清单见 TodoCard / 右轨 Progress
+ * [POS]: 对话流过程叙事行;长轨迹只露最近 6 步;运行中 shimmer + 计时
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useEffect, useState } from 'react'
+import { APP_STATUS_COPY } from '../appCopy'
+import { useElapsedLabel } from '../elapsedLabel'
 import { orbStateFromSteps } from '../orbState'
+import { PROCESS_RECENT_KEEP, partitionProcessSteps, stepChip } from '../processSteps'
 import type { ProcessItem } from '../useAgent'
 import { CurtainFold } from './CurtainFold'
 import { StatusOrb } from './StatusOrb'
 
 export function ProcessRow({ block }: { block: ProcessItem }) {
-  // 运行中默认展开当前步；收口后默认收起，只露「研究过程 · N 步」
   const [open, setOpen] = useState(block.running)
+  const [showAll, setShowAll] = useState(false)
   useEffect(() => {
     if (block.running) setOpen(true)
     else setOpen(false)
   }, [block.running])
   const focus = block.steps.slice().reverse().find((s) => !s.done)
     ?? block.steps[block.steps.length - 1]
-  // H1：运行中露焦点步；收口统一摘要（避免多卡标题错觉）
   const head = block.running
     ? (focus?.label ?? '研究中…')
-    : `研究过程 · ${block.steps.length} 步`
+    : APP_STATUS_COPY.processTools(block.steps.length)
   const orbState = orbStateFromSteps(block.steps)
+  const elapsed = useElapsedLabel(block.startedAt)
+  const { hidden, visible } = partitionProcessSteps(block.steps, showAll)
   return (
     <div className={`proc ${block.running ? 'proc-running' : 'proc-done'}`}>
       <button
@@ -38,17 +42,44 @@ export function ProcessRow({ block }: { block: ProcessItem }) {
           paused={!block.running}
           aria-label={head}
         />
-        <span className="proc-label">{head}</span>
-        <span className="proc-toggle">{open ? '收起' : `${block.steps.length} 步 ›`}</span>
+        <span className={`proc-label${block.running ? ' is-shimmer' : ''}`}>{head}</span>
+        {elapsed ? <span className="proc-elapsed">{elapsed}</span> : null}
+        <span className="proc-toggle">{open ? '收起' : `${block.steps.length} ›`}</span>
       </button>
       <CurtainFold open={open} stagger>
         <ul className="proc-steps">
-          {block.steps.map((s) => (
-            <li key={s.id} className="proc-step">
-              <span className={`proc-step-dot ${s.done ? 'is-done' : ''}`} />
-              <span>{s.label}</span>
+          {hidden > 0 ? (
+            <li className="proc-step proc-step-more">
+              <button
+                type="button"
+                className="proc-more"
+                onClick={() => setShowAll(true)}
+              >
+                {APP_STATUS_COPY.processMore(hidden)}
+              </button>
             </li>
-          ))}
+          ) : null}
+          {visible.map((s) => {
+            const chip = stepChip(s)
+            return (
+              <li key={s.id} className={`proc-step${s.done ? ' is-done' : ''}`}>
+                <span className={`proc-step-dot ${s.done ? 'is-done' : ''}`} />
+                <span className="proc-step-label">{s.label}</span>
+                {chip ? <span className="proc-step-chip">{chip}</span> : null}
+              </li>
+            )
+          })}
+          {showAll && block.steps.length > PROCESS_RECENT_KEEP ? (
+            <li className="proc-step proc-step-more">
+              <button
+                type="button"
+                className="proc-more"
+                onClick={() => setShowAll(false)}
+              >
+                {APP_STATUS_COPY.processRecent}
+              </button>
+            </li>
+          ) : null}
         </ul>
       </CurtainFold>
     </div>
