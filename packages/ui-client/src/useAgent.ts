@@ -6,6 +6,7 @@
  * [POS]: UI 对话状态核;用户面默认不渲染工具过程;证据面给右轨/排障;
  *        todo_write 仍进用户面;ask_user→pendingAsk;model_retry→Retry n/m;上传知情 chip
  *        终态 sealOpenTodos:reply/done 等收口未勾 Todo(HDD:假 in_progress,见 doc/todo.md)
+ *        Thought 顺序:本 turn 内插在答案气泡之前(防 text_delta 先占坑导致 Thought 沉底)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * user 也走事件流,不在前端乐观插入。taskId 按项目键存 localStorage。
@@ -470,15 +471,51 @@ function markThoughtsDone(prev: ChatItem[]): ChatItem[] {
   return prev.map((it) => (it.kind === 'thought' && !it.done ? { ...it, done: true } : it))
 }
 
+/**
+ * 本 turn 未收口的 thought 下标(最后一个 user 之后、未 done)。
+ * 跨 turn 不得把新 reasoning 拼进上一轮已 Done 的 thought。
+ */
+function findOpenThoughtIdx(prev: ChatItem[]): number {
+  let lastUser = -1
+  for (let i = prev.length - 1; i >= 0; i -= 1) {
+    const it = prev[i]
+    if (it?.kind === 'msg' && it.role === 'user') {
+      lastUser = i
+      break
+    }
+  }
+  for (let i = prev.length - 1; i > lastUser; i -= 1) {
+    const it = prev[i]
+    if (it?.kind === 'thought' && !it.done) return i
+  }
+  return -1
+}
+
+/**
+ * 新 thought 插入点:本 turn 内、最终/流式答案气泡之前。
+ * 合同顺序 user → thought → process → answer(Claude 档)。
+ * 旧实现 [...prev, thought] 在 text_delta 已占坑后会变成 answer→thought 倒置。
+ */
+function thoughtInsertIndex(prev: ChatItem[]): number {
+  let lastUser = -1
+  for (let i = prev.length - 1; i >= 0; i -= 1) {
+    if (prev[i]?.kind === 'msg' && (prev[i] as ChatMsg).role === 'user') {
+      lastUser = i
+      break
+    }
+  }
+  // 从尾部往 user 扫:答案气泡(含 provisional)应在 thought 之后,故插入点取最靠前的答案位
+  for (let i = lastUser + 1; i < prev.length; i += 1) {
+    const it = prev[i]
+    if (it?.kind === 'msg' && it.role === 'assistant') return i
+  }
+  return prev.length
+}
+
 function upsertThought(prev: ChatItem[], eventId: string, chunk: string, done = false): ChatItem[] {
   const text = chunk.trim()
   if (!text && !done) return prev
-  const idx = (() => {
-    for (let i = prev.length - 1; i >= 0; i--) {
-      if (prev[i]!.kind === 'thought') return i
-    }
-    return -1
-  })()
+  const idx = findOpenThoughtIdx(prev)
   if (idx >= 0) {
     const cur = prev[idx] as ThoughtItem
     const nextContent = text
@@ -488,7 +525,9 @@ function upsertThought(prev: ChatItem[], eventId: string, chunk: string, done = 
     return prev.map((it, i) => (i === idx ? next : it))
   }
   if (!text) return prev
-  return [...prev, { kind: 'thought', id: `thought-${eventId}`, content: text, done }]
+  const at = thoughtInsertIndex(prev)
+  const item: ThoughtItem = { kind: 'thought', id: `thought-${eventId}`, content: text, done }
+  return [...prev.slice(0, at), item, ...prev.slice(at)]
 }
 
 function dropStreamingAssistant(prev: ChatItem[]): ChatItem[] {
@@ -622,6 +661,7 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
       const tools = Array.isArray(p.toolCalls) ? p.toolCalls : []
       const reasoning = typeof p.reasoningContent === 'string' ? p.reasoningContent.trim() : ''
       let next = prev
+      // 先收 reasoning:upsertThought 会插到本 turn 答案气泡之前(防 text_delta 倒置)
       if (reasoning) next = upsertThought(next, event.id, reasoning, false)
 
       if (tools.length > 0) {
@@ -629,7 +669,8 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
         next = demoteProvisionalAssistantToThought(next, event.id)
         // model_step 的 content 若没走过 text_delta，也并入 Thought
         if (content) {
-          const lastThought = [...next].reverse().find((it) => it.kind === 'thought') as ThoughtItem | undefined
+          const open = findOpenThoughtIdx(next)
+          const lastThought = open >= 0 ? (next[open] as ThoughtItem) : undefined
           if (!lastThought || !lastThought.content.includes(content.slice(0, Math.min(40, content.length)))) {
             next = upsertThought(next, event.id, content, false)
           }
@@ -640,6 +681,7 @@ export function reduceUserFacingItems(prev: ChatItem[], event: TaskEvent, p: Rec
       // —— 终局：无工具定稿 —— 过程消失，只留 Thought + 答案
       next = stripProcessItems(next)
 
+      // thought 插入后下标可能变,须重扫 provisional
       let streamingIdx = -1
       for (let i = next.length - 1; i >= 0; i -= 1) {
         const it = next[i]

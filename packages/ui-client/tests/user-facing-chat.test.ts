@@ -127,6 +127,24 @@ describe('user-facing Claude 两阶段', () => {
     assert.match(ans!.content, /三条线索/)
   })
 
+  it('Thought 在答案之前: text_delta 先流再带 reasoning 的 model_step 不得倒置', () => {
+    let u: ChatItem[] = []
+    u = applyUser(u, 'user', 'u1', { content: 'Workflow vs Agent?' })
+    u = applyUser(u, 'text_delta', 'd1', { text: '诚实边界' })
+    u = applyUser(u, 'model_step', 'm1', {
+      content: '诚实边界\n\n控制权契约…',
+      toolCalls: [],
+      reasoningContent: 'User asks control structure difference',
+    })
+    const kinds = u.map((i) => (i.kind === 'msg' ? `msg:${i.role}` : i.kind))
+    assert.deepEqual(kinds, ['msg:user', 'thought', 'msg:assistant'])
+    const th = u.find((i) => i.kind === 'thought')
+    if (th?.kind === 'thought') {
+      assert.equal(th.done, true)
+      assert.match(th.content, /control structure/i)
+    }
+  })
+
   it('AT2: reasoning → Thought 默认 done=false 直到最终答案', () => {
     let u: ChatItem[] = []
     u = applyUser(u, 'model_step', 'm0', {
