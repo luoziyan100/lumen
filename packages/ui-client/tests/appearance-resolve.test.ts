@@ -74,6 +74,16 @@ describe('resolveTheme', () => {
     assert.notEqual(c.tokens['--ember'], d.tokens['--ember'])
     assert.notEqual(c.tokens['--ember'], m.tokens['--ember'])
   })
+
+  it('整窗皮肤：玻璃壳 paper/card 与 default 不同（侧栏会跟）', () => {
+    const d = resolveTheme({ ...DEFAULT_APPEARANCE, skinId: 'default' }, 'dark')
+    const m = resolveTheme({ ...DEFAULT_APPEARANCE, skinId: 'mist-forest' }, 'dark')
+    const c = resolveTheme({ ...DEFAULT_APPEARANCE, skinId: 'clay-warm' }, 'dark')
+    assert.notEqual(m.tokens['--paper'], d.tokens['--paper'])
+    assert.notEqual(m.tokens['--card'], d.tokens['--card'])
+    assert.notEqual(c.tokens['--paper'], d.tokens['--paper'])
+    assert.notEqual(c.tokens['--card'], m.tokens['--card'])
+  })
 })
 
 describe('normalizeAppearance', () => {
