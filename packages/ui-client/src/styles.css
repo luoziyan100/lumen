@@ -27,54 +27,47 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
     radial-gradient(ellipse 42% 32% at 48% 92%, var(--aurora-c), transparent 58%);
 }
 /*
- * 宇宙拿铁：canvas 与玻璃统一成「冷雾景」
- * —— 不再单独留一层死黑墙；底 = 雾蓝灰渐变 + 白雾 aurora，
- *    侧栏/标题/正文玻璃都叠在同一景上。
+ * 宇宙拿铁 cover = 对话气泡同款 frosted 材质（非冷雾多层渐变）
+ * 底：极简中性深灰；壳：半透明白 + blur —— 与 .bubble-assistant 同一套
  */
+html[data-skin="cosmic-latte"] {
+  --frost-fill: rgba(255, 255, 255, 0.09);
+  --frost-border: rgba(255, 255, 255, 0.16);
+  --frost-blur: 18px;
+  --frost-radius: 20px;
+  --frost-shadow:
+    0 8px 32px -12px rgba(0, 0, 0, 0.35),
+    inset 0 0 80px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
 html[data-skin="cosmic-latte"] .app {
-  background-color: var(--canvas);
-  background-image:
-    radial-gradient(ellipse 100% 80% at 15% 10%, rgba(210, 225, 245, 0.20), transparent 50%),
-    radial-gradient(ellipse 80% 70% at 90% 35%, rgba(120, 150, 200, 0.22), transparent 52%),
-    radial-gradient(ellipse 90% 60% at 50% 95%, rgba(60, 80, 120, 0.35), transparent 48%),
-    radial-gradient(ellipse 50% 40% at 60% 55%, rgba(255, 255, 255, 0.06), transparent 70%),
-    linear-gradient(165deg, #2a3548 0%, #1a2332 42%, #141c28 100%);
+  /* 只留极简深底，不再叠冷雾蓝灰 / 多层白 */
+  background-color: #16181e;
+  background-image: none;
 }
 html[data-skin="cosmic-latte"] .app::before {
-  /* 整窗再铺一层极淡白雾，与侧栏/气泡同一材质语言 */
-  background:
-    radial-gradient(ellipse 70% 55% at 30% 25%, var(--aurora-a), transparent 58%),
-    radial-gradient(ellipse 55% 50% at 78% 65%, var(--aurora-b), transparent 55%),
-    radial-gradient(ellipse 45% 40% at 50% 90%, var(--aurora-c), transparent 50%);
-  /* 轻 blur 让底景发虚，贴近 frosted 背后的雾 */
-  filter: blur(0px);
+  display: none;
 }
-html[data-skin="cosmic-latte"] html,
 html[data-skin="cosmic-latte"] body {
-  background: var(--canvas);
+  background: #16181e;
 }
-/* 对话舞台：与 canvas 连续，不再是「中间一块纯黑」 */
-html[data-skin="cosmic-latte"] .chat,
+/* 对话区整列 = cover：与模型输出气泡同材质 */
+html[data-skin="cosmic-latte"] .chat {
+  margin: var(--s-2) var(--s-2) var(--s-2) 0;
+  border-radius: var(--frost-radius);
+  background: var(--frost-fill);
+  border: 1px solid var(--frost-border);
+  backdrop-filter: blur(var(--frost-blur)) saturate(1.08);
+  -webkit-backdrop-filter: blur(var(--frost-blur)) saturate(1.08);
+  box-shadow: var(--frost-shadow);
+  overflow: hidden;
+}
 html[data-skin="cosmic-latte"] .chat-stage,
 html[data-skin="cosmic-latte"] .messages {
   background: transparent;
 }
-html[data-skin="cosmic-latte"] .chat-stage::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  /* 对话区统一铺一层极低可见度白霜，和侧栏/气泡同族 */
-  background: rgba(255, 255, 255, 0.035);
-  backdrop-filter: blur(24px) saturate(1.05);
-  -webkit-backdrop-filter: blur(24px) saturate(1.05);
-}
-html[data-skin="cosmic-latte"] .chat-stage > * {
-  position: relative;
-  z-index: 1;
-}
 html[data-aurora="0"] .app::before {
+  display: block;
   background: linear-gradient(rgba(0, 0, 0, var(--skin-overlay)), rgba(0, 0, 0, var(--skin-overlay)));
 }
 .app > * { position: relative; z-index: 1; }
@@ -128,25 +121,18 @@ html[data-aurora="0"] .app::before {
     inset 0 0 90px color-mix(in srgb, var(--ember) 6%, transparent),
     inset 0 0 3px 1px rgba(255, 255, 255, 0.14);
 }
-/* 侧栏/标题：与 canvas 雾景统一的白霜玻璃（同一材质） */
+/* 侧栏/标题/卡：与对话 cover、气泡同一套 --frost-* */
 html[data-skin="cosmic-latte"] .glass-card,
 html[data-skin="cosmic-latte"] .sidebar,
 html[data-skin="cosmic-latte"] .titlebar {
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(22px) saturate(1.08);
-  -webkit-backdrop-filter: blur(22px) saturate(1.08);
-  border-color: rgba(255, 255, 255, 0.16);
-  box-shadow:
-    0 8px 32px -16px rgba(0, 0, 0, 0.28),
-    inset 0 0 100px rgba(255, 255, 255, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
-}
-html[data-skin="cosmic-latte"] .sidebar {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--frost-fill);
+  backdrop-filter: blur(var(--frost-blur)) saturate(1.08);
+  -webkit-backdrop-filter: blur(var(--frost-blur)) saturate(1.08);
+  border-color: var(--frost-border);
+  box-shadow: var(--frost-shadow);
 }
 html[data-skin="cosmic-latte"] .titlebar {
-  background: rgba(255, 255, 255, 0.06);
-  border-bottom-color: rgba(255, 255, 255, 0.10);
+  border-bottom-color: var(--frost-border);
 }
 .glass-card::before {
   content: '';
@@ -1260,51 +1246,29 @@ html[data-aurora="0"] .composer-dock::before { opacity: 0; }
   font-family: var(--font-serif);
   font-size: var(--t-body-lg);
 }
-/* Cosmic Latte: 参考 frosted 卡——半透明白 + 中等 blur,不是实心色块 */
+/*
+ * 对话 cover 已是气泡同款 frosted，正文不再套第二层实心灰卡，
+ * 避免「黑底上又叠一块灰玻璃」；仅保留排版间距。
+ */
 html[data-skin="cosmic-latte"] .bubble-assistant:not(.is-provisional) {
-  position: relative;
-  padding: 14px 18px;
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.09);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(18px) saturate(1.08);
-  -webkit-backdrop-filter: blur(18px) saturate(1.08);
-  box-shadow:
-    0 8px 32px -12px rgba(0, 0, 0, 0.35),
-    inset 0 0 80px rgba(255, 255, 255, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
-  overflow: hidden;
-}
-html[data-skin="cosmic-latte"] .bubble-assistant:not(.is-provisional)::before {
-  content: '';
-  position: absolute; inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  background: linear-gradient(to left top, rgba(255, 255, 255, 0.08) 0%, transparent 52%);
-  z-index: 0;
-}
-html[data-skin="cosmic-latte"] .bubble-assistant:not(.is-provisional) > * {
-  position: relative;
-  z-index: 1;
+  padding: 4px 2px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 html[data-skin="cosmic-latte"] .bubble-user {
-  background: rgba(255, 255, 255, 0.10);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(14px) saturate(1.05);
-  -webkit-backdrop-filter: blur(14px) saturate(1.05);
-}
-html[data-skin="cosmic-latte"] .thought,
-html[data-skin="cosmic-latte"] .proc-row,
-html[data-skin="cosmic-latte"] .think-status {
-  /* 过程/思考条也略抬玻璃,避免只正文一块白 */
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--frost-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 html[data-skin="cosmic-latte"] .thought {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.10);
   border-radius: 14px;
   padding: 8px 12px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
 }
 /* 中间轮旁白：弱化为「还在想」，终稿才升成正文字重 */
 .bubble-assistant.is-provisional {
