@@ -1,7 +1,7 @@
 /**
  * [INPUT]: 当前缩放/平移 + 手势因子
- * [OUTPUT]: clamp 后的 zoom / 绕锚点缩放后的 pan
- * [POS]: Mermaid 放大层(双指/滚轮/± 钮)
+ * [OUTPUT]: clamp 后的 zoom / 绕锚点缩放后的 pan / 单指拖移
+ * [POS]: Mermaid 放大层(双指缩放、单指拖移、滚轮/± 钮)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 
@@ -24,6 +24,15 @@ export function zoomByFactor(z: number, factor: number): number {
 }
 
 /** 保持 origin(相对舞台中心)在屏幕上不动 */
+export function panBy(
+  pan: { x: number; y: number },
+  dx: number,
+  dy: number,
+): { x: number; y: number } {
+  if (!Number.isFinite(dx) || !Number.isFinite(dy)) return pan
+  return { x: pan.x + dx, y: pan.y + dy }
+}
+
 export function panForZoom(
   pan: { x: number; y: number },
   zoom: number,

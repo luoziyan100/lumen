@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   clampZoom,
+  panBy,
   panForZoom,
   sizeFromViewBox,
   viewBoxFromBBox,
@@ -55,6 +56,12 @@ describe('viewBoxFromBBox', () => {
     const vb = viewBoxFromBBox({ x: 10, y: 20, width: 200, height: 80 }, 10)
     assert.deepEqual(vb, { x: 0, y: 10, w: 220, h: 100 })
     assert.equal(viewBoxFromBBox({ x: 0, y: 0, width: 0, height: 10 }), null)
+  })
+})
+
+describe('panBy', () => {
+  it('adds delta', () => {
+    assert.deepEqual(panBy({ x: 10, y: -4 }, 3, 8), { x: 13, y: 4 })
   })
 })
 

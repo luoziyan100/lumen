@@ -6,7 +6,7 @@
  *
  * 管线: prepare(语法+颜色) → 同源 parse → render。
  * 复制始终用模型原文; 展示像素用改写稿。会话内 hash 缓存 parse/render 结果。
- * 卡片右上角只留放大/复制;放大层 ± 与双指缩放。
+ * 卡片右上角只留放大/复制;放大层 ± / 双指缩放 / 单指拖移。
  * 方向 LR/TB 尊重源码,宿主只做 getBBox 收紧虚高(mermaid#1984),不改写横竖。
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
@@ -14,7 +14,7 @@ import { createPortal } from 'react-dom'
 import { glassMermaidThemeVariables } from '../mermaidSanitize'
 import { prepareAndValidate } from '../mermaidSyntax'
 import { CheckIcon, CloseIcon, CopyIcon, ExpandIcon, ICON_SM, ZoomInIcon, ZoomOutIcon } from './icons'
-import { clampZoom, panForZoom, sizeFromViewBox, viewBoxFromBBox, wheelZoomFactor, zoomByFactor, zoomByStep, ZOOM_MAX, ZOOM_MIN } from '../mermaidZoom'
+import { clampZoom, panBy, panForZoom, sizeFromViewBox, viewBoxFromBBox, wheelZoomFactor, zoomByFactor, zoomByStep, ZOOM_MAX, ZOOM_MIN } from '../mermaidZoom'
 
 type CacheEntry = {
   svg: string | null
@@ -141,6 +141,8 @@ export function MermaidBlock({ chart }: { chart: string }) {
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const pinchRef = useRef<{ dist: number; zoom: number } | null>(null)
+  const dragRef = useRef<{ id: number; x: number; y: number } | null>(null)
+  const pointersRef = useRef(new Set<number>())
   const lightboxBodyRef = useRef<HTMLDivElement>(null)
   const zoomRef = useRef(1)
   const panRef = useRef({ x: 0, y: 0 })
@@ -256,6 +258,7 @@ export function MermaidBlock({ chart }: { chart: string }) {
     setZoom(1)
     setPan({ x: 0, y: 0 })
     pinchRef.current = null
+    dragRef.current = null
     function onKey(e: KeyboardEvent): void {
       if (e.key === 'Escape') setExpanded(false)
     }
@@ -321,8 +324,36 @@ export function MermaidBlock({ chart }: { chart: string }) {
       if (!a || !b) return 0
       return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
     }
+    function onPointerDown(e: PointerEvent): void {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      pointersRef.current.add(e.pointerId)
+      if (pointersRef.current.size >= 2) {
+        dragRef.current = null
+        el?.classList.remove('is-panning')
+        return
+      }
+      dragRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY }
+      try { el?.setPointerCapture(e.pointerId) } catch { /* 捕获失败仍可用 move */ }
+      el?.classList.add('is-panning')
+    }
+    function onPointerMove(e: PointerEvent): void {
+      const drag = dragRef.current
+      if (!drag || drag.id !== e.pointerId || pointersRef.current.size !== 1 || pinchRef.current) return
+      e.preventDefault()
+      const next = panBy(panRef.current, e.clientX - drag.x, e.clientY - drag.y)
+      dragRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY }
+      panRef.current = next
+      setPan(next)
+    }
+    function onPointerUp(e: PointerEvent): void {
+      pointersRef.current.delete(e.pointerId)
+      if (dragRef.current?.id === e.pointerId) dragRef.current = null
+      if (pointersRef.current.size === 0) el?.classList.remove('is-panning')
+    }
     function onTouchStart(e: TouchEvent): void {
       if (e.touches.length !== 2) return
+      dragRef.current = null
+      el?.classList.remove('is-panning')
       pinchRef.current = { dist: touchDist(e.touches), zoom: zoomRef.current }
     }
     function onTouchMove(e: TouchEvent): void {
@@ -341,6 +372,10 @@ export function MermaidBlock({ chart }: { chart: string }) {
     el?.addEventListener('wheel', onWheel, { passive: false })
     el?.addEventListener('gesturestart', onGestureStart as EventListener, { passive: false })
     el?.addEventListener('gesturechange', onGestureChange as EventListener, { passive: false })
+    el?.addEventListener('pointerdown', onPointerDown)
+    el?.addEventListener('pointermove', onPointerMove, { passive: false })
+    el?.addEventListener('pointerup', onPointerUp)
+    el?.addEventListener('pointercancel', onPointerUp)
     el?.addEventListener('touchstart', onTouchStart, { passive: true })
     el?.addEventListener('touchmove', onTouchMove, { passive: false })
     el?.addEventListener('touchend', onTouchEnd)
@@ -348,9 +383,14 @@ export function MermaidBlock({ chart }: { chart: string }) {
     return () => {
       window.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
+      el?.classList.remove('is-panning')
       el?.removeEventListener('wheel', onWheel)
       el?.removeEventListener('gesturestart', onGestureStart as EventListener)
       el?.removeEventListener('gesturechange', onGestureChange as EventListener)
+      el?.removeEventListener('pointerdown', onPointerDown)
+      el?.removeEventListener('pointermove', onPointerMove)
+      el?.removeEventListener('pointerup', onPointerUp)
+      el?.removeEventListener('pointercancel', onPointerUp)
       el?.removeEventListener('touchstart', onTouchStart)
       el?.removeEventListener('touchmove', onTouchMove)
       el?.removeEventListener('touchend', onTouchEnd)

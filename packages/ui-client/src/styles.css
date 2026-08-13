@@ -2351,9 +2351,11 @@ html[data-skin="cosmic-latte"] .thought {
   background: transparent;
   border: none;
   box-shadow: none;
-  cursor: default;
+  cursor: grab;
   touch-action: none;
+  user-select: none;
 }
+.mermaid-lightbox-body.is-panning { cursor: grabbing; }
 /* 必须有确定宽高:mermaid 输出 width="100%",套 shrink-wrap 父级会把图算成 0(放大一片黑) */
 .mermaid-lightbox-stage {
   display: flex;
