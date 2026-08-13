@@ -4,6 +4,7 @@ import {
   clampZoom,
   panForZoom,
   sizeFromViewBox,
+  viewBoxFromBBox,
   wheelZoomFactor,
   zoomByFactor,
   zoomByStep,
@@ -46,6 +47,14 @@ describe('sizeFromViewBox', () => {
     const { w, h } = sizeFromViewBox(0, 0, 800, 600)
     assert.equal(w, 800)
     assert.equal(h, 600)
+  })
+})
+
+describe('viewBoxFromBBox', () => {
+  it('pads ink and rejects empty', () => {
+    const vb = viewBoxFromBBox({ x: 10, y: 20, width: 200, height: 80 }, 10)
+    assert.deepEqual(vb, { x: 0, y: 10, w: 220, h: 100 })
+    assert.equal(viewBoxFromBBox({ x: 0, y: 0, width: 0, height: 10 }), null)
   })
 })
 

@@ -6,14 +6,15 @@
  *
  * 管线: prepare(语法+颜色) → 同源 parse → render。
  * 复制始终用模型原文; 展示像素用改写稿。会话内 hash 缓存 parse/render 结果。
- * 卡片右上角只留放大/复制;放大层 ± 与双指缩放,不再显示「流程图」或第二次复制。
+ * 卡片右上角只留放大/复制;放大层 ± 与双指缩放。
+ * 方向 LR/TB 尊重源码,宿主只做 getBBox 收紧虚高(mermaid#1984),不改写横竖。
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { glassMermaidThemeVariables } from '../mermaidSanitize'
 import { prepareAndValidate } from '../mermaidSyntax'
 import { CheckIcon, CloseIcon, CopyIcon, ExpandIcon, ICON_SM, ZoomInIcon, ZoomOutIcon } from './icons'
-import { clampZoom, panForZoom, sizeFromViewBox, wheelZoomFactor, zoomByFactor, zoomByStep, ZOOM_MAX, ZOOM_MIN } from '../mermaidZoom'
+import { clampZoom, panForZoom, sizeFromViewBox, viewBoxFromBBox, wheelZoomFactor, zoomByFactor, zoomByStep, ZOOM_MAX, ZOOM_MIN } from '../mermaidZoom'
 
 type CacheEntry = {
   svg: string | null
@@ -66,12 +67,47 @@ function readThemeVars(el: HTMLElement): Record<string, string> {
 /** 与 .mermaid-block padding-top+bottom 对齐,minHeight 含 padding(border-box) */
 const BLOCK_CHROME = 56
 
+function inkBox(svg: SVGSVGElement): { x: number; y: number; width: number; height: number } | null {
+  try {
+    const base = svg.getBBox()
+    let x = base.x
+    let y = base.y
+    let r = base.x + base.width
+    let b = base.y + base.height
+    svg.querySelectorAll('foreignObject, text, .node, .cluster, .edgeLabel').forEach((n) => {
+      try {
+        const bb = (n as SVGGraphicsElement).getBBox()
+        if (!(bb.width > 0) || !(bb.height > 0)) return
+        x = Math.min(x, bb.x)
+        y = Math.min(y, bb.y)
+        r = Math.max(r, bb.x + bb.width)
+        b = Math.max(b, bb.y + bb.height)
+      } catch { /* 未插入布局的节点 getBBox 会抛 */ }
+    })
+    return { x, y, width: r - x, height: b - y }
+  } catch {
+    return null
+  }
+}
+
+/** 按墨迹收紧 viewBox,卡片高度跟图走,不跟 mermaid 虚高 viewBox 走 */
+function tightenSvgInk(svg: SVGSVGElement): void {
+  const box = inkBox(svg)
+  const vb = box ? viewBoxFromBBox(box) : null
+  if (vb) {
+    svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`)
+    svg.setAttribute('width', String(Math.round(vb.w)))
+    svg.setAttribute('height', String(Math.round(vb.h)))
+  }
+  svg.style.maxWidth = '100%'
+  svg.style.width = '100%'
+  svg.style.height = 'auto'
+}
+
 function measureSvgHeight(host: HTMLElement | null): number {
   const svg = host?.querySelector('.mermaid-svg svg') as SVGSVGElement | null
   if (!svg) return 0
-  svg.style.maxWidth = '100%'
-  svg.style.height = 'auto'
-  svg.style.width = '100%'
+  tightenSvgInk(svg)
   const h = svg.getBoundingClientRect().height
   return h > 0 ? Math.ceil(h) + BLOCK_CHROME : 0
 }
@@ -156,7 +192,7 @@ export function MermaidBlock({ chart }: { chart: string }) {
           darkMode: true,
           themeVariables,
           fontFamily: themeVariables.fontFamily,
-          flowchart: { useMaxWidth: true, htmlLabels: true, padding: 8 },
+          flowchart: { useMaxWidth: false, htmlLabels: true, padding: 8 },
         })
 
         const validated = await prepareAndValidate(original, (src) => mermaid.parse(src))
@@ -228,6 +264,7 @@ export function MermaidBlock({ chart }: { chart: string }) {
     document.body.style.overflow = 'hidden'
 
     const svgEl = lightboxBodyRef.current?.querySelector('svg')
+    if (svgEl) tightenSvgInk(svgEl)
     if (svgEl && svgEl.getBoundingClientRect().width < 8) {
       const vb = svgEl.viewBox.baseVal
       const box = sizeFromViewBox(

@@ -53,3 +53,17 @@ export function sizeFromViewBox(
   const s = Math.min(maxW / vbW, maxH / vbH)
   return { w: vbW * s, h: vbH * s }
 }
+
+/** 用墨迹 bbox 收紧 viewBox(mermaid#1984 虚高空白的业界常规修法)。不改 LR/TB。 */
+export function viewBoxFromBBox(
+  box: { x: number; y: number; width: number; height: number },
+  pad = 12,
+): { x: number; y: number; w: number; h: number } | null {
+  if (!(box.width > 1) || !(box.height > 1)) return null
+  return {
+    x: box.x - pad,
+    y: box.y - pad,
+    w: box.width + pad * 2,
+    h: box.height + pad * 2,
+  }
+}
