@@ -8,7 +8,7 @@
 import {
   Archive, ArrowDown, ArrowUp, ArrowsOut, At, BookOpen, Brain, Briefcase, CalendarBlank, CaretDown, CaretLeft, CaretRight,
   ChatCircle, Check, Code, Copy, File, FileCode, FileCsv, FileDoc, FileHtml, FileImage, FilePdf, FilePpt, FileText, FileZip,
-  FolderOpen, FolderSimple, Gear, MagnifyingGlass, Minus, Palette, PencilSimple, Play, Plus, PushPin, PushPinSlash,
+  FolderOpen, FolderSimple, Gear, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, Minus, Palette, PencilSimple, Play, Plus, PushPin, PushPinSlash,
   Question, Scroll, SidebarSimple, Stack, Trash, User, Wrench, X,
   type Icon,
 } from '@phosphor-icons/react'
@@ -238,6 +238,14 @@ export function ManageSkillsIcon({ size = ICON_SM }: { size?: number }) {
 /** 流程图放大查看 */
 export function ExpandIcon({ size = ICON_SM }: { size?: number }) {
   return <ArrowsOut size={size} />
+}
+
+export function ZoomInIcon({ size = ICON_SM }: { size?: number }) {
+  return <MagnifyingGlassPlus size={size} />
+}
+
+export function ZoomOutIcon({ size = ICON_SM }: { size?: number }) {
+  return <MagnifyingGlassMinus size={size} />
 }
 
 export function CheckIcon({ size = ICON_SM }: { size?: number }) {

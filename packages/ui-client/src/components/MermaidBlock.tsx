@@ -6,13 +6,14 @@
  *
  * 管线: prepare(语法+颜色) → 同源 parse → render。
  * 复制始终用模型原文; 展示像素用改写稿。会话内 hash 缓存 parse/render 结果。
- * 工具条只留放大/复制,高度跟 SVG 走,禁止预估 minHeight 把图画在大空白顶上。
+ * 卡片右上角只留放大/复制;放大层 ± 与双指缩放,不再显示「流程图」或第二次复制。
  */
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { glassMermaidThemeVariables } from '../mermaidSanitize'
 import { prepareAndValidate } from '../mermaidSyntax'
-import { CheckIcon, CloseIcon, CopyIcon, ExpandIcon, ICON_SM } from './icons'
+import { CheckIcon, CloseIcon, CopyIcon, ExpandIcon, ICON_SM, ZoomInIcon, ZoomOutIcon } from './icons'
+import { clampZoom, panForZoom, wheelZoomFactor, zoomByFactor, zoomByStep, ZOOM_MAX, ZOOM_MIN } from '../mermaidZoom'
 
 type CacheEntry = {
   svg: string | null
@@ -101,6 +102,14 @@ export function MermaidBlock({ chart }: { chart: string }) {
   const [detail, setDetail] = useState<string | null>(() => cached0?.detail ?? null)
   const [showDetail, setShowDetail] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const pinchRef = useRef<{ dist: number; zoom: number } | null>(null)
+  const lightboxBodyRef = useRef<HTMLDivElement>(null)
+  const zoomRef = useRef(1)
+  const panRef = useRef({ x: 0, y: 0 })
+  zoomRef.current = zoom
+  panRef.current = pan
   const [copied, setCopied] = useState(false)
   const [pending, setPending] = useState(() => Boolean(original) && !cached0)
   /** 只锁「量过的 SVG 高 + 工具条」,禁止用行数估 560 把图顶在空白上方 */
@@ -206,17 +215,92 @@ export function MermaidBlock({ chart }: { chart: string }) {
     return () => { cancelled = true }
   }, [original, reactId])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!expanded) return
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+    pinchRef.current = null
     function onKey(e: KeyboardEvent): void {
       if (e.key === 'Escape') setExpanded(false)
     }
     window.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+
+    const el = lightboxBodyRef.current
+    let gestureBase = 1
+    function applyFactor(factor: number, clientX: number, clientY: number): void {
+      if (!lightboxBodyRef.current) return
+      const stage = lightboxBodyRef.current
+      const rect = stage.getBoundingClientRect()
+      const origin = {
+        x: clientX - rect.left - rect.width / 2,
+        y: clientY - rect.top - rect.height / 2,
+      }
+      const z = zoomRef.current
+      const next = zoomByFactor(z, factor)
+      const p = panForZoom(panRef.current, z, next, origin)
+      zoomRef.current = next
+      panRef.current = p
+      setZoom(next)
+      setPan(p)
+    }
+    function onWheel(e: WheelEvent): void {
+      e.preventDefault()
+      applyFactor(wheelZoomFactor(e.deltaY), e.clientX, e.clientY)
+    }
+    function onGestureStart(e: Event): void {
+      e.preventDefault()
+      gestureBase = zoomRef.current
+    }
+    function onGestureChange(e: Event): void {
+      e.preventDefault()
+      const ge = e as Event & { scale?: number; clientX?: number; clientY?: number }
+      const scale = typeof ge.scale === 'number' ? ge.scale : 1
+      const next = clampZoom(gestureBase * scale)
+      const factor = zoomRef.current > 0 ? next / zoomRef.current : 1
+      applyFactor(factor, ge.clientX ?? 0, ge.clientY ?? 0)
+    }
+    function touchDist(touches: TouchList): number {
+      const a = touches.item(0)
+      const b = touches.item(1)
+      if (!a || !b) return 0
+      return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY)
+    }
+    function onTouchStart(e: TouchEvent): void {
+      if (e.touches.length !== 2) return
+      pinchRef.current = { dist: touchDist(e.touches), zoom: zoomRef.current }
+    }
+    function onTouchMove(e: TouchEvent): void {
+      if (e.touches.length !== 2 || !pinchRef.current || pinchRef.current.dist <= 0) return
+      e.preventDefault()
+      const a = e.touches.item(0)
+      const b = e.touches.item(1)
+      if (!a || !b) return
+      const target = clampZoom(pinchRef.current.zoom * (touchDist(e.touches) / pinchRef.current.dist))
+      const factor = zoomRef.current > 0 ? target / zoomRef.current : 1
+      applyFactor(factor, (a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2)
+    }
+    function onTouchEnd(): void {
+      pinchRef.current = null
+    }
+    el?.addEventListener('wheel', onWheel, { passive: false })
+    el?.addEventListener('gesturestart', onGestureStart as EventListener, { passive: false })
+    el?.addEventListener('gesturechange', onGestureChange as EventListener, { passive: false })
+    el?.addEventListener('touchstart', onTouchStart, { passive: true })
+    el?.addEventListener('touchmove', onTouchMove, { passive: false })
+    el?.addEventListener('touchend', onTouchEnd)
+    el?.addEventListener('touchcancel', onTouchEnd)
     return () => {
       window.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
+      el?.removeEventListener('wheel', onWheel)
+      el?.removeEventListener('gesturestart', onGestureStart as EventListener)
+      el?.removeEventListener('gesturechange', onGestureChange as EventListener)
+      el?.removeEventListener('touchstart', onTouchStart)
+      el?.removeEventListener('touchmove', onTouchMove)
+      el?.removeEventListener('touchend', onTouchEnd)
+      el?.removeEventListener('touchcancel', onTouchEnd)
     }
   }, [expanded])
 
@@ -290,19 +374,41 @@ export function MermaidBlock({ chart }: { chart: string }) {
           onClick={() => setExpanded(false)}
         >
           <div className="mermaid-lightbox-bar" onClick={(e) => e.stopPropagation()}>
-            <span className="mermaid-lightbox-title">流程图</span>
-            <button type="button" className="mermaid-tool" title="复制源码" aria-label="复制源码" onClick={() => { void onCopy() }}>
-              {copied ? <CheckIcon size={ICON_SM} /> : <CopyIcon size={ICON_SM} />}
+            <button
+              type="button"
+              className="mermaid-tool"
+              title="放大"
+              aria-label="放大"
+              disabled={zoom >= ZOOM_MAX}
+              onClick={() => setZoom((z) => zoomByStep(z, 1))}
+            >
+              <ZoomInIcon size={ICON_SM} />
+            </button>
+            <button
+              type="button"
+              className="mermaid-tool"
+              title="缩小"
+              aria-label="缩小"
+              disabled={zoom <= ZOOM_MIN}
+              onClick={() => setZoom((z) => zoomByStep(z, -1))}
+            >
+              <ZoomOutIcon size={ICON_SM} />
             </button>
             <button type="button" className="mermaid-tool" title="关闭" aria-label="关闭" onClick={() => setExpanded(false)}>
               <CloseIcon size={ICON_SM} />
             </button>
           </div>
           <div
+            ref={lightboxBodyRef}
             className="mermaid-lightbox-body"
             onClick={(e) => e.stopPropagation()}
-            dangerouslySetInnerHTML={{ __html: svg }}
-          />
+          >
+            <div
+              className="mermaid-lightbox-stage"
+              style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}
+              dangerouslySetInnerHTML={{ __html: svg }}
+            />
+          </div>
         </div>,
         document.body,
       )}

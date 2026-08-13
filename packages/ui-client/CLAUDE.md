@@ -15,6 +15,7 @@
 | `useStickToBottom.ts` | 对话列贴底跟随;上滑即松钉;回滞再钉;高度回缩不追(抑流式振荡);松钉出「回到最新」;`.messages { overflow-anchor: none }` |
 | `elapsedLabel.ts` | 进行中计时(`3.2s` / `46m 51.5s`);收口 Thought 不报秒 |
 | `processSteps.ts` | 过程步窗口化(默认最近 6)+ 路径 chip |
+| `mermaidZoom.ts` | 流程图放大层缩放/平移算术(双指、滚轮、±) |
 | `sourceCite.ts` | 检索/抓取 URL + 正文「来源」段 → SourceCite;答末列表 |
 | `trustedHosts.ts` | 外链确认「这个域名不再问」 |
 | `useWorkspace.ts` | 资产列表:无会话仅 shared;有会话 shared+session;切新对话乐观清 session 防串味 |

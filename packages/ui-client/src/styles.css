@@ -2231,7 +2231,7 @@ html[data-skin="cosmic-latte"] .thought {
 .mermaid-block {
   position: relative;
   margin: 0.9em 0;
-  /* 顶垫给左上角 24 钮,图在剩余区域居中,工具条不压节点 */
+  /* 顶垫给右上角 24 钮,图在剩余区域居中,工具条不压节点 */
   padding: 40px var(--s-4) var(--s-4);
   background: var(--paper-deep); border: 1px solid var(--sand);
   border-radius: var(--radius-md);
@@ -2245,7 +2245,7 @@ html[data-skin="cosmic-latte"] .thought {
   min-height: 0;
 }
 .mermaid-toolbar {
-  position: absolute; top: 8px; left: 8px; z-index: 2;
+  position: absolute; top: 8px; right: 8px; z-index: 2;
   display: inline-flex; align-items: center; gap: 1px;
   padding: 2px;
   border: 1px solid var(--sand);
@@ -2262,6 +2262,7 @@ html[data-skin="cosmic-latte"] .thought {
   background: none; color: var(--ink-mute); cursor: pointer; padding: 0;
 }
 .mermaid-tool:hover { background: var(--sand); color: var(--ink); }
+.mermaid-tool:disabled { opacity: 0.35; cursor: default; }
 .mermaid-tool.is-copied { color: var(--ember); }
 .mermaid-toolbar .mermaid-tool { color: var(--ink-mute); }
 .mermaid-toolbar .mermaid-tool:hover { background: var(--sand); color: var(--ink); }
@@ -2322,43 +2323,39 @@ html[data-skin="cosmic-latte"] .thought {
   cursor: zoom-out;
 }
 .mermaid-lightbox-bar {
-  /* fixed 相对视口,不参与 grid 占位,避免把图顶偏 */
   position: fixed;
   top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
+  right: 16px;
   z-index: calc(var(--z-modal) + 1);
   display: flex;
   align-items: center;
-  gap: var(--s-2);
-  padding: 4px 6px 4px 12px;
-  background: rgba(28, 30, 38, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 999px;
-  box-shadow: var(--shadow-2);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  gap: 2px;
+  padding: 3px;
+  background: color-mix(in srgb, var(--paper-deep) 92%, var(--card));
+  border: 1px solid var(--sand);
+  border-radius: 10px;
   cursor: default;
-}
-.mermaid-lightbox-title {
-  font-size: var(--t-caption); color: var(--ink-mute); font-family: var(--font-sans);
-  margin-right: var(--s-2);
 }
 .mermaid-lightbox-body {
   grid-area: 1 / 1;
   display: grid;
   place-items: center;
-  width: min(94vw, 1280px);
-  max-height: min(82vh, 900px);
-  overflow: auto;
-  padding: var(--s-5);
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  padding: 56px 24px 24px;
   box-sizing: border-box;
   background: transparent;
   border: none;
   box-shadow: none;
   cursor: default;
+  touch-action: none;
 }
-.mermaid-lightbox-body svg {
+.mermaid-lightbox-stage {
+  transform-origin: center center;
+  will-change: transform;
+}
+.mermaid-lightbox-stage svg {
   display: block;
   margin: 0 auto;
   max-width: min(90vw, 1200px);
