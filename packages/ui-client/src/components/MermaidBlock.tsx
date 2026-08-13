@@ -13,7 +13,7 @@ import { createPortal } from 'react-dom'
 import { glassMermaidThemeVariables } from '../mermaidSanitize'
 import { prepareAndValidate } from '../mermaidSyntax'
 import { CheckIcon, CloseIcon, CopyIcon, ExpandIcon, ICON_SM, ZoomInIcon, ZoomOutIcon } from './icons'
-import { clampZoom, panForZoom, wheelZoomFactor, zoomByFactor, zoomByStep, ZOOM_MAX, ZOOM_MIN } from '../mermaidZoom'
+import { clampZoom, panForZoom, sizeFromViewBox, wheelZoomFactor, zoomByFactor, zoomByStep, ZOOM_MAX, ZOOM_MIN } from '../mermaidZoom'
 
 type CacheEntry = {
   svg: string | null
@@ -226,6 +226,23 @@ export function MermaidBlock({ chart }: { chart: string }) {
     window.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+
+    const svgEl = lightboxBodyRef.current?.querySelector('svg')
+    if (svgEl && svgEl.getBoundingClientRect().width < 8) {
+      const vb = svgEl.viewBox.baseVal
+      const box = sizeFromViewBox(
+        vb?.width ?? 0,
+        vb?.height ?? 0,
+        Math.min(window.innerWidth * 0.9, 1200),
+        Math.min(window.innerHeight * 0.78, 860),
+      )
+      if (box.w > 0 && box.h > 0) {
+        svgEl.setAttribute('width', String(box.w))
+        svgEl.setAttribute('height', String(box.h))
+        svgEl.style.width = `${box.w}px`
+        svgEl.style.height = `${box.h}px`
+      }
+    }
 
     const el = lightboxBodyRef.current
     let gestureBase = 1

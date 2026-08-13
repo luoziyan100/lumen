@@ -41,3 +41,15 @@ export function panForZoom(
 export function wheelZoomFactor(deltaY: number): number {
   return Math.exp(-deltaY * 0.008)
 }
+
+/** mermaid SVG 常带 width=100%+viewBox;父级 shrink-wrap 时 % 解析成 0。用 viewBox 换像素。 */
+export function sizeFromViewBox(
+  vbW: number,
+  vbH: number,
+  maxW: number,
+  maxH: number,
+): { w: number; h: number } {
+  if (!(vbW > 0) || !(vbH > 0)) return { w: Math.max(0, maxW), h: Math.max(0, maxH) }
+  const s = Math.min(maxW / vbW, maxH / vbH)
+  return { w: vbW * s, h: vbH * s }
+}

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   clampZoom,
   panForZoom,
+  sizeFromViewBox,
   wheelZoomFactor,
   zoomByFactor,
   zoomByStep,
@@ -32,6 +33,19 @@ describe('zoomByFactor / wheel', () => {
   it('wheel down shrinks, up grows', () => {
     assert.ok(wheelZoomFactor(100) < 1)
     assert.ok(wheelZoomFactor(-100) > 1)
+  })
+})
+
+describe('sizeFromViewBox', () => {
+  it('fits a wide mermaid viewBox into the lightbox max box', () => {
+    const { w, h } = sizeFromViewBox(1200, 400, 900, 780)
+    assert.equal(w, 900)
+    assert.equal(h, 300)
+  })
+  it('zero viewBox does not invent NaN', () => {
+    const { w, h } = sizeFromViewBox(0, 0, 800, 600)
+    assert.equal(w, 800)
+    assert.equal(h, 600)
   })
 })
 
