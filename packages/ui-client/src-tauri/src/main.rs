@@ -50,6 +50,53 @@ fn pick_skill_file() -> Option<String> {
         .map(|p| p.to_string_lossy().into_owned())
 }
 
+/// 用系统默认浏览器打开 http(s)。WKWebView 的 window.open 会被吞掉,不能当外链。
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let url = url.trim();
+    if url.contains('\n') || url.contains('\r') || url.contains('\0') {
+        return Err("invalid url".into());
+    }
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("only http(s)".into());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let status = std::process::Command::new("open")
+            .arg(url)
+            .status()
+            .map_err(|e| e.to_string())?;
+        if !status.success() {
+            return Err(format!("open failed: {status}"));
+        }
+        return Ok(());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let status = std::process::Command::new("cmd")
+            .args(["/C", "start", "", url])
+            .status()
+            .map_err(|e| e.to_string())?;
+        if !status.success() {
+            return Err(format!("open failed: {status}"));
+        }
+        return Ok(());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let status = std::process::Command::new("xdg-open")
+            .arg(url)
+            .status()
+            .map_err(|e| e.to_string())?;
+        if !status.success() {
+            return Err(format!("open failed: {status}"));
+        }
+        return Ok(());
+    }
+    #[allow(unreachable_code)]
+    Err("unsupported platform".into())
+}
+
 /// 前端断线重连前:探活;无 LaunchAgent 时才临时 spawn
 #[tauri::command]
 fn ensure_agent_service(
@@ -276,6 +323,7 @@ fn main() {
             pick_folder,
             pick_skill_folder,
             pick_skill_file,
+            open_external_url,
             ensure_agent_service,
             launchd_status,
             launchd_install,

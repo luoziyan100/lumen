@@ -10,17 +10,14 @@ import { Dialog } from '@cloudflare/kumo/components/dialog'
 import { APP_STATUS_COPY } from '../appCopy'
 import { hostOf } from '../sourceCite'
 import { isTrustedHost, trustHost } from '../trustedHosts'
+import { openExternalUrl } from '../openExternal'
 
 const OpenExternal = createContext<(url: string) => void>((url) => {
-  window.open(url, '_blank', 'noopener,noreferrer')
+  void openExternalUrl(url)
 })
 
 export function useOpenExternal(): (url: string) => void {
   return useContext(OpenExternal)
-}
-
-function openInBrowser(url: string): void {
-  window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 export function ExternalLinkGate({ children }: { children: ReactNode }) {
@@ -31,7 +28,7 @@ export function ExternalLinkGate({ children }: { children: ReactNode }) {
   const request = useCallback((url: string) => {
     const h = hostOf(url)
     if (h && isTrustedHost(h)) {
-      openInBrowser(url)
+      void openExternalUrl(url)
       return
     }
     setRemember(false)
@@ -40,9 +37,12 @@ export function ExternalLinkGate({ children }: { children: ReactNode }) {
 
   function confirm(): void {
     if (!pending) return
+    const url = pending
     if (remember && host) trustHost(host)
-    openInBrowser(pending)
     setPending(null)
+    void openExternalUrl(url).catch((err) => {
+      console.error('[lumen] open external failed', err)
+    })
   }
 
   return (

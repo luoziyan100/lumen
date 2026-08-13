@@ -119,7 +119,7 @@ export function WidgetFrame({
           break
         }
         case WIDGET_LINK:
-          if (typeof e.data.href === 'string') window.open(e.data.href, '_blank', 'noopener,noreferrer')
+          if (typeof e.data.href === 'string') void import('../../openExternal').then((m) => m.openExternalUrl(e.data.href as string))
           break
         case WIDGET_SEND:
           if (typeof e.data.text === 'string') onSendRef.current?.(e.data.text)

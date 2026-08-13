@@ -12,7 +12,7 @@
 
 ## 成员
 
-- `src/main.rs` — ensure / LaunchAgent 探测 / launchd_* / 注入 / Focused+Reopen;默认窗 `1160×800`(Cursor/Claude 量级略收);`disable_drag_drop_handler` 让前端 HTML5 文件拖放生效(与 Tauri 原生 drop 互斥)
+- `src/main.rs` — ensure / LaunchAgent 探测 / launchd_* / 注入 / Focused+Reopen / `open_external_url`;默认窗 `1160×800`(Cursor/Claude 量级略收);`disable_drag_drop_handler` 让前端 HTML5 文件拖放生效(与 Tauri 原生 drop 互斥)
 - `tauri.conf.json` — `productName: Lumen`;窗口由代码创建;CSP 放行 127.0.0.1
 - `Cargo.toml` — crate=`lumen-ui`,二进制=`Lumen`
 - `icons/` / `build.rs`
