@@ -2230,20 +2230,27 @@ html[data-skin="cosmic-latte"] .thought {
 /* mermaid 流程图(Markdown ```mermaid;主题色来自 MermaidBlock 读 token) */
 .mermaid-block {
   position: relative;
-  margin: 0.9em 0; padding: var(--s-4);
+  margin: 0.9em 0;
+  /* 顶垫给左上角 24 钮,图在剩余区域居中,工具条不压节点 */
+  padding: 40px var(--s-4) var(--s-4);
   background: var(--paper-deep); border: 1px solid var(--sand);
   border-radius: var(--radius-md);
-  /* 横向滚动只在内层:工具条钉在容器可见右上角,不随图一起滚走 */
   overflow: hidden;
 }
-.mermaid-scroll { overflow-x: auto; min-height: 3.5rem; /* 降低 pending→SVG 高度塌缩幅度,减轻贴底拉锯 */ }
+.mermaid-scroll {
+  overflow-x: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
 .mermaid-toolbar {
-  position: absolute; top: var(--s-2); right: var(--s-2); z-index: 2;
-  display: inline-flex; align-items: center; gap: 2px;
-  padding: 3px; border: 1px solid color-mix(in srgb, var(--paper-solid) 22%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ink) 78%, transparent);
-  box-shadow: var(--shadow-1);
+  position: absolute; top: 8px; left: 8px; z-index: 2;
+  display: inline-flex; align-items: center; gap: 1px;
+  padding: 2px;
+  border: 1px solid var(--sand);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--paper-deep) 92%, var(--card));
   opacity: 0; pointer-events: none;
   transition: opacity var(--dur-fast) var(--ease-out);
 }
@@ -2251,22 +2258,19 @@ html[data-skin="cosmic-latte"] .thought {
 .mermaid-block:focus-within .mermaid-toolbar { opacity: 1; pointer-events: auto; }
 .mermaid-tool {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 28px; height: 28px; border: none; border-radius: var(--radius-sm);
+  width: 24px; height: 24px; border: none; border-radius: 6px;
   background: none; color: var(--ink-mute); cursor: pointer; padding: 0;
 }
 .mermaid-tool:hover { background: var(--sand); color: var(--ink); }
 .mermaid-tool.is-copied { color: var(--ember); }
-/* 图块右上角悬停条:深色 pill,图标反白(玻璃壳下 paper-solid 近黑,改用固定浅色) */
-.mermaid-toolbar .mermaid-tool {
-  border-radius: 999px; color: rgba(255, 255, 255, 0.92);
+.mermaid-toolbar .mermaid-tool { color: var(--ink-mute); }
+.mermaid-toolbar .mermaid-tool:hover { background: var(--sand); color: var(--ink); }
+.mermaid-toolbar .mermaid-tool.is-copied { color: var(--ember); }
+.mermaid-svg {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%;
 }
-.mermaid-toolbar .mermaid-tool:hover {
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
-}
-.mermaid-toolbar .mermaid-tool.is-copied { color: var(--ember-tint); }
-.mermaid-svg { display: flex; justify-content: center; }
-.mermaid-svg svg { max-width: 100%; height: auto; }
+.mermaid-svg svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
 .mermaid-pending {
   min-height: 3.5rem;
   display: flex;
@@ -2297,11 +2301,6 @@ html[data-skin="cosmic-latte"] .thought {
   max-height: 8rem;
 }
 .mermaid-error-detail code { background: none; padding: 0; font-family: var(--font-mono); white-space: pre-wrap; }
-.mermaid-view-toggle { display: inline-flex; gap: 2px; }
-.mermaid-tool.is-active {
-  background: var(--sand);
-  color: var(--ink);
-}
 .mermaid-source {
   margin: 0; padding: var(--s-3);
   background: var(--card); border: 1px solid var(--sand); border-radius: var(--radius-md);

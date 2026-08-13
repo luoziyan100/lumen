@@ -1,19 +1,18 @@
 /**
  * [INPUT]: mermaid; mermaidSyntax prepareAndValidate; mermaidSanitize 颜色; icons
- * [OUTPUT]: MermaidBlock —— ```mermaid → SVG; Preview/Code; 短错误降级
+ * [OUTPUT]: MermaidBlock —— ```mermaid → SVG; 放大 + 复制源码; 短错误降级
  * [POS]: Markdown language-mermaid 分支; doc/mermaid-pipeline.md S4′ Phase A
  * [PROTOCOL]: 变更时更新此头部与 doc/mermaid-pipeline.md
  *
  * 管线: prepare(语法+颜色) → 同源 parse → render。
  * 复制始终用模型原文; 展示像素用改写稿。会话内 hash 缓存 parse/render 结果。
+ * 工具条只留放大/复制,高度跟 SVG 走,禁止预估 minHeight 把图画在大空白顶上。
  */
 import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { glassMermaidThemeVariables } from '../mermaidSanitize'
 import { prepareAndValidate } from '../mermaidSyntax'
 import { CheckIcon, CloseIcon, CopyIcon, ExpandIcon, ICON_SM } from './icons'
-
-type ViewMode = 'preview' | 'code'
 
 type CacheEntry = {
   svg: string | null
@@ -63,6 +62,19 @@ function readThemeVars(el: HTMLElement): Record<string, string> {
   }
 }
 
+/** 与 .mermaid-block padding-top+bottom 对齐,minHeight 含 padding(border-box) */
+const BLOCK_CHROME = 56
+
+function measureSvgHeight(host: HTMLElement | null): number {
+  const svg = host?.querySelector('.mermaid-svg svg') as SVGSVGElement | null
+  if (!svg) return 0
+  svg.style.maxWidth = '100%'
+  svg.style.height = 'auto'
+  svg.style.width = '100%'
+  const h = svg.getBoundingClientRect().height
+  return h > 0 ? Math.ceil(h) + BLOCK_CHROME : 0
+}
+
 async function copyText(text: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(text)
@@ -84,17 +96,15 @@ export function MermaidBlock({ chart }: { chart: string }) {
   const original = chart.trim()
   // 同步读缓存:避免 remount 首帧 pending 把 ~3.5k 图塌成占位(V1 contentH 振荡)
   const cached0 = original ? renderCache.get(hashSource(original)) : undefined
-  const estimateMinH = Math.min(560, Math.max(140, (original || '').split('\n').length * 26 + 48))
   const [svg, setSvg] = useState<string | null>(() => cached0?.svg ?? null)
   const [error, setError] = useState<string | null>(() => cached0?.error ?? null)
   const [detail, setDetail] = useState<string | null>(() => cached0?.detail ?? null)
   const [showDetail, setShowDetail] = useState(false)
-  const [view, setView] = useState<ViewMode>(() => (cached0?.error ? 'code' : 'preview'))
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
   const [pending, setPending] = useState(() => Boolean(original) && !cached0)
-  /** 锁定已渲高度,避免 pending↔SVG 在列表中塌缩引发滚动跳动(诊断 P1) */
-  const [lockMinH, setLockMinH] = useState(() => (cached0?.svg ? estimateMinH : 0))
+  /** 只锁「量过的 SVG 高 + 工具条」,禁止用行数估 560 把图顶在空白上方 */
+  const [lockMinH, setLockMinH] = useState(0)
 
   useEffect(() => {
     if (!original) {
@@ -113,13 +123,10 @@ export function MermaidBlock({ chart }: { chart: string }) {
       setError(cached.error)
       setDetail(cached.detail)
       setPending(false)
-      setView(cached.error ? 'code' : 'preview')
-      // 有 SVG 时至少锁估计高度,下一帧量真实高度
-      if (cached.svg && !lockMinH) setLockMinH(estimateMinH)
       requestAnimationFrame(() => {
         if (cancelled) return
-        const h = hostRef.current?.offsetHeight ?? 0
-        if (h > 0) setLockMinH((prev) => Math.max(prev, h))
+        const h = measureSvgHeight(hostRef.current)
+        if (h > 0) setLockMinH(h)
       })
       return
     }
@@ -128,7 +135,6 @@ export function MermaidBlock({ chart }: { chart: string }) {
     setError(null)
     setDetail(null)
     setSvg(null)
-    if (!lockMinH) setLockMinH(estimateMinH)
     ;(async () => {
       try {
         const mermaid = (await import('mermaid')).default
@@ -141,6 +147,7 @@ export function MermaidBlock({ chart }: { chart: string }) {
           darkMode: true,
           themeVariables,
           fontFamily: themeVariables.fontFamily,
+          flowchart: { useMaxWidth: true, htmlLabels: true, padding: 8 },
         })
 
         const validated = await prepareAndValidate(original, (src) => mermaid.parse(src))
@@ -157,7 +164,6 @@ export function MermaidBlock({ chart }: { chart: string }) {
           setSvg(null)
           setError(validated.error)
           setDetail(validated.detail)
-          setView('code')
           setPending(false)
           return
         }
@@ -175,12 +181,10 @@ export function MermaidBlock({ chart }: { chart: string }) {
         setSvg(out)
         setError(null)
         setDetail(null)
-        setView('preview')
         setPending(false)
-        // 下一帧量真实高度锁住,后续重渲不塌
         requestAnimationFrame(() => {
           if (cancelled) return
-          const h = hostRef.current?.offsetHeight ?? 0
+          const h = measureSvgHeight(hostRef.current)
           if (h > 0) setLockMinH(h)
         })
       } catch (e) {
@@ -196,7 +200,6 @@ export function MermaidBlock({ chart }: { chart: string }) {
         setSvg(null)
         setError(entry.error)
         setDetail(entry.detail)
-        setView('code')
         setPending(false)
       }
     })()
@@ -223,33 +226,8 @@ export function MermaidBlock({ chart }: { chart: string }) {
     window.setTimeout(() => setCopied(false), 1400)
   }
 
-  const showPreview = view === 'preview' && Boolean(svg) && !error
-  const showCode = view === 'code' || error || (!svg && !pending)
-
   const toolbar = (
     <div className="mermaid-toolbar" role="toolbar" aria-label="流程图操作">
-      {svg && !error ? (
-        <div className="mermaid-view-toggle" role="group" aria-label="视图">
-          <button
-            type="button"
-            className={`mermaid-tool${view === 'preview' ? ' is-active' : ''}`}
-            title="预览"
-            aria-pressed={view === 'preview'}
-            onClick={() => setView('preview')}
-          >
-            预览
-          </button>
-          <button
-            type="button"
-            className={`mermaid-tool${view === 'code' ? ' is-active' : ''}`}
-            title="源码"
-            aria-pressed={view === 'code'}
-            onClick={() => setView('code')}
-          >
-            源码
-          </button>
-        </div>
-      ) : null}
       {svg && !error ? (
         <button type="button" className="mermaid-tool" title="放大查看" aria-label="放大查看" onClick={() => setExpanded(true)}>
           <ExpandIcon size={ICON_SM} />
@@ -258,8 +236,8 @@ export function MermaidBlock({ chart }: { chart: string }) {
       <button
         type="button"
         className={`mermaid-tool${copied ? ' is-copied' : ''}`}
-        title={copied ? '已复制' : '复制 Mermaid 源码'}
-        aria-label={copied ? '已复制' : '复制 Mermaid 源码'}
+        title={copied ? '已复制' : '复制源码'}
+        aria-label={copied ? '已复制' : '复制源码'}
         onClick={() => { void onCopy() }}
       >
         {copied ? <CheckIcon size={ICON_SM} /> : <CopyIcon size={ICON_SM} />}
@@ -298,11 +276,8 @@ export function MermaidBlock({ chart }: { chart: string }) {
             <pre className="mermaid-source"><code>{original}</code></pre>
           </div>
         ) : null}
-        {!pending && !error && showPreview ? (
-          <div className="mermaid-svg" dangerouslySetInnerHTML={{ __html: svg! }} />
-        ) : null}
-        {!pending && !error && showCode && view === 'code' ? (
-          <pre className="mermaid-source"><code>{original}</code></pre>
+        {!pending && !error && svg ? (
+          <div className="mermaid-svg" dangerouslySetInnerHTML={{ __html: svg }} />
         ) : null}
       </div>
 
