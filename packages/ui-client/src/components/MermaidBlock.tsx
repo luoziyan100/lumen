@@ -8,6 +8,7 @@
  * 复制始终用模型原文; 展示像素用改写稿。会话内 hash 缓存 parse/render 结果。
  * 卡片右上角只留放大/复制;放大层 ± / 双指缩放 / 单指拖移。
  * 方向 LR/TB 尊重源码,宿主只做 getBBox 收紧虚高(mermaid#1984),不改写横竖。
+ * lockMinH 写入 renderCache,remount 首帧不塌;tighten 只做一次。
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -21,6 +22,7 @@ type CacheEntry = {
   error: string | null
   detail: string | null
   prepared: string
+  lockMinH?: number
 }
 
 /** 会话内内存缓存：原文 hash → 渲染结果（不落库） */
@@ -92,6 +94,7 @@ function inkBox(svg: SVGSVGElement): { x: number; y: number; width: number; heig
 
 /** 按墨迹收紧 viewBox,卡片高度跟图走,不跟 mermaid 虚高 viewBox 走 */
 function tightenSvgInk(svg: SVGSVGElement): void {
+  if (svg.dataset.inkTight === '1') return
   const box = inkBox(svg)
   const vb = box ? viewBoxFromBBox(box) : null
   if (vb) {
@@ -102,6 +105,7 @@ function tightenSvgInk(svg: SVGSVGElement): void {
   svg.style.maxWidth = '100%'
   svg.style.width = '100%'
   svg.style.height = 'auto'
+  svg.dataset.inkTight = '1'
 }
 
 function measureSvgHeight(host: HTMLElement | null): number {
@@ -110,6 +114,19 @@ function measureSvgHeight(host: HTMLElement | null): number {
   tightenSvgInk(svg)
   const h = svg.getBoundingClientRect().height
   return h > 0 ? Math.ceil(h) + BLOCK_CHROME : 0
+}
+
+function persistLockMinH(
+  key: string,
+  h: number,
+  setLockMinH: (updater: (prev: number) => number) => void,
+): void {
+  setLockMinH((prev) => {
+    const next = prev > 0 ? Math.max(prev, h) : h
+    const entry = renderCache.get(key)
+    if (entry) entry.lockMinH = next
+    return next
+  })
 }
 
 async function copyText(text: string): Promise<void> {
@@ -151,7 +168,7 @@ export function MermaidBlock({ chart }: { chart: string }) {
   const [copied, setCopied] = useState(false)
   const [pending, setPending] = useState(() => Boolean(original) && !cached0)
   /** 只锁「量过的 SVG 高 + 工具条」,禁止用行数估 560 把图顶在空白上方 */
-  const [lockMinH, setLockMinH] = useState(0)
+  const [lockMinH, setLockMinH] = useState(() => cached0?.lockMinH ?? 0)
 
   useEffect(() => {
     if (!original) {
@@ -173,7 +190,7 @@ export function MermaidBlock({ chart }: { chart: string }) {
       requestAnimationFrame(() => {
         if (cancelled) return
         const h = measureSvgHeight(hostRef.current)
-        if (h > 0) setLockMinH(h)
+        if (h > 0) persistLockMinH(key, h, setLockMinH)
       })
       return
     }
@@ -232,7 +249,7 @@ export function MermaidBlock({ chart }: { chart: string }) {
         requestAnimationFrame(() => {
           if (cancelled) return
           const h = measureSvgHeight(hostRef.current)
-          if (h > 0) setLockMinH(h)
+          if (h > 0) persistLockMinH(key, h, setLockMinH)
         })
       } catch (e) {
         if (cancelled) return

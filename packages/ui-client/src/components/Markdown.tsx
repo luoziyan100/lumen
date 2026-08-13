@@ -4,7 +4,7 @@
  * [POS]: .md 阅读器与 AssistantContent 的文本段;show-widget 不经此组件
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import { Children, isValidElement, type ReactNode } from 'react'
+import { Children, isValidElement, useMemo, type ComponentProps, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -45,46 +45,47 @@ export function Markdown({
   const remarkPlugins = deferMath ? REMARK_STREAM : REMARK_FULL
   const rehypePlugins = deferMath ? REHYPE_STREAM : REHYPE_FULL
   const openExternal = useOpenExternal()
+  const components = useMemo(() => ({
+    a({ href, children, ...props }: ComponentProps<'a'>) {
+      if (href && /^https?:\/\//i.test(href)) {
+        return (
+          <a
+            {...props}
+            href={href}
+            onClick={(e) => {
+              e.preventDefault()
+              openExternal(href)
+            }}
+          >
+            {children}
+          </a>
+        )
+      }
+      return <a {...props} href={href}>{children}</a>
+    },
+    pre({ children, ...props }: ComponentProps<'pre'>) {
+      const kids = Children.toArray(children)
+      const code = kids[0]
+      if (isMermaidCode(code)) {
+        // 流式未闭合的 mermaid 不渲染,避免高度狂抖
+        if (deferMath) {
+          return (
+            <pre {...props}>
+              <code className="language-mermaid">{codeText(code.props.children)}</code>
+            </pre>
+          )
+        }
+        return <MermaidBlock chart={codeText(code.props.children)} />
+      }
+      return <pre {...props}>{children}</pre>
+    },
+  }), [openExternal, deferMath])
   return (
     <div className="md-body">
       <ReactMarkdown
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}
-        components={{
-          a({ href, children, ...props }) {
-            if (href && /^https?:\/\//i.test(href)) {
-              return (
-                <a
-                  {...props}
-                  href={href}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    openExternal(href)
-                  }}
-                >
-                  {children}
-                </a>
-              )
-            }
-            return <a {...props} href={href}>{children}</a>
-          },
-          pre({ children, ...props }) {
-            const kids = Children.toArray(children)
-            const code = kids[0]
-            if (isMermaidCode(code)) {
-              // 流式未闭合的 mermaid 不渲染,避免高度狂抖
-              if (deferMath) {
-                return (
-                  <pre {...props}>
-                    <code className="language-mermaid">{codeText(code.props.children)}</code>
-                  </pre>
-                )
-              }
-              return <MermaidBlock chart={codeText(code.props.children)} />
-            }
-            return <pre {...props}>{children}</pre>
-          },
-        }}
+        components={components}
       >
         {children}
       </ReactMarkdown>

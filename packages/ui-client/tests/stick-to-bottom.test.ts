@@ -109,7 +109,7 @@ describe('V1 sticky 进出(mermaid 高度塌缩)', () => {
     }), true)
   })
 
-  it('上滑或手势离底离开 sticky', () => {
+  it('上滑离开 sticky', () => {
     assert.equal(shouldLeaveSticky({
       gap: 100,
       bottomGapPx: 4,
@@ -117,13 +117,16 @@ describe('V1 sticky 进出(mermaid 高度塌缩)', () => {
       scrolledUp: true,
       gestured: false,
     }), true)
+  })
+
+  it('仅手势 + 小 gap 不离(高度回弹会挤出十几 px)', () => {
     assert.equal(shouldLeaveSticky({
       gap: 20,
       bottomGapPx: 4,
       leaveBottomGapPx: 64,
       scrolledUp: false,
       gestured: true,
-    }), true)
+    }), false)
     assert.equal(shouldLeaveSticky({
       gap: 2,
       bottomGapPx: 4,
@@ -131,5 +134,34 @@ describe('V1 sticky 进出(mermaid 高度塌缩)', () => {
       scrolledUp: false,
       gestured: false,
     }), false)
+  })
+
+  it('gap 超过离开阈值才离(滚动条拖走)', () => {
+    assert.equal(shouldLeaveSticky({
+      gap: 80,
+      bottomGapPx: 4,
+      leaveBottomGapPx: 64,
+      scrolledUp: false,
+      gestured: false,
+    }), true)
+  })
+
+  it('塌缩护栏内即使 gap 变大也不离,除非明确上滑', () => {
+    assert.equal(shouldLeaveSticky({
+      gap: 80,
+      bottomGapPx: 4,
+      leaveBottomGapPx: 64,
+      scrolledUp: false,
+      gestured: true,
+      heightRecentlyCollapsed: true,
+    }), false)
+    assert.equal(shouldLeaveSticky({
+      gap: 80,
+      bottomGapPx: 4,
+      leaveBottomGapPx: 64,
+      scrolledUp: true,
+      gestured: true,
+      heightRecentlyCollapsed: true,
+    }), true)
   })
 })

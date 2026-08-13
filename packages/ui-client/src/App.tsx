@@ -3,14 +3,14 @@
  * [OUTPUT]: App —— 形态 A 装配;项目树(p-*) + 最近平铺历史;轮次轨;TodoCard/ProcessRow/ThinkingIndicator;
  *           ask_user 悬浮问询;composer 暗玻璃;用户超长 prompt 折叠;上传 chip(知情 S4)
  * [POS]: ui-client 根组件;storage project_id ≠ 用户项目;历史不分类进「默认」;
- *        对话列 useStickToBottom:流式贴底;上滑松手可自由阅读;松钉后「回到最新」挂 composer-dock 上沿;
+ *        对话列 useStickToBottom:流式贴底;上滑松手可自由阅读;钉态不重绘消息列;松钉后「回到最新」挂 composer-dock 上沿;
  *        标题栏工作区钮:阅读器开时一并关闭(drawer 与 ws.open 双态,不能只拨 drawer);
  *        侧栏未读灯:task_updated 终态且非当前 → unread(localStorage);打开会话清除;
  *        上传=对话事件见 doc/upload-awareness.md;当前稿 activePath 见 artifact-loop P0;
  *        messages 容器 key=taskId|draft 强制 remount,配合 useAgent viewEpoch 防串台
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Toasty, useKumoToastManager } from '@cloudflare/kumo/components/toast'
 import { Tooltip, TooltipProvider } from '@cloudflare/kumo/components/tooltip'
 import { AgentClient, type Asset, type ImageData, type Project, type SkillInfo, type SkillInstallScope, type Task, type UploadRef } from './agent-client'
@@ -72,6 +72,31 @@ function initialProjectId(): string {
     } catch { return 'default' }
   }
   return localStorage.getItem('lumen:projectId') || 'default'
+}
+
+/** 钉态走 hook 外部 store,避免 sticky 翻转重绘整列消息(高度回弹主因之一) */
+function JumpToLatestButton({
+  pin,
+  subscribe,
+  getPinned,
+}: {
+  pin: () => void
+  subscribe: (onStoreChange: () => void) => () => void
+  getPinned: () => boolean
+}) {
+  const pinned = useSyncExternalStore(subscribe, getPinned, getPinned)
+  if (pinned) return null
+  return (
+    <button
+      type="button"
+      className="jump-latest"
+      onClick={() => pin()}
+      aria-label={APP_STATUS_COPY.jumpToLatest}
+      title={APP_STATUS_COPY.jumpToLatest}
+    >
+      <ArrowDownIcon size={18} />
+    </button>
+  )
 }
 
 export function App() {
@@ -809,7 +834,7 @@ function AppInner() {
     }
     return `${items.length}:${last.id}:${running}`
   }, [items, running])
-  const { pin: pinMessages, pinned: messagesPinned } = useStickToBottom(messagesRef, stickContentKey, {
+  const { pin: pinMessages, subscribePinned, getPinned } = useStickToBottom(messagesRef, stickContentKey, {
     enabled: !isEmptyChat(items, running),
     contentRef: messagesContentRef,
   })
@@ -1072,16 +1097,12 @@ function AppInner() {
             </div>
           </div>
           <div className="composer-dock">
-            {!isEmpty && !messagesPinned && (
-              <button
-                type="button"
-                className="jump-latest"
-                onClick={() => pinMessages()}
-                aria-label={APP_STATUS_COPY.jumpToLatest}
-                title={APP_STATUS_COPY.jumpToLatest}
-              >
-                <ArrowDownIcon size={18} />
-              </button>
+            {!isEmpty && (
+              <JumpToLatestButton
+                pin={pinMessages}
+                subscribe={subscribePinned}
+                getPinned={getPinned}
+              />
             )}
             {pendingAsk && (
               <AskUserDialog

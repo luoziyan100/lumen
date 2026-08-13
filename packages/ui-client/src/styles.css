@@ -1125,7 +1125,7 @@ html[data-aurora="0"] .composer-dock::before { opacity: 0; }
   /* 底空不宜过大:贴底时末行应靠近输入卡;过大则「轻滑」先空转半屏再整段越过本轮长图 */
   --messages-scroll-slack: min(22vh, 200px);
   flex: 1; overflow-y: auto;
-  /* 默认 none;useStickToBottom 在 manual 浏览时改为 auto(doc/chat-scroll-ux.md) */
+  /* 恒 none:拨成 auto 会在高度回弹时被浏览器拽视口(doc/chat-scroll-ux.md) */
   overflow-anchor: none;
   padding:
     var(--s-6)

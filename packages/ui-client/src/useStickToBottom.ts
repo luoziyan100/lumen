@@ -9,9 +9,12 @@
  * V1 2026-08-11 日志结案:
  *   contentH ~3.5k 振荡 → gap 被挤到贴底阈值 → 误 sticky→true → follow 拽底
  *   修: 进 sticky 必须用户意图(手势/下滑);大塌缩后 guard;RO 重绑不得 force 拽底
+ * V2 2026-08-13 用户日志(答末 Sources 轻滑上下跳):
+ *   gestured && gap>4 误离 sticky → overflow-anchor 拨成 auto → 高度 ±318 回弹拽视口
+ *   修: 离钉只认上滑/大 gap;塌缩护栏内不离;钉态走外部 store,不重绘消息列;anchor 恒 none
  * [PROTOCOL]: 变更时更新此头部与 doc/chat-scroll-ux.md
  */
-import { useEffect, useEffectEvent, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useEffectEvent, useRef, type RefObject } from 'react'
 import { captureVisibleMsgAnchor, restoreMsgAnchor, type VisibleMsgAnchor } from './scrollMsgAnchor.ts'
 import { scrollDebugEnabled, scrollDebugLog } from './scrollDebug.ts'
 
@@ -86,10 +89,14 @@ export function shouldLeaveSticky(args: {
   leaveBottomGapPx: number
   scrolledUp: boolean
   gestured: boolean
+  /** 刚发生大塌缩:高度回弹会挤出几 px gap,不能当成离开 */
+  heightRecentlyCollapsed?: boolean
 }): boolean {
   if (args.scrolledUp) return true
-  if (args.gestured && args.gap > args.bottomGapPx) return true
+  if (args.heightRecentlyCollapsed) return false
   if (args.gap > args.leaveBottomGapPx) return true
+  void args.gestured
+  void args.bottomGapPx
   return false
 }
 
@@ -97,7 +104,11 @@ export function useStickToBottom(
   scrollerRef: RefObject<HTMLElement | null>,
   contentKey: unknown,
   options: StickToBottomOptions = {},
-): { pin: () => void; pinned: boolean } {
+): {
+  pin: () => void
+  subscribePinned: (onStoreChange: () => void) => () => void
+  getPinned: () => boolean
+} {
   const bottomGapPx = options.bottomGapPx ?? 4
   const leaveBottomGapPx = options.leaveBottomGapPx ?? 64
   const upwardThresholdPx = options.upwardThresholdPx ?? 16
@@ -109,7 +120,8 @@ export function useStickToBottom(
   const contentRef = options.contentRef
 
   const stickyRef = useRef(true)
-  const [pinned, setPinned] = useState(true)
+  const pinnedRef = useRef(true)
+  const pinnedListenersRef = useRef(new Set<() => void>())
   const ignoreScrollRef = useRef(false)
   const programmaticRef = useRef(false)
   const lastScrollTopRef = useRef(0)
@@ -145,14 +157,14 @@ export function useStickToBottom(
     if (stickyRef.current === next) return
     const prev = stickyRef.current
     stickyRef.current = next
-    setPinned(next)
-    const el = scrollerRef.current
-    if (el) el.style.overflowAnchor = next ? 'none' : 'auto'
+    pinnedRef.current = next
+    pinnedListenersRef.current.forEach((fn) => fn())
+    // overflow-anchor 恒 none(.messages CSS);拨成 auto 会在高度回弹时被浏览器拽视口
     scrollDebugLog('sticky→', {
       sticky: next,
       note: `${prev}->${next}`,
-      scrollTop: el?.scrollTop,
-      gap: el ? distanceFromBottom(el) : undefined,
+      scrollTop: scrollerRef.current?.scrollTop,
+      gap: scrollerRef.current ? distanceFromBottom(scrollerRef.current) : undefined,
       contentH: contentHeight(),
     })
   })
@@ -316,6 +328,11 @@ export function useStickToBottom(
       // 回缩只改基线,不追(合同);增高再 settle follow
       if (shouldResetHeightBaseline(prev, h)) {
         lastHeightRef.current = h
+        const node = scrollerRef.current
+        if (node && !hasGesture()) {
+          const max = node.scrollHeight - node.clientHeight
+          if (node.scrollTop > max) node.scrollTop = Math.max(0, max)
+        }
         return
       }
       if (hasGesture()) return
@@ -435,6 +452,7 @@ export function useStickToBottom(
         leaveBottomGapPx,
         scrolledUp,
         gestured,
+        heightRecentlyCollapsed: collapsed,
       })) {
         applySticky(false)
       } else if (shouldEnterSticky({
@@ -529,5 +547,13 @@ export function useStickToBottom(
     }
   }, [contentKey, enabled, followSettleMs, runFollowNow, refreshMsgAnchor])
 
-  return { pin, pinned }
+  const subscribePinned = useCallback((onStoreChange: () => void) => {
+    pinnedListenersRef.current.add(onStoreChange)
+    return () => {
+      pinnedListenersRef.current.delete(onStoreChange)
+    }
+  }, [])
+  const getPinned = useCallback(() => pinnedRef.current, [])
+
+  return { pin, subscribePinned, getPinned }
 }

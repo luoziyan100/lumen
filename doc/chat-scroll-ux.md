@@ -47,13 +47,15 @@
 | sticky / manual 双态 | 仅 sticky 时自动贴底 |
 | 手势窗 ≥600ms | wheel/touch/pointer 后禁止自动 `scrollTo(bottom)` |
 | 上滑 ≥16px | `scrollTop` 增量判定离开 sticky |
+| **离 sticky 不认小 gap** | 禁止「手势窗 + gap>4」离钉（高度回弹会挤出十几 px）；只认上滑或 gap>64；塌缩护栏内除非上滑否则不离 |
 | **进 sticky 须用户意图** | 仅「本帧 `scrollTop` 增加且 gap≤阈值」才 re-sticky；**禁止**仅因布局塌缩 gap 变小就吸回（V1 mermaid） |
-| 塌缩护栏 | 内容高度一次掉 >80px 后 ~800ms 内禁止 re-sticky |
+| 塌缩护栏 | 内容高度一次掉 >80px 后 ~800ms 内禁止 re-sticky；同时禁止误离 |
 | 程序化可打断 | 贴底进行中用户上滑 → 立刻改 manual |
 | 只跟内容增高 | RO 看 **内容区** 高度，不因 composer 改 clientHeight 误跟 |
 | 回缩不追 | 高度变矮只改基线，不硬滚 |
 | RO 重绑不拽底 | 观察者重绑不得 `applySticky(true)+force follow` 打断 manual |
-| overflow-anchor | sticky 时 `none`；manual 时 `auto` |
+| overflow-anchor | **恒 `none`**（`.messages` CSS）；禁止随 sticky 拨成 `auto`（高度回弹时浏览器会拽视口） |
+| 钉态不重绘消息列 | `pinned` 走 hook 外部 store；「回到最新」单独订阅读，sticky 翻转不得让 Markdown/mermaid 重解析 |
 | 修正无动画 | 自动贴底用 `auto`，不用 smooth（「回到最新」除外） |
 
 ---
@@ -95,3 +97,4 @@
 | 2026-08-11 | 初版：三意图 + 五条验收 + 实现合同 |
 | 2026-08-11 | 增加 scrollDebug 只读观测开关 |
 | 2026-08-11 | V1 结案：进 sticky 用户意图 + 塌缩护栏 + 应用内 HUD |
+| 2026-08-13 | V2：离钉只认上滑/大 gap；anchor 恒 none；钉态不重绘消息列 |
