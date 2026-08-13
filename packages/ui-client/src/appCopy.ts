@@ -137,6 +137,7 @@ export const APP_STATUS_COPY = {
   processRecent: '只看最近',
   sourcesHeading: 'Sources',
   sourcesMore: (n: number) => `+${n} more`,
+  sourcesLess: 'Show less',
   linkDialogTitle: '打开外部链接',
   linkDialogHint: '将离开 Lumen 访问：',
   linkDialogDontAsk: (host: string) => `不再询问 ${host} 的链接`,

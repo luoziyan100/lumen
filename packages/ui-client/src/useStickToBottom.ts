@@ -335,7 +335,11 @@ export function useStickToBottom(
         }
         return
       }
-      if (hasGesture()) return
+      if (hasGesture()) {
+        // 点「+N more」会增高;不更新基线的话手势窗结束后会误 follow 拽到最后一条
+        if (h > prev) lastHeightRef.current = h
+        return
+      }
       if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current)
       settleTimerRef.current = window.setTimeout(() => {
         settleTimerRef.current = 0

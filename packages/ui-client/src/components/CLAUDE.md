@@ -8,7 +8,7 @@
 - `CurtainFold.tsx` — **Curtain Language 原语**:grid Accordion + 卷帘 clip + spring 展开/curtain 收起;`stagger` 子项 cascade;关合保持挂载+`inert`;Accordion 式开合默认用它(过程块/侧栏/右轨目录/用户长文),禁再引入第二套高度动画
 - `MarqueeTitle.tsx` — 溢出悬停无缝单向走马灯:双份文案 + track `translateX(-50%)`;闲置 ellipsis;禁 alternate/瞬切
 - `turnRail.ts` — `buildTurnRailItems`:ChatItem→用户轮次(一问+随后助手答);过程行不占刻度
-- `TurnPreviewRail.tsx` — 对话列左侧轮次轨(≥4 轮);空闲小圆点、悬停鱼眼放大+预览;窄栏/阅读器开时隐藏;点圆点滚到 `msg-<id>`
+- `TurnPreviewRail.tsx` — 对话列左侧轮次轨(≥4 轮);空闲小圆点、悬停鱼眼放大+预览;窄栏/阅读器开时隐藏;点圆点滚到 `msg-<id>`;可见轮 IO 在本组件(不抬 App)
 - `CreateProjectModal.tsx` — 创建项目悬浮卡(无遮罩):名称 + 可选本机源文件夹(Tauri pick / 粘贴路径)
 - `SearchModal.tsx` — 会话搜索(⌘K):Kumo CommandPalette,内部过滤,↑↓/↵ 键盘导航
 - `SettingsModal.tsx` — 设置:供应商接入目录(卡内多模型 ID;列表自滚动;悬停启用/删除)/系统提示词/LaunchAgent;选用权在 composer 芯片
@@ -19,7 +19,7 @@
 - `StatusOrb.tsx` — 行内点云球:thinking-orbs **原生 size=20**(禁 64→CSS 缩,否则九态糊成虚线圈);支持 `paused` 冻帧
 - `ProcessRow.tsx` — 可折叠过程块(`CurtainFold` + 步骤 cascade);长轨迹只露最近 6 步;运行中 shimmer + 等宽计时;左侧 `StatusOrb` 按焦点工具态(`orbStateFromSteps`);与 ThinkingIndicator 的 breathing 分离
 - `ThoughtRow.tsx` — 同 turn 一条思考轨迹;运行中 shimmer「思考中」+ live 计时;收口只留 Thought process 摘要(不报秒)
-- `SourceList.tsx` — 答末来源标题列表;点开走 ExternalLinkGate
+- `SourceList.tsx` — 答末来源标题列表;超 8 条 +N more / Show less;点开走 ExternalLinkGate
 - `ExternalLinkDialog.tsx` — Claude 式外链确认 + 按域名记住
 - `ThinkingIndicator.tsx` — 首 token 前等待:光圈 + shimmer + live 计时;有开放 Thought 时不叠
 - `TodoCard.tsx` — 会话 Todo 次要卡(`todo_write`→`kind:'todo'`);主呈现右轨 Progress(见 `doc/todo.md`)

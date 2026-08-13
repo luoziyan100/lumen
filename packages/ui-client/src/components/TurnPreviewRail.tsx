@@ -1,26 +1,58 @@
 /**
- * [INPUT]: turnRail 的 TurnRailItem;宿主 onSelectTurn(滚到锚点)
+ * [INPUT]: turnRail 的 TurnRailItem;scroller;宿主 onSelectTurn(滚到锚点)
  * [OUTPUT]: TurnPreviewRail —— 竖轨圆点(鱼眼缩放) + 悬停预览卡(CSS,无 motion)
  * [POS]: 对话列左侧浮层;空闲点极小(防抢眼);窄栏/阅读器开时 CSS 隐藏
+ *        可见轮 IntersectionObserver 留在本组件,避免滚动时重绘整列消息
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import { useState, type KeyboardEvent } from 'react'
-import type { TurnRailItem } from './turnRail'
+import { useEffect, useState, type KeyboardEvent, type RefObject } from 'react'
+import { msgAnchorId, type TurnRailItem } from './turnRail'
 
 const MIN_TURNS = 4
 
 export function TurnPreviewRail({
   turns,
-  activeId,
+  scrollerRef,
   onSelectTurn,
 }: {
   turns: TurnRailItem[]
-  /** IntersectionObserver 驱动的「当前可见」轮 */
-  activeId: string | null
+  scrollerRef: RefObject<HTMLElement | null>
   onSelectTurn: (userMsgId: string) => void
 }) {
+  const [activeId, setActiveId] = useState<string | null>(null)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [focusedId, setFocusedId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const root = scrollerRef.current
+    if (!root || turns.length < MIN_TURNS) {
+      setActiveId(null)
+      return
+    }
+    const ids = turns.map((t) => t.userMsgId)
+    const visible = new Map<string, number>()
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          const id = e.target.id.replace(/^msg-/, '')
+          if (e.isIntersecting) visible.set(id, e.boundingClientRect.top)
+          else visible.delete(id)
+        }
+        let best: string | null = null
+        let bestTop = Infinity
+        for (const [id, top] of visible) {
+          if (top < bestTop) { bestTop = top; best = id }
+        }
+        if (best) setActiveId(best)
+      },
+      { root, rootMargin: '-8% 0px -55% 0px', threshold: [0, 0.1, 0.5] },
+    )
+    for (const id of ids) {
+      const el = document.getElementById(msgAnchorId(id))
+      if (el) io.observe(el)
+    }
+    return () => io.disconnect()
+  }, [turns, scrollerRef])
 
   if (turns.length < MIN_TURNS) return null
 
@@ -73,10 +105,14 @@ export function TurnPreviewRail({
               onFocus={(e) => {
                 if (e.currentTarget.matches(':focus-visible')) setFocusedId(turn.id)
               }}
-              onClick={() => onSelectTurn(turn.userMsgId)}
+              onClick={() => {
+                setActiveId(turn.userMsgId)
+                onSelectTurn(turn.userMsgId)
+              }}
               onKeyDown={(e: KeyboardEvent) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
+                  setActiveId(turn.userMsgId)
                   onSelectTurn(turn.userMsgId)
                 }
               }}

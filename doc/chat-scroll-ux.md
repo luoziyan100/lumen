@@ -55,7 +55,8 @@
 | 回缩不追 | 高度变矮只改基线，不硬滚 |
 | RO 重绑不拽底 | 观察者重绑不得 `applySticky(true)+force follow` 打断 manual |
 | overflow-anchor | **恒 `none`**（`.messages` CSS）；禁止随 sticky 拨成 `auto`（高度回弹时浏览器会拽视口） |
-| 钉态不重绘消息列 | `pinned` 走 hook 外部 store；「回到最新」单独订阅读，sticky 翻转不得让 Markdown/mermaid 重解析 |
+| 钉态不重绘消息列 | `pinned` 走 hook 外部 store；轮次轨可见态 IO 留在 rail；sticky / 滚动不得让 Markdown 重解析 |
+| 手势窗内增高只改基线 | 点 Sources 展开等用户增高，不 follow；基线仍更新，避免窗结束误拽底 |
 | 修正无动画 | 自动贴底用 `auto`，不用 smooth（「回到最新」除外） |
 
 ---
@@ -98,3 +99,4 @@
 | 2026-08-11 | 增加 scrollDebug 只读观测开关 |
 | 2026-08-11 | V1 结案：进 sticky 用户意图 + 塌缩护栏 + 应用内 HUD |
 | 2026-08-13 | V2：离钉只认上滑/大 gap；anchor 恒 none；钉态不重绘消息列 |
+| 2026-08-13 | Sources 可收起；手势窗增高只改基线；轮次轨 IO 不抬 App |

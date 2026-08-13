@@ -822,7 +822,6 @@ function AppInner() {
   /** 消息内容根:贴底 RO 只盯它,composer 改视口高度不会误跟(doc/chat-scroll-ux.md) */
   const messagesContentRef = useRef<HTMLDivElement>(null)
   const pinMessagesRef = useRef<() => void>(() => {})
-  const [activeTurnId, setActiveTurnId] = useState<string | null>(null)
 
   // 流式增高时贴底;用户上滚超过阈值则松手,不再强拉回 prompt
   const stickContentKey = useMemo(() => {
@@ -840,42 +839,9 @@ function AppInner() {
   })
   pinMessagesRef.current = pinMessages
 
-  // 视口内最靠上的用户轮 → rail 选中态(与悬停预览分离)
-  useEffect(() => {
-    const root = messagesRef.current
-    if (!root || turnRailItems.length < 4) {
-      setActiveTurnId(null)
-      return
-    }
-    const ids = turnRailItems.map((t) => t.userMsgId)
-    const visible = new Map<string, number>() // id → bounding top
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          const id = e.target.id.replace(/^msg-/, '')
-          if (e.isIntersecting) visible.set(id, e.boundingClientRect.top)
-          else visible.delete(id)
-        }
-        let best: string | null = null
-        let bestTop = Infinity
-        for (const [id, top] of visible) {
-          if (top < bestTop) { bestTop = top; best = id }
-        }
-        if (best) setActiveTurnId(best)
-      },
-      { root, rootMargin: '-8% 0px -55% 0px', threshold: [0, 0.1, 0.5] },
-    )
-    for (const id of ids) {
-      const el = document.getElementById(msgAnchorId(id))
-      if (el) io.observe(el)
-    }
-    return () => io.disconnect()
-  }, [turnRailItems, items.length])
-
   function scrollToTurn(userMsgId: string): void {
     const el = document.getElementById(msgAnchorId(userMsgId))
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    setActiveTurnId(userMsgId)
   }
 
   const copyBtn = (id: string, text: string, label: string) => (
@@ -983,7 +949,7 @@ function AppInner() {
             {!isEmpty && (
               <TurnPreviewRail
                 turns={turnRailItems}
-                activeId={activeTurnId}
+                scrollerRef={messagesRef}
                 onSelectTurn={scrollToTurn}
               />
             )}

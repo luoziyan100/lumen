@@ -55,6 +55,14 @@ test('settled thought is a summary label, not a duration', async () => {
   assert.equal('thoughtDone' in APP_STATUS_COPY, false)
 })
 
+test('sources list can collapse after expand', async () => {
+  const { APP_STATUS_COPY } = await import('../src/appCopy.ts')
+  const src = await readFile(new URL('../src/components/SourceList.tsx', import.meta.url), 'utf8')
+  assert.equal(APP_STATUS_COPY.sourcesLess, 'Show less')
+  assert.match(src, /sourcesLess/)
+  assert.match(src, /setShowAll\(false\)/)
+})
+
 test('jump-latest is dock-anchored above the composer, not under it', async () => {
   const app = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')
   const css = await readFile(new URL('../src/styles.css', import.meta.url), 'utf8')
