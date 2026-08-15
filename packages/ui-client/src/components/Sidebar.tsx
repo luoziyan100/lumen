@@ -4,6 +4,7 @@
  * [POS]: 左栏;「项目」标题右侧 chevron 收整区(localStorage lumen:sbProjectsOpen);项目行左侧 chevron 仍管单树;
  *        项目树会话 >N 条 Progressive Disclosure(内存展开,active 保底);会话行左侧 status 灯(idle/unread/running);
  *        置顶在项目区下、最近上;Trigger 须 render=<button>;开编延后+忽略菜单 blur;
+ *        跑马灯热态=hoveredTaskId(行级,同时最多一条)+菜单打开,不信 Marquee 内 pointer;
  *        折叠动效见 CurtainFold(spring + 卷帘)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
@@ -17,6 +18,7 @@ import {
 } from './icons'
 import { CurtainFold } from './CurtainFold'
 import { MarqueeTitle } from './MarqueeTitle'
+import { isSessionMarqueeActive } from '../marqueeActive'
 import { SIDEBAR_ACCOUNT_COPY, SIDEBAR_PROJECT_COPY } from '../appCopy'
 import { sessionLampKind } from '../sessionLamp'
 import { useResizable } from '../useResizable'
@@ -116,6 +118,8 @@ export function Sidebar({
   const [copiedId, setCopiedId] = useState<string | null>(null)
   /** 次要点击打开的浮层菜单所挂会话;单击主按钮不打开 */
   const [menuTaskId, setMenuTaskId] = useState<string | null>(null)
+  /** 行级悬停:同时最多一条走马灯;避免 Trigger 内 pointerleave 粘在最长标题上 */
+  const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null)
   /** 项目行双指菜单 */
   const [menuProjectId, setMenuProjectId] = useState<string | null>(null)
   /** 行内重命名中的项目或会话 */
@@ -264,6 +268,8 @@ export function Sidebar({
         key={task.id}
         className={`sb-item-row${flat ? ' sb-item-flat' : ''}${task.id === activeTaskId ? ' is-active' : ''}${menuOpen ? ' is-menu-open' : ''}`}
         data-task-row={task.id}
+        onPointerEnter={() => setHoveredTaskId(task.id)}
+        onPointerLeave={() => setHoveredTaskId((id) => (id === task.id ? null : id))}
       >
         {lampBtn}
         <DropdownMenu
@@ -290,7 +296,11 @@ export function Sidebar({
               setMenuTaskId(task.id)
             }}
           >
-            <MarqueeTitle text={displayTaskTitle(task)} className="sb-item-title" forceRoll={menuOpen} />
+            <MarqueeTitle
+              text={displayTaskTitle(task)}
+              className="sb-item-title"
+              active={isSessionMarqueeActive(task.id, hoveredTaskId, menuOpen)}
+            />
           </DropdownMenu.Trigger>
           <DropdownMenu.Content align="start" side="bottom" sideOffset={4} className="sb-task-menu glass-card">
             <DropdownMenu.Item

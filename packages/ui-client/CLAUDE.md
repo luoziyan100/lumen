@@ -28,6 +28,7 @@
 | `composerAccept.ts` | 附件宽准入(`filterComposerFiles`);扩展名不挡门,落盘分类在 service `saveUpload` |
 | `skillSlash.ts` | composer `/token` 解析(`parseSlashFilter`) |
 | `marqueeDuration.ts` | 侧栏跑马灯恒定 px/s 时长 |
+| `marqueeActive.ts` | 跑马灯热态:同时最多一条(hoveredTaskId + 菜单) |
 | `displayTaskTitle.ts` | 侧栏/搜索展示名:`title ?? goal` |
 | `sortTasks.ts` | 侧栏序:钉档 → `pinned_at` → `created_at`(与 store list 同构) |
 | `visibleSessions.ts` | 项目树会话 Progressive Disclosure:默认前 N + active 保底 |

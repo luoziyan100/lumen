@@ -1,8 +1,8 @@
 /**
- * [INPUT]: 单行标题;marqueeDurationSec / MARQUEE_GAP_PX
- * [OUTPUT]: MarqueeTitle —— 溢出悬停无缝单向走马灯(双份文案 + translateX(-50%))
+ * [INPUT]: 单行标题;active 由 Sidebar 经 isSessionMarqueeActive 注入;marqueeDurationSec / MARQUEE_GAP_PX
+ * [OUTPUT]: MarqueeTitle —— 溢出时单向走马灯(双份文案 + translateX(-50%))
  * [POS]: 侧栏会话名;必须是 button.sb-item 的后代(见 Sidebar Trigger render=)
- *        闲置 ellipsis;热态双轨滚动,循环接缝不可见(非瞬切、非 alternate)
+ *        闲置 ellipsis;热态双轨滚动。热态不自管 pointer——Kumo Trigger 下 leave 会粘住单行
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
@@ -14,17 +14,16 @@ const MAX_CHARS = 72
 export function MarqueeTitle({
   text,
   className = '',
-  forceRoll = false,
+  active = false,
 }: {
   text: string
   className?: string
-  /** 菜单打开等:保持滚动轨可见 */
-  forceRoll?: boolean
+  /** 行悬停或菜单打开:由 Sidebar 保证同一时刻最多一条 */
+  active?: boolean
 }) {
   const wrapRef = useRef<HTMLSpanElement>(null)
   const [overflowPx, setOverflowPx] = useState(0)
   const [cyclePx, setCyclePx] = useState(0)
-  const [hot, setHot] = useState(false)
 
   const display = text.length > MAX_CHARS ? text.slice(0, MAX_CHARS) : text
 
@@ -56,25 +55,24 @@ export function MarqueeTitle({
   }, [display, measure])
 
   const overflow = overflowPx > 2
-  const rolling = overflow && (hot || forceRoll)
+  const rolling = overflow && active
   const durationSec = marqueeDurationSec(cyclePx)
   const style = rolling && durationSec > 0
     ? ({ '--sb-marquee-dur': `${durationSec}s` } as CSSProperties)
     : undefined
 
+  useEffect(() => {
+    if (active) measure()
+  }, [active, measure])
+
   return (
     <span
       ref={wrapRef}
       className={
-        `sb-marquee${overflow ? ' is-overflow' : ''}${hot || forceRoll ? ' is-hot' : ''}` +
+        `sb-marquee${overflow ? ' is-overflow' : ''}${active ? ' is-hot' : ''}` +
         (className ? ` ${className}` : '')
       }
       style={style}
-      onPointerEnter={() => {
-        measure()
-        setHot(true)
-      }}
-      onPointerLeave={() => setHot(false)}
     >
       {rolling ? (
         <span className="sb-marquee-track">

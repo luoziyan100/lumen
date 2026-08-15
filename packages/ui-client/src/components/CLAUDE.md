@@ -6,7 +6,7 @@
 
 - `Sidebar.tsx` — Cursor 式:可折「项目」整区(标题 chevron + localStorage) → 全局「置顶」→「最近」;项目行 chevron 仍折单树;折叠动效走 `CurtainFold`;项目树会话 >N 条 Progressive Disclosure(`visibleSessions`,active 保底);会话行左灯(`sessionLamp`:idle 空心/unread 实心/running 脉动,点圆 toggle 未读);双指点按置顶/重命名/复制/归档;钉会话不重复出现在树/最近;行内重命名写 `title`
 - `CurtainFold.tsx` — **Curtain Language 原语**:grid Accordion + 卷帘 clip + spring 展开/curtain 收起;`stagger` 子项 cascade;关合保持挂载+`inert`;Accordion 式开合默认用它(过程块/侧栏/右轨目录/用户长文),禁再引入第二套高度动画
-- `MarqueeTitle.tsx` — 溢出悬停无缝单向走马灯:双份文案 + track `translateX(-50%)`;闲置 ellipsis;禁 alternate/瞬切
+- `MarqueeTitle.tsx` — 溢出单向走马灯:双份文案 + track `translateX(-50%)`;热态由 Sidebar `hoveredTaskId`(同时最多一条)+菜单打开注入,组件不自管 pointer(Trigger 内 leave 会粘行)
 - `turnRail.ts` — `buildTurnRailItems`:ChatItem→用户轮次(一问+随后助手答);过程行不占刻度
 - `TurnPreviewRail.tsx` — 对话列左侧轮次轨(≥4 轮);空闲小圆点、悬停鱼眼放大+预览;窄栏/阅读器开时隐藏;点圆点滚到 `msg-<id>`;可见轮 IO 在本组件(不抬 App)
 - `CreateProjectModal.tsx` — 创建项目悬浮卡(无遮罩):名称 + 可选本机源文件夹(Tauri pick / 粘贴路径)
