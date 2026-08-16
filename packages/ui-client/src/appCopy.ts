@@ -145,6 +145,14 @@ export const APP_STATUS_COPY = {
   linkDialogOpen: '打开链接',
 } as const
 
+/** 流程图失败卡 Phase B */
+export const MERMAID_COPY = {
+  repair: '尝试修复',
+  repairing: '修复中…',
+  repairFailed: '自动修复未成功',
+  repairedHint: '图已在本地修正（历史消息正文未改）',
+} as const
+
 /** Skills 斜杠 / Manage */
 export const SKILLS_COPY = {
   manageTitle: 'Manage skills',

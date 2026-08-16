@@ -19,7 +19,7 @@
 | `tools/` | L1 环境原语(env/) + L2 研究桥接(research/) |
 | `workspace/` | FsWorkspace 沙箱文件系统 |
 
-顶层文件:`service.ts`(createService 工厂 + headless main)、`supervisor.ts`(子进程拉起 + portfile 契约)、`launchd.ts`(用户级 LaunchAgent 渲染/安装/卸载)、`scripts/launchd-cli.ts`。
+顶层文件:`service.ts`(createService 工厂 + headless main)、`supervisor.ts`(子进程拉起 + portfile 契约)、`launchd.ts`(用户级 LaunchAgent 渲染/安装/卸载)、`scripts/launchd-cli.ts`、`scripts/inject-mermaid-phase-b-fixture.ts`(Phase B 缺 end 夹具)、`scripts/live-mermaid-repair.ts`(对运行中服务打真模型修图)。
 
 ## 纪律
 

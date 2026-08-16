@@ -1,7 +1,7 @@
 /**
  * [INPUT]: mermaidSyntax Phase A 规则
- * [OUTPUT]: kind 门控 / 引号修复 / sequence·class 不误伤 / 错误摘要
- * [POS]: doc/mermaid-pipeline.md AT-A1/A6/A7
+ * [OUTPUT]: kind 门控 / 引号修复 / R7 补 ] / sequence·class 不误伤 / 错误摘要
+ * [POS]: doc/mermaid-pipeline.md AT-A1/A6/A7 + R7 Omarchy 漏括号
  */
 import { describe, it, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
@@ -66,6 +66,39 @@ describe('repairMermaidSyntax flowchart', () => {
     const { source, actions } = repairMermaidSyntax(src)
     assert.ok(actions.includes('arrow-fix'))
     assert.match(source, /A\s*-->\s*B/)
+  })
+
+  it('R7: 引号标签漏 ] 且下一 token 是边', () => {
+    const src = `flowchart TB
+  E["DHH 的默认与审美(omakase 式)" -. "贯穿每一层" .-> A
+  E -.-> B
+`
+    const { source, actions } = repairMermaidSyntax(src)
+    assert.ok(actions.includes('close-rect'))
+    assert.match(source, /E\["DHH 的默认与审美\(omakase 式\)"\]\s*-\./)
+    assert.ok(!/E\["DHH[^"]*"\s*-\./.test(source))
+  })
+
+  it('R7: Omarchy 整图漏 ] 后可闭合', () => {
+    const src = `flowchart TB
+  A["应用层:Neovim、Chromium、Obsidian、LibreOffice、OBS、Winamp 式播放器…"] --> B["桌面壳:Quickshell(顶栏、通知、托盘、统一剪贴板)"]
+  B --> C["窗口管理:Hyprland(平铺式)"]
+  C --> D["系统层:Arch Linux"]
+  E["DHH 的默认与审美(omakase 式)" -. "贯穿每一层" .-> A
+  E -.-> B
+  E -.-> C
+  E -.-> D
+`
+    const { source, actions } = repairMermaidSyntax(src)
+    assert.ok(actions.includes('close-rect'))
+    assert.match(source, /E\["DHH 的默认与审美\(omakase 式\)"\]\s*-\.\s*"贯穿每一层"\s*\.->\s*A/)
+  })
+
+  it('R7: 已闭合的 ] 不重复补', () => {
+    const src = 'flowchart TB\n  A["入口"] --> B["出口"]\n'
+    const { source, actions } = repairMermaidSyntax(src)
+    assert.equal(actions.filter((a) => a === 'close-rect').length, 0)
+    assert.match(source, /A\["入口"\] --> B\["出口"\]/)
   })
 
   it('R1: 弯引号', () => {

@@ -3,7 +3,8 @@
  * [OUTPUT]: startServer —— 把 AgentRuntime 暴露为 localhost WebSocket 服务;
  *           HTTP POST /upload → UploadReceipt JSON
  * [POS]: §4 服务边界。一条连接可 submit/subscribe/cancel/resume/archive_task/rename_task/pin_task/unpin_task/answer_user/list，service 推 event 流;
- *        submit/continue 透传 uploads[](doc/upload-awareness.md)
+ *        submit/continue 透传 uploads[](doc/upload-awareness.md);
+ *        repair_mermaid sidecar 单次修图(doc/mermaid-pipeline.md §4.3)
  *
  * 断线重连用 subscribe.afterSeq 拉齐遗漏事件（事件 seq 单调，不丢不重）。
  * 鉴权：浏览器对 ws://127.0.0.1 没有跨源限制，任意网页都能发起连接——
@@ -404,6 +405,14 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
         if (settingsApi) send({ type: 'settings', settings: settingsApi.update(message.settings) })
         else send({ type: 'error', message: 'settings 不可用' })
         break
+      case 'repair_mermaid': {
+        if (!ownsTask(message.taskId, message.projectId)) { send({ type: 'error', message: 'forbidden' }); break }
+        void runtime.repairMermaidSource(message.taskId, message.source, message.error, connModel).then((r) => {
+          if (r.ok) send({ type: 'ok', taskId: message.taskId, source: r.source })
+          else send({ type: 'error', message: r.message })
+        })
+        break
+      }
       default:
         send({ type: 'error', message: 'unknown message type' })
     }

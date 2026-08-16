@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@cloudflare/kumo": "^2.6.0",
+    "@mermaid-js/layout-elk": "^0.2.2",
     "@paper-design/shaders-react": "^0.0.76",
     "@phosphor-icons/react": "^2.1.10",
     "@tailwindcss/vite": "^4.3.2",

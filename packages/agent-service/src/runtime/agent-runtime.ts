@@ -5,6 +5,7 @@
  *           answerUser 解开 ask_user 挂起;
  *           listSkills/installSkill/uninstallSkill/activateSkillOnTask(与 run_skill 同构回灌);
  *           侧栏 task.title 异步生成(≠ goal;见 task-title.ts);renameTaskTitle 人手改 title;
+ *           repairMermaidSource:Phase B sidecar 单次修图(不落库);
  *           notifyStatus 同步 emitTaskUpdated(侧栏 status/未读灯);
  *           saveUpload→UploadReceipt;submit/continue 的 uploads[]/activePath 注入机读附言
  * [POS]: §4 运行环境。一个任务 = 一次 runAgent；durable emit 落 task_events + session jsonl + WS;
@@ -58,6 +59,14 @@ import {
   generateTaskTitle,
   shouldBackfillTitle,
 } from './task-title.ts'
+import {
+  buildRepairMessages,
+  extractMermaidBody,
+  isLlmRepairEnabled,
+  mermaidRepairMetrics,
+  MermaidRepairGate,
+  REPAIR_TIMEOUT_MS,
+} from './mermaid-repair.ts'
 import { SubagentCoordinator } from '../subagent/coordinator.ts'
 import { SubagentStore } from '../subagent/store.ts'
 import { ChildRunner } from '../subagent/runner.ts'
@@ -217,6 +226,8 @@ export class AgentRuntime {
   private readonly titleBackfillQueue: Array<{ taskId: string; model?: ModelPort }> = []
   /** 子 Agent 协调器(T0) */
   readonly subagents: SubagentCoordinator
+  /** Phase B:同 task+原文 hash 限 1 次模型修图 */
+  private readonly mermaidRepairGate = new MermaidRepairGate()
 
   constructor(config: AgentRuntimeConfig) {
     this.cfg = config
@@ -506,6 +517,46 @@ export class AgentRuntime {
       sourcePath: source,
     })
     return mergeAgentRegistry(roots, loadToggles(defaultTogglesPath()))
+  }
+
+  /**
+   * Phase B sidecar:单次无工具 completion,只修一块 mermaid。
+   * 不写 task_events / session;失败不进主循环。
+   */
+  async repairMermaidSource(
+    taskId: string,
+    source: string,
+    error: string,
+    model?: ModelPort,
+  ): Promise<{ ok: true; source: string } | { ok: false; message: string }> {
+    if (!isLlmRepairEnabled()) {
+      return { ok: false, message: '流程图修复已关闭' }
+    }
+    if (!this.cfg.store.getTask(taskId)) {
+      return { ok: false, message: 'task 不存在' }
+    }
+    const src = source.trim()
+    if (!src) return { ok: false, message: '缺少流程图源码' }
+    if (!this.mermaidRepairGate.consume(taskId, src)) {
+      return { ok: false, message: '这张图已经尝试过修复' }
+    }
+    mermaidRepairMetrics.bump('attempt')
+    const port = model ?? this.cfg.model
+    const ac = new AbortController()
+    const timer = setTimeout(() => ac.abort(), REPAIR_TIMEOUT_MS)
+    try {
+      const res = await port.chat(buildRepairMessages(src, error), [], ac.signal)
+      const raw = typeof res.message.content === 'string' ? res.message.content : ''
+      const body = extractMermaidBody(raw)
+      if (!body) return { ok: false, message: '模型没有返回可抽取的 mermaid 围栏' }
+      mermaidRepairMetrics.bump('ok')
+      return { ok: true, source: body }
+    } catch (e) {
+      if (ac.signal.aborted) return { ok: false, message: '修复超时' }
+      return { ok: false, message: e instanceof Error ? e.message : '修复失败' }
+    } finally {
+      clearTimeout(timer)
+    }
   }
 
   /** 软归档:若在跑先 cancel,再写 archived_at;列表不再返回 */

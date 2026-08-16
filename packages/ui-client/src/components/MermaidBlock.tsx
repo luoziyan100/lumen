@@ -1,20 +1,24 @@
 /**
  * [INPUT]: mermaid; mermaidSyntax prepareAndValidate; mermaidSanitize 颜色; icons
- * [OUTPUT]: MermaidBlock —— ```mermaid → SVG; 放大 + 复制源码; 短错误降级
- * [POS]: Markdown language-mermaid 分支; doc/mermaid-pipeline.md S4′ Phase A
- * [PROTOCOL]: 变更时更新此头部与 doc/mermaid-pipeline.md
+ * [OUTPUT]: MermaidBlock —— ```mermaid → SVG; 放大 + 复制源码; 短错误降级; 可选 Phase B 尝试修复
+ * [POS]: Markdown language-mermaid 分支; doc/mermaid-pipeline.md S4′ Phase A/B;
+ *        可读性(停拉伸+官方 ELK)见 doc/mermaid-readability.md
+ * [PROTOCOL]: 变更时更新此头部与 doc/mermaid-pipeline.md / doc/mermaid-readability.md
  *
  * 管线: prepare(语法+颜色) → 同源 parse → render。
  * 复制始终用模型原文; 展示像素用改写稿。会话内 hash 缓存 parse/render 结果。
  * 卡片右上角只留放大/复制;放大层 ± / 双指缩放 / 单指拖移。
  * 方向 LR/TB 尊重源码,宿主只做 getBBox 收紧虚高(mermaid#1984),不改写横竖。
  * lockMinH 写入 renderCache,remount 首帧不塌;tighten 只做一次。
+ * flowchart 优先官方 ELK(失败回 dagre);SVG 禁止 style.width=100% 拉伸。
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { glassMermaidThemeVariables } from '../mermaidSanitize'
-import { prepareAndValidate } from '../mermaidSyntax'
+import { mermaidMetrics, prepareAndValidate } from '../mermaidSyntax'
+import { MERMAID_COPY } from '../appCopy'
 import { CheckIcon, CloseIcon, CopyIcon, ExpandIcon, ICON_SM, ZoomInIcon, ZoomOutIcon } from './icons'
+import { applySvgHostSize, ensureElkLayout, mermaidInitializeOptions } from '../mermaidLayout'
 import { clampZoom, panBy, panForZoom, sizeFromViewBox, viewBoxFromBBox, wheelZoomFactor, zoomByFactor, zoomByStep, ZOOM_MAX, ZOOM_MIN } from '../mermaidZoom'
 
 type CacheEntry = {
@@ -23,6 +27,7 @@ type CacheEntry = {
   detail: string | null
   prepared: string
   lockMinH?: number
+  repaired?: boolean
 }
 
 /** 会话内内存缓存：原文 hash → 渲染结果（不落库） */
@@ -102,9 +107,7 @@ function tightenSvgInk(svg: SVGSVGElement): void {
     svg.setAttribute('width', String(Math.round(vb.w)))
     svg.setAttribute('height', String(Math.round(vb.h)))
   }
-  svg.style.maxWidth = '100%'
-  svg.style.width = '100%'
-  svg.style.height = 'auto'
+  applySvgHostSize(svg)
   svg.dataset.inkTight = '1'
 }
 
@@ -144,7 +147,14 @@ async function copyText(text: string): Promise<void> {
   }
 }
 
-export function MermaidBlock({ chart }: { chart: string }) {
+export function MermaidBlock({
+  chart,
+  onRepair,
+}: {
+  chart: string
+  /** Phase B:把原文+错误交给后端单次修图;返回修正 body */
+  onRepair?: (source: string, error: string) => Promise<string>
+}) {
   const hostRef = useRef<HTMLDivElement>(null)
   const reactId = useId().replace(/:/g, '')
   const original = chart.trim()
@@ -169,9 +179,21 @@ export function MermaidBlock({ chart }: { chart: string }) {
   const [pending, setPending] = useState(() => Boolean(original) && !cached0)
   /** 只锁「量过的 SVG 高 + 工具条」,禁止用行数估 560 把图顶在空白上方 */
   const [lockMinH, setLockMinH] = useState(() => cached0?.lockMinH ?? 0)
+  const [renderSource, setRenderSource] = useState(original)
+  const [repairing, setRepairing] = useState(false)
+  const [repairFailed, setRepairFailed] = useState(false)
+  const [repairedHint, setRepairedHint] = useState(() => Boolean(cached0?.repaired))
+  const [triedRepair, setTriedRepair] = useState(() => Boolean(cached0?.repaired))
 
   useEffect(() => {
-    if (!original) {
+    setRenderSource(original)
+    setRepairFailed(false)
+    setTriedRepair(Boolean(renderCache.get(hashSource(original))?.repaired))
+    setRepairedHint(Boolean(renderCache.get(hashSource(original))?.repaired))
+  }, [original])
+
+  useEffect(() => {
+    if (!renderSource) {
       setSvg(null)
       setError(null)
       setDetail(null)
@@ -180,12 +202,14 @@ export function MermaidBlock({ chart }: { chart: string }) {
       return
     }
     let cancelled = false
-    const key = hashSource(original)
+    const key = hashSource(original || renderSource)
     const cached = renderCache.get(key)
-    if (cached) {
+    const skipCache = renderSource !== original && !cached?.repaired
+    if (cached && !skipCache) {
       setSvg(cached.svg)
       setError(cached.error)
       setDetail(cached.detail)
+      setRepairedHint(Boolean(cached.repaired))
       setPending(false)
       requestAnimationFrame(() => {
         if (cancelled) return
@@ -204,17 +228,10 @@ export function MermaidBlock({ chart }: { chart: string }) {
         const mermaid = (await import('mermaid')).default
         const host = hostRef.current
         const themeVariables = host ? readThemeVars(host) : glassMermaidThemeVariables()
-        mermaid.initialize({
-          startOnLoad: false,
-          securityLevel: 'strict',
-          theme: 'dark',
-          darkMode: true,
-          themeVariables,
-          fontFamily: themeVariables.fontFamily,
-          flowchart: { useMaxWidth: false, htmlLabels: true, padding: 8 },
-        })
+        const elkReady = await ensureElkLayout(mermaid)
+        mermaid.initialize(mermaidInitializeOptions(themeVariables, elkReady))
 
-        const validated = await prepareAndValidate(original, (src) => mermaid.parse(src))
+        const validated = await prepareAndValidate(renderSource, (src) => mermaid.parse(src))
         if (cancelled) return
 
         if (!validated.ok) {
@@ -228,6 +245,7 @@ export function MermaidBlock({ chart }: { chart: string }) {
           setSvg(null)
           setError(validated.error)
           setDetail(validated.detail)
+          if (renderSource !== original) setRepairFailed(true)
           setPending(false)
           return
         }
@@ -235,16 +253,19 @@ export function MermaidBlock({ chart }: { chart: string }) {
         const id = `mmd-${reactId}-${Math.random().toString(36).slice(2, 8)}`
         const { svg: out } = await mermaid.render(id, validated.source)
         if (cancelled) return
+        const repaired = renderSource !== original
         const entry: CacheEntry = {
           svg: out,
           error: null,
           detail: null,
           prepared: validated.source,
+          repaired,
         }
         renderCache.set(key, entry)
         setSvg(out)
         setError(null)
         setDetail(null)
+        setRepairedHint(repaired)
         setPending(false)
         requestAnimationFrame(() => {
           if (cancelled) return
@@ -258,7 +279,7 @@ export function MermaidBlock({ chart }: { chart: string }) {
           svg: null,
           error: msg.length > 160 ? `${msg.slice(0, 157)}…` : msg,
           detail: msg,
-          prepared: original,
+          prepared: renderSource,
         }
         renderCache.set(key, entry)
         setSvg(null)
@@ -268,7 +289,7 @@ export function MermaidBlock({ chart }: { chart: string }) {
       }
     })()
     return () => { cancelled = true }
-  }, [original, reactId])
+  }, [original, renderSource, reactId])
 
   useLayoutEffect(() => {
     if (!expanded) return
@@ -421,6 +442,25 @@ export function MermaidBlock({ chart }: { chart: string }) {
     window.setTimeout(() => setCopied(false), 1400)
   }
 
+  async function onTryRepair(): Promise<void> {
+    if (!onRepair || !error || repairing || triedRepair) return
+    setRepairing(true)
+    setRepairFailed(false)
+    setTriedRepair(true)
+    mermaidMetrics.bump('llm_repair_attempt')
+    try {
+      const fixed = (await onRepair(original, error)).trim()
+      if (!fixed) throw new Error('empty')
+      mermaidMetrics.bump('llm_repair_ok')
+      renderCache.delete(hashSource(original))
+      setRenderSource(fixed)
+    } catch {
+      setRepairFailed(true)
+    } finally {
+      setRepairing(false)
+    }
+  }
+
   const toolbar = (
     <div className="mermaid-toolbar" role="toolbar" aria-label="流程图操作">
       {svg && !error ? (
@@ -468,11 +508,29 @@ export function MermaidBlock({ chart }: { chart: string }) {
             {showDetail && detail ? (
               <pre className="mermaid-error-detail"><code>{detail}</code></pre>
             ) : null}
+            {onRepair && (!triedRepair || repairing) ? (
+              <button
+                type="button"
+                className="mermaid-repair"
+                disabled={repairing}
+                onClick={() => { void onTryRepair() }}
+              >
+                {repairing ? MERMAID_COPY.repairing : MERMAID_COPY.repair}
+              </button>
+            ) : null}
+            {repairFailed ? (
+              <p className="mermaid-repaired-hint">{MERMAID_COPY.repairFailed}</p>
+            ) : null}
             <pre className="mermaid-source"><code>{original}</code></pre>
           </div>
         ) : null}
         {!pending && !error && svg ? (
-          <div className="mermaid-svg" dangerouslySetInnerHTML={{ __html: svg }} />
+          <>
+            {repairedHint ? (
+              <p className="mermaid-repaired-hint">{MERMAID_COPY.repairedHint}</p>
+            ) : null}
+            <div className="mermaid-svg" dangerouslySetInnerHTML={{ __html: svg }} />
+          </>
         ) : null}
       </div>
 

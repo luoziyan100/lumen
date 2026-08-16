@@ -999,7 +999,13 @@ function AppInner() {
                   return (
                     <div key={it.id} id={msgAnchorId(it.id)} className="msg-group msg-group-assistant">
                       <div className="bubble bubble-assistant">
-                        <AssistantContent content={peeled.body} onSendMessage={(t) => { void send(t) }} />
+                        <AssistantContent
+                          content={peeled.body}
+                          onSendMessage={(t) => { void send(t) }}
+                          onRepairMermaid={taskId
+                            ? (source, error) => client.repairMermaid(taskId, source, error, projectId)
+                            : undefined}
+                        />
                         {sources.length ? <SourceList sources={sources} /> : null}
                       </div>
                       <div className="msg-actions">{copyBtn(it.id, peeled.body, '复制这条回答')}</div>

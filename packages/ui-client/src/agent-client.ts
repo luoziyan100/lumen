@@ -4,7 +4,7 @@
  * [OUTPUT]: AgentClient —— connect/submit/continue/archiveTask/renameTask/pinTask/unpinTask/answerUser/…;
  *           submit/continue 可带 uploads[];uploadFile 回 UploadReceipt
  * [POS]: UI 唯一出站口;connect 每次解析端点并把 localhost→127.0.0.1(防 IPv6 假死);
- *        send 在 WS 非 OPEN 时必须失败,continue/archive/rename_task/pin·unpin/answer_user/rename·archive_project/Skills 等 ok/error 回执;
+ *        send 在 WS 非 OPEN 时必须失败,continue/archive/rename_task/pin·unpin/answer_user/rename·archive_project/Skills/repair_mermaid 等 ok/error 回执;
  *        上传知情见 doc/upload-awareness.md
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md;改消息格式须三处同步
  */
@@ -144,7 +144,7 @@ type ServerMessage =
   | { type: 'asset'; path: string; content: string }
   | { type: 'skills'; skills: SkillInfo[] }
   | { type: 'settings'; settings: PublicSettings }
-  | { type: 'ok'; taskId?: string }
+  | { type: 'ok'; taskId?: string; source?: string }
   | { type: 'error'; message: string }
 
 /** 解析当前应连的端点。Tauri 注入可晚于模块求值,故每次 connect 重读 window。 */
@@ -179,6 +179,8 @@ export class AgentClient {
   private pendingActivate: { resolve: (taskId: string) => void; reject: (e: Error) => void; taskId?: string } | null = null
   /** continue/cancel 等等待服务端 ok|error 的回执(禁 fire-and-forget) */
   private pendingAck: { resolve: () => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> } | null = null
+  /** repair_mermaid 等 ok.source / error */
+  private pendingRepair: { resolve: (source: string) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> } | null = null
   private url: string
   private httpBase: string
   private readonly fallbackUrl: string
@@ -233,6 +235,12 @@ export class AgentClient {
       // 握手成功后被服务端 4401 踢掉时 onopen 已 resolve,只有 onclose 能告诉我们"被拒"
       ws.onclose = (ev) => {
         this.rejectPendingAck(new Error('连接已断开'))
+        if (this.pendingRepair) {
+          const p = this.pendingRepair
+          this.pendingRepair = null
+          clearTimeout(p.timer)
+          p.reject(new Error('连接已断开'))
+        }
         for (const h of this.closeHandlers) h(ev.code, ev.reason)
       }
       ws.onmessage = (ev) => this.onMessage(JSON.parse(ev.data) as ServerMessage)
@@ -577,6 +585,33 @@ export class AgentClient {
     }
   }
 
+  /** Phase B:单次修 mermaid;成功返回修正 body,不改落库原文 */
+  repairMermaid(taskId: string, source: string, error: string, projectId?: string): Promise<string> {
+    if (this.pendingRepair) return Promise.reject(new Error('上一次修复尚未完成'))
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (this.pendingRepair) {
+          this.pendingRepair = null
+          reject(new Error('修复超时'))
+        }
+      }, 50_000)
+      this.pendingRepair = { resolve, reject, timer }
+      try {
+        this.send({
+          type: 'repair_mermaid',
+          taskId,
+          source,
+          error,
+          ...(projectId ? { projectId } : {}),
+        })
+      } catch (e) {
+        this.pendingRepair = null
+        clearTimeout(timer)
+        reject(e instanceof Error ? e : new Error(String(e)))
+      }
+    })
+  }
+
   /** demo:把本连接的模型配置(含用户自己的 key)发给后端,只在连接内存生效、不落盘 */
   setModel(config: ConnModelConfig): void {
     this.send({ type: 'set_model', config })
@@ -589,6 +624,12 @@ export class AgentClient {
 
   close(): void {
     this.rejectPendingAck(new Error('连接已关闭'))
+    if (this.pendingRepair) {
+      const p = this.pendingRepair
+      this.pendingRepair = null
+      clearTimeout(p.timer)
+      p.reject(new Error('连接已关闭'))
+    }
     this.ws?.close()
     this.ws = null
   }
@@ -687,6 +728,13 @@ export class AgentClient {
         this.pendingSettings = null
         break
       case 'ok':
+        if (this.pendingRepair && typeof message.source === 'string') {
+          const p = this.pendingRepair
+          this.pendingRepair = null
+          clearTimeout(p.timer)
+          p.resolve(message.source)
+          break
+        }
         if (this.pendingActivate) {
           const p = this.pendingActivate
           this.pendingActivate = null
@@ -698,6 +746,12 @@ export class AgentClient {
         break
       case 'error': {
         const err = new Error(message.message || '请求失败')
+        if (this.pendingRepair) {
+          const p = this.pendingRepair
+          this.pendingRepair = null
+          clearTimeout(p.timer)
+          p.reject(err)
+        }
         if (this.pendingAck) this.rejectPendingAck(err)
         if (this.pendingActivate) {
           const p = this.pendingActivate

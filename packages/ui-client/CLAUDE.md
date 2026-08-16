@@ -10,13 +10,16 @@
 |---|---|
 | `App.tsx` | 布局与装配;断线重连前 `ensureAgentService`;可见性恢复再推一把 |
 | `ensureAgent.ts` | Tauri invoke:`ensure_agent_service` + `launchd_status/install/uninstall` |
-| `agent-client.ts` | 浏览器侧 WS 客户端;含 listProjects/…/Skills;`uploadFile`→UploadReceipt;submit/continue 可带 uploads[];⚠ 协议类型手工内联 |
+| `agent-client.ts` | 浏览器侧 WS 客户端;含 listProjects/…/Skills/`repairMermaid`;`uploadFile`→UploadReceipt;submit/continue 可带 uploads[];⚠ 协议类型手工内联 |
 | `useAgent.ts` | 事件流 → ChatItem;`uploads[]`→气泡 chip;`text_delta` 累积 streaming 泡 / `model_step` 定稿;`tool_call_start` 尽早过程行;`ask_user`→pendingAsk |
 | `useStickToBottom.ts` | 对话列贴底跟随;上滑即松钉;回滞再钉;高度回缩不追;钉态外部 store 不重绘消息列;`.messages { overflow-anchor: none }` 恒 none |
 | `openExternal.ts` | 外链走壳 `open_external_url`(系统浏览器);WKWebView 的 window.open 无效 |
 | `elapsedLabel.ts` | 进行中计时(`3.2s` / `46m 51.5s`);收口 Thought 不报秒 |
 | `processSteps.ts` | 过程步窗口化(默认最近 6)+ 路径 chip |
+| `mermaidSyntax.ts` | 流程图确定性语法闸(S4′ Phase A；flowchart 含 R7 补 `]`)。对人报错在此;Phase B 回灌走 `repair_mermaid`,见 `doc/mermaid-pipeline.md` §3.5 |
+| `mermaidSanitize.ts` | 流程图颜色闸：语义 class / 字面色对比度 |
 | `mermaidZoom.ts` | 流程图放大层缩放/平移算术(双指、滚轮、±) |
+| `mermaidLayout.ts` | 可读性:官方 ELK 注册(失败回 dagre)+ SVG 停拉伸尺寸政策;见 `doc/mermaid-readability.md` |
 | `sourceCite.ts` | 检索/抓取 URL + 正文「来源」段 → SourceCite;答末列表 |
 | `trustedHosts.ts` | 外链确认「这个域名不再问」 |
 | `useWorkspace.ts` | 资产列表:无会话仅 shared;有会话 shared+session;切新对话乐观清 session 防串味 |

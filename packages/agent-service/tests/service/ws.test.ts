@@ -103,3 +103,128 @@ test('WS：list 返回已创建的任务', async (t) => {
   assert.ok((listed as { tasks: unknown[] }).tasks.length >= 1)
   ws.close()
 })
+
+async function makeRepairServer(t: TestContext, replies: ReturnType<typeof assistantReply>[]): Promise<ServerHandle> {
+  const base = await mkdtemp(path.join(tmpdir(), 'lumen-ws-repair-'))
+  const db = openDatabase(path.join(base, 'lumen.sqlite'))
+  const model = new ScriptedModel(replies)
+  const runtime = new AgentRuntime({
+    store: new TaskStore(db),
+    model,
+    sessionDir: path.join(base, 'sessions'),
+    workspacesDir: path.join(base, 'workspaces'),
+    mainTools: ENV_TOOLS,
+  })
+  const handle = await startServer(runtime, { port: 0 })
+  t.after(async () => {
+    await runtime.drain()
+    await handle.close()
+    db.close()
+    await rm(base, { recursive: true, force: true })
+  })
+  return handle
+}
+
+test('WS：repair_mermaid 单次返回修正源码且含禁令', async (t) => {
+  const model = new ScriptedModel([
+    assistantReply('```mermaid\nflowchart TB\n  A["入口"] --> B["出口"]\n```'),
+  ])
+  const base = await mkdtemp(path.join(tmpdir(), 'lumen-ws-repair-'))
+  const db = openDatabase(path.join(base, 'lumen.sqlite'))
+  const runtime = new AgentRuntime({
+    store: new TaskStore(db),
+    model,
+    sessionDir: path.join(base, 'sessions'),
+    workspacesDir: path.join(base, 'workspaces'),
+    mainTools: ENV_TOOLS,
+  })
+  const handle = await startServer(runtime, { port: 0 })
+  t.after(async () => {
+    await runtime.drain()
+    await handle.close()
+    db.close()
+    await rm(base, { recursive: true, force: true })
+  })
+
+  const ws = new WebSocket(`ws://127.0.0.1:${handle.port}`)
+  await new Promise<void>((r) => ws.addEventListener('open', () => r(), { once: true }))
+
+  const taskId = await new Promise<string>((resolve) => {
+    ws.addEventListener('message', function handler(ev) {
+      const m = JSON.parse(String((ev as MessageEvent).data)) as ServerMessage
+      if (m.type === 'task_created') {
+        ws.removeEventListener('message', handler)
+        resolve(m.taskId)
+      }
+    })
+    ws.send(JSON.stringify({ type: 'create_task', projectId: 'p', goal: '图' }))
+  })
+
+  const reply = await new Promise<ServerMessage>((resolve) => {
+    ws.addEventListener('message', function handler(ev) {
+      const m = JSON.parse(String((ev as MessageEvent).data)) as ServerMessage
+      if (m.type === 'ok' || m.type === 'error') {
+        ws.removeEventListener('message', handler)
+        resolve(m)
+      }
+    })
+    ws.send(JSON.stringify({
+      type: 'repair_mermaid',
+      taskId,
+      source: 'flowchart TB\n  E["x" -. "贯穿" .-> A',
+      error: '第 2 行附近 · 引号未配对',
+    }))
+  })
+
+  assert.equal(reply.type, 'ok')
+  assert.match((reply as { source?: string }).source ?? '', /A\["入口"\] --> B\["出口"\]/)
+  assert.equal(model.calls.length, 1)
+  const sys = model.calls[0]!.find((m) => m.role === 'system')?.content ?? ''
+  assert.match(sys, /只修正 Mermaid 语法/)
+  assert.match(sys, /不要重写围栏外的研究结论/)
+  assert.match(sys, /只输出一个 ```mermaid/)
+
+  const again = await new Promise<ServerMessage>((resolve) => {
+    ws.addEventListener('message', function handler(ev) {
+      const m = JSON.parse(String((ev as MessageEvent).data)) as ServerMessage
+      if (m.type === 'ok' || m.type === 'error') {
+        ws.removeEventListener('message', handler)
+        resolve(m)
+      }
+    })
+    ws.send(JSON.stringify({
+      type: 'repair_mermaid',
+      taskId,
+      source: 'flowchart TB\n  E["x" -. "贯穿" .-> A',
+      error: '第 2 行附近 · 引号未配对',
+    }))
+  })
+  assert.equal(again.type, 'error')
+  assert.match((again as { message: string }).message, /已经尝试过/)
+  assert.equal(model.calls.length, 1)
+  ws.close()
+})
+
+test('WS：repair_mermaid 缺 task 报错且不打模型', async (t) => {
+  const handle = await makeRepairServer(t, [assistantReply('```mermaid\nflowchart TB\n  A-->B\n```')])
+  const ws = new WebSocket(`ws://127.0.0.1:${handle.port}`)
+  await new Promise<void>((r) => ws.addEventListener('open', () => r(), { once: true }))
+  const reply = await new Promise<ServerMessage>((resolve) => {
+    ws.addEventListener('message', function handler(ev) {
+      const m = JSON.parse(String((ev as MessageEvent).data)) as ServerMessage
+      if (m.type === 'ok' || m.type === 'error') {
+        ws.removeEventListener('message', handler)
+        resolve(m)
+      }
+    })
+    ws.send(JSON.stringify({
+      type: 'repair_mermaid',
+      taskId: 'task-missing',
+      source: 'flowchart TB\n  A',
+      error: 'x',
+    }))
+  })
+  assert.equal(reply.type, 'error')
+  assert.match((reply as { message: string }).message, /不存在/)
+  ws.close()
+})

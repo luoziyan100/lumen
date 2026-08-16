@@ -2290,6 +2290,22 @@ html[data-skin="cosmic-latte"] .thought {
   cursor: pointer;
 }
 .mermaid-error-detail-toggle:hover { color: var(--ink-soft); }
+.mermaid-repair {
+  align-self: flex-start;
+  margin: 0; padding: 4px 10px;
+  border: 1px solid var(--sand); border-radius: var(--radius-sm);
+  background: var(--paper-deep); color: var(--ink);
+  font: inherit; font-size: var(--t-caption);
+  cursor: pointer;
+}
+.mermaid-repair:hover { background: var(--sand); }
+.mermaid-repair:disabled { opacity: 0.45; cursor: default; }
+.mermaid-repaired-hint {
+  margin: 0;
+  color: var(--ink-mute);
+  font-size: var(--t-caption);
+  font-family: var(--font-sans);
+}
 .mermaid-error-detail {
   margin: 0;
   padding: var(--s-2);

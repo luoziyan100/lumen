@@ -1,6 +1,6 @@
 # Mermaid 渲染管线（校验 · 清洗 · 修复 · 降级）
 
-状态: **现行（Phase A 已落地；Phase B 待建）** · 2026-08-11  
+状态: **现行（Phase A/B 已落地；Phase C 待阈值；可读性本轮见 `mermaid-readability.md`）** · 2026-08-16  
 分支语境: `experiment/glass-ui`（与 glass 主题、MermaidBlock 同栈）  
 决策编号: **S4′**（HDD 选型 + 外部调研交叉验证）
 
@@ -28,6 +28,10 @@
 | 2026-08-11 | 初版：锁定 S4′、Phase A/B/C、AT、非目标、锚点 | 会话决策落盘 |
 | 2026-08-11 | 外部 AI 审计反馈复核：采纳 kind 门控 / 实现约束 / 本地观测 / 错误映射；驳回或降级不当项（见 §13） | 主会话对照源码与产品形态 |
 | 2026-08-11 | Phase A 落地：mermaidSyntax + MermaidBlock 管线 + persona 规则 + 单测 | 实现 |
+| 2026-08-15 | R7：矩形 `ID["标签"` 漏 `]` 且下一 token 是边时补闭合（Omarchy 图） | 实现 |
+| 2026-08-16 | 对照「保证 JSON」文：分层不可混；否决 `json_schema` 锁 mermaid 字符串；报错对人前端、对模型后端；本轮不上 Phase B/S5 | 会话决策落盘 |
+| 2026-08-16 | Phase B 履约：`repair_mermaid` sidecar（手动、同 hash 限 1 次、不改落库） | 实现 |
+| 2026-08-16 | 可读性本轮（R1′）交叉引用：`doc/mermaid-readability.md`；§5 R1–R7 冻结；§5.3 短标签 | 会话决策 |
 
 ---
 
@@ -58,6 +62,17 @@
 | 入口 | `packages/ui-client/src/components/Markdown.tsx` | `language-mermaid` → `MermaidBlock` |
 | 回传 | — | **不存在** |
 
+### 1.4 2026-08-16 代码事实（对照 §1.3）
+
+| 环节 | 现状 |
+|------|------|
+| Persona | 可视化合同已镜像 §5.3（含先闭合再写边）；仍是**劝说**，不是推理层截断 |
+| 语法闸 | `mermaidSyntax.ts` R1–R7 + kind 门控；漏 `]` 等高频脏数据在前端补 |
+| 最终门 | `MermaidBlock` 同源 `mermaid.parse` → `render`；失败红字+源码 |
+| 回传模型 | **Phase B 已接**：失败卡「尝试修复」→ `repair_mermaid` sidecar。仍不进主研究循环、不改 `task_events`。`model_retry` 只处理 API 运输层 |
+| Structured Outputs | adapter **未接** `response_format: json_schema` |
+| 出图通道 | 正文 ` ```mermaid ` 围栏；**不**走 tool_calls |
+
 ---
 
 ## 2. 目标与成功标准
@@ -78,7 +93,11 @@
 | 替换 mermaid.js | 无必要 |
 | 默认无限 repair 循环 | 成本与死循环风险 |
 | 用非官方/非同源「轻量假校验」作为最终门 | parser parity 坑 |
-| 默认强制模型只输出 JSON 再转图（Vizlayer 路线） | 表达力与迁移成本；列为远期选项 |
+| 默认强制模型只输出 JSON 再转图（Vizlayer 路线） | 表达力与迁移成本；列为远期选项 **S5 / C4**，须达 §7.1 阈值或 owner 书面指定 |
+| 用 Structured Outputs / `json_schema` 锁 `{ mermaid: string }` | **分类错误**：约束停在 JSON 层，图仍可能非法；见 §3.5 |
+| 前端拿 key 偷打模型重试 | 绕过只增线程与事件源，违反铁律 |
+| `reply` 定稿后后端扫围栏、自动再打主循环 | 用户已见终稿；费用/延迟即「重试税」；与落库原文不改打架 |
+| 后端另起 mermaid 实例当最终门、前端盲信 | 破坏不变式 2（parser parity） |
 | 学 Cursor：失败时图消失 | 已登记为反模式 |
 | Codex 式完全不内渲 | 与 Lumen「对话内见图」产品形态冲突；可保留「复制源码」旁路 |
 
@@ -120,6 +139,7 @@
 | Codex | 生成与渲染分离 | **学**：复制/导出源码；**不**放弃内渲 |
 | @probelabs/maid | 确定性 autofix + 语义校验 | **可参考规则**；最终门仍官方 parse |
 | 本仓既有 | 颜色 sanitize、失败已有源码回退 | **保留并扩展** |
+| 「保证 JSON」面试文（劝说/schema/受限解码） | 现象同构；**不可**把 mermaid 源码当封闭 JSON 锁 | **学分层**；王者对图 = S5 锁 IR，见 §3.5 |
 
 ### 3.4 关键不变式（实现必须遵守）
 
@@ -131,6 +151,42 @@
 6. **真实路径**：测试与验收禁止 mock「渲染成功」冒充 parse 通过（项目铁律）。  
 7. **语法规则按图类型门控**：flowchart 专用规则不得套用到 sequence/class/er 等；`unknown` **只降级、不做形状/箭头类修复**（见 §5）。  
 8. **确定性 repair 不得改节点 ID**：只允许改标签文本/引号/无害空白与全局弯引号；改 ID 会导致边断链。
+9. **报错分层**：对人说话的失败（红字、源码、放大钮）只在前端；对模型说话的失败必须进 agent-service（sidecar `repair_mermaid` 或出图工具的 `tool_result`）。禁止前端偷打 completion。
+
+### 3.5 与「保证 JSON」的分层对照（2026-08-16）
+
+文章问的是对的题（概率模型吐脏 DSL），答案不能直接套到 mermaid。
+
+**封闭 JSON vs 开放图。** 文章要的是 `order_id` + `amount` 满足 schema 就能下单：合法对象 = 合法业务数据。流程图不是。合法 mermaid 文本 ⊅ 能画的图；还要求 kind 对、括号配平、边连得上。Lumen 回复是论文式散文 + 偶尔插图，整轮 `json_schema` 会毁产品形态。
+
+**三层不在一个维度（对照 S4′）。**
+
+| 文章层 | 做法 | Lumen 对应 | 地位 |
+|--------|------|------------|------|
+| 青铜·劝说 | Prompt 恐吓 | `persona.ts` §5.3 镜像规则 | 有成功率，无保证；加条文 ≠ 架构升级 |
+| 青铜·正则抠围栏 | 从废话提取 ` ```json ` | **不做最终门**；最终门是官方 `mermaid.parse` | R7 仍是窄规则，失败降级，不假装成功 |
+| 青铜·报错重试 | 把 parse error 喂回模型 | **Phase B**（§4.3） | **已履约**。默认手动、同图源 ≤1 次、不改落库 |
+| 白银·schema 注入 | Pydantic → prompt 尾 | 无；只有 few-shot + 规则清单 | 全 mermaid 文法灌进 prompt 又长又劝不住 |
+| 白银·容错解析 | `json-repair` | R1–R7 + 颜色闸 | 救高频脏数据；救不了截断半图、缺 `end`、图意写崩 |
+| 王者·Tool Calling | 参数通道，少废话 | 工具通道**已有**；图走正文围栏，**没用上** | 该锁的是图 IR，不是 mermaid 字符串 |
+| 王者·Strict JSON | `response_format` + `strict` | adapter 未接 | 锁 `{ mermaid: string }` = 分类错误，**否决** |
+| 王者·受限解码 | logits 置零 | 不托管推理；云 API 无 mermaid grammar | **现在借不了**；「100%」是面试修辞 |
+
+**分类错误（否决）。** 用 Structured Outputs 包一层 `{ mermaid: string }`，得到的是包装合法、图仍可能非法。那是劝说外包了一层 JSON，不是截断。
+
+**王者对图 = S5，锁 IR 不锁 DSL。** 模型经 tool_calls 输出 `{ kind, nodes[], edges[] }`，宿主编译 mermaid，再进 `prepareMermaid` → parse → render。正文仍自然语言。代价：subgraph / sequence 消息等表达力先砍一刀；IR 一复杂就回到「脏 JSON」——那时文章的 json-repair / strict 才第一次用对地方。触发仍是 §7.1 C4，未达样本量不上。
+
+**报错放哪（关闭「前端还是后端」）。**
+
+- **前端**：验收像素、R*、同源 parse/render、对人诚实（失败必须可见）。漏 `]` 不该打模型。
+- **后端**（对模型说话），两种干净形状，都在 agent-service：
+  1. **Sidecar（Phase B）**：前端发现失败并发 `repair_mermaid`；单次无工具 completion，只修这一块。不进主研究循环。图仍是正文附件时，先走这条。
+  2. **主循环（S5）**：出图变 `emit_diagram`；失败当 `tool_result` 回灌同一条线程。与「下游拒收脏 JSON」同构。
+- **今天**：对人半句已做；对模型半句走手动 sidecar（「尝试修复」）。
+- 流式半截 mermaid **不要**学 partial-json 先画半张图（会闪错误卡）。`deferMath` 等围栏闭合是对的。show-widget 的 `extractWidgetCodePartial` 才是文章 partial-json 的对等物。
+- 若练 Structured Outputs，**先锁 show-widget**（schema 小：`title` + `widget_code`），别先拿开放 DSL 开刀。
+
+**明确不做（仍有效）：** S5 工具、adapter `json_schema` 锁 mermaid 字符串、把 parse 搬到 Node、默认自动再打主循环。
 
 ---
 
@@ -141,7 +197,7 @@
 | 组件 | 包 | 职责 |
 |------|-----|------|
 | Persona 可视化合同 | agent-service | 第 ① 层生成约束 |
-| `mermaidSyntax`（拟） | ui-client | 图类型探测、确定性语法 repair、错误摘要 |
+| `mermaidSyntax` | ui-client | 图类型探测、确定性语法 repair、错误摘要（Phase A 已落地） |
 | `mermaidSanitize`（既有+扩展） | ui-client | 颜色/对比度；可组合 `prepareMermaid` |
 | `MermaidBlock` | ui-client | 管线编排、Preview/Code、降级 UI、触发 repair |
 | `repair_mermaid`（Phase B） | agent-service 协议 + runtime | 单次无工具 chat，抽取修正块 |
@@ -168,13 +224,15 @@ validateMermaid(source: string, mermaidApi) →
 
 ### 4.3 Phase B 协议草图（审计用；实现时与 `protocol/messages.ts` 同步）
 
-**Client → Server**
+> **Sidecar，不是主循环。** 前端发现失败后发令；后端单次无工具 completion。禁止 `reply` 定稿后再扫围栏自动续跑主研究循环。归属见 §3.5。
+
+**Client → Server**（字段与全协议一致，用 camelCase）
 
 ```json
 {
   "type": "repair_mermaid",
-  "task_id": "<uuid>",
-  "project_id": "<optional>",
+  "taskId": "<uuid>",
+  "projectId": "<optional>",
   "source": "<original or last attempted mermaid body>",
   "error": "<summarized parse error>"
 }
@@ -222,10 +280,13 @@ validateMermaid(source: string, mermaidApi) →
 | R4 | 已加引号标签不二次处理 | **仅** 对 R2/R3 扫描生效时 | `A["a{b}"]` / `A["say \"hi\""]` | **不**重复包裹、不截断转义 |
 | R5 | 常见错误箭头 ` -> ` → ` --> ` | **仅** `flowchart` / `graph` | flowchart 边 | 改为 `-->`；**禁止**用于 sequence（`A->B:` 合法） |
 | R6 | 错误摘要 | 渲染失败路径（全部 kind） | 长 lexer 消息 | 见 §5.2 |
+| R7 | 矩形标签漏 `]` | **仅** `flowchart` / `graph` | `E["x" -. "贯穿" .-> A` | `E["x"] -. "贯穿" .-> A`；已有 `]` 不改；不改 ID |
 
-**未知类型 `unknown`**：只跑 R1（弯引号）+ 颜色 sanitize；**禁止** R2/R3/R5；parse 失败则降级并文案「未能识别图类型或语法无效」，不得伪装成 flowchart 专属错误。
+**未知类型 `unknown`**：只跑 R1（弯引号）+ 颜色 sanitize；**禁止** R2/R3/R5/R7；parse 失败则降级并文案「未能识别图类型或语法无效」，不得伪装成 flowchart 专属错误。
 
 **故意不做（A 阶段）**：猜测补全缺失的 `end`、删除节点、改写图意、修改节点 ID。
+
+**本轮冻结（2026-08-16，R1′）：** R1–R7 为 Phase A 闭集，**不加 R8+**。可读性（停拉伸 / 官方 ELK / persona 安全子集）走 `doc/mermaid-readability.md`，不得借「线乱/图扁」往本表加规则。
 
 ### 5.1 实现约束（防正则误伤）
 
@@ -257,10 +318,12 @@ validateMermaid(source: string, mermaidApi) →
 
 1. 节点/边标签一律 `ID["..."]` 或菱形 `ID{"..."}`（文字在引号内）。  
 2. 含路径、模板、`{}`、`()`、`/` 的文案必须在引号内。  
-3. 短 ID + 长标签；禁止用保留字 `end` 作节点 ID。  
+3. 简单短 ID + **短**标签（标题级，禁止把论述写进节点）；禁止用保留字 `end` 作节点 ID；解释写围栏外。  
 4. **输出前自检**：数 `subgraph`/`alt`/`loop` 开启次数与 `end` 次数，**必须相等**后再结束围栏。  
 5. 优先 `flowchart TD|LR` 与 `-->`；复杂交互优先 `show-widget`。  
 6. sequence 用 `A->>B: 消息` 等序列语法，勿把 flowchart 习惯硬套进 sequence。
+7. 节点形状必须先闭合再写边：`A["标签"] --> B`，禁止 `A["标签" --> B`。
+8. 安全子集（节点约 ≤15、分支 `-- "是" -->`、避免裸括号/HTML/深 subgraph）以 `doc/mermaid-readability.md` 为准，与上列不矛盾。
 
 ---
 
@@ -309,6 +372,7 @@ validateMermaid(source: string, mermaidApi) →
 | AT-A5 | 现有 `mermaid-sanitize` 测试 | 全绿 | V1 |
 | AT-A6 | 合法 `sequenceDiagram` 含 `A->B:` | repair **后**仍 parse 成功（R5 未误伤） | V1 |
 | AT-A7 | 合法 `classDiagram` 含 `class Foo {` | 同上（R2 未误伤） | V1 |
+| AT-A8 | `E["x" -. "贯穿" .-> A`（漏 `]`） | repair 后补 `]`，已闭合节点不重复补 | V1 |
 
 ### Phase B — 有限 repair（agent-service + UI）
 
@@ -395,12 +459,14 @@ validateMermaid(source: string, mermaidApi) →
 |------|------|------|
 | 语法 repair | `packages/ui-client/src/mermaidSyntax.ts` | **Phase A 已落地** |
 | 颜色 sanitize | `packages/ui-client/src/mermaidSanitize.ts` | 已有（仅颜色） |
-| 渲染块 | `packages/ui-client/src/components/MermaidBlock.tsx` | **Phase A 管线已接** |
+| 渲染块 | `packages/ui-client/src/components/MermaidBlock.tsx` | **Phase A 管线已接**；可读性见 `mermaidLayout.ts` |
+| 布局/停拉伸 | `packages/ui-client/src/mermaidLayout.ts` | **R1′ 已落地**（ELK + 禁 100% 宽） |
 | Markdown 入口 | `packages/ui-client/src/components/Markdown.tsx` | 已有 |
 | 语法单测 | `packages/ui-client/tests/mermaid-syntax.test.ts` | **已落地** |
 | 颜色单测 | `packages/ui-client/tests/mermaid-sanitize.test.ts` | 已有 |
-| Persona | `packages/agent-service/src/agents/persona.ts` | **Phase A 规则已补** |
-| Repair 协议 | `packages/agent-service/src/protocol/messages.ts` 等 | **Phase B 待建** |
+| Persona | `packages/agent-service/src/agents/persona.ts` | **Phase A 规则已补**；R1′ 安全子集已写入 |
+| Repair 协议 | `packages/agent-service/src/protocol/messages.ts` 等 | **Phase B 已落地**(`repair_mermaid` → `ok.source`) |
+| Repair 核 | `packages/agent-service/src/runtime/mermaid-repair.ts` | **已落地** |
 
 ---
 
@@ -411,14 +477,26 @@ validateMermaid(source: string, mermaidApi) →
 | O1 | 首次失败是否静默自动 repair | **否**（手动按钮）；可用设置打开 |
 | O2 | repair 成功是否写回 session 旁路文件 | **否**（仅 UI state） |
 | O3 | 是否依赖 `@probelabs/maid` | **否**（先自研最小 R1–R6） |
+| O4 | 图报错处理在前端还是后端 | **已关闭（2026-08-16）**：对人前端、对模型后端；见 §3.5 / 不变式 9 |
 
 关闭开放问题须更新 §0.1 修订记录。
 
 ---
 
+## 11.5 可读性本轮（ELK + 停拉伸；2026-08-16）
+
+> 出图漏斗不变。本小节只钉「画出来之后」的宿主合同；全文见 `doc/mermaid-readability.md`。
+
+- **停拉伸**：`tightenSvgInk` 可收紧 viewBox、写固有 `width`/`height` 属性，**禁止** `style.width='100%'`。CSS 已是 `max-width:100%; margin:auto`。
+- **官方 ELK**：flowchart 注册 `@mermaid-js/layout-elk` 后 `defaultRenderer:'elk'`（+ `layout:'elk'`）。注册失败回退 dagre，不硬崩。
+- **不换库**：仍官方 mermaid.js。`beautiful-mermaid` / IR·S5 / R8+ 见可读性文档否决项。
+- **parser parity** 仍约束出图层（同一 mermaid 实例 parse+render），**不**禁止换官方 layout。
+
+---
+
 ## 12. 一句话合同
 
-**Lumen 不假设模型写出完美 Mermaid；宿主以「确定性清洗 + 官方同源校验 + 可选单次错误回传修复 + 源码降级」为唯一合法渲染路径。复制与历史以原文为准；像素以改写稿为准。**
+**Lumen 不假设模型写出完美 Mermaid；宿主以「确定性清洗 + 官方同源校验 + 可选单次错误回传修复 + 源码降级」为唯一合法渲染路径。复制与历史以原文为准；像素以改写稿为准。对人说话的报错在前端，对模型说话的报错在后端；禁止用 `json_schema` 锁 mermaid 源文字符串冒充推理层截断。**
 
 ---
 
@@ -438,6 +516,7 @@ validateMermaid(source: string, mermaidApi) →
 - [@probelabs/maid](https://github.com/probelabs/maid)  
 - 产品对照：Claude Code/Preview；Cursor 失败消失（反例）；Codex 外置渲染（旁路参考）  
 - 内部 HDD 选型：S4′（本会话 2026-08-11）
+- 「保证 JSON」面试文（劝说 / Pydantic+json-repair / Tool Calling+Strict+受限解码）：现象同构，约束层不同；裁定见 §3.5
 
 ---
 

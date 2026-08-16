@@ -71,6 +71,31 @@ export class LumenClient {
     this.send({ type: 'continue', taskId, userText })
   }
 
+  /** Phase B sidecar:等 ok.source / error */
+  repairMermaid(taskId: string, source: string, error: string, projectId?: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const onMsg = (ev: MessageEvent) => {
+        try {
+          const m = JSON.parse(String(ev.data)) as ServerMessage
+          if (m.type === 'ok' && typeof m.source === 'string') {
+            this.ws?.removeEventListener('message', onMsg)
+            resolve(m.source)
+          } else if (m.type === 'error') {
+            this.ws?.removeEventListener('message', onMsg)
+            reject(new Error(m.message))
+          }
+        } catch { /* ignore */ }
+      }
+      this.ws?.addEventListener('message', onMsg)
+      try {
+        this.send({ type: 'repair_mermaid', taskId, source, error, ...(projectId ? { projectId } : {}) })
+      } catch (e) {
+        this.ws?.removeEventListener('message', onMsg)
+        reject(e)
+      }
+    })
+  }
+
   subscribe(taskId: string): void {
     this.send({ type: 'subscribe', taskId, afterSeq: this.lastSeq.get(taskId) })
   }

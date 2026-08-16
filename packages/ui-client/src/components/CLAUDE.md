@@ -30,7 +30,7 @@
 - `CollapsibleUserText.tsx` — 用户超长 prompt 默认折叠(>9 行或 >750 字);预览 clamp + `CurtainFold` 揭开全文;助手消息不折
 - `MsgFileChips.tsx` — 用户气泡附件 chip(上传知情 S4);点开读阅读器;见 `doc/upload-awareness.md`
 - `Markdown.tsx` — .md 文档与纯文本段渲染:GFM + KaTeX + 代码高亮 + ` ```mermaid ` → MermaidBlock;流式 `deferMath` 暂缓 KaTeX/mermaid 防高度抖
-- `MermaidBlock.tsx` — mermaid.js 动态加载;卡片右上角放大+复制;放大层 ± / 双指缩放;高度跟 SVG 居中;失败回退源码
+- `MermaidBlock.tsx` — mermaid.js 动态加载;flowchart 优先官方 ELK(失败回 dagre);SVG 固有宽+max-width(禁 100% 拉伸);卡片右上角放大+复制;放大层 ± / 双指缩放;失败回退源码+「尝试修复」(Phase B,不改落库);见 `doc/mermaid-readability.md`
 - `widget/` — 对话网页沙箱(`show-widget` 围栏 → iframe);见 `widget/CLAUDE.md`
 - `hljs-celadon.css` — highlight.js 青瓷主题:消费 tokens.css 的 --code-* 语法色板
 - `icons.tsx` — **图标唯一入口**:re-export @phosphor-icons/react(Kumo 同源家族)并统一缺省尺寸;组件不得绕过它直接 import phosphor;不用 emoji;`FolderIcon` 接受 `open` → FolderSimple/FolderOpen;`ChevronIcon`(树左 CaretRight)/`SectionChevronIcon`(区右 CaretDown);Skills:`skillGlyphForName`/`SkillIcon`/`ManageSkillsIcon`(Briefcase,非齿轮)

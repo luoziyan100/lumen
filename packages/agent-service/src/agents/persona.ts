@@ -3,6 +3,8 @@
  * [OUTPUT]: LUMEN_PERSONA —— Lumen 人格剧本 + 工具/可视化/计划/问用户/Skills 能力段
  * [POS]: §人格层。P4 回测验证行为翻转。**owner 原话神圣**;L0–L3 改动需经 owner。
  *        「对话内可视化」段是能力合同(非人格表演):结构图→mermaid,交互→show-widget;
+ *        mermaid 规则与 mermaid-pipeline §5.3 镜像(含节点先闭合再写边);
+ *        安全子集(短标题/TD|LR/≤15 节点)见 doc/mermaid-readability.md;
  *        「复杂任务」段:todo_write 会话 Todo(见 doc/todo.md);
  *        「问用户」段:ask_user 挂起问询、多歧义同一次批问(见 doc/ask-user.md);
  *        「Skills」段:run_skill 启动工作流(≠ memory)。
@@ -127,18 +129,21 @@ export const LUMEN_PERSONA = `# 你是谁
 用 \`\`\`mermaid 围栏。前端会渲染成图。适合 flowchart / sequence / class / graph。
 
 \`\`\`mermaid
-flowchart TB
+flowchart TD
   A["入口"] --> B["核心"]
   B --> C["产出"]
 \`\`\`
 
 规则(语法错误会导致图无法渲染,请严格遵守):
-1. 解释写在围栏外;务必闭合围栏
-2. **节点/边标签一律加双引号**:\`A["人类可读"]\` 或菱形 \`D{"条件?"}\`;含路径、\`{}\`、\`()\`、\`/\` 的文案必须在引号内(例如 \`S["~/.cache/{id}"]\`)
-3. 短 ID + 长标签;禁止用保留字 \`end\` 作节点 ID
-4. **输出前自检**:数 \`subgraph\`/\`alt\`/\`loop\` 开启次数与 \`end\` 次数,必须相等
-5. flowchart 用 \`-->\`;sequence 用 \`A->>B: 消息\`,不要混用
-6. 复杂交互优先 show-widget;节点宜少、文案宜短
+1. 解释写在围栏外;节点标签只写短标题,禁止把论述写进节点;务必闭合围栏
+2. **优先** \`flowchart TD\` 或 \`flowchart LR\`(少用其它方向;复杂交互走 show-widget)
+3. 简单 ID(\`A\`/\`mem1\`);禁止用保留字 \`end\` 作节点 ID
+4. **节点/边标签一律加双引号**:\`A["人类可读"]\` 或菱形 \`D{"条件?"}\`;含路径、\`{}\`、\`()\`、\`/\` 的文案必须在引号内(例如 \`S["~/.cache/{id}"]\`)
+5. 分支边写成 \`A -- "是" --> B\`,不要悬空边
+6. **节点宜少、文案宜短**(约 ≤15 个节点,超过则拆成多张图);避免裸括号、HTML、深层 subgraph、超长单行
+7. **输出前自检**:数 \`subgraph\`/\`alt\`/\`loop\` 开启次数与 \`end\` 次数,必须相等
+8. flowchart 用 \`-->\`;sequence 用 \`A->>B: 消息\`,不要混用
+9. 节点形状必须先闭合再写边:\`A["标签"] --> B\`,禁止 \`A["标签" --> B\`
 
 ## 交互控件 / 可点追问 / 动态图表 → show-widget
 

@@ -17,9 +17,11 @@
   `saveUpload` 宽准入按表示归位:pdf→papers/ 文本脚本→docs/ 图→images/ 未知→uploads/;
   docx 另抽 docs/<stem>.md(模式 A,见 `doc/document-ingest.md`);回执 `UploadReceipt`;
   submit/continue `uploads[]` → user 事件 + 模型附言(见 `doc/upload-awareness.md` + `upload-awareness.ts`);
-  侧栏 `title`:非空 reply / done 兜底异步生成 + list 懒补;`onTaskUpdated` → WS `task_updated`
+  侧栏 `title`:非空 reply / done 兜底异步生成 + list 懒补;`onTaskUpdated` → WS `task_updated`;
+  `repairMermaidSource`:流程图 Phase B sidecar(同 hash 限 1 次,不进主循环)
 - `upload-awareness.ts` — UploadRef / formatUploadAnnex / userContentForModel;知情附言纯函数
 - `task-title.ts` — 抽摘 user/非空 assistant、清洗短标题、shouldBackfillTitle
+- `mermaid-repair.ts` — Phase B sidecar 纯核:抽围栏 / hash 限次 / 三条禁令;runtime `repairMermaidSource` 单次无工具 chat,不落库
 
 ## 规则
 

@@ -2,7 +2,7 @@
  * [INPUT]: mermaid 源码字符串
  * [OUTPUT]: detectDiagramKind / repairMermaidSyntax / summarizeParseError / prepareMermaid /
  *           mermaidMetrics —— 确定性语法闸（doc/mermaid-pipeline.md S4′ Phase A）
- * [POS]: MermaidBlock 渲染前、颜色 sanitize 之前或与之组合；按图类型门控规则
+ * [POS]: MermaidBlock 渲染前、颜色 sanitize 之前或与之组合；按图类型门控规则（flowchart 含 R7 补 ]）
  * [PROTOCOL]: 变更时更新此头部与 doc/mermaid-pipeline.md §5
  */
 
@@ -36,9 +36,14 @@ export const mermaidMetrics = {
   parse_ok: 0,
   parse_fail: 0,
   rule_then_parse_ok: 0,
+  llm_repair_attempt: 0,
+  llm_repair_ok: 0,
   rule_hits: {} as Record<string, number>,
   bump(key: string, n = 1): void {
-    if (key === 'parse_ok' || key === 'parse_fail' || key === 'rule_then_parse_ok') {
+    if (
+      key === 'parse_ok' || key === 'parse_fail' || key === 'rule_then_parse_ok'
+      || key === 'llm_repair_attempt' || key === 'llm_repair_ok'
+    ) {
       this[key] += n
     } else {
       this.rule_hits[key] = (this.rule_hits[key] ?? 0) + n
@@ -51,6 +56,8 @@ export const mermaidMetrics = {
     this.parse_ok = 0
     this.parse_fail = 0
     this.rule_then_parse_ok = 0
+    this.llm_repair_attempt = 0
+    this.llm_repair_ok = 0
     this.rule_hits = {}
   },
 }
@@ -211,8 +218,21 @@ function fixFlowchartArrows(source: string): { source: string; hit: boolean } {
 }
 
 /**
+ * R7：矩形节点写了 ID["标签" 却漏 ]，下一 token 已是边。
+ * 模型常把边标签接到未闭合节点上：E["x" -. "贯穿" .-> A
+ * 已有 ] 的不匹配；不改 ID。
+ */
+function closeQuotedRectBeforeEdge(source: string): { source: string; hit: boolean } {
+  const next = source.replace(
+    /([A-Za-z_][\w-]*)\[\s*"((?:[^"\\]|\\.)*)"(\s*)(?=-->|---|==>|-\.|-\.->|\.->|==|--)/g,
+    (_m, id: string, label: string, ws: string) => `${id}["${label}"]${ws}`,
+  )
+  return { source: next, hit: next !== source }
+}
+
+/**
  * 确定性语法 repair（doc §5）。
- * unknown：仅 R1；flowchart：R1+R2+R3+R4+R5。
+ * unknown：仅 R1；flowchart：R1+R2+R3+R4+R5+R7。
  */
 export function repairMermaidSyntax(source: string): SyntaxRepairResult {
   const kind = detectDiagramKind(source)
@@ -232,6 +252,12 @@ export function repairMermaidSyntax(source: string): SyntaxRepairResult {
     if (quoted.actions.length) {
       actions.push(...quoted.actions)
       mermaidMetrics.bump('R2/R3', quoted.actions.length)
+    }
+    const closed = closeQuotedRectBeforeEdge(text)
+    text = closed.source
+    if (closed.hit) {
+      actions.push('close-rect')
+      mermaidMetrics.bump('R7')
     }
     const arrows = fixFlowchartArrows(text)
     text = arrows.source
@@ -317,7 +343,7 @@ export async function prepareAndValidate(
 ): Promise<ValidateOk | ValidateFail> {
   const prepared = prepareMermaid(raw)
   const hadRules = prepared.actions.some((a) =>
-    a === 'smart-quotes' || a === 'quote-label' || a === 'arrow-fix' || a.startsWith('quote-label'),
+    a === 'smart-quotes' || a === 'quote-label' || a === 'arrow-fix' || a === 'close-rect' || a.startsWith('quote-label'),
   )
   try {
     await parse(prepared.source)
