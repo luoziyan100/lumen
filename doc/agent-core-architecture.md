@@ -150,7 +150,7 @@ UI 状态是事件流的纯函数:对 durable 子集重放必然得到同一界�
 
 React + Vite。三栏工作台:会话列表 / 对话(全幅消息流,输入卡片悬浮其上)/ 工作区+阅读器(分栏可拖宽,工作区随产物自动展开)。`useAgent` 订阅事件,`chat/reduce.ts` 把事件流纯函数投影成界面状态;上传文件先在输入区暂存,发送时才进入工作区(宽准入,见上「上传策略」)。
 
-**对话可视化(网页沙箱):** assistant 文本中的 ` ```show-widget ` 围栏由 ui-client 解析,在 `sandbox="allow-scripts"`(无 same-origin)的 receiver iframe 内渲染 HTML/SVG/JS;CSP 限制 CDN 白名单且 `connect-src 'none'`。过程与验收见 `briefs/active/web-sandbox-widget.md`。这与 `run_code` 的进程沙箱(Seatbelt)是不同隔离面。
+**对话可视化(网页沙箱):** assistant 文本中的 ` ```show-widget ` 围栏由 ui-client 解析,在 `sandbox="allow-scripts"`(无 same-origin)的 receiver iframe 内渲染 HTML/SVG/JS;CSP 限制 CDN 白名单且 `connect-src 'none'`。过程与验收见 `briefs/archive/web-sandbox-widget.md`。内联脚本由宿主 hoist 成 `lumenwidget://` src(父 CSP `script-src 'self'` 不加 unsafe-inline)。这与 `run_code` 的进程沙箱(Seatbelt)是不同隔离面。
 
 ## 可维护性宪章(2026-08-17)
 

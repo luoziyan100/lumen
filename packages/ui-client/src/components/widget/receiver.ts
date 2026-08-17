@@ -1,6 +1,8 @@
 /**
  * [INPUT]: sanitize.ts 的 CDN_WHITELIST;宿主注入的 CSS 变量块
- * [OUTPUT]: buildReceiverSrcdoc —— receiver HTML(供 emit 成 public/ 同源页;勿再当 srcdoc)
+ * [OUTPUT]: buildReceiverSrcdoc —— receiver HTML(供 emit 成 public/ 同源页;勿再当 srcdoc);
+ *           WIDGET_DIAG 走查打点(csp/error/finalize/appended);
+ *           finalize 吃 src(CDN + lumenwidget:);内联 textContent 仅 dev 兜底
  * [POS]: widget/ 沙箱壳 —— CSP + 高度同步 + 链接拦截 + __widgetSendMessage;
  *       主题变量见 themeVars.ts;THEME.fillHeight 切岛内滚动(阅读器)vs hidden(对话跟高)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
@@ -18,6 +20,8 @@ export const WIDGET_FINALIZE = 'lumen-widget:finalize'
 export const WIDGET_THEME = 'lumen-widget:theme'
 export const WIDGET_LINK = 'lumen-widget:link'
 export const WIDGET_SEND = 'lumen-widget:sendMessage'
+/** 走查仪表:CSP violation / onerror / finalize 计数,抬宿主 */
+export const WIDGET_DIAG = 'lumen-widget:diag'
 
 /**
  * 构建 receiver srcdoc。iframe 全程存活,内容经 postMessage 推送:
@@ -27,7 +31,8 @@ export function buildReceiverSrcdoc(styleBlock: string, isDark: boolean): string
   const cspDomains = CDN_WHITELIST.map((d) => `https://${d}`).join(' ')
   const csp = [
     "default-src 'none'",
-    `script-src 'unsafe-inline' ${cspDomains}`,
+    `script-src 'unsafe-inline' lumenwidget: ${cspDomains}`,
+    `script-src-elem 'unsafe-inline' lumenwidget: ${cspDomains}`,
     "style-src 'unsafe-inline'",
     "style-src-attr 'unsafe-inline'",
     "style-src-elem 'unsafe-inline'",
@@ -39,6 +44,17 @@ export function buildReceiverSrcdoc(styleBlock: string, isDark: boolean): string
   const receiverScript = `(function(){
 var root=document.getElementById('__root');
 var _t=null,_first=true,_lastH=0,_fill=false;
+function _diag(kind,extra){
+  var o={type:'${WIDGET_DIAG}',kind:String(kind||'')};
+  if(extra){for(var k in extra)o[k]=extra[k];}
+  try{parent.postMessage(o,'*');}catch(e){}
+}
+document.addEventListener('securitypolicyviolation',function(e){
+  _diag('csp',{directive:String(e.violatedDirective||''),blocked:String(e.blockedURI||''),disposition:String(e.disposition||'')});
+});
+window.addEventListener('error',function(e){
+  _diag('error',{message:String(e.message||''),src:String(e.filename||''),line:e.lineno||0});
+});
 function _h(){
   if(_t)clearTimeout(_t);
   _t=setTimeout(function(){
@@ -78,12 +94,15 @@ function finalizeHtml(html){
   if(root.innerHTML!==visualHtml)root.innerHTML=visualHtml;
   var cdnScripts=scripts.filter(function(s){return !!s.src});
   var inlineScripts=scripts.filter(function(s){return !s.src&&s.text});
+  _diag('finalize',{found:scripts.length,cdn:cdnScripts.length,inline:inlineScripts.length});
+  /* 内联应由宿主 hoist 成 lumenwidget: src;此处 textContent 仅 dev 兜底 */
   function _appendInline(){
     for(var k=0;k<inlineScripts.length;k++){
       var s=document.createElement('script');
       s.textContent=inlineScripts[k].text;
       for(var j=0;j<inlineScripts[k].attrs.length;j++)s.setAttribute(inlineScripts[k].attrs[j].name,inlineScripts[k].attrs[j].value);
       root.appendChild(s);
+      _diag('appended',{src:'inline',len:(inlineScripts[k].text||'').length});
     }
     _h();
   }
@@ -93,12 +112,14 @@ function finalizeHtml(html){
     function _onCdnDone(){_pending--;if(_pending<=0)_appendInline()}
     for(var i=0;i<cdnScripts.length;i++){
       var n=document.createElement('script');
+      n.async=false;
       n.src=cdnScripts[i].src;
       n.onload=_onCdnDone;n.onerror=_onCdnDone;
       for(var j=0;j<cdnScripts[i].attrs.length;j++){
         if(cdnScripts[i].attrs[j].name!=='onload')n.setAttribute(cdnScripts[i].attrs[j].name,cdnScripts[i].attrs[j].value);
       }
       root.appendChild(n);
+      _diag('appended',{src:n.src||'cdn',len:0});
     }
   }
   _h();

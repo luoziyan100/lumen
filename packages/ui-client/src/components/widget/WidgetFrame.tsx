@@ -1,6 +1,8 @@
 /**
  * [INPUT]: receiver/sanitize;宿主 onSendMessage;collectThemeVars/hostChromeIsDark
- * [OUTPUT]: WidgetFrame —— 沙箱 iframe + 高度同步(策略见 height.ts)
+ * [OUTPUT]: WidgetFrame —— 沙箱 iframe + 高度同步(策略见 height.ts);
+ *           WIDGET_DIAG 常挂 data-widget-diag,可见条默认隐藏(localStorage lumen:widgetDiag=1 打开);
+ *           finalize 前 hoistInlineScripts(内联→lumenwidget: src)
  * [POS]: widget/ 渲染核心;被 AssistantContent 与 HtmlViewer 消费;
  *       暗壳内容岛浅档 + color-scheme:light,防 WKWebView 洗灰;
  *       fillHeight(阅读器)经 THEME.fillHeight 开岛内滚动,对话跟高仍 overflow:hidden
@@ -11,6 +13,7 @@
  */
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
+  WIDGET_DIAG,
   WIDGET_FINALIZE,
   WIDGET_LINK,
   WIDGET_READY,
@@ -21,6 +24,7 @@ import {
 } from './receiver'
 import { collectThemeVars, hostChromeIsDark } from './themeVars'
 import { sanitizeForIframe, sanitizeForStreaming, truncateOpenScript } from './sanitize'
+import { hoistInlineScripts, putWidgetScript } from './hoistScripts'
 import { nextWidgetHeight } from './height'
 
 function receiverUrl(): string {
@@ -32,6 +36,15 @@ const heightCache = new Map<string, number>()
 const UPDATE_DEBOUNCE_MS = 120
 const MIN_H = 48
 const MAX_H = 2400
+
+/** 走查仪表可见性:产品默认隐藏,验收时 localStorage.setItem('lumen:widgetDiag','1') 打开 */
+function diagBarEnabled(): boolean {
+  try {
+    return localStorage.getItem('lumen:widgetDiag') === '1'
+  } catch {
+    return false
+  }
+}
 
 function cacheKey(code: string): string {
   return code.slice(0, 200)
@@ -63,6 +76,7 @@ export function WidgetFrame({
   const initial = heightCache.get(cacheKey(widgetCode)) ?? (fillHeight ? undefined : 120)
   const [height, setHeight] = useState<number | undefined>(initial)
   const [skipTransition, setSkipTransition] = useState(true)
+  const [diag, setDiag] = useState('')
 
   // 内容岛永不跟系统/玻璃壳走暗色——暗 isDark 会触发 WK 换皮,inline 颜色丢失。
   // 宿主暗壳时强制浅档;仅暖纸浅壳且系统暗色时才给 .dark(旧 widget)。
@@ -124,6 +138,20 @@ export function WidgetFrame({
         case WIDGET_SEND:
           if (typeof e.data.text === 'string') onSendRef.current?.(e.data.text)
           break
+        case WIDGET_DIAG: {
+          const kind = String(e.data.kind ?? '')
+          const line = kind === 'csp'
+            ? `csp ${String(e.data.directive ?? '')} ${String(e.data.blocked ?? '')}`
+            : kind === 'error'
+              ? `err ${String(e.data.message ?? '')}`
+              : kind === 'finalize'
+                ? `fin found=${String(e.data.found ?? '')} cdn=${String(e.data.cdn ?? '')} inline=${String(e.data.inline ?? '')}`
+                : kind === 'appended'
+                  ? `append ${String(e.data.src ?? '')} ${String(e.data.len ?? '')}`
+                  : kind
+          setDiag((prev) => (prev ? `${prev} · ${line}` : line).slice(0, 480))
+          break
+        }
       }
     }
     window.addEventListener('message', onMessage)
@@ -187,8 +215,10 @@ export function WidgetFrame({
     <div
       className={`widget-frame${showOverlay ? ' widget-frame-loading' : ''}${fillHeight ? ' widget-frame-fill' : ''}`}
       data-title={title || undefined}
+      data-widget-diag={diag || undefined}
     >
       {title ? <div className="widget-frame-title">{title}</div> : null}
+      {diag && diagBarEnabled() ? <div className="widget-diag" title={diag}>{diag}</div> : null}
       <div className="widget-frame-body">
         <iframe
           ref={iframeRef}
@@ -213,13 +243,29 @@ export function WidgetFrame({
 }
 
 function pushContent(iframe: HTMLIFrameElement, widgetCode: string, streaming: boolean): void {
+  void pushContentAsync(iframe, widgetCode, streaming)
+}
+
+async function pushContentAsync(
+  iframe: HTMLIFrameElement,
+  widgetCode: string,
+  streaming: boolean,
+): Promise<void> {
   const win = iframe.contentWindow
   if (!win) return
   if (streaming) {
     const { html, truncated } = truncateOpenScript(widgetCode)
     void truncated
     win.postMessage({ type: WIDGET_UPDATE, html: sanitizeForStreaming(html) }, '*')
-  } else {
-    win.postMessage({ type: WIDGET_FINALIZE, html: sanitizeForIframe(widgetCode) }, '*')
+    return
   }
+  const cleaned = sanitizeForIframe(widgetCode)
+  let html = cleaned
+  try {
+    html = await hoistInlineScripts(cleaned, putWidgetScript)
+  } catch {
+    html = cleaned
+  }
+  if (iframe.contentWindow !== win) return
+  win.postMessage({ type: WIDGET_FINALIZE, html }, '*')
 }

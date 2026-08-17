@@ -2453,6 +2453,14 @@ html[data-skin="cosmic-latte"] .thought {
   color: var(--ink-mute);
   border-bottom: 1px solid var(--sand);
 }
+.widget-diag {
+  padding: 4px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--sand);
+  word-break: break-all;
+}
 .widget-frame-body { position: relative; width: 100%; }
 /* 内容岛自带 only light;iframe 实白底,避免暗壳透底 + 系统暗色自适应洗掉颜色 */
 .widget-iframe {

@@ -9,11 +9,12 @@
 4. **macOS 关窗 ≠ 退出**:红叉 hide;Dock Reopen → ensure + show;
 5. **首次启动**自动 `launchd install`(用户级);设置页可关常驻;
 6. 前端 `ensure_agent_service` / `launchd_*` invoke 供断线自愈与开关。
+7. `widget_put_script` + `lumenwidget://`：岛内脚本走 src，父 CSP 不加 unsafe-inline。
 
 ## 成员
 
-- `src/main.rs` — ensure / LaunchAgent 探测 / launchd_* / 注入 / Focused+Reopen / `open_external_url`;默认窗 `1160×800`(Cursor/Claude 量级略收);`disable_drag_drop_handler` 让前端 HTML5 文件拖放生效(与 Tauri 原生 drop 互斥)
-- `tauri.conf.json` — `productName: Lumen`;窗口由代码创建;CSP 放行 127.0.0.1
+- `src/main.rs` — ensure / LaunchAgent 探测 / launchd_* / 注入 / Focused+Reopen / `open_external_url`;`widget_put_script` + `lumenwidget://` 协议(widget 内联改 src);默认窗 `1160×800`;`disable_drag_drop_handler` 让前端 HTML5 文件拖放生效
+- `tauri.conf.json` — `productName: Lumen`;窗口由代码创建;CSP `script-src 'self' lumenwidget:`(无 unsafe-inline/eval)
 - `Cargo.toml` — crate=`lumen-ui`,二进制=`Lumen`
 - `icons/` / `build.rs`
 

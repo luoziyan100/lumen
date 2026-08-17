@@ -7,11 +7,14 @@
 //   ④ macOS:红叉 = hide;Dock Reopen = show + ensure
 //   ⑤ 首次启动若无 LaunchAgent → 自动 install(用户级 KeepAlive)
 //   ⑥ 默认窗 1160×800(对齐 Cursor/Claude 量级后略收;旧 1080→1200 略宽)
+//   ⑦ widget_put_script + lumenwidget:// —— 岛内脚本走 src,避开父 CSP hash 拦动态内联
 //
 // v0 已知取舍:sidecar/LaunchAgent 仍用本机 node 跑 TS 源(LUMEN_NODE / LUMEN_SERVICE_DIR)
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::{Child, Command};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::webview::PageLoadEvent;
@@ -22,6 +25,29 @@ const LAUNCH_AGENT_FILENAME: &str = "com.lumen.agent-service.plist";
 
 struct Sidecar(Mutex<Option<Child>>);
 struct EnsureGate(Mutex<Option<Instant>>);
+
+/// 对话 widget 内联脚本:宿主 invoke 登记,iframe 用 lumenwidget:// 当 src 拉。
+/// 父 CSP 仍无 unsafe-inline/eval;scheme 只吐登记过的字节。
+struct WidgetScripts {
+    map: Mutex<HashMap<String, String>>,
+    seq: AtomicU64,
+}
+
+#[tauri::command]
+fn widget_put_script(code: String, store: tauri::State<WidgetScripts>) -> Result<String, String> {
+    if code.len() > 256 * 1024 {
+        return Err("script too large".into());
+    }
+    let id = store.seq.fetch_add(1, Ordering::Relaxed).to_string();
+    let mut map = store.map.lock().unwrap();
+    if map.len() >= 64 {
+        if let Some(old) = map.keys().next().cloned() {
+            map.remove(&old);
+        }
+    }
+    map.insert(id.clone(), code);
+    Ok(id)
+}
 
 #[tauri::command]
 fn pick_folder() -> Option<String> {
@@ -319,6 +345,10 @@ fn main() {
     tauri::Builder::default()
         .manage(Sidecar(Mutex::new(None)))
         .manage(EnsureGate(Mutex::new(None)))
+        .manage(WidgetScripts {
+            map: Mutex::new(HashMap::new()),
+            seq: AtomicU64::new(1),
+        })
         .invoke_handler(tauri::generate_handler![
             pick_folder,
             pick_skill_folder,
@@ -327,8 +357,28 @@ fn main() {
             ensure_agent_service,
             launchd_status,
             launchd_install,
-            launchd_uninstall
+            launchd_uninstall,
+            widget_put_script
         ])
+        .register_uri_scheme_protocol("lumenwidget", |ctx, request| {
+            let path = request.uri().path().trim_start_matches('/');
+            let id = path.strip_suffix(".js").unwrap_or(path);
+            let store = ctx.app_handle().state::<WidgetScripts>();
+            let body = store.map.lock().unwrap().get(id).cloned();
+            match body {
+                Some(code) => tauri::http::Response::builder()
+                    .status(200)
+                    .header("Content-Type", "text/javascript; charset=utf-8")
+                    .header("Cache-Control", "no-store")
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(code.into_bytes())
+                    .unwrap(),
+                None => tauri::http::Response::builder()
+                    .status(404)
+                    .body(Vec::new())
+                    .unwrap(),
+            }
+        })
         .on_page_load(|webview, payload| {
             if !matches!(payload.event(), PageLoadEvent::Started) {
                 return;

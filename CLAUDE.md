@@ -40,7 +40,9 @@ Lumen 是独立研究者的论文研究 agent:**无头 Node agent 服务 + Tauri
 - agent-service 用 `node --experimental-strip-types` 直跑 TS:**只吃可擦除语法**——禁 `constructor(private x)` 参数属性、`enum`、`namespace`(解析期即炸,错误出现在进程启动而非编译)。类成员一律显式声明 + 构造函数赋值(P1 分家实测踩坑,2026-08-17)。
 - macOS 上不要用 nohup 起常驻进程;正式常驻走 **LaunchAgent**(`npm run launchd:install -w packages/agent-service`);开发可用 Tauri sidecar / `supervisor.ts`。
 - ui-client 的 Tailwind `@source` 指向**仓库根** node_modules(workspace 依赖提升);升级 `@cloudflare/kumo` 后必跑
-  `npm run check:theme -w packages/ui-client`(青瓷主题对 Kumo 变量合同的覆盖校验)。
+ `npm run check:theme -w packages/ui-client`(青瓷主题对 Kumo 变量合同的覆盖校验)。
+- **tauri:build 后拷贝产物必须以构建日志末尾打印的 bundle 路径为准**:Agent 沙箱可能把 cargo target 重定向到
+ cursor-sandbox-cache,盲拷 `src-tauri/target/release/bundle/…` 会装到旧产物(2026-08-17 实测踩坑);装完 `shasum` 比对两侧二进制。
 
 ## 文档验收(每次收尾自检)
 

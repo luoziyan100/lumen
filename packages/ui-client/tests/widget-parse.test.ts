@@ -5,7 +5,9 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { extractWidgetCodePartial, parseShowWidgets } from '../src/components/widget/parseShowWidget.ts'
-import { sanitizeForStreaming, truncateOpenScript } from '../src/components/widget/sanitize.ts'
+import { sanitizeForIframe, sanitizeForStreaming, truncateOpenScript } from '../src/components/widget/sanitize.ts'
+import { hoistInlineScripts, widgetScriptUrl } from '../src/components/widget/hoistScripts.ts'
+import { readFileSync } from 'node:fs'
 import { nextWidgetHeight } from '../src/components/widget/height.ts'
 
 describe('parseShowWidgets', () => {
@@ -55,6 +57,37 @@ describe('sanitize', () => {
     const { html, truncated } = truncateOpenScript('<div>ok</div><script>var x=')
     assert.equal(truncated, true)
     assert.equal(html, '<div>ok</div>')
+  })
+
+  it('HT-c: sanitizeForIframe 终态保留 script(证伪「finalize 前被剥」)', () => {
+    const src = '<div id="x">before-script</div><script>document.getElementById("x").textContent="SCRIPT_RAN"</script>'
+    const out = sanitizeForIframe(src)
+    assert.match(out, /<script>/)
+    assert.match(out, /SCRIPT_RAN/)
+    assert.match(out, /before-script/)
+  })
+})
+
+describe('hoistInlineScripts', () => {
+  it('内联改 lumenwidget src,CDN src 不动', async () => {
+    const html = '<div></div><script src="https://cdn.jsdelivr.net/x.js"></script><script>foo()</script>'
+    const out = await hoistInlineScripts(html, async () => '7')
+    assert.match(out, /cdn\.jsdelivr\.net/)
+    assert.match(out, new RegExp(widgetScriptUrl('7').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+    assert.ok(!out.includes('foo()'))
+  })
+})
+
+describe('receiver 走查仪表', () => {
+  it('源模板含 CSP/error/finalize 打点(避免 node 直引 receiver→sanitize 无扩展名)', () => {
+    const src = readFileSync(
+      new URL('../src/components/widget/receiver.ts', import.meta.url),
+      'utf8',
+    )
+    assert.match(src, /lumen-widget:diag/)
+    assert.match(src, /securitypolicyviolation/)
+    assert.match(src, /_diag\('finalize'/)
+    assert.match(src, /lumenwidget:/)
   })
 })
 
