@@ -40,12 +40,17 @@
 
 ## 工具(tools/)
 
+存在性唯一真源:`packages/agent-service/src/tools/registry.ts`(`buildStaticTools` 进程一次 + `buildTaskTools` 每次 execute)。运行时只做可用性过滤(demo / 角色 / 任务域),不得第二处拼装。单工具依赖构造注入,不进 `ToolContext`。
+
 - **研究**:`extract_pdf`(PDF → 文本,产物进会话 `cache/`)、`search_papers` / `get_citations`(OpenAlex 检索与引文,期刊分级参与排序)、`search_web`、`fetch_url`
 - **摄取解析(模式 A)**:上传复合件时框架抽文本进 `docs/*.md`,原件留 `uploads/`;见 `doc/document-ingest.md`(Skill 创作属模式 B,后续)
 - **环境**:`read_file` / `write_file` / `edit_file` / `list_dir` / `grep` / `glob`(全部限定在工作区内)、`run_code`(沙箱执行;可读 Skills 根以跑包内脚本)
 - **记忆**:`read_memory` / `write_memory` —— 项目级跨会话记忆:`memory/` 目录一条事实一个文件 + `MEMORY.md` 索引开局注入系统提示词;对用户完全透明
 - **Skills**:`run_skill` —— 可运行工作流包(`.lumen/skills/<name>/SKILL.md` + 可选 `scripts/`);catalog 开局注入;激活正文回灌线程;脚本经 `run_code`+Seatbelt,**不是**第二套 memory(见下文 Skills 专节)
 - **Todo**:`todo_write` —— 会话进度清单(Claude 式 TodoWrite);结果回灌线程并写 `drafts/todo.md`;UI 以右轨 Progress / TodoCard 投影(见 `doc/todo.md`);旧名 `update_plan` 仅兼容
+- **人机**:`ask_user` —— 挂起 turn 批问(至多 4 题);不套 withGuard 150s;见 `doc/ask-user.md`
+- **子代理**:`spawn_subagent` / `get_subagent_output` / `kill_subagent` / `wait_subagents`
+- **识图**:`look_at_image`
 
 约定:工具结果一律回灌线程;长交付物(报告、笔记)写成工作区文件,对话里只留指针。
 
@@ -71,14 +76,14 @@ Skill ≠ Memory。Skill 是可**启动**的研究工作流;Memory 是长期事�
 
 ## 运行时(runtime/)
 
-`agent-runtime.ts` 管任务生命周期:
+`agent-runtime.ts` 是编排层(生命周期 + execute 主干)。事件/ask/上传/资产/标题/压缩/定根各住卫星,语义不变:
 
 - `create_task` 建**草稿任务**:有会话、未起跑(支持先上传文件再开聊)
 - `submit` 起跑:系统提示词 + 用户消息构成初始线程,进内核循环
 - `continue` 续跑:从事件表重建线程(见存储层)后追加新消息继续
-- durable 事件(model_step / tool_call / tool_result / reply / status_change / error …)持久化并广播
+- durable 事件(model_step / tool_call / tool_result / reply / status_change / error …)经 `event-hub` 先落库再广播
 - ephemeral 事件(`text_delta` / `tool_call_start`)仅 live 广播(不占 seq、不入 SQLite/jsonl);断线重放只靠 durable,UI 用 `model_step` 定稿复原正文
-- 资产视图:项目工作区文件列表,过滤 `cache/` 与 `sessions/`,只展示用户要的交付物
+- 资产视图:`assets.ts` 列项目工作区文件,过滤 `cache/` 与 `sessions/`,只展示用户要的交付物
 
 ### 进程生命周期(本机)
 
@@ -146,3 +151,14 @@ UI 状态是事件流的纯函数:对 durable 子集重放必然得到同一界�
 React + Vite。三栏工作台:会话列表 / 对话(全幅消息流,输入卡片悬浮其上)/ 工作区+阅读器(分栏可拖宽,工作区随产物自动展开)。`useAgent` 持有 WS 连接,把事件流 reduce 成界面状态;上传文件先在输入区暂存,发送时才进入工作区(宽准入,见上「上传策略」)。
 
 **对话可视化(网页沙箱):** assistant 文本中的 ` ```show-widget ` 围栏由 ui-client 解析,在 `sandbox="allow-scripts"`(无 same-origin)的 receiver iframe 内渲染 HTML/SVG/JS;CSP 限制 CDN 白名单且 `connect-src 'none'`。过程与验收见 `briefs/active/web-sandbox-widget.md`。这与 `run_code` 的进程沙箱(Seatbelt)是不同隔离面。
+
+## 可维护性宪章(2026-08-17)
+
+> 背景:对照 Claude Code v2.1.88 还原源码的腐烂路径(约 50 字段的上帝 ToolUseContext、注册表里 lazy-require 打破循环依赖、564 文件 utils/)与 Mastra 的框架税,裁定:Lumen 不整抄任何一家;防熵靠下列六条**可执行的不变式**,与铁律同级。P0/P1 已归档于 `briefs/archive/`;余下 `briefs/active/arch-p2..p3-*.md`。
+
+1. **依赖只指向内。** `core/` 不 import 协议/存储/具体工具/UI(现状已达成)。此纪律须由测试固化(core import 白名单断言),不靠自觉。
+2. **合同保持窄(ToolContext 冻结令)。** 向 `ToolContext` 新增字段 = 修宪:先改本文档内核节并说明为何非进共享合同不可,再动 `core/tool.ts`。禁无类型杂物袋(`deps: Record<string, unknown>` 废除)、禁单工具专用字段进共享合同(`skillReadRoots` 迁出)——皆见 P0 工单。教训实证:`deps` 里的 `model`/`imageStore` 从注入之日起就无任何消费者,杂物袋必然装死货。
+3. **注册表唯一。** "模型能用什么工具"的**存在性**由 `tools/registry.ts` 一处声明(静态工具 + 任务域工厂);运行时只做**可用性**过滤(demo/角色/任务域),不得出现第二处拼装点。
+4. **能力 = 可删除单元。** 模块化的判据不是"好不好加",是**敢不敢删**:删一个能力 = 删一个文件(夹) + registry 一行,编译错误即完整残留清单。单元边界 = 一起生死的最小集合。
+5. **隐形合同必配合同测试。** 类型系统罩不住的边界,每条至少配一个"漂移即红"的测试:WS 协议(三处消费点,见 `protocol/CLAUDE.md` 同步债 → P3 以 @lumen/shared 消灭)、persona 指示的输出格式 ↔ UI 解析(sourceCite 一族)、portfile 契约。协议须带 `protocolVersion` 握手:daemon 与 App 升级节奏不同,版本偏斜必须可检测(P3)。
+6. **尺寸预算。** 单文件 ≤800 行(AGENTS.md 法定)。现役超标:`App.tsx` 1204、`useAgent.ts` 1139(P2 清偿)。`agent-runtime.ts` 已分家(P1,编排层 + 卫星)。超标文件冻结新职责:先分家,再长肉。

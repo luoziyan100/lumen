@@ -378,11 +378,6 @@ export class ChildRunner {
         spawn,
         emit,
         workspace,
-        deps: {
-          model,
-          subagents: this.deps.coordinator,
-          childRunner: this,
-        },
       }
       const limits: Limits = {
         maxSteps: def.maxSteps,

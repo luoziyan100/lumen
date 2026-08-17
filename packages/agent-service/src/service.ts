@@ -1,7 +1,9 @@
 /**
  * [INPUT]: storage / runtime / protocol / tools / adapters
  * [OUTPUT]: createService（可测工厂）+ 顶层 main（headless 启动）
- * [POS]: §4 服务入口。组装真实依赖，起 localhost WS，写 portfile；关窗口不影响它
+ * [POS]: §4 服务入口。组装真实依赖，起 localhost WS，写 portfile；关窗口不影响它。
+ *        静态工具只经 tools/registry.buildStaticTools,不在本文件拼装。
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * 运行：ANTHROPIC_API_KEY=... node --experimental-strip-types src/service.ts
  */
@@ -15,8 +17,6 @@ import { ProjectStore } from './storage/project-store.ts'
 import { SettingsStore } from './storage/settings.ts'
 import { AgentRuntime, defaultSystemPrompt } from './runtime/agent-runtime.ts'
 import { startServer, type ServerHandle } from './protocol/server.ts'
-import { ENV_TOOLS } from './tools/env/fs-tools.ts'
-import { runCodeTool } from './tools/env/run-code.ts'
 import { ImageStore } from './tools/env/image-store.ts'
 import {
   createLookAtImageTool,
@@ -24,13 +24,11 @@ import {
   visionEnvFromProcess,
 } from './tools/env/vision-tools.ts'
 import { createResearchTools, createUnpdfEngine, createTavilyWebSearch } from './tools/research/index.ts'
-import { createTodoTools } from './tools/env/todo-tools.ts'
-import { createAskUserTools } from './tools/env/ask-user-tools.ts'
+import { buildStaticTools } from './tools/registry.ts'
 import { buildRoles } from './agents/roles.ts'
 import { createClaudeAdapter, createClaudeStreamFetchTransport, createFetchTransport } from './adapters/claude.ts'
 import { createOpenAIAdapter, createOpenAIFetchTransport, createOpenAIStreamFetchTransport } from './adapters/openai.ts'
 import type { ModelPort } from './core/model-port.ts'
-import { withGuard } from './core/guard.ts'
 import { resolveContextWindow } from './storage/context-budget.ts'
 
 export interface ServiceConfig {
@@ -131,18 +129,9 @@ export function createService(config: ServiceConfig = {}): Service {
   const imageStore = new ImageStore()
   const visionEnv = visionEnvFromProcess()
   const lookAtImage = createLookAtImageTool({ store: imageStore, env: visionEnv })
-  // run_code:owner 拍板 2026-07-05 进默认工具集(L1 进程纪律 + macOS Seatbelt,见 tools/env/sandbox.ts)
-  // demo 模式:剔除 run_code —— 云端 Linux 无 macOS Seatbelt,公网开放=远程任意代码执行(2026-07-15 审计 must-fix)
-  const planTools = createTodoTools()
-  // ask_user:等人作答,不可套 withGuard 150s(见 doc/ask-user.md);仅主 agent,worker 不经 buildRoles 拿到全量名也不在子集里
-  const askUserTools = createAskUserTools()
-  const guarded = (
-    demo
-      ? [...ENV_TOOLS, ...planTools, ...research, lookAtImage]
-      : [...ENV_TOOLS, ...planTools, runCodeTool, ...research, lookAtImage]
-  ).map((t) => withGuard(t))
-  const mainTools = [...guarded, ...askUserTools]
-  const roles = buildRoles(guarded)
+  // 工具存在性只走 registry:静态一次;ask_user / memory / skill / subagent 在 execute 按任务构造
+  const staticTools = buildStaticTools({ demo, research, lookAtImage })
+  const roles = buildRoles(staticTools)
 
   const runtime = new AgentRuntime({
     store,
@@ -152,7 +141,8 @@ export function createService(config: ServiceConfig = {}): Service {
     workspacesDir,
     projects,
     libraryRoot: config.libraryRoot,
-    mainTools,
+    mainTools: staticTools,
+    demo,
     roles,
     imageBridge: {
       store: imageStore,

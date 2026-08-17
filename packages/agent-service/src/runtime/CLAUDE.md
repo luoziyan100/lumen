@@ -2,26 +2,22 @@
 
 > [PROTOCOL] 成员或职责变更时:先更新本文档,再动代码;resume / 事件语义变更须先过宪法 §4 与 §9.5(交叉矩阵)。
 
-职责:`AgentRuntime` —— 把内核(runAgent/spawn)、存储(TaskStore/session/budget/resume)、工作区(FsWorkspace)、
-角色(agents)拼成**可执行、可订阅、可恢复**的任务运行时。多任务并跑、关窗续跑的语义在这里成立。
+职责:把内核(runAgent/spawn)、存储、工作区、角色拼成**可执行、可订阅、可恢复**的任务运行时。
+`agent-runtime.ts` 是编排层;事件/ask/上传/资产/标题/压缩/定根各住卫星。
 
 ## 成员
 
-- `agent-runtime.ts` — 任务生命周期:submit/continue/cancel/answerUser/renameTaskTitle/setTaskPinned;listProjects/createProject/renameProject/archiveProject;listAssets(无 taskId 仅 shared;有 taskId=shared+session);
-  makeWorkspace 挂载 sharedRoot;durable 事件写 task_events 并推订阅者;resume 只回放 main 线程;
-  ephemeral(`text_delta`/`tool_call_start`)只 notify(seq=-1),UI 靠 model_step 定稿可重放复原;
-  notifyStatus 同步 `task_updated`(侧栏 status/未读灯);
-  可选 imageBridge:DeepSeek 等 chat 前去图插桩,look_at_image 读同一 ImageStore;
-  pendingAsk 按 taskId+toolCallId 挂起 ask_user(见 `doc/ask-user.md`);
-  Skills:catalog 注入 systemPrompt + `run_skill` / skillReadRoots 进 Seatbelt;`listSkills`/`installSkill`/`uninstallSkill`/`activateSkillOnTask`(见 `doc/agent-core-architecture.md` Skills 专节);
-  `saveUpload` 宽准入按表示归位:pdf→papers/ 文本脚本→docs/ 图→images/ 未知→uploads/;
-  docx 另抽 docs/<stem>.md(模式 A,见 `doc/document-ingest.md`);回执 `UploadReceipt`;
-  submit/continue `uploads[]` → user 事件 + 模型附言(见 `doc/upload-awareness.md` + `upload-awareness.ts`);
-  侧栏 `title`:非空 reply / done 兜底异步生成 + list 懒补;`onTaskUpdated` → WS `task_updated`;
-  `repairMermaidSource`:流程图 Phase B sidecar(同 hash 限 1 次,不进主循环)
+- `agent-runtime.ts` — 生命周期编排:submit/continue/cancel/resume/sweep;skills 人机入口;execute 主干 + compaction 软着陆。再导出 SkillInfo / UploadReceipt / WorkspaceAsset / sanitizeWorkspaceId / defaultSystemPrompt
+- `event-hub.ts` — durable 先落库再推送;ephemeral(seq=-1)只 notify;subscribe / emitUser / notifyStatus / task_updated
+- `ask-hub.ts` — ask_user 挂起表(taskId+toolCallId);answerUser / cancel 清挂起
+- `uploads.ts` — saveUpload 按表示归位(pdf→papers/ 文本→docs/ 图→images/ 其余 uploads/)+ docx 抽 docs/<stem>.md
+- `assets.ts` — list/read 资产视图(无 taskId 仅 shared/;有 taskId = shared+session,滤 cache/)
+- `title-hub.ts` — 侧栏 title 异步回填;与对话共用 ModelPort,execute 终态 await
+- `compaction.ts` — 回合前水位 / 确定性压缩事件 / 终态水位;算法在 storage/context-budget.ts
+- `workspace-factory.ts` — 项目根 vs sessions/<tid> 定根;shared/* 走项目根
 - `upload-awareness.ts` — UploadRef / formatUploadAnnex / userContentForModel;知情附言纯函数
-- `task-title.ts` — 抽摘 user/非空 assistant、清洗短标题、shouldBackfillTitle
-- `mermaid-repair.ts` — Phase B sidecar 纯核:抽围栏 / hash 限次 / 三条禁令;runtime `repairMermaidSource` 单次无工具 chat,不落库
+- `task-title.ts` — 抽摘 user/非空 assistant、清洗短标题、shouldBackfillTitle;`TITLE_PROMPT_MARKER` 标题轮识别标记(测试同源导入)
+- `mermaid-repair.ts` — Phase B sidecar:抽围栏 / hash 限次 / 三条禁令 / `runMermaidRepair` 单次无工具 chat,不落库
 
 ## 规则
 

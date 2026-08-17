@@ -9,7 +9,7 @@
 - `loop.ts` — runAgent,唯一的循环;handlers → ephemeral text_delta / tool_call_start,定稿仍 model_step
 - `thread.ts` — 只增不减的消息线程;`forModel()` 压缩视图(绝不丢 tool_result 的存在事实)
 - `model-port.ts` — ModelPort + 可选 ChatHandlers(text/tool 名流式回调)
-- `tool.ts` — Tool 契约 + ToolContext(+toolCallId)+ SpawnFn
+- `tool.ts` — Tool 契约 + ToolContext(+toolCallId)+ SpawnFn;合同冻结(禁杂物袋、禁单工具字段)
 - `spawn.ts` — createSpawnFn(递归原语)+ spawnTool;sub-agent = runAgent 的递归调用
 - `limits.ts` — 步数 / 递归深度 / 墙钟预算;防失控循环与永远 running
 - `types.ts` — 消息 / 工具调用 / 用量 / 事件的类型基座(含 ephemeral kind;`Message.reasoningContent` 供 thinking 回灌)

@@ -1,23 +1,19 @@
 /**
- * [INPUT]: ToolContext.deps.childRunner + deps.subagents；协议 R1.3
+ * [INPUT]: createSubagentTools({ subagents, childRunner });协议 R1.3
  * [OUTPUT]: spawn_subagent / get_subagent_output / kill_subagent / wait_subagents
- * [POS]: subagent T4 L4 模型工具；turn/parent 服务端注入，禁止模型伪造
+ * [POS]: subagent T4 L4 模型工具；turn/parent 服务端注入，禁止模型伪造。
+ *        coordinator/runner 构造注入,不进 ToolContext。
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import type { Tool, ToolContext, ToolResult } from '../../core/tool.ts'
+import type { Tool, ToolResult } from '../../core/tool.ts'
 import type { ChildRunner } from '../../subagent/runner.ts'
 import type { SubagentCoordinator } from '../../subagent/coordinator.ts'
 import type { CapabilityMode, IsolationMode } from '../../subagent/types.ts'
 import { listBuiltinNames, SUBAGENT_ERROR } from '../../subagent/index.ts'
 
-function coord(ctx: ToolContext): SubagentCoordinator | null {
-  const c = ctx.deps.subagents
-  return c && typeof c === 'object' ? (c as SubagentCoordinator) : null
-}
-
-function runner(ctx: ToolContext): ChildRunner | null {
-  const r = ctx.deps.childRunner
-  return r && typeof r === 'object' ? (r as ChildRunner) : null
+export interface SubagentToolDeps {
+  subagents: SubagentCoordinator
+  childRunner: ChildRunner
 }
 
 function jsonResult(data: unknown, llm?: string): ToolResult {
@@ -141,14 +137,13 @@ const WAIT_SPEC = {
   },
 }
 
-export const spawnSubagentTool: Tool = {
+export function createSubagentTools(deps: SubagentToolDeps): Tool[] {
+  const c = deps.subagents
+  const r = deps.childRunner
+
+  const spawnSubagentTool: Tool = {
   spec: SPAWN_SPEC,
   async run(args, ctx): Promise<ToolResult> {
-    const r = runner(ctx)
-    const c = coord(ctx)
-    if (!r || !c) {
-      return errResult(SUBAGENT_ERROR.SPAWN_BLOCKED, 'subagent runtime not available')
-    }
     if (!ctx.turnId) {
       return errResult(SUBAGENT_ERROR.SPAWN_BLOCKED, 'missing turnId (server must inject)')
     }
@@ -246,11 +241,9 @@ export const spawnSubagentTool: Tool = {
   },
 }
 
-export const getSubagentOutputTool: Tool = {
+  const getSubagentOutputTool: Tool = {
   spec: GET_SPEC,
   async run(args, ctx): Promise<ToolResult> {
-    const c = coord(ctx)
-    if (!c) return errResult(SUBAGENT_ERROR.SPAWN_BLOCKED, 'subagent runtime not available')
     const id = String(args.subagent_id ?? '')
     if (!id) return errResult(SUBAGENT_ERROR.NOT_FOUND, 'subagent_id required')
     const out = c.getOutput(id)
@@ -268,11 +261,9 @@ export const getSubagentOutputTool: Tool = {
   },
 }
 
-export const killSubagentTool: Tool = {
+  const killSubagentTool: Tool = {
   spec: KILL_SPEC,
   async run(args, ctx): Promise<ToolResult> {
-    const c = coord(ctx)
-    if (!c) return errResult(SUBAGENT_ERROR.SPAWN_BLOCKED, 'subagent runtime not available')
     const id = String(args.subagent_id ?? '')
     if (!id) return errResult(SUBAGENT_ERROR.NOT_FOUND, 'subagent_id required')
     const rec = c.get(id)
@@ -289,11 +280,9 @@ export const killSubagentTool: Tool = {
   },
 }
 
-export const waitSubagentsTool: Tool = {
+  const waitSubagentsTool: Tool = {
   spec: WAIT_SPEC,
   async run(args, ctx): Promise<ToolResult> {
-    const c = coord(ctx)
-    if (!c) return errResult(SUBAGENT_ERROR.SPAWN_BLOCKED, 'subagent runtime not available')
     const raw = args.subagent_ids
     const ids = Array.isArray(raw)
       ? raw.map((x) => String(x)).filter(Boolean)
@@ -331,6 +320,5 @@ export const waitSubagentsTool: Tool = {
   },
 }
 
-export function createSubagentTools(): Tool[] {
   return [spawnSubagentTool, getSubagentOutputTool, killSubagentTool, waitSubagentsTool]
 }

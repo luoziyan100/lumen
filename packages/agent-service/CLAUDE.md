@@ -14,9 +14,9 @@
 | `skills/` | Skills 发现/解析/激活(系统性工作流包;`run_skill` 经 tools 注入) |
 | `client/` | LumenClient:类型化 WS 客户端(Node 22+ 与浏览器通用) |
 | `protocol/` | WS 协议:消息类型 + server(⚠ 与 ui-client 手工同步,见其文档) |
-| `runtime/` | AgentRuntime:把内核/存储/工作区/角色拼成可执行、可订阅、可恢复的任务运行时 |
+| `runtime/` | 任务运行时:agent-runtime 编排层 + event/ask/title/uploads/assets/compaction 卫星 |
 | `storage/` | SQLite(任务/事件/预算/恢复) + session jsonl + 设置 |
-| `tools/` | L1 环境原语(env/) + L2 研究桥接(research/) |
+| `tools/` | L1 环境原语(env/) + L2 研究桥接(research/);存在性真源 `registry.ts` |
 | `workspace/` | FsWorkspace 沙箱文件系统 |
 
 顶层文件:`service.ts`(createService 工厂 + headless main)、`supervisor.ts`(子进程拉起 + portfile 契约)、`launchd.ts`(用户级 LaunchAgent 渲染/安装/卸载)、`scripts/launchd-cli.ts`、`scripts/inject-mermaid-phase-b-fixture.ts`(Phase B 缺 end 夹具)、`scripts/live-mermaid-repair.ts`(对运行中服务打真模型修图)。

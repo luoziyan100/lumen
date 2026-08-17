@@ -12,6 +12,7 @@ import { openDatabase } from '../../src/storage/db.ts'
 import { TaskStore } from '../../src/storage/task-store.ts'
 import { AgentRuntime } from '../../src/runtime/agent-runtime.ts'
 import { ScriptedModel, assistantReply, fixedTool } from '../helpers/scripted-model.ts'
+import { TITLE_PROMPT_MARKER } from '../../src/runtime/task-title.ts'
 import type { ModelPort, ModelResponse } from '../../src/core/model-port.ts'
 import type { Message } from '../../src/core/types.ts'
 
@@ -48,9 +49,10 @@ test('水位超阈值 → 回合前确定性压缩:检查点+近轮原文;零额
   const kinds = events.map((e) => e.kind)
   assert.ok(kinds.includes('compaction'), `没触发压缩:${kinds.join(',')}`)
   assert.ok(kinds.includes('context_usage'), '缺水位事件')
-  assert.equal(model.calls.length, 2, '压缩不该额外调用模型(零摘要)')
+  const convoCalls = model.calls.filter((msgs) => !String(msgs[0]?.content ?? '').includes(TITLE_PROMPT_MARKER))
+  assert.equal(convoCalls.length, 2, '压缩不该额外调用模型(零摘要;标题生成不计)')
 
-  const view = model.calls[1]
+  const view = convoCalls[1]
   const joined = view.map((m) => `${m.role}:${m.content}`).join('\n---\n')
   assert.ok(joined.includes('上下文检查点'), '缺检查点消息')
   assert.ok(joined.includes('第一轮问题:读这篇论文'), '用户原话必须逐字保留')
@@ -98,6 +100,8 @@ test('软着陆:超窗错误 → 自动压缩 → 原地重试成功,任务不�
   let calls = 0
   const model: ModelPort = {
     async chat(messages: Message[]): Promise<ModelResponse> {
+      const isTitle = String(messages[0]?.content ?? '').includes(TITLE_PROMPT_MARKER)
+      if (isTitle) return { message: { role: 'assistant', content: '短标题占位' }, toolCalls: [] }
       calls += 1
       if (calls <= 2) return { message: { role: 'assistant', content: `回答${calls}` }, toolCalls: [], usage: { promptTokens: 100, completionTokens: 5 } }
       if (calls === 3) throw new Error('OpenAI request failed (400): {"error":{"message":"This model\'s maximum context length is 4000 tokens","code":"context_length_exceeded"}}')

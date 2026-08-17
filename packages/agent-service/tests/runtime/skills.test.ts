@@ -51,6 +51,7 @@ when-to-use: 用户要系统读一篇 PDF
     sessionDir: path.join(base, 'sessions'),
     workspacesDir: path.join(base, 'workspaces'),
     mainTools: [],
+    userSkillsDir: path.join(base, 'no-user-skills'),
   })
   const id = rt.createDraft('p', 'probe')
   rt.continueTask(id, '按技能读论文')
@@ -79,6 +80,7 @@ test('无 skill 时 systemPrompt 不含 Skills catalog', async (t) => {
     sessionDir: path.join(base, 'sessions'),
     workspacesDir: path.join(base, 'workspaces'),
     mainTools: [],
+    userSkillsDir: path.join(base, 'no-user-skills'),
   })
   const id = rt.createDraft('p', 'g')
   rt.continueTask(id, '你好')
@@ -108,6 +110,7 @@ do the probe
     sessionDir: path.join(base, 'sessions'),
     workspacesDir: path.join(base, 'workspaces'),
     mainTools: [],
+    userSkillsDir: path.join(base, 'no-user-skills'),
   })
   const r = rt.activateSkillOnTask('p', 'paper-probe')
   assert.equal(r.ok, true)

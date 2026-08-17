@@ -2,7 +2,8 @@
  * [INPUT]: types.ts 的 AgentEvent / ToolSpec
  * [OUTPUT]: Tool 契约 + ToolContext(+toolCallId)+ SpawnFn
  * [POS]: agent-core 的工具边界；工具执行结果 llmContent 必由内核回灌进线程;
- *        toolCallId 由 loop 注入,供 ask_user 等挂起工具登记 pending
+ *        toolCallId 由 loop 注入,供 ask_user 等挂起工具登记 pending。
+ *        合同冻结:禁无类型杂物袋、禁单工具专用字段(Seatbelt 只读根在 run_code 构造时注入)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { AgentEvent, ToolSpec } from './types.ts'
@@ -61,11 +62,8 @@ export interface ToolContext {
   emit: (event: AgentEvent) => void | Promise<void>
   /** 沙箱工作区句柄。M2 起注入；不依赖它的工具可忽略 */
   workspace?: Workspace
-  deps: Record<string, unknown>
   /** 当前正在执行的 tool_call id;由 loop 在 run 前注入(ask_user 等挂起工具用) */
   toolCallId?: string
-  /** Seatbelt 额外只读根(skills 目录);run_code 注入 */
-  skillReadRoots?: string[]
   /**
    * 当前执行会话的 active turn(主=主 turn;子=子 turn)。
    * spawn 时 parent_turn_id := turnId。subagent T0 起注入。

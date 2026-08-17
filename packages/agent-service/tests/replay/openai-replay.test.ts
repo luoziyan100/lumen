@@ -32,7 +32,6 @@ test('真实录制重放：真模型轨迹 + 真 runAgent + 真 fs 工具，只�
     spawn: async () => ({ llmContent: 'no spawn' }),
     emit: () => {},
     workspace,
-    deps: {},
   }
   const thread = new Thread([
     { role: 'system', content: '你是 Lumen 研究 agent。' },

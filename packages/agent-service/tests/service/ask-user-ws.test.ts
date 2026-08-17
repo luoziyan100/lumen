@@ -10,9 +10,17 @@ import { openDatabase } from '../../src/storage/db.ts'
 import { TaskStore } from '../../src/storage/task-store.ts'
 import { AgentRuntime } from '../../src/runtime/agent-runtime.ts'
 import { startServer, type ServerHandle } from '../../src/protocol/server.ts'
-import { createAskUserTools } from '../../src/tools/env/ask-user-tools.ts'
 import type { ServerMessage } from '../../src/protocol/messages.ts'
 import { ScriptedModel, assistantToolCall, assistantReply } from '../helpers/scripted-model.ts'
+
+function closeWs(ws: WebSocket): Promise<void> {
+  if (ws.readyState === WebSocket.CLOSED) return Promise.resolve()
+  return new Promise((resolve) => {
+    ws.addEventListener('close', () => resolve(), { once: true })
+    ws.close()
+    setTimeout(resolve, 500)
+  })
+}
 
 async function makeAskServer(t: TestContext): Promise<ServerHandle & { runtime: AgentRuntime }> {
   const base = await mkdtemp(path.join(tmpdir(), 'lumen-ask-ws-'))
@@ -31,7 +39,7 @@ async function makeAskServer(t: TestContext): Promise<ServerHandle & { runtime: 
     model,
     sessionDir: path.join(base, 'sessions'),
     workspacesDir: path.join(base, 'workspaces'),
-    mainTools: createAskUserTools(),
+    mainTools: [],
   })
   const handle = await startServer(runtime, { port: 0 })
   t.after(async () => {
@@ -93,7 +101,7 @@ test('WS：answer_user 解开 ask_user 后收到 tool_result 与 reply', async (
   const kinds = messages.filter((m) => m.type === 'event').map((m) => m.event.kind)
   assert.ok(kinds.includes('tool_result'))
   assert.ok(kinds.includes('reply'))
-  ws.close()
+  await closeWs(ws)
 })
 
 test('WS：无 pending 的 answer_user 返回 error', async (t) => {
@@ -119,5 +127,5 @@ test('WS：无 pending 的 answer_user 返回 error', async (t) => {
   }))
   const err = await errP
   assert.equal(err.type, 'error')
-  ws.close()
+  await closeWs(ws)
 })

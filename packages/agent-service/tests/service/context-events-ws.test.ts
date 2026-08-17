@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os'
 import * as path from 'node:path'
 import { createService } from '../../src/service.ts'
 import type { ServerMessage } from '../../src/protocol/messages.ts'
-import { ScriptedModel, assistantReply } from '../helpers/scripted-model.ts'
+import { ScriptedModel, assistantReply, withIgnoredTitleChats } from '../helpers/scripted-model.ts'
 
 test('压缩与水位事件穿过 WS:实时广播 + 回放都在场', async (t: TestContext) => {
   const home = await mkdtemp(path.join(tmpdir(), 'lumen-ctxws-'))
@@ -19,7 +19,7 @@ test('压缩与水位事件穿过 WS:实时广播 + 回放都在场', async (t: 
     { ...assistantReply('第一轮回答'), usage: { promptTokens: 5_000_000, completionTokens: 10 } },
     assistantReply('第二轮回答'),
   ])
-  const service = createService({ home, port: 0, modelPort: model })
+  const service = createService({ home, port: 0, modelPort: withIgnoredTitleChats(model) })
   const handle = await service.start()
   t.after(async () => {
     await service.runtime.drain()

@@ -6,6 +6,7 @@
 import type { ChatHandlers, ModelPort, ModelResponse } from '../../src/core/model-port.ts'
 import type { Message, ToolCall, ToolSpec } from '../../src/core/types.ts'
 import type { Tool, ToolContext } from '../../src/core/tool.ts'
+import { TITLE_PROMPT_MARKER } from '../../src/runtime/task-title.ts'
 
 export class ScriptedModel implements ModelPort {
   /** 每次 chat 调用收到的 messages 快照（按调用顺序） */
@@ -46,6 +47,19 @@ export function assistantToolCall(
   return { message: { role: 'assistant', content: '', toolCalls }, toolCalls }
 }
 
+/** 侧栏标题生成也走同一 ModelPort;测试脚本不该被它吃掉下一轮答复。
+ *  标记从 task-title.ts 同源导入——生产措辞一改,这里编译期即知,禁止复制字面量 */
+export function withIgnoredTitleChats(inner: ModelPort): ModelPort {
+  return {
+    chat(messages, tools, signal, handlers) {
+      if (String(messages[0]?.content ?? '').includes(TITLE_PROMPT_MARKER)) {
+        return Promise.resolve({ message: { role: 'assistant', content: '测标题' }, toolCalls: [] })
+      }
+      return inner.chat(messages, tools, signal, handlers)
+    },
+  }
+}
+
 export function assistantReply(text: string): ModelResponse {
   return { message: { role: 'assistant', content: text }, toolCalls: [] }
 }
@@ -75,7 +89,6 @@ export function noopCtx(overrides: Partial<ToolContext> = {}): ToolContext {
     depth: 0,
     spawn: async () => ({ llmContent: 'no spawn configured' }),
     emit: () => {},
-    deps: {},
     ...overrides,
   }
 }

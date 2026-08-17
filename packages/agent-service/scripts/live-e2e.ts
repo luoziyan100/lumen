@@ -48,7 +48,6 @@ const ctx: ToolContext = {
   spawn: async () => ({ llmContent: 'no spawn' }),
   emit: (e) => console.log(`  · event: ${e.kind}`),
   workspace,
-  deps: {},
 }
 
 const thread = new Thread([

@@ -94,7 +94,6 @@ test('look_at_image:scripted VL 回灌描述', async () => {
     depth: 0,
     spawn: async () => ({ llmContent: '' }),
     emit: () => {},
-    deps: {},
   } as ToolContext
   const r = await tool.run({ image_id: 'img-1' }, ctx)
   assert.match(r.llmContent, /img-1 识图结果/)
@@ -127,7 +126,6 @@ test('look_at_image:未配置 key 返回明确错误', async () => {
     depth: 0,
     spawn: async () => ({ llmContent: '' }),
     emit: () => {},
-    deps: {},
   } as ToolContext
   const r = await tool.run({ image_id: 'img-1' }, ctx)
   assert.match(r.llmContent, /未配置识图/)

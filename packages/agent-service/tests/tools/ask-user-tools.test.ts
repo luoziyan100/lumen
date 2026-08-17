@@ -85,10 +85,10 @@ describe('formatAskUserResult', () => {
 
 describe('ask_user tool', () => {
   it('挂起后由 waiter 解开并回灌', async () => {
-    const [tool] = createAskUserTools()
-    assert.ok(tool)
     let resolveAnswer!: (a: AskUserAnswer) => void
     const waiterPromise = new Promise<AskUserAnswer>((r) => { resolveAnswer = r })
+    const [tool] = createAskUserTools({ waiter: async () => waiterPromise })
+    assert.ok(tool)
     const ctx = {
       taskId: 't1',
       agentRole: 'main',
@@ -96,9 +96,6 @@ describe('ask_user tool', () => {
       toolCallId: 'call-1',
       spawn: async () => ({ llmContent: '' }),
       emit: () => {},
-      deps: {
-        askUser: async () => waiterPromise,
-      },
     } satisfies ToolContext
 
     const runP = tool.run(
@@ -116,28 +113,21 @@ describe('ask_user tool', () => {
     assert.doesNotMatch(out.llmContent, /^error:/)
   })
 
-  it('无 waiter / 无 toolCallId → error llmContent', async () => {
-    const [tool] = createAskUserTools()
+  it('无 toolCallId → error llmContent', async () => {
+    const [tool] = createAskUserTools({
+      waiter: async () => ({ answers: {}, skipped: true }),
+    })
     assert.ok(tool)
-    const base = {
+    const ctx = {
       taskId: 't1',
       agentRole: 'main',
       depth: 0,
       spawn: async () => ({ llmContent: '' }),
       emit: () => {},
-      deps: {},
     } satisfies ToolContext
-    const a = await tool.run(
-      { questions: [{ question: 'x', options: [{ label: 'a' }, { label: 'b' }] }] },
-      { ...base, toolCallId: 'c1' },
-    )
-    assert.match(a.llmContent, /等待桥未注入/)
     const b = await tool.run(
       { questions: [{ question: 'x', options: [{ label: 'a' }, { label: 'b' }] }] },
-      {
-        ...base,
-        deps: { askUser: async () => ({ answers: {}, skipped: true }) },
-      },
+      ctx,
     )
     assert.match(b.llmContent, /toolCallId/)
   })

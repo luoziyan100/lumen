@@ -1,8 +1,8 @@
 /**
- * [INPUT]: core Tool / ToolContext.deps.askUser / ctx.toolCallId
- * [OUTPUT]: createAskUserTools —— ask_user(挂起 turn 等用户结构化作答)
+ * [INPUT]: core Tool / ctx.toolCallId;waiter 构造注入(不再走 ToolContext)
+ * [OUTPUT]: createAskUserTools({ waiter }) —— ask_user(挂起 turn 等用户结构化作答)
  * [POS]: §5.2 环境工具旁支;答案以 tool_result 回灌线程(见 doc/ask-user.md);
- *        同一次可批问多题(QUESTIONS_MAX=4,对齐 Claude);须由 runtime 注入 askUser 等待桥,勿套 withGuard 150s
+ *        同一次可批问多题(QUESTIONS_MAX=4,对齐 Claude);须由 registry 构造注入 waiter,勿套 withGuard 150s
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { Tool, ToolResult } from '../../core/tool.ts'
@@ -132,7 +132,8 @@ function isAbort(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError'
 }
 
-export function createAskUserTools(): Tool[] {
+export function createAskUserTools(opts: { waiter: AskUserWaiter }): Tool[] {
+  const waiter = opts.waiter
   return [
     {
       spec: {
@@ -175,8 +176,6 @@ export function createAskUserTools(): Tool[] {
       async run(args, ctx, signal): Promise<ToolResult> {
         const normalized = normalizeAskUserArgs(args)
         if (typeof normalized === 'string') return bad(normalized)
-        const waiter = ctx.deps.askUser as AskUserWaiter | undefined
-        if (!waiter) return bad('ask_user 等待桥未注入(runtime 配置错误)')
         const toolCallId = ctx.toolCallId
         if (!toolCallId) return bad('缺少 toolCallId')
         try {

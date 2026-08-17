@@ -1,11 +1,12 @@
 /**
  * [INPUT]: 脏 mermaid 源 + 前端 parse 错误摘要; ModelPort
  * [OUTPUT]: extractMermaidBody / hashMermaidSource / buildRepairMessages /
- *           MermaidRepairGate / isLlmRepairEnabled —— Phase B sidecar 纯核
- * [POS]: 不进主研究循环、不改 task_events。官方 parse 仍在前端同源 mermaid。
+ *           MermaidRepairGate / isLlmRepairEnabled / runMermaidRepair
+ * [POS]: Phase B sidecar 纯核 + 单次无工具 chat 编排。不进主循环、不改 task_events。
  *        合同: doc/mermaid-pipeline.md §3.5 / §4.3
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md 与 mermaid-pipeline.md
  */
+import type { ModelPort } from '../core/model-port.ts'
 import type { Message } from '../core/types.ts'
 
 export const REPAIR_TIMEOUT_MS = 45_000
@@ -84,4 +85,38 @@ export const mermaidRepairMetrics = {
     this.attempt = 0
     this.ok = 0
   },
+}
+
+/** 单次无工具 completion;失败不进主循环。taskExists 由 runtime 注入以免本文件碰 TaskStore */
+export async function runMermaidRepair(opts: {
+  gate: MermaidRepairGate
+  taskId: string
+  taskExists: boolean
+  source: string
+  error: string
+  model: ModelPort
+}): Promise<{ ok: true; source: string } | { ok: false; message: string }> {
+  if (!isLlmRepairEnabled()) return { ok: false, message: '流程图修复已关闭' }
+  if (!opts.taskExists) return { ok: false, message: 'task 不存在' }
+  const src = opts.source.trim()
+  if (!src) return { ok: false, message: '缺少流程图源码' }
+  if (!opts.gate.consume(opts.taskId, src)) {
+    return { ok: false, message: '这张图已经尝试过修复' }
+  }
+  mermaidRepairMetrics.bump('attempt')
+  const ac = new AbortController()
+  const timer = setTimeout(() => ac.abort(), REPAIR_TIMEOUT_MS)
+  try {
+    const res = await opts.model.chat(buildRepairMessages(src, opts.error), [], ac.signal)
+    const raw = typeof res.message.content === 'string' ? res.message.content : ''
+    const body = extractMermaidBody(raw)
+    if (!body) return { ok: false, message: '模型没有返回可抽取的 mermaid 围栏' }
+    mermaidRepairMetrics.bump('ok')
+    return { ok: true, source: body }
+  } catch (e) {
+    if (ac.signal.aborted) return { ok: false, message: '修复超时' }
+    return { ok: false, message: e instanceof Error ? e.message : '修复失败' }
+  } finally {
+    clearTimeout(timer)
+  }
 }

@@ -12,7 +12,7 @@ import * as path from 'node:path'
 import { createService, type Service } from '../../src/service.ts'
 import type { ServerMessage } from '../../src/protocol/messages.ts'
 import type { ModelPort } from '../../src/core/model-port.ts'
-import { ScriptedModel, assistantReply } from '../helpers/scripted-model.ts'
+import { ScriptedModel, assistantReply, withIgnoredTitleChats } from '../helpers/scripted-model.ts'
 
 interface Rig { service: Service; port: number; home: string; sockets: WebSocket[] }
 
@@ -68,7 +68,7 @@ const isReply = (m: ServerMessage): boolean => m.type === 'event' && m.event.kin
 
 test('demo:set_model 后该连接用连接自带 model;key 不落盘', async (t: TestContext) => {
   const connScripted = new ScriptedModel([assistantReply('用连接 key 回答的')])
-  const r = await rig(t, { demo: true, buildModel: () => connScripted })
+  const r = await rig(t, { demo: true, buildModel: () => withIgnoredTitleChats(connScripted) })
   const ws = await connect(r)
 
   const hello = (await until(ws, (m) => m.type === 'hello'))[0]
@@ -101,7 +101,7 @@ test('两个连接各自的 key 互不影响(隔离)', async (t: TestContext) =>
   const mA = new ScriptedModel([assistantReply('A 的回答')])
   const mB = new ScriptedModel([assistantReply('B 的回答')])
   const queue: ModelPort[] = [mA, mB]
-  const r = await rig(t, { demo: true, buildModel: () => queue.shift() as ModelPort })
+  const r = await rig(t, { demo: true, buildModel: () => withIgnoredTitleChats(queue.shift() as ModelPort) })
   const wsA = await connect(r)
   const wsB = await connect(r)
   await Promise.all([until(wsA, (m) => m.type === 'hello'), until(wsB, (m) => m.type === 'hello')])

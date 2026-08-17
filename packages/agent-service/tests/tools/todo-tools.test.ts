@@ -83,7 +83,6 @@ describe('todo_write tool', () => {
       spawn: async () => ({ llmContent: '' }),
       emit: () => {},
       workspace: ws,
-      deps: {},
     } satisfies ToolContext
     const out = await tool.run(
       {
@@ -119,7 +118,6 @@ describe('update_plan compat', () => {
       spawn: async () => ({ llmContent: '' }),
       emit: () => {},
       workspace: ws,
-      deps: {},
     } satisfies ToolContext
     const out = await tool.run(
       {

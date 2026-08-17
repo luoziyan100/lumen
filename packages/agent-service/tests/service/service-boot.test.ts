@@ -77,17 +77,17 @@ test('HTTP:上传 PDF → 取回二进制 + 列入资产;无 token 拒、不存�
   const baseUrl = `http://127.0.0.1:${handle.port}`
   const pdf = new Uint8Array(buildMinimalPdf('uploaded pdf body'))
 
-  const up = await fetch(`${baseUrl}/upload?project=p&name=mine.pdf&token=${tk}`, { method: 'POST', body: pdf })
+  const up = await fetch(`${baseUrl}/upload?project=p&name=mine.pdf&token=${tk}&scope=shared`, { method: 'POST', body: pdf })
   assert.equal(up.status, 200)
-  assert.equal(((await up.json()) as { path: string }).path, 'papers/mine.pdf')
+  assert.equal(((await up.json()) as { path: string }).path, 'shared/papers/mine.pdf')
 
-  const got = await fetch(`${baseUrl}/pdf?project=p&path=${encodeURIComponent('papers/mine.pdf')}&token=${tk}`)
+  const got = await fetch(`${baseUrl}/pdf?project=p&path=${encodeURIComponent('shared/papers/mine.pdf')}&token=${tk}`)
   assert.equal(got.status, 200)
   assert.equal(got.headers.get('content-type'), 'application/pdf')
   assert.equal(new Uint8Array(await got.arrayBuffer()).length, pdf.length)
 
   const assets = await service.runtime.listAssets('p')
-  assert.ok(assets.some((a) => a.path === 'papers/mine.pdf' && a.kind === 'pdf'), '上传的 PDF 应列入资产')
+  assert.ok(assets.some((a) => a.path === 'shared/papers/mine.pdf' && a.kind === 'pdf'), '上传的 PDF 应列入资产')
 
   assert.equal((await fetch(`${baseUrl}/pdf?project=p&path=papers/mine.pdf`)).status, 401, '无 token 拒')
   assert.equal((await fetch(`${baseUrl}/pdf?project=p&path=papers/nope.pdf&token=${tk}`)).status, 404, '不存在 404')

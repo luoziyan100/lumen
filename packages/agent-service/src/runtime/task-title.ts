@@ -1,11 +1,15 @@
 /**
  * [INPUT]: TaskEvent 流;ModelPort
- * [OUTPUT]: 从事件抽摘要素材 + 生成/清洗短会话标题(≠ goal)
- * [POS]: runtime 侧栏 title 生成;空 reply 跳过;失败返回 null 不挡主循环
+ * [OUTPUT]: 从事件抽摘要素材 + 生成/清洗短会话标题(≠ goal);TITLE_PROMPT_MARKER(标题轮识别标记,测试同源导入)
+ * [POS]: runtime 侧栏 title 生成;空 reply 跳过;失败返回 null 不挡主循环。
+ *        标题生成与对话共用同一 ModelPort——脚本化测试靠 MARKER 识别并挡开标题轮,勿复制字符串
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { ModelPort } from '../core/model-port.ts'
 import type { TaskEvent } from '../storage/task-store.ts'
+
+/** 标题生成提示词的开头句。测试识别"这一轮是标题轮"的唯一标记:改措辞必须连这里一起改,禁止在测试里复制字面量 */
+export const TITLE_PROMPT_MARKER = '根据对话为侧栏起一个短标题'
 
 const TITLE_MAX = 16
 const TITLE_MIN = 4
@@ -70,7 +74,7 @@ export async function generateTaskTitle(
   signal?: AbortSignal,
 ): Promise<string | null> {
   const prompt =
-    '根据对话为侧栏起一个短标题。规则:只用中文名词短语;8到16个字;不要标点、引号、口语套话(请问/帮我);不要复述整句用户原话。只输出标题本身。\n\n' +
+    `${TITLE_PROMPT_MARKER}。规则:只用中文名词短语;8到16个字;不要标点、引号、口语套话(请问/帮我);不要复述整句用户原话。只输出标题本身。\n\n` +
     `用户:\n${source.user}\n\n助手:\n${source.assistant}`
   try {
     const res = await model.chat(

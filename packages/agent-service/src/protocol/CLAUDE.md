@@ -7,7 +7,7 @@
 ## 成员
 
 - `messages.ts` — 协议消息类型(client→server / server→client),协议的唯一真源;`uploads` 与 UploadRef 对齐
-- `server.ts` — startServer:把 AgentRuntime 暴露为 localhost WS(带 token 鉴权,4401 踢未授权);`POST /upload` 回 `UploadReceipt` JSON
+- `server.ts` — startServer:把 AgentRuntime 暴露为 localhost WS(带 token 鉴权,4401 踢未授权);`POST /upload` 回 `UploadReceipt` JSON;close 先掐残留 WS 再关 HTTP
 
 ## ⚠ 同步债(已知,计划以 @lumen/shared 消灭)
 

@@ -4,7 +4,7 @@
  *           submit/continue 可带 uploads[] / activePath — 上传知情 + 产物闭环当前稿;
  *           repair_mermaid → ok.source 为修正围栏 body（不改落库））
  * [POS]: §4 agent↔UI 协议。UI 发命令，service 推事件流；shared 包将复用这些类型。
- *        事件 kind 含 ephemeral text_delta / tool_call_start(仅 notify,不入库,见 runtime makeEmit);
+ *        事件 kind 含 ephemeral text_delta / tool_call_start(仅 notify,不入库,见 runtime/event-hub);
  *        answer_user 解开 ask_user 挂起(见 doc/ask-user.md);
  *        rename_task 只写侧栏 title(≠ goal);pin_task/unpin_task 写 pinned_at;activate_skill 与 run_skill 同构回灌 playbook
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md;改格式须同步 ui-client agent-client

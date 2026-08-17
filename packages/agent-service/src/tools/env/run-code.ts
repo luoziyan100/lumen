@@ -1,8 +1,10 @@
 /**
  * [INPUT]: core 的 Tool/ToolContext/ToolResult、node:child_process、sandbox.ts
- * [OUTPUT]: runCodeTool —— 在会话工作区内执行 node/python 代码
+ * [OUTPUT]: createRunCodeTool({ skillReadRoots }) + runCodeTool(空根单例,测/占位)
  * [POS]: §5.4 修订(owner 拍板 2026-07-05):L1 进程纪律(cwd 锁工作区/超时/输出上限/AbortSignal)
  *        + L2 Seatbelt(见 sandbox.ts)。命令与输出经 ToolResult 自然进入 task_events(诚实可见)。
+ *        skill 只读根构造注入,不进 ToolContext。
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * 约定:同 fs-tools——失败写进 llmContent 交给模型恢复,不抛出。
  */
@@ -21,7 +23,9 @@ function clip(s: string, cap: number): { text: string; clipped: boolean } {
   return s.length <= cap ? { text: s, clipped: false } : { text: s.slice(0, cap), clipped: true }
 }
 
-export const runCodeTool: Tool = {
+export function createRunCodeTool(opts: { skillReadRoots?: string[] } = {}): Tool {
+  const skillReadRoots = opts.skillReadRoots ?? []
+  return {
   spec: {
     name: 'run_code',
     description:
@@ -62,7 +66,7 @@ export const runCodeTool: Tool = {
 
     const runtimeCmd = language === 'python' ? 'python3' : process.execPath
     const { cmd, args: fullArgs, sandboxed } = sandboxedCommand(runtimeCmd, [script], cwd, {
-      skillReadRoots: ctx.skillReadRoots,
+      skillReadRoots,
     })
 
     return await new Promise<ToolResult>((resolve) => {
@@ -110,4 +114,8 @@ export const runCodeTool: Tool = {
       })
     })
   },
+  }
 }
+
+/** 空 skill 根单例:单测与静态占位。任务域走 createRunCodeTool({ skillReadRoots })。 */
+export const runCodeTool: Tool = createRunCodeTool()

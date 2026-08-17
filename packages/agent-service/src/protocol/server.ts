@@ -4,7 +4,8 @@
  *           HTTP POST /upload → UploadReceipt JSON
  * [POS]: §4 服务边界。一条连接可 submit/subscribe/cancel/resume/archive_task/rename_task/pin_task/unpin_task/answer_user/list，service 推 event 流;
  *        submit/continue 透传 uploads[](doc/upload-awareness.md);
- *        repair_mermaid sidecar 单次修图(doc/mermaid-pipeline.md §4.3)
+ *        repair_mermaid sidecar 单次修图(doc/mermaid-pipeline.md §4.3);
+ *        close() 先 terminate 残留 WS,再关 HTTP(否则 httpServer.close 会挂死)
  *
  * 断线重连用 subscribe.afterSeq 拉齐遗漏事件（事件 seq 单调，不丢不重）。
  * 鉴权：浏览器对 ws://127.0.0.1 没有跨源限制，任意网页都能发起连接——
@@ -55,7 +56,12 @@ export function startServer(
       const port = typeof address === 'object' && address ? address.port : 0
       resolve({
         port,
-        close: () => new Promise<void>((done) => { wss.close(); httpServer.close(() => done()) }),
+        close: () => new Promise<void>((done) => {
+          // 未等客户端 close 就关 HTTP 会让 httpServer.close 永远等着(key-inject 注释同因)
+          for (const c of wss.clients) c.terminate()
+          wss.close()
+          httpServer.close(() => done())
+        }),
       })
     })
   })

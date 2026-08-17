@@ -9,7 +9,6 @@ import * as path from 'node:path'
 import { openDatabase } from '../../src/storage/db.ts'
 import { TaskStore } from '../../src/storage/task-store.ts'
 import { AgentRuntime } from '../../src/runtime/agent-runtime.ts'
-import { createAskUserTools } from '../../src/tools/env/ask-user-tools.ts'
 import { ScriptedModel, assistantToolCall, assistantReply } from '../helpers/scripted-model.ts'
 
 async function makeRuntime(script: ConstructorParameters<typeof ScriptedModel>[0]) {
@@ -21,7 +20,7 @@ async function makeRuntime(script: ConstructorParameters<typeof ScriptedModel>[0
     model,
     sessionDir: path.join(base, 'sessions'),
     workspacesDir: path.join(base, 'workspaces'),
-    mainTools: createAskUserTools(),
+    mainTools: [],
   })
   return {
     runtime,
