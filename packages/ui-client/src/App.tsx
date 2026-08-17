@@ -7,7 +7,8 @@
  *        标题栏工作区钮:阅读器开时一并关闭(drawer 与 ws.open 双态,不能只拨 drawer);
  *        侧栏未读灯:task_updated 终态且非当前 → unread(localStorage);打开会话清除;
  *        上传=对话事件见 doc/upload-awareness.md;当前稿 activePath 见 artifact-loop P0;
- *        messages 容器 key=taskId|draft 强制 remount,配合 useAgent viewEpoch 防串台
+ *        messages 容器 key=taskId|draft 强制 remount,配合 useAgent viewEpoch 防串台;
+ *        助手终稿:模型正文 Sources 原样渲染;SourceList 仅漏写兜底
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
@@ -37,7 +38,7 @@ import { filterComposerFiles } from './composerAccept'
 import { SearchModal } from './components/SearchModal'
 import { SettingsModal } from './components/SettingsModal'
 import { useAppearance } from './appearance'
-import { extractSourceSection, mergeSources } from './sourceCite'
+import { shouldShowHostSourceList } from './sourceCite'
 import { ExternalLinkGate } from './components/ExternalLinkDialog'
 import { SourceList } from './components/SourceList'
 import { ArrowDownIcon, CheckIcon, CopyIcon, PanelIcon, RailIcon } from './components/icons'
@@ -994,21 +995,20 @@ function AppInner() {
                       </div>
                     )
                   }
-                  const peeled = extractSourceSection(it.content)
-                  const sources = mergeSources(it.sources ?? [], peeled.sources)
+                  const showHostList = shouldShowHostSourceList(it.content, it.sources ?? [])
                   return (
                     <div key={it.id} id={msgAnchorId(it.id)} className="msg-group msg-group-assistant">
                       <div className="bubble bubble-assistant">
                         <AssistantContent
-                          content={peeled.body}
+                          content={it.content}
                           onSendMessage={(t) => { void send(t) }}
                           onRepairMermaid={taskId
                             ? (source, error) => client.repairMermaid(taskId, source, error, projectId)
                             : undefined}
                         />
-                        {sources.length ? <SourceList sources={sources} /> : null}
+                        {showHostList ? <SourceList sources={it.sources ?? []} /> : null}
                       </div>
-                      <div className="msg-actions">{copyBtn(it.id, peeled.body, '复制这条回答')}</div>
+                      <div className="msg-actions">{copyBtn(it.id, it.content, '复制这条回答')}</div>
                     </div>
                   )
                 }

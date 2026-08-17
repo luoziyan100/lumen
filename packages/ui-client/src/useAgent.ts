@@ -8,7 +8,7 @@
  *        终态 sealOpenTodos:reply/done 等收口未勾 Todo(HDD:假 in_progress,见 doc/todo.md)
  *        Thought 顺序:本 turn 内插在答案气泡之前(防 text_delta 先占坑导致 Thought 沉底);
  *        同 turn 多段 reasoning 收成一块(子代理 hop 不得堆「Thought process × N」);
- *        检索/抓取 URL 收成 ChatMsg.sources,答末 Sources 列表,正文「来源（节选）」剥掉
+ *        检索/抓取 URL 收成 ChatMsg.sources(仍按 URL);模型正文 Sources 不剥;宿主表仅漏写兜底
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * user 也走事件流,不在前端乐观插入。taskId 按项目键存 localStorage。
@@ -19,7 +19,6 @@ import type { AgentClient, AnswerUserPayload, ImageData, TaskEvent, UploadRef } 
 import { pathFromToolArgs } from './activePath.ts'
 import {
   mergeSources,
-  extractSourceSection,
   sourcesFromTool,
   urlFromToolArgs,
   titleFromUrl,
@@ -41,7 +40,7 @@ export interface ChatMsg {
    * tool 出现或 model_step 带 tools 时折叠进 Thought；无工具定稿时清除。
    */
   provisional?: boolean
-  /** 本轮检索/抓取过的外链,答末 Sources 用 */
+  /** 本轮检索/抓取过的外链;模型漏写 Sources 时宿主表兜底 */
   sources?: SourceCite[]
 }
 export interface ProcStep {
@@ -705,13 +704,12 @@ function collectTurnSources(prev: ChatItem[]): SourceCite[] {
 }
 
 function finishAssistant(id: string, content: string, extra: SourceCite[] = []): ChatMsg {
-  const { body, sources: prose } = extractSourceSection(content)
-  const sources = mergeSources(extra, prose)
+  const sources = mergeSources(extra)
   return {
     kind: 'msg',
     id,
     role: 'assistant',
-    content: body,
+    content,
     ...(sources.length ? { sources } : {}),
   }
 }

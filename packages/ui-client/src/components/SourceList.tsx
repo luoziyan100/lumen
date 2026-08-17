@@ -1,22 +1,23 @@
 /**
- * [INPUT]: SourceCite[];useOpenExternal
- * [OUTPUT]: SourceList —— 答末来源列表,一行一条标题;超 SOURCE_PREVIEW 可展开/收起
- * [POS]: 终稿助手泡下方;点开走外链确认
+ * [INPUT]: SourceCite[];useOpenExternal;collapseSourcesBySite
+ * [OUTPUT]: SourceList —— 答末来源按站点一行;超 SOURCE_PREVIEW 站可展开/收起
+ * [POS]: 终稿助手泡下方兜底表;模型已在正文写 Sources 时不渲染。折叠只发生在展示,不改收集
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { APP_STATUS_COPY } from '../appCopy'
-import { SOURCE_PREVIEW, type SourceCite } from '../sourceCite'
+import { SOURCE_PREVIEW, collapseSourcesBySite, type SourceCite } from '../sourceCite'
 import { useOpenExternal } from './ExternalLinkDialog'
 
 export function SourceList({ sources }: { sources: SourceCite[] }) {
   const open = useOpenExternal()
   const [showAll, setShowAll] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
-  if (!sources.length) return null
-  const canToggle = sources.length > SOURCE_PREVIEW
-  const visible = showAll ? sources : sources.slice(0, SOURCE_PREVIEW)
-  const hidden = sources.length - visible.length
+  const grouped = useMemo(() => collapseSourcesBySite(sources), [sources])
+  if (!grouped.length) return null
+  const canToggle = grouped.length > SOURCE_PREVIEW
+  const visible = showAll ? grouped : grouped.slice(0, SOURCE_PREVIEW)
+  const hidden = grouped.length - visible.length
 
   function toggle(): void {
     if (showAll) {

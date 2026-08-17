@@ -1,7 +1,11 @@
 /**
  * [INPUT]: http.ts、journal-ranks、core Tool
  * [OUTPUT]: createPaperTools —— search_papers / get_citations（Semantic Scholar Graph API）
- * [POS]: §5.3 研究桥接。逻辑对应 old_lumen search.rs（arXiv/S2 + 期刊排名），改写为 Node + JSON
+ * [POS]: §5.3 研究桥接。逻辑对应 old_lumen search.rs（arXiv/S2 + 期刊排名），改写为 Node + JSON。
+ *        description 学 Claude 方法(做什么/何时用与兄弟/结果形态/Sources 回指/用法/参数 description),
+ *        Sources 只回指 persona「#检索之后」:用了几篇论文就几条,不另立法。
+ *        成功调用的 llmContent 末附一句 REMINDER,回指同一合同。
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * 纯函数（buildSearchUrl / parseSearchResponse / formatPapers）可单测；网络经注入的 HttpClient。
  */
@@ -13,6 +17,41 @@ import { buildOpenAlexUrl, parseOpenAlex } from './openalex.ts'
 const S2_BASE = 'https://api.semanticscholar.org/graph/v1'
 const SEARCH_FIELDS = 'title,authors,year,venue,externalIds,abstract'
 const CITE_FIELDS = 'title,authors,year,venue,externalIds'
+
+/** 成功检索后回灌线程的一句:回指 persona,不立法、不倒 URL */
+const SOURCES_LLM_REMINDER =
+  'REMINDER: 答末 Sources 列作品，见系统提示 #检索之后；勿列本次抓取的每个文件路径。'
+
+function withSourcesReminder(content: string): string {
+  return `${content}\n${SOURCES_LLM_REMINDER}`
+}
+
+const SEARCH_PAPERS_PROMPT = `按关键词检索学术论文（OpenAlex，覆盖约 2.5 亿作品）。返回标题 / 作者 / 年份 / 期刊 / DOI / 摘要 / 开放全文链接，按期刊分级排序。
+
+何时用：找论文、综述、DOI、开放全文。
+何时改用兄弟工具：普通网页 / 文档 / 新闻 → search_web；已有论文 HTML 页 → fetch_url；已有 PDF → extract_pdf；已知一篇要追引用 → get_citations。
+
+结果：编号列表。有「开放全文」链接的可再 fetch_url / extract_pdf。有工作区时会顺带写入 notes/search-*.md（中间产物，不是 Sources 条目）。
+
+Sources：答末按系统提示「#检索之后」：用了几篇论文就几条（abs 或 pdf 留一条），不要 abs+pdf 双列，不要把 notes/search-*.md 路径当作品。
+
+用法：
+- query 用英文关键词或论文题通常更准。
+- limit 默认 10，上限 50。`
+
+const GET_CITATIONS_PROMPT = `取某篇论文的引用（谁引了它）或参考文献（它引了谁）。
+
+何时用：已有一篇论文的 DOI / arXiv / S2 paperId，要沿引用网络走。
+何时改用兄弟工具：还没有这篇 → 先 search_papers；要读正文 → fetch_url / extract_pdf。
+
+结果：与 search_papers 相同格式的论文列表。
+
+Sources：答末按系统提示「#检索之后」列真正用到的论文，一篇一条。
+
+用法：
+- id 可用 DOI:10.xxxx / arXiv:xxxx / S2 paperId。
+- direction 默认 references；citations = 谁引用了这篇。
+- limit 默认 15，上限 50。`
 
 export interface PaperRecord {
   paperId?: string
@@ -85,10 +124,13 @@ export function createPaperTools(deps: { http: HttpClient }): Tool[] {
   const searchPapers: Tool = {
     spec: {
       name: 'search_papers',
-      description: '按关键词检索学术论文（OpenAlex，覆盖 2.5 亿作品、限流宽松）。返回标题/作者/年份/期刊/DOI/摘要/开放全文链接，按期刊分级排序。有"开放全文"链接的可直接 fetch_url / extract_pdf 拿正文。',
+      description: SEARCH_PAPERS_PROMPT,
       parameters: {
         type: 'object',
-        properties: { query: { type: 'string' }, limit: { type: 'number', description: '默认 10' } },
+        properties: {
+          query: { type: 'string', description: '关键词或论文题（英文通常更准）' },
+          limit: { type: 'number', description: '返回条数，默认 10，上限 50' },
+        },
         required: ['query'],
       },
     },
@@ -102,7 +144,7 @@ export function createPaperTools(deps: { http: HttpClient }): Tool[] {
           const file = `notes/search-${Date.now()}.md`
           await ctx.workspace.writeFile(file, `# 检索: ${String(args.query)}\n\n${formatPapers(papers)}\n`).catch(() => {})
         }
-        return { llmContent: formatPapers(papers), data: { papers } }
+        return { llmContent: withSourcesReminder(formatPapers(papers)), data: { papers } }
       } catch (error) {
         return { llmContent: `error: ${error instanceof Error ? error.message : String(error)}` }
       }
@@ -112,13 +154,13 @@ export function createPaperTools(deps: { http: HttpClient }): Tool[] {
   const getCitations: Tool = {
     spec: {
       name: 'get_citations',
-      description: '取某篇论文的引用或参考文献。id 可用 DOI:xxx / arXiv:xxx / S2 paperId。',
+      description: GET_CITATIONS_PROMPT,
       parameters: {
         type: 'object',
         properties: {
-          id: { type: 'string' },
-          direction: { type: 'string', enum: ['citations', 'references'], description: '默认 references' },
-          limit: { type: 'number' },
+          id: { type: 'string', description: 'DOI:10.xxxx / arXiv:xxxx / S2 paperId' },
+          direction: { type: 'string', enum: ['citations', 'references'], description: 'citations=谁引了它；references=它引了谁。默认 references' },
+          limit: { type: 'number', description: '返回条数，默认 15，上限 50' },
         },
         required: ['id'],
       },
@@ -136,7 +178,7 @@ export function createPaperTools(deps: { http: HttpClient }): Tool[] {
           .map((row) => (row.citingPaper ?? row.citedPaper) as S2Paper | undefined)
           .filter((p): p is S2Paper => Boolean(p))
           .map(toRecord)
-        return { llmContent: formatPapers(papers), data: { papers, direction } }
+        return { llmContent: withSourcesReminder(formatPapers(papers)), data: { papers, direction } }
       } catch (error) {
         return { llmContent: `error: ${error instanceof Error ? error.message : String(error)}` }
       }

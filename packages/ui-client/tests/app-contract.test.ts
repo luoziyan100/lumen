@@ -55,12 +55,27 @@ test('settled thought is a summary label, not a duration', async () => {
   assert.equal('thoughtDone' in APP_STATUS_COPY, false)
 })
 
+test('attach lightbox has no dimming veil', async () => {
+  const css = await readFile(new URL('../src/styles.css', import.meta.url), 'utf8')
+  const block = css.match(/\.attach-lightbox\s*\{[^}]+\}/)?.[0] ?? ''
+  assert.match(block, /background:\s*transparent/)
+  assert.doesNotMatch(block, /color-mix|--scrim|--ink\)/)
+})
+
 test('sources list can collapse after expand', async () => {
   const { APP_STATUS_COPY } = await import('../src/appCopy.ts')
   const src = await readFile(new URL('../src/components/SourceList.tsx', import.meta.url), 'utf8')
   assert.equal(APP_STATUS_COPY.sourcesLess, 'Show less')
   assert.match(src, /sourcesLess/)
   assert.match(src, /setShowAll\(false\)/)
+  assert.match(src, /collapseSourcesBySite/)
+})
+
+test('assistant bubble keeps model Sources; host list is omit-fallback only', async () => {
+  const app = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')
+  assert.match(app, /shouldShowHostSourceList/)
+  assert.match(app, /content=\{it\.content\}/)
+  assert.doesNotMatch(app, /peeled\.body|extractSourceSection/)
 })
 
 test('jump-latest is dock-anchored above the composer, not under it', async () => {

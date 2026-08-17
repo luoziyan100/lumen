@@ -1,8 +1,17 @@
 /**
- * [INPUT]: 工具 llmContent / 正文「来源（节选）」段
- * [OUTPUT]: SourceCite[] + 去掉裸 URL 段落后的正文
- * [POS]: 答末 Sources 列表;不信任模型排版
+ * [INPUT]: 工具 llmContent / 正文 Sources: 或「来源（节选）」段
+ * [OUTPUT]: SourceCite[] + extractSourceSection(检测模型是否已写 Sources,不用于剥展示);
+ *           shouldShowHostSourceList; collapseSourcesBySite 供漏写兜底
+ * [POS]: 挑选权在模型正文;宿主表仅漏写兜底。收集仍按 URL;展示按站点折叠
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
+ *
+ * 产品合同(Sources =「AI 看过哪些网站」,不是「看过哪些路径」):
+ * - http(s) 站点键: github.com / gitlab.com / raw.githubusercontent.com → host+owner+repo
+ *   (raw 归到 github.com/owner/repo);其它 host → origin(scheme+去 www 的 host)
+ * - 展示 title = owner/repo 或 host;href = 仓库根或 origin,不用深链
+ * - 本地 / 非 http 各文件一行,互不合并。无「是不是核心页」启发式
+ * - extractSourceSection 只作「模型已写 Sources」信号,不从可见回复里删行
+ * - 漏写时宿主 SourceList 用工具 URL + 按站折叠
  */
 
 export type SourceCite = { url: string; title: string }
@@ -65,6 +74,85 @@ export function titleFromUrl(url: string): string {
   } catch {
     return url
   }
+}
+
+/** forge 宿主 → 规范 host。raw.githubusercontent.com 与 github.com 同属一个仓库站 */
+const FORGE_CANON: Record<string, string> = {
+  'github.com': 'github.com',
+  'raw.githubusercontent.com': 'github.com',
+  'gitlab.com': 'gitlab.com',
+}
+
+function httpUrl(raw: string): URL | null {
+  try {
+    const u = new URL(raw)
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null
+    return u
+  } catch {
+    return null
+  }
+}
+
+function hostNorm(hostname: string): string {
+  return hostname.replace(/^www\./, '').toLowerCase()
+}
+
+/** 展示层站点键。非 http(s) 返回 null,调用方按原 URL 各算一行 */
+export function siteKey(url: string): string | null {
+  const u = httpUrl(url)
+  if (!u) return null
+  const host = hostNorm(u.hostname)
+  const parts = u.pathname.split('/').filter(Boolean)
+  const forge = FORGE_CANON[host]
+  if (forge && parts.length >= 2) {
+    return `${forge}/${decodeURIComponent(parts[0]!).toLowerCase()}/${decodeURIComponent(parts[1]!).toLowerCase()}`
+  }
+  return `${u.protocol}//${host}`
+}
+
+export function siteRootUrl(url: string): string {
+  const u = httpUrl(url)
+  if (!u) return url
+  const host = hostNorm(u.hostname)
+  const parts = u.pathname.split('/').filter(Boolean)
+  const forge = FORGE_CANON[host]
+  if (forge && parts.length >= 2) {
+    return `https://${forge}/${parts[0]}/${parts[1]}`
+  }
+  return `${u.protocol}//${host}`
+}
+
+export function siteDisplayTitle(url: string): string {
+  const u = httpUrl(url)
+  if (!u) return url
+  const host = hostNorm(u.hostname)
+  const parts = u.pathname.split('/').filter(Boolean)
+  const forge = FORGE_CANON[host]
+  if (forge && parts.length >= 2) {
+    return `${decodeURIComponent(parts[0]!)}/${decodeURIComponent(parts[1]!)}`
+  }
+  return host
+}
+
+/** 答末展示:同一站点一行。收集层 mergeSources 仍按完整 URL 去重 */
+export function collapseSourcesBySite(sources: SourceCite[]): SourceCite[] {
+  const out: SourceCite[] = []
+  const seen = new Set<string>()
+  for (const s of sources) {
+    const url = coerceUrl(s.url) ?? s.url.trim()
+    if (!url) continue
+    const site = siteKey(url)
+    const key = site ?? `file:${url}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    if (site) {
+      out.push({ url: siteRootUrl(url), title: siteDisplayTitle(url) })
+    } else {
+      const title = s.title.trim() && s.title !== url ? s.title.trim() : url
+      out.push({ url, title })
+    }
+  }
+  return out
 }
 
 export function mergeSources(...lists: SourceCite[][]): SourceCite[] {
@@ -148,6 +236,12 @@ export function extractSourceSection(markdown: string): { body: string; sources:
   if (sources.length === 0) return { body: markdown, sources: [] }
   const body = markdown.slice(0, m.index).replace(/\s+$/, '')
   return { body, sources }
+}
+
+/** 模型已在正文写了可链 Sources 时藏宿主表;漏写才用工具 URL 兜底 */
+export function shouldShowHostSourceList(content: string, toolSources: SourceCite[]): boolean {
+  if (extractSourceSection(content).sources.length > 0) return false
+  return collapseSourcesBySite(toolSources).length > 0
 }
 
 export function urlFromToolArgs(args: unknown): string | null {

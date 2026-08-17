@@ -1,3 +1,9 @@
+/**
+ * [INPUT]: createResearchTools + 罐装 HttpClient / WebSearchBackend
+ * [OUTPUT]: 研究桥接纯函数与工具行为钉(排序/HTML/未配置错误/成功 REMINDER)
+ * [POS]: research/ 工厂的真实路径单测;网络只走注入缝
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
+ */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
@@ -72,6 +78,9 @@ const OA_SEARCH_BODY = {
   ],
 }
 
+const SOURCES_REMINDER = /答末 Sources 列作品/
+const SOURCES_POINTER = /#检索之后/
+
 test('search_papers 工具：经 stub HTTP（OpenAlex 格式）排序 + 展示开放全文链接', async () => {
   const tools = createResearchTools({ http: stubHttp(() => jsonResponse(OA_SEARCH_BODY)) })
   const searchPapers = tools.find((t) => t.spec.name === 'search_papers')!
@@ -79,6 +88,9 @@ test('search_papers 工具：经 stub HTTP（OpenAlex 格式）排序 + 展示�
   assert.match(result.llmContent, /A Nature study/)
   assert.ok(result.llmContent.indexOf('A Nature study') < result.llmContent.indexOf('Diffusion models'), 'Nature 应排在前')
   assert.match(result.llmContent, /开放全文: https:\/\/arxiv\.org\/pdf\/2601\.001/, '有 oa_url 的应展示开放全文链接')
+  assert.match(result.llmContent, SOURCES_REMINDER)
+  assert.match(result.llmContent, SOURCES_POINTER)
+  assert.doesNotMatch(result.llmContent, /列出所有搜索 URL/)
 })
 
 test('fetch_url 工具：抓 HTML 转正文', async () => {
@@ -86,6 +98,8 @@ test('fetch_url 工具：抓 HTML 转正文', async () => {
   const fetchUrl = tools.find((t) => t.spec.name === 'fetch_url')!
   const result = await fetchUrl.run({ url: 'https://example.com' }, noopCtx())
   assert.match(result.llmContent, /Hello 论文/)
+  assert.match(result.llmContent, SOURCES_REMINDER)
+  assert.match(result.llmContent, SOURCES_POINTER)
 })
 
 test('search_web 未配置后端：返回清晰错误而非崩溃', async () => {
@@ -93,6 +107,21 @@ test('search_web 未配置后端：返回清晰错误而非崩溃', async () => 
   const searchWeb = tools.find((t) => t.spec.name === 'search_web')!
   const result = await searchWeb.run({ query: 'x' }, noopCtx())
   assert.match(result.llmContent, /后端未配置/)
+  assert.doesNotMatch(result.llmContent, SOURCES_REMINDER)
+})
+
+test('search_web 成功：结果后附 Sources 回指 reminder,不倒 URL 清单', async () => {
+  const tools = createResearchTools({
+    http: stubHttp(() => textResponse('')),
+    webSearch: async () => [{ title: 'Example Paper', url: 'https://example.com/hit', snippet: 'a hit' }],
+  })
+  const searchWeb = tools.find((t) => t.spec.name === 'search_web')!
+  const result = await searchWeb.run({ query: 'x' }, noopCtx())
+  assert.match(result.llmContent, /Example Paper/)
+  assert.match(result.llmContent, SOURCES_REMINDER)
+  assert.match(result.llmContent, SOURCES_POINTER)
+  const reminder = result.llmContent.slice(result.llmContent.indexOf('REMINDER:'))
+  assert.doesNotMatch(reminder, /https:\/\//)
 })
 
 test('extract_pdf 未接抽取器：返回边界提示', async () => {

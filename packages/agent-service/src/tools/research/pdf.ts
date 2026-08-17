@@ -1,7 +1,9 @@
 /**
  * [INPUT]: core Tool、http.ts
  * [OUTPUT]: PdfTextEngine 类型、createPdfTools —— extract_pdf
- * [POS]: §5.3 研究桥接。来源解析在工具层（URL→http / 本地→工作区沙箱二进制读），抽取交给可注入引擎
+ * [POS]: §5.3 研究桥接。来源解析在工具层（URL→http / 本地→工作区沙箱二进制读），抽取交给可注入引擎。
+ *        description 学 Claude 方法,重点写清何时用 vs fetch_url;Sources 不另立法。
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * 引擎未注入时返回清晰提示而非崩溃。本地 PDF 必经 ctx.workspace 沙箱读取，不碰任意路径。
  */
@@ -12,6 +14,20 @@ import type { HttpClient } from './http.ts'
 export type PdfTextEngine = (bytes: Uint8Array) => Promise<string>
 
 const MAX_CHARS = 20_000
+
+const EXTRACT_PDF_PROMPT = `抽取 PDF 正文文本。source 可以是工作区路径或开放 PDF 的 http(s) URL。
+
+何时用：源是 PDF（本地 / 上传 / 开放 PDF 链接）。
+何时改用兄弟工具：源是 HTML 网页 → fetch_url；还没找到 PDF → search_papers（看「开放全文」）或 search_web。
+
+结果：抽出的正文。超长时只给预览并引导 grep / read_file 分段读。save_as 把全文写入 cache/（中间产物，listAssets 不陈列，也不进 Sources）。
+
+Sources：仍按系统提示「#检索之后」列作品（论文本身），不要列 cache/ 路径。本工具不另立法。
+
+用法：
+- source：library/ 或工作区相对路径，或 http(s) PDF URL。
+- save_as：长文建议加上，便于分段读；文本落 cache/，原件 PDF 另存 papers/。
+- 扫描版 / 图片型 PDF 可能抽到空文本。`
 
 /** 抓取的 PDF 原件落盘路径:优先据 save_as 同名换 .pdf,否则据 URL basename */
 export function pdfAssetPath(url: string, saveAs?: unknown): string {
@@ -26,10 +42,13 @@ export function createPdfTools(deps: { engine?: PdfTextEngine; http?: HttpClient
   const extractPdf: Tool = {
     spec: {
       name: 'extract_pdf',
-      description: '抽取 PDF 正文文本。source 可为 library/ 或工作区下的路径，或开放 PDF 的 http(s) URL。save_as 会把全文存进工作区 cache/(中间产物,供 grep/read_file 分段读,不对用户陈列)。',
+      description: EXTRACT_PDF_PROMPT,
       parameters: {
         type: 'object',
-        properties: { source: { type: 'string' }, save_as: { type: 'string' } },
+        properties: {
+          source: { type: 'string', description: '工作区相对路径（如 library/x.pdf）或开放 PDF 的 http(s) URL' },
+          save_as: { type: 'string', description: '可选：抽取文本写入 cache/ 的文件名，供 grep / read_file 分段读' },
+        },
         required: ['source'],
       },
     },

@@ -19,12 +19,12 @@
 - `StatusOrb.tsx` — 行内点云球:thinking-orbs **原生 size=20**(禁 64→CSS 缩,否则九态糊成虚线圈);支持 `paused` 冻帧
 - `ProcessRow.tsx` — 可折叠过程块(`CurtainFold` + 步骤 cascade);长轨迹只露最近 6 步;运行中 shimmer + 等宽计时;左侧 `StatusOrb` 按焦点工具态(`orbStateFromSteps`);与 ThinkingIndicator 的 breathing 分离
 - `ThoughtRow.tsx` — 同 turn 一条思考轨迹;运行中 shimmer「思考中」+ live 计时;收口只留 Thought process 摘要(不报秒)
-- `SourceList.tsx` — 答末来源标题列表;超 8 条 +N more / Show less;点开走 ExternalLinkGate
+- `SourceList.tsx` — 模型漏写 Sources 时的答末兜底表;按站点一行(`collapseSourcesBySite`);超 8 **站** +N more / Show less;点开走 ExternalLinkGate。挑选权在模型正文
 - `ExternalLinkDialog.tsx` — Claude 式外链确认 + 按域名记住
 - `ThinkingIndicator.tsx` — 首 token 前等待:光圈 + shimmer + live 计时;有开放 Thought 时不叠
 - `TodoCard.tsx` — 会话 Todo 次要卡(`todo_write`→`kind:'todo'`);主呈现右轨 Progress(见 `doc/todo.md`)
 - `AskUserDialog.tsx` — `ask_user` 悬浮问询卡;多题 Claude 式一页一题 + `i of n` 切换;「其他」幽灵输入;见 `doc/ask-user.md`
-- `ComposerCard.tsx` — 对话输入暗玻璃岛;`+` Skills;/ 斜杠;模型芯片;拖放;液态抛光;待发图放大;当前稿 chip(activePath);见 `doc/ui-design.md` §0
+- `ComposerCard.tsx` — 对话输入暗玻璃岛;`+` Skills;/ 斜杠;模型芯片;拖放;液态抛光;待发图放大(无灰幕,点空白/X/Esc 关);当前稿 chip(activePath);见 `doc/ui-design.md` §0
 - `SkillSlashMenu.tsx` — `/` 过滤 Skills + Manage 入口;行左 `SkillIcon`,Manage 用公文包
 - `ManageSkillsDialog.tsx` — Manage skills:列表/添加文件夹·SKILL.md/卸载(Kumo Dialog,禁 glass-beam);行左 `SkillIcon`
 - `CollapsibleUserText.tsx` — 用户超长 prompt 默认折叠(>9 行或 >750 字);预览 clamp + `CurtainFold` 揭开全文;助手消息不折
