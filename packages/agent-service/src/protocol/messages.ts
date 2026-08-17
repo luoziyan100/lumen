@@ -1,5 +1,5 @@
 /**
- * [INPUT]: storage 的 Task / TaskEvent / Project
+ * [INPUT]: protocol/dto 的线上数据形(Task/TaskEvent/Project/…,不触 storage 实现)
  * [OUTPUT]: WS 协议消息类型（client→server / server→client;含 rename_task/pin_task/unpin_task / Skills;
  *           submit/continue 可带 uploads[] / activePath — 上传知情 + 产物闭环当前稿;
  *           repair_mermaid → ok.source 为修正围栏 body（不改落库））

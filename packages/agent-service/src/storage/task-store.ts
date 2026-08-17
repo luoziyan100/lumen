@@ -5,7 +5,7 @@
  *        ephemeral kind 由 runtime 旁路不入库;archived_at 软归档;pinned_at 置顶
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import type { DB } from './db.ts'
+import type { DB, Stmt } from './db.ts'
 
 export type TaskStatus = 'queued' | 'running' | 'interrupted' | 'done' | 'failed' | 'canceled'
 
@@ -80,21 +80,30 @@ function uuid(): string {
 export class TaskStore {
   private readonly db: DB
   private readonly stmts: {
-    insertTask: ReturnType<DB['prepare']>
-    getTask: ReturnType<DB['prepare']>
-    listTasks: ReturnType<DB['prepare']>
-    listAllTasks: ReturnType<DB['prepare']>
-    updateTask: ReturnType<DB['prepare']>
-    updateTaskTitle: ReturnType<DB['prepare']>
-    setTaskPinned: ReturnType<DB['prepare']>
-    archiveTask: ReturnType<DB['prepare']>
-    touchTask: ReturnType<DB['prepare']>
-    insertEvent: ReturnType<DB['prepare']>
-    maxSeq: ReturnType<DB['prepare']>
-    listEvents: ReturnType<DB['prepare']>
-    listEventsAfter: ReturnType<DB['prepare']>
-    findInterrupted: ReturnType<DB['prepare']>
-    setActiveTurn: ReturnType<DB['prepare']>
+    insertTask: Stmt<[{
+      id: string
+      project_id: string
+      goal: string
+      status: string
+      last_error: string | null
+      created_at: string
+      updated_at: string
+      finished_at: string | null
+    }]>
+    getTask: Stmt<[string], Task>
+    listTasks: Stmt<[string], Task>
+    listAllTasks: Stmt<[], Task>
+    updateTask: Stmt<[string, string | null, string | null, string, string]>
+    updateTaskTitle: Stmt<[string, string, string]>
+    setTaskPinned: Stmt<[string | null, string, string]>
+    archiveTask: Stmt<[string, string, string]>
+    touchTask: Stmt<[string, string]>
+    insertEvent: Stmt<[string, string, number, string, string, string | null, string]>
+    maxSeq: Stmt<[string], { m: number }>
+    listEvents: Stmt<[string], TaskEvent>
+    listEventsAfter: Stmt<[string, number], TaskEvent>
+    findInterrupted: Stmt<[], Task>
+    setActiveTurn: Stmt<[string | null, string, string]>
   }
   private readonly appendTx: (taskId: string, kind: string, payloadJson: string, agentRole: string | null) => TaskEvent
 
@@ -133,7 +142,7 @@ export class TaskStore {
       setActiveTurn: db.prepare('UPDATE tasks SET active_turn_id=?, updated_at=? WHERE id=?'),
     }
     this.appendTx = db.transaction((taskId: string, kind: string, payloadJson: string, agentRole: string | null): TaskEvent => {
-      const seq = (this.stmts.maxSeq.get(taskId) as { m: number }).m + 1
+      const seq = (this.stmts.maxSeq.get(taskId)?.m ?? 0) + 1
       const event: TaskEvent = {
         id: uuid(), task_id: taskId, seq, kind, payload_json: payloadJson, agent_role: agentRole, created_at: now(),
       }
@@ -161,11 +170,11 @@ export class TaskStore {
   }
 
   getTask(id: string): Task | null {
-    return (this.stmts.getTask.get(id) as Task | undefined) ?? null
+    return this.stmts.getTask.get(id) ?? null
   }
 
   listTasks(projectId?: string): Task[] {
-    return (projectId ? this.stmts.listTasks.all(projectId) : this.stmts.listAllTasks.all()) as Task[]
+    return projectId ? this.stmts.listTasks.all(projectId) : this.stmts.listAllTasks.all()
   }
 
   /** 软归档:列表隐藏;幂等(已归档不改 archived_at) */
@@ -211,13 +220,13 @@ export class TaskStore {
   }
 
   listEvents(taskId: string, afterSeq?: number): TaskEvent[] {
-    return (afterSeq == null
+    return afterSeq == null
       ? this.stmts.listEvents.all(taskId)
-      : this.stmts.listEventsAfter.all(taskId, afterSeq)) as TaskEvent[]
+      : this.stmts.listEventsAfter.all(taskId, afterSeq)
   }
 
   findInterrupted(): Task[] {
-    return this.stmts.findInterrupted.all() as Task[]
+    return this.stmts.findInterrupted.all()
   }
 
   /** 主 turn 开始:写 active_turn_id + turn_start 事件 */

@@ -6,7 +6,7 @@
  */
 import { mkdirSync } from 'node:fs'
 import * as path from 'node:path'
-import type { DB } from './db.ts'
+import type { DB, Stmt } from './db.ts'
 import { sanitizeWorkspaceId } from './workspace-id.ts'
 
 export interface Project {
@@ -54,12 +54,18 @@ function normalizeName(name: string): string {
 export class ProjectStore {
   private readonly db: DB
   private readonly workspacesDir: string
-  private readonly insert: ReturnType<DB['prepare']>
-  private readonly get: ReturnType<DB['prepare']>
-  private readonly list: ReturnType<DB['prepare']>
-  private readonly rename: ReturnType<DB['prepare']>
-  private readonly archive: ReturnType<DB['prepare']>
-  private readonly distinctTaskProjects: ReturnType<DB['prepare']>
+  private readonly insert: Stmt<[{
+    id: string
+    name: string
+    source_path: string | null
+    created_at: string
+    updated_at: string
+  }]>
+  private readonly get: Stmt<[string], Record<string, unknown>>
+  private readonly list: Stmt<[], Record<string, unknown>>
+  private readonly rename: Stmt<[string, string, string]>
+  private readonly archive: Stmt<[string, string, string]>
+  private readonly distinctTaskProjects: Stmt<[], { id: string }>
 
   constructor(db: DB, workspacesDir: string) {
     this.db = db
@@ -94,7 +100,7 @@ export class ProjectStore {
   }
 
   ensureDefault(): Project {
-    const existing = this.get.get('default') as Record<string, unknown> | undefined
+    const existing = this.get.get('default')
     if (existing) {
       ensureProjectDirs(this.workspacesDir, 'default')
       return this.row(existing)
@@ -108,7 +114,7 @@ export class ProjectStore {
 
   /** 把 tasks 里出现过、但 projects 表没有的 id 收编进来(旧数据 / demo visitor) */
   private adoptOrphans(): void {
-    const rows = this.distinctTaskProjects.all() as Array<{ id: string }>
+    const rows = this.distinctTaskProjects.all()
     for (const { id } of rows) {
       if (!id || this.get.get(id)) continue
       const t = now()
@@ -123,11 +129,11 @@ export class ProjectStore {
   listProjects(): Project[] {
     this.ensureDefault()
     this.adoptOrphans()
-    return (this.list.all() as Array<Record<string, unknown>>).map((r) => this.row(r))
+    return this.list.all().map((r) => this.row(r))
   }
 
   getProject(id: string): Project | null {
-    const r = this.get.get(id) as Record<string, unknown> | undefined
+    const r = this.get.get(id)
     return r ? this.row(r) : null
   }
 
@@ -151,7 +157,7 @@ export class ProjectStore {
     if (!existing || existing.archived_at) return null
     const trimmed = normalizeName(name)
     const t = now()
-    const result = this.rename.run(trimmed, t, id) as { changes: number }
+    const result = this.rename.run(trimmed, t, id)
     if (!result.changes) return null
     return this.getProject(id)
   }

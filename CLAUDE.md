@@ -27,8 +27,9 @@ Lumen 是独立研究者的论文研究 agent:**无头 Node agent 服务 + Tauri
 
 ## 常用命令
 
-- 测试:`cd packages/agent-service && npm test`(node --experimental-strip-types + node:test,零框架)
-- UI 开发:`cd packages/ui-client && npm run dev`;构建:`npm run build`
+- 测试:`cd packages/agent-service && npm test`(先 `tsc --noEmit`,再 node --experimental-strip-types + node:test,零框架)
+- 只查类型:`npm run typecheck -w packages/agent-service` / `-w packages/ui-client`
+- UI 开发:`cd packages/ui-client && npm run dev`;构建:`npm run build`;UI 测试同样 tsc 先行
 - 连服务:所有 WS 必带 `?token=`,端口与 token 在 `~/.lumen/agent-service.json`(0600)
 
 ## 已知的坑(动手前先读)

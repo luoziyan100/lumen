@@ -12,6 +12,7 @@ import {
   legacyPlanToTodos,
   todoToMarkdown,
   TODO_PATH,
+  type TodoList,
 } from '../../src/tools/env/todo.ts'
 import { FsWorkspace } from '../../src/workspace/fs-workspace.ts'
 import type { ToolContext } from '../../src/core/tool.ts'
@@ -101,7 +102,7 @@ describe('todo_write tool', () => {
     assert.match(md, /# Todo/)
     assert.match(md, /\[x\] Inspect/)
     assert.match(md, /Adding coverage/)
-    assert.ok(todoToMarkdown((out.data as { todo: { todos: unknown[] } }).todo).includes('Inspect'))
+    assert.ok(todoToMarkdown((out.data as { todo: TodoList }).todo).includes('Inspect'))
   })
 })
 

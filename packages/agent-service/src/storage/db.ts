@@ -1,6 +1,6 @@
 /**
  * [INPUT]: better-sqlite3
- * [OUTPUT]: openDatabase / DB —— 打开 SQLite 并跑增量 migration
+ * [OUTPUT]: openDatabase / DB / Stmt —— 打开 SQLite 并跑增量 migration;Stmt 钉 better-sqlite3 绑定位数
  * [POS]: §存储层根。表结构搬自 old_lumen migration v8（tasks/task_events），只增不改;
  *        v6:tasks.archived_at 软归档;v7:projects.archived_at 软归档;v8:tasks.title 侧栏短名(≠goal);
  *        v9:tasks.pinned_at 侧栏置顶(NULL=未钉;钉内按钉时排序,不跟活跃跳);
@@ -10,6 +10,8 @@
 import Database from 'better-sqlite3'
 
 export type DB = Database.Database
+/** prepare 的 ReturnType 会把泛型塌成「只收 1 个参数」;调用方显式写绑定位数 */
+export type Stmt<Bind extends unknown[] = [], Row = unknown> = Database.Statement<Bind, Row>
 
 const SCHEMA_VERSION = 10
 

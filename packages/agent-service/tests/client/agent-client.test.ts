@@ -9,7 +9,7 @@ import { AgentRuntime } from '../../src/runtime/agent-runtime.ts'
 import { startServer } from '../../src/protocol/server.ts'
 import { LumenClient } from '../../src/client/agent-client.ts'
 import { ENV_TOOLS } from '../../src/tools/env/fs/index.ts'
-import type { TaskEvent } from '../../src/storage/task-store.ts'
+import type { TaskEvent } from '../../src/protocol/messages.ts'
 import { ScriptedModel, assistantToolCall, assistantReply } from '../helpers/scripted-model.ts'
 
 test('LumenClient 端到端：submit → 收事件流 → list（连真实 server）', async (t: TestContext) => {

@@ -48,7 +48,8 @@ export const mermaidMetrics = {
     } else {
       this.rule_hits[key] = (this.rule_hits[key] ?? 0) + n
     }
-    if (typeof process !== 'undefined' && process.env?.LUMEN_MERMAID_DEBUG === '1') {
+    const nodeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
+    if (nodeEnv?.LUMEN_MERMAID_DEBUG === '1') {
       console.debug('[mermaid-metrics]', key, n, { ...this.rule_hits, parse_ok: this.parse_ok, parse_fail: this.parse_fail })
     }
   },

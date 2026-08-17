@@ -7,7 +7,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import * as path from 'node:path'
 import { createService, type Service } from '../../src/service.ts'
-import type { ServerMessage } from '../../src/protocol/messages.ts'
+import type { ServerMessage, Task } from '../../src/protocol/messages.ts'
 import { ScriptedModel, assistantReply } from '../helpers/scripted-model.ts'
 
 interface Rig { service: Service; port: number; sockets: WebSocket[] }
@@ -41,6 +41,11 @@ function connect(r: Rig): Promise<WebSocket> {
   })
   return new Promise((resolve) => ws.addEventListener('open', () => resolve(ws), { once: true }))
 }
+function listedTasks(msgs: ServerMessage[]): Task[] {
+  const m = msgs.find((x): x is Extract<ServerMessage, { type: 'tasks' }> => x.type === 'tasks')
+  return m?.tasks ?? []
+}
+
 function until(ws: WebSocket, pred: (m: ServerMessage) => boolean, ms = 4000): Promise<ServerMessage[]> {
   const buf = bufs.get(ws)!
   const from = buf.msgs.length
@@ -82,9 +87,7 @@ test('pin_task:钉档优先;钉内按 pinned_at;unpin 回位;goal/title 不变',
   bufs.get(ws)!.msgs.length = 0
   let listed = until(ws, (m) => m.type === 'tasks')
   ws.send(JSON.stringify({ type: 'list', projectId: 'default' }))
-  let tasks = ((await listed).find((m) => m.type === 'tasks') as {
-    tasks: Array<{ id: string; pinned_at?: string | null; goal: string }>
-  }).tasks
+  let tasks = listedTasks(await listed)
   assert.equal(tasks[0]?.id, idNew, '未钉时新创建在上')
   assert.equal(tasks[1]?.id, idOld)
 
@@ -102,9 +105,7 @@ test('pin_task:钉档优先;钉内按 pinned_at;unpin 回位;goal/title 不变',
   bufs.get(ws)!.msgs.length = 0
   listed = until(ws, (m) => m.type === 'tasks')
   ws.send(JSON.stringify({ type: 'list', projectId: 'default' }))
-  tasks = ((await listed).find((m) => m.type === 'tasks') as {
-    tasks: Array<{ id: string; pinned_at?: string | null }>
-  }).tasks
+  tasks = listedTasks(await listed)
   assert.equal(tasks[0]?.id, idOld, '钉上的应整块在上')
   assert.equal(tasks[1]?.id, idNew)
   assert.ok(tasks[0]?.pinned_at)
@@ -117,9 +118,7 @@ test('pin_task:钉档优先;钉内按 pinned_at;unpin 回位;goal/title 不变',
   bufs.get(ws)!.msgs.length = 0
   listed = until(ws, (m) => m.type === 'tasks')
   ws.send(JSON.stringify({ type: 'list', projectId: 'default' }))
-  tasks = ((await listed).find((m) => m.type === 'tasks') as {
-    tasks: Array<{ id: string }>
-  }).tasks
+  tasks = listedTasks(await listed)
   assert.equal(tasks[0]?.id, idNew, '后钉的应在钉档更上')
   assert.equal(tasks[1]?.id, idOld)
 
@@ -130,9 +129,7 @@ test('pin_task:钉档优先;钉内按 pinned_at;unpin 回位;goal/title 不变',
   bufs.get(ws)!.msgs.length = 0
   listed = until(ws, (m) => m.type === 'tasks')
   ws.send(JSON.stringify({ type: 'list', projectId: 'default' }))
-  tasks = ((await listed).find((m) => m.type === 'tasks') as {
-    tasks: Array<{ id: string; pinned_at?: string | null }>
-  }).tasks
+  tasks = listedTasks(await listed)
   assert.equal(tasks[0]?.id, idOld, 'unpin 后仅剩的钉仍在上')
   assert.equal(tasks[1]?.id, idNew)
   assert.ok(tasks[0]?.pinned_at)

@@ -247,7 +247,8 @@ export function shouldShowHostSourceList(content: string, toolSources: SourceCit
 export function urlFromToolArgs(args: unknown): string | null {
   let raw = args
   if (typeof raw === 'string') {
-    try { raw = JSON.parse(raw) as unknown } catch { return coerceUrl(raw) }
+    const text = raw
+    try { raw = JSON.parse(text) as unknown } catch { return coerceUrl(text) }
   }
   if (!raw || typeof raw !== 'object') return null
   const url = (raw as { url?: unknown }).url

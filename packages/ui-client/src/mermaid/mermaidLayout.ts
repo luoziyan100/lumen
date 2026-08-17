@@ -1,11 +1,12 @@
 /**
- * [INPUT]: mermaid 实例; SVG 宿主节点
+ * [INPUT]: mermaid 的 Mermaid.registerLayoutLoaders; SVG 宿主节点
  * [OUTPUT]: ELK 注册、flowchart initialize 合同、SVG 停拉伸尺寸政策
  * [POS]: MermaidBlock 渲染前的布局/宿主尺寸层;不碰 Phase A 语法闸。
  *        方法=官方 ELK + measure-then-box;库=beautiful-mermaid 本轮不接。
  *        合同真源:doc/mermaid-readability.md
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
+import type { Mermaid } from 'mermaid'
 
 export type SvgHostSizePolicy = {
   maxWidth: '100%'
@@ -82,21 +83,16 @@ export function mermaidInitializeOptions(
   }
 }
 
-type MermaidWithLayouts = {
-  registerLayoutLoaders: (loaders: unknown) => void
-}
-
 let elkPromise: Promise<boolean> | null = null
 
 /**
  * mermaid 11 的 ELK 在独立包。注册失败返回 false,调用方仍 render(dagre)。
  */
-export async function ensureElkLayout(mermaid: MermaidWithLayouts): Promise<boolean> {
+export async function ensureElkLayout(mermaid: Pick<Mermaid, 'registerLayoutLoaders'>): Promise<boolean> {
   if (!elkPromise) {
     elkPromise = (async () => {
       try {
-        const mod = await import('@mermaid-js/layout-elk')
-        const loaders = (mod as { default?: unknown }).default ?? mod
+        const { default: loaders } = await import('@mermaid-js/layout-elk')
         mermaid.registerLayoutLoaders(loaders)
         return true
       } catch {

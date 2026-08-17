@@ -11,5 +11,5 @@
 
 ## 规则
 
-- 协议类型以 `../protocol/messages.ts` 为准,此处只消费不另定义。
-- 注意:`packages/ui-client/src/agent-client.ts` 是浏览器侧的另一份实现(历史原因,待 @lumen/shared 合流)——改协议时三处对齐:protocol/messages、本目录、ui-client。
+- 协议类型以 `../protocol/messages.ts` 为准,此处只消费不另定义;list/事件回调用 dto 线上形,不回灌 storage 实现形。
+- `packages/ui-client/src/agent-client.ts` 是浏览器侧另一份实现,同样 `import type` 直连 messages;改协议只改真源,两客户端 tsc 会红。

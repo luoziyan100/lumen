@@ -36,7 +36,7 @@
 | `appearance/` | 整窗皮肤 |
 | `components/` `components/widget/` `aura/` | 见各自 CLAUDE.md |
 
-样式:`tokens.css`(设计系统真源) / `styles.css` / `kumo.css` / `theme-celadon.css`。主题校验:`npm run check:theme`。
+样式:`tokens.css`(设计系统真源) / `styles.css` / `kumo.css` / `theme-celadon.css`。主题校验:`npm run check:theme`。类型闸门:`npm test` / `npm run typecheck` 先 `tsc --noEmit`(协议真源在 agent-service `messages.ts`)。
 
 ## 设计纪律(违者打回)
 

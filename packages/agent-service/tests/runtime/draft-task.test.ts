@@ -59,5 +59,5 @@ test('草稿会话的首条消息走 continueTask:正常续跑出回复', async 
   assert.ok(kinds.includes('user'), `事件流缺 user:${kinds.join(',')}`)
   assert.ok(kinds.includes('reply'), `事件流缺 reply:${kinds.join(',')}`)
   const status = store.getTask(id)?.status
-  assert.ok(status === 'done' || status === 'succeeded', `终态应为完成,实际 ${status}`)
+  assert.ok(status === 'done', `终态应为完成,实际 ${status}`)
 })

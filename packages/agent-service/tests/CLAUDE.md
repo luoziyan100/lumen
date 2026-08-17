@@ -15,4 +15,6 @@ old_lumen 的教训:50 个绿测试没拦住致命 bug,因为全用替身绕过�
 
 目录镜像 src:`adapters/ agents/ client/ invariants/ replay/ research/ runtime/ service/ skills/ storage/ workspace/`;共享脚手架在 `helpers/`(scripted-model 仅限单元级,禁入端到端)。
 
-跑法:`npm test`(node --experimental-strip-types --test)。验收底线:每个里程碑至少一条真实/重放路径的端到端用例。
+跑法:`npm test` = `tsc --noEmit` 先行,再 `node --experimental-strip-types --test`。验收底线:每个里程碑至少一条真实/重放路径的端到端用例。
+
+9. **类型闸门**:test 链含 tsc;为过闸放宽类型(`any` / 无根据的 `as`) = 打回。夹具缺字段就补字段;泛型该标就标。`dto-compat.ts` 只在 tsc 下生效,删它或让 Store 不再可赋给 Wire = 红。

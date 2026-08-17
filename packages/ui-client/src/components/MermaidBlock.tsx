@@ -231,7 +231,9 @@ export function MermaidBlock({
         const elkReady = await ensureElkLayout(mermaid)
         mermaid.initialize(mermaidInitializeOptions(themeVariables, elkReady))
 
-        const validated = await prepareAndValidate(renderSource, (src) => mermaid.parse(src))
+        const validated = await prepareAndValidate(renderSource, async (src) => {
+          await mermaid.parse(src)
+        })
         if (cancelled) return
 
         if (!validated.ok) {

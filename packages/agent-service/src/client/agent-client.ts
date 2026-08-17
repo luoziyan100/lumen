@@ -1,14 +1,20 @@
 /**
- * [INPUT]: 协议消息类型、全局 WebSocket（Node 22+ 与浏览器都内置）
+ * [INPUT]: protocol/messages 线上形、全局 WebSocket（Node 22+ 与浏览器都内置）
  * [OUTPUT]: LumenClient —— 连接 agent-service 的类型化 WS 客户端(含 renameTask/Skills list/install/uninstall/activate)
- * [POS]: §4 agent↔UI 协议的 Node 客户端。与 ui-client 一样直连 protocol/messages.ts(无内联);
+ * [POS]: §4 agent↔UI 协议的 Node 客户端。回调与 list 返回值用 dto 线上形,不回灌 storage 实现形;
  *        本文件供无头测试。断线重连后对已知任务 subscribe(afterSeq) 拉齐。
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import type { Task, TaskEvent } from '../storage/task-store.ts'
-import type { Project } from '../storage/project-store.ts'
-import type { ClientMessage, ServerMessage, SkillInstallScope } from '../protocol/messages.ts'
-import type { SkillInfo, WorkspaceAsset } from '../runtime/agent-runtime.ts'
+import type {
+  ClientMessage,
+  Project,
+  ServerMessage,
+  SkillInfo,
+  SkillInstallScope,
+  Task,
+  TaskEvent,
+  WorkspaceAsset,
+} from '../protocol/messages.ts'
 
 type EventHandler = (event: TaskEvent) => void
 
