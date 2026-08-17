@@ -1,6 +1,6 @@
 /**
  * [INPUT]: ChildRunner + coordinator + ScriptedModel + FsWorkspace
- * [OUTPUT]: T3 集成 —— spawn → runAgent → complete / usage 进父 budget / kill abort
+ * [OUTPUT]: T3 集成 —— spawn → runAgent → complete / live 子步折父账 / kill 已烧入账 / 飞行中 spawn 准入
  */
 import { test, type TestContext } from 'node:test'
 import assert from 'node:assert/strict'
@@ -13,6 +13,7 @@ import { computeBudgetUsage, mergeBudget } from '../../src/storage/budget.ts'
 import { SubagentStore } from '../../src/subagent/store.ts'
 import { SubagentCoordinator } from '../../src/subagent/coordinator.ts'
 import { ChildRunner } from '../../src/subagent/runner.ts'
+import { SUBAGENT_ERROR, type SubagentConfig } from '../../src/subagent/types.ts'
 import { ENV_TOOLS } from '../../src/tools/env/fs/index.ts'
 import { FsWorkspace } from '../../src/workspace/fs-workspace.ts'
 import {
@@ -22,7 +23,7 @@ import {
 } from '../helpers/scripted-model.ts'
 import type { AgentEvent } from '../../src/core/types.ts'
 
-async function harness(t: TestContext) {
+async function harness(t: TestContext, cfg: Partial<SubagentConfig> = {}) {
   const base = await mkdtemp(path.join(tmpdir(), 'lumen-sub-t3-'))
   const db = openDatabase(path.join(base, 'lumen.sqlite'))
   t.after(() => {
@@ -36,9 +37,19 @@ async function harness(t: TestContext) {
     max_concurrent_per_task: 8,
     max_concurrent_global: 16,
     foreground_budget_ms: 200,
+    ...cfg,
   })
   const events: AgentEvent[] = []
   return { base, taskStore, subStore, coord, events }
+}
+
+async function waitUntil(pred: () => boolean, ms = 800): Promise<void> {
+  const t0 = Date.now()
+  while (Date.now() - t0 < ms) {
+    if (pred()) return
+    await new Promise((r) => setTimeout(r, 10))
+  }
+  throw new Error('waitUntil timeout')
 }
 
 function makeRunner(
@@ -161,7 +172,7 @@ test('T3: runAgent complete 后子 usage 进父 budget', async (t) => {
   assert.ok((after.promptTokens ?? 0) > (before.promptTokens ?? 0))
 })
 
-test('T3: kill 中止 running child → aborted', async (t) => {
+test('T3: kill 中止 running child → aborted;已烧 token 入父账', async (t) => {
   const h = await harness(t)
   // 永不结束：一直 tool call 同一工具会循环；用超长 steps 不如挂死在慢工具
   let release!: () => void
@@ -180,7 +191,10 @@ test('T3: kill 中止 running child → aborted', async (t) => {
     },
   }
   const model = new ScriptedModel([
-    assistantToolCall('h', 'read_file', { path: 'x.md' }),
+    {
+      ...assistantToolCall('h', 'read_file', { path: 'x.md' }),
+      usage: { promptTokens: 80, completionTokens: 20 },
+    },
     assistantReply('should not'),
   ])
   // hangTool 必须覆盖同名工具（Map 后者胜）
@@ -212,8 +226,7 @@ test('T3: kill 中止 running child → aborted', async (t) => {
     prompt: 'read',
   })
   assert.ok(start.success)
-  // 等进入 hang tool
-  await new Promise((r) => setTimeout(r, 50))
+  await waitUntil(() => h.taskStore.listEvents(task.id).some((e) => e.kind === 'model_step'))
   assert.equal(h.coord.get(start.subagent_id!)?.status, 'running')
   h.coord.kill(start.subagent_id!, 'test-kill')
   assert.equal(h.coord.get(start.subagent_id!)?.status, 'aborted')
@@ -221,6 +234,78 @@ test('T3: kill 中止 running child → aborted', async (t) => {
   await start.handle!.done
   // complete 幂等：终态保持 aborted
   assert.equal(h.coord.get(start.subagent_id!)?.status, 'aborted')
+  const parent = computeBudgetUsage(mergeBudget(), h.taskStore.listEvents(task.id))
+  assert.equal(parent.promptTokens, 80)
+  assert.equal(parent.completionTokens, 20)
+  assert.equal(parent.steps, 0)
+  assert.equal(h.coord.getOutput(start.subagent_id!)?.usage_applied_to_parent, true)
+})
+
+test('T3: 飞行中子代已烧 token 对 spawn 准入可见', async (t) => {
+  const h = await harness(t, { parent_budget: mergeBudget({ maxPromptTokens: 80 }) })
+  let release!: () => void
+  const gate = new Promise<void>((r) => {
+    release = r
+  })
+  const hangTool = {
+    spec: {
+      name: 'read_file',
+      description: 'hang',
+      parameters: { type: 'object', properties: { path: { type: 'string' } } },
+    },
+    run: async () => {
+      await gate
+      return { llmContent: 'late' }
+    },
+  }
+  const model = new ScriptedModel([
+    {
+      ...assistantToolCall('h', 'read_file', { path: 'x.md' }),
+      usage: { promptTokens: 80, completionTokens: 20 },
+    },
+    assistantReply('should not'),
+  ])
+  const runner = new ChildRunner({
+    coordinator: h.coord,
+    model,
+    allTools: [...ENV_TOOLS.filter((t) => t.spec.name !== 'read_file'), hangTool],
+    makeWorkspace: async () => {
+      const root = path.join(h.base, 'ws')
+      await mkdir(root, { recursive: true })
+      return new FsWorkspace({ root })
+    },
+    emit: (parentTaskId, event) => {
+      h.taskStore.appendEvent(
+        parentTaskId,
+        event.kind as Parameters<TaskStore['appendEvent']>[1],
+        event.payload,
+        event.agentRole,
+      )
+    },
+  })
+  const task = h.taskStore.createTask('p', 'g')
+  const turn = h.taskStore.beginTurn(task.id)
+  const start = await runner.start({
+    parent_task_id: task.id,
+    parent_turn_id: turn,
+    subagent_type: 'explore',
+    description: 'hang',
+    prompt: 'read',
+  })
+  assert.ok(start.success)
+  await waitUntil(() => h.taskStore.listEvents(task.id).some((e) => e.kind === 'model_step'))
+  const start2 = await runner.start({
+    parent_task_id: task.id,
+    parent_turn_id: turn,
+    subagent_type: 'explore',
+    description: 'second',
+    prompt: 'also',
+  })
+  assert.equal(start2.success, false)
+  assert.equal(start2.error_code, SUBAGENT_ERROR.PARENT_BUDGET)
+  h.coord.kill(start.subagent_id!, 'cleanup')
+  release()
+  await start.handle!.done
 })
 
 test('T3: unknown type 拒绝', async (t) => {

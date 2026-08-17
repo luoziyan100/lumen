@@ -2,10 +2,11 @@
  * [INPUT]: SubagentStore + TaskStore；R1.3 生命周期/并发/kill/wait/fg demote
  * [OUTPUT]: SubagentCoordinator —— spawn 登记、kill、cancel、wait、getOutput、sweep
  * [POS]: T2 全命令 + 落盘;Runner(runAgent) 在 T3 挂 live handle;
- *        complete 写 subagent_completed.usage,父 budget 经 computeBudgetUsage 滚入
+ *        父 token 账折 live 子步;spawn 准入读同一 computeBudgetUsage;终态事件不滚 usage
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { TaskStore } from '../storage/task-store.ts'
+import { computeBudgetUsage, mergeBudget, type BudgetUsage } from '../storage/budget.ts'
 import {
   consumeCompletionReminder,
   drainCompletionReminder,
@@ -65,6 +66,21 @@ export class SubagentCoordinator {
     return this.cfg
   }
 
+  /** 父 task 已用量(含飞行中子代 live token);spawn 准入与此同源 */
+  parentUsage(parentTaskId: string): BudgetUsage {
+    return computeBudgetUsage(this.cfg.parent_budget ?? mergeBudget(), this.taskStore.listEvents(parentTaskId))
+  }
+
+  private parentTokenBlocked(parentTaskId: string): boolean {
+    if (!this.cfg.parent_budget) return false
+    const u = this.parentUsage(parentTaskId)
+    return u.exhausted === true && (
+      u.exhaustedDimension === 'prompt_tokens'
+      || u.exhaustedDimension === 'completion_tokens'
+      || u.exhaustedDimension === 'cost'
+    )
+  }
+
   openSpawnAdmission(parentTaskId: string): void {
     this.spawnBlocked.delete(parentTaskId)
   }
@@ -75,7 +91,7 @@ export class SubagentCoordinator {
 
   /**
    * 校验 + 登记 spawn → status=queued。
-   * 并发超限 / worktree+cwd / depth / blocked → 拒绝。
+   * 并发超限 / worktree+cwd / depth / blocked / 父 token·cost 耗尽 → 拒绝。
    */
   registerSpawn(
     input: CreateSubagentInput & {
@@ -112,6 +128,14 @@ export class SubagentCoordinator {
         ok: false,
         error_code: SUBAGENT_ERROR.CONCURRENCY_LIMIT,
         error: `concurrency limit (task=${this.cfg.max_concurrent_per_task}, global=${this.cfg.max_concurrent_global})`,
+      }
+    }
+    if (this.parentTokenBlocked(input.parent_task_id)) {
+      const u = this.parentUsage(input.parent_task_id)
+      return {
+        ok: false,
+        error_code: SUBAGENT_ERROR.PARENT_BUDGET,
+        error: `parent budget exhausted (${u.exhaustedDimension})`,
       }
     }
 
@@ -632,6 +656,14 @@ export class SubagentCoordinator {
         ok: false,
         error_code: SUBAGENT_ERROR.CONCURRENCY_LIMIT,
         error: 'concurrency limit',
+      }
+    }
+    if (this.parentTokenBlocked(opts.parent_task_id)) {
+      const u = this.parentUsage(opts.parent_task_id)
+      return {
+        ok: false,
+        error_code: SUBAGENT_ERROR.PARENT_BUDGET,
+        error: `parent budget exhausted (${u.exhaustedDimension})`,
       }
     }
     // reopen 前快照路径（reopen 不碰 cwd/worktree）

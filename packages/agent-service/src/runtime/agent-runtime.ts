@@ -5,6 +5,7 @@
  *           再导出 SkillInfo / UploadReceipt / WorkspaceAsset / sanitizeWorkspaceId / defaultSystemPrompt
  * [POS]: §4 运行环境编排层。一个任务 = 一次 runAgent;事件/ask/标题/上传/资产/压缩交给卫星。
  *        durable emit 落 task_events + session jsonl + WS;ephemeral 仅 notify(seq=-1)。
+ *        自建 Coordinator 注入 parent_budget(mergeBudget),spawn 准入与父账同源。
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { Thread, type ForModelOptions } from '../core/thread.ts'
@@ -191,9 +192,13 @@ export class AgentRuntime {
     if (config.subagentCoordinator) {
       this.subagents = config.subagentCoordinator
     } else if (config.db) {
-      this.subagents = new SubagentCoordinator(new SubagentStore(config.db), config.store)
+      this.subagents = new SubagentCoordinator(new SubagentStore(config.db), config.store, {
+        parent_budget: mergeBudget(config.budget),
+      })
     } else {
-      this.subagents = new SubagentCoordinator(new SubagentStore(openDatabase(':memory:')), config.store)
+      this.subagents = new SubagentCoordinator(new SubagentStore(openDatabase(':memory:')), config.store, {
+        parent_budget: mergeBudget(config.budget),
+      })
     }
   }
 

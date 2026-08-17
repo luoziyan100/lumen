@@ -1,6 +1,6 @@
 /**
  * [INPUT]: coordinator wait/getOutput/demote/cancel + nested turn CT1–CT4
- * [OUTPUT]: T2 契约单测
+ * [OUTPUT]: T2 契约单测(含 live 子步折父账、飞行中 spawn 准入)
  */
 import { test, type TestContext } from 'node:test'
 import assert from 'node:assert/strict'
@@ -17,9 +17,10 @@ import {
   assertSpawnCwdLegal,
   defaultWriteStripeCwd,
   resumeAllowed,
+  type SubagentConfig,
 } from '../../src/subagent/types.ts'
 
-async function harness(t: TestContext, cfg: Record<string, number> = {}) {
+async function harness(t: TestContext, cfg: Partial<SubagentConfig> = {}) {
   const base = await mkdtemp(path.join(tmpdir(), 'lumen-sub-t2-'))
   const db = openDatabase(path.join(base, 'lumen.sqlite'))
   t.after(() => {
@@ -165,6 +166,12 @@ test('getOutput: complete 后含 usage/resume 矩阵', async (t) => {
     description: 'out',
   })
   coord.markRunning(r.record!.id)
+  taskStore.appendEvent(
+    task.id,
+    'model_step',
+    { subagent_id: r.record!.id, usage: { promptTokens: 100, completionTokens: 50 } },
+    'explore',
+  )
   coord.complete(r.record!.id, 'done', {
     completion_summary: 'found 3 papers',
     tool_calls: 4,
@@ -182,9 +189,39 @@ test('getOutput: complete 后含 usage/resume 矩阵', async (t) => {
   const parent = computeBudgetUsage(mergeBudget(), taskStore.listEvents(task.id))
   assert.equal(parent.promptTokens, 100)
   assert.equal(parent.completionTokens, 50)
+  assert.equal(parent.steps, 0)
   assert.equal(out.resume_allowed, true)
   assert.ok(out.resume_hint.includes(r.record!.id))
   assert.equal(out.cwd_root, 'workers/x')
+})
+
+test('spawn 准入:飞行中子 live token 耗尽父 prompt 预算则拒', async (t) => {
+  const { coord, taskStore } = await harness(t, {
+    parent_budget: mergeBudget({ maxPromptTokens: 80 }),
+  })
+  const task = taskStore.createTask('p', 'g')
+  const turn = taskStore.beginTurn(task.id)
+  const a = coord.registerSpawn({
+    parent_task_id: task.id,
+    parent_turn_id: turn,
+    subagent_type: 'explore',
+    description: 'live',
+  })
+  coord.markRunning(a.record!.id)
+  taskStore.appendEvent(
+    task.id,
+    'model_step',
+    { subagent_id: a.record!.id, usage: { promptTokens: 80, completionTokens: 10 } },
+    'explore',
+  )
+  const b = coord.registerSpawn({
+    parent_task_id: task.id,
+    parent_turn_id: turn,
+    subagent_type: 'explore',
+    description: 'second',
+  })
+  assert.equal(b.ok, false)
+  assert.equal(b.error_code, SUBAGENT_ERROR.PARENT_BUDGET)
 })
 
 test('getOutput: 超 cap 截断', async (t) => {

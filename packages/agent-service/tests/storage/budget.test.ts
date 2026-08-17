@@ -40,17 +40,33 @@ test('computeBudgetUsage 步数耗尽时标记 exhausted=steps', () => {
   assert.equal(usage.exhaustedDimension, 'steps')
 })
 
-test('computeBudgetUsage:子 live model_step 不计入父 token;subagent_completed 滚入', () => {
+test('computeBudgetUsage:子 live token 计入;子步不进 steps;completed usage 忽略', () => {
   const events: TaskEvent[] = [
     ev(1, 'status_change', { to: 'running' }),
     ev(2, 'model_step', { usage: { promptTokens: 40, completionTokens: 10 } }),
-    ev(3, 'model_step', { subagent_id: 'sa-1', usage: { promptTokens: 999, completionTokens: 999 } }),
-    ev(4, 'subagent_completed', { subagent_id: 'sa-1', usage: { prompt_tokens: 80, completion_tokens: 20 } }),
+    ev(3, 'model_step', { subagent_id: 'sa-1', usage: { promptTokens: 80, completionTokens: 20 } }),
+    ev(4, 'subagent_completed', { subagent_id: 'sa-1', usage: { prompt_tokens: 999, completion_tokens: 999 } }),
   ]
   const usage = computeBudgetUsage(mergeBudget({ maxSteps: 10 }), events)
   assert.equal(usage.promptTokens, 120)
   assert.equal(usage.completionTokens, 30)
-  assert.equal(usage.steps, 2)
+  assert.equal(usage.steps, 1)
+})
+
+test('computeBudgetUsage:仅子步不耗尽父 step 维', () => {
+  const events: TaskEvent[] = [
+    ev(1, 'status_change', { to: 'running' }),
+    ev(2, 'model_step', { subagent_id: 'sa-1', usage: { promptTokens: 10, completionTokens: 1 } }),
+    ev(3, 'model_step', { subagent_id: 'sa-1', usage: { promptTokens: 10, completionTokens: 1 } }),
+  ]
+  const usage = computeBudgetUsage(
+    mergeBudget({ maxSteps: 1, maxPromptTokens: 100 }),
+    events,
+    Date.parse('2026-06-08T00:00:01.000Z'),
+  )
+  assert.equal(usage.steps, 0)
+  assert.equal(usage.promptTokens, 20)
+  assert.equal(usage.exhausted, false)
 })
 
 test('budget_extension 抬高上限', () => {

@@ -15,6 +15,7 @@
 | `client/` | LumenClient:类型化 WS 客户端(Node 22+ 与浏览器通用) |
 | `protocol/` | WS 协议:messages 真源 + version.ts + server;ui-client type-only 直连 |
 | `runtime/` | 任务运行时:agent-runtime 编排层 + event/ask/title/uploads/assets/compaction 卫星 |
+| `subagent/` | 子 Agent 系统:同一内核 spawn 子代;登记/生命周期/隔离(worktree 或 workers/ 条带);live 子步折父 token |
 | `storage/` | SQLite(任务/事件/预算/恢复) + session jsonl + 设置 |
 | `tools/` | L1 环境原语(env/ 按可删除单元分目录) + L2 研究桥接(research/);存在性真源 `registry.ts` |
 | `workspace/` | FsWorkspace 沙箱文件系统 |

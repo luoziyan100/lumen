@@ -1,9 +1,10 @@
 /**
  * [INPUT]: briefs/active/subagent-system.md R1.3 L0
- * [OUTPUT]: Subagent 协议类型、状态矩阵、错误码、capability 格（T1 过滤用骨架）
- * [POS]: subagent/ 协议层;TaskStore/Coordinator/Runner 共用
+ * [OUTPUT]: Subagent 协议类型、状态矩阵、错误码(含 PARENT_BUDGET)、capability 格（T1 过滤用骨架）
+ * [POS]: subagent/ 协议层;TaskStore/Coordinator/Runner 共用;parent_budget 供 spawn 准入读父 token 账
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
+import type { TaskBudget } from '../storage/budget.ts'
 
 /** 子 Agent 生命周期状态（存储/query 用） */
 export type SubagentStatus =
@@ -52,6 +53,8 @@ export const SUBAGENT_ERROR = {
   TYPE_UNKNOWN: 'subagent_type_unknown',
   /** isolation=worktree 物化失败；禁止 fallback none */
   WORKTREE_FAILED: 'subagent_worktree_failed',
+  /** 父 task token/cost 预算已耗尽(含飞行中子代已烧) */
+  PARENT_BUDGET: 'subagent_parent_budget',
 } as const
 
 export type SubagentErrorCode = (typeof SUBAGENT_ERROR)[keyof typeof SUBAGENT_ERROR]
@@ -114,6 +117,8 @@ export interface SubagentConfig {
   default_background: boolean
   foreground_budget_ms: number
   worktree_root: string
+  /** 父 task 预算;spawn 准入看 token/cost(含飞行中子代 live 步) */
+  parent_budget?: TaskBudget
 }
 
 export const DEFAULT_SUBAGENT_CONFIG: SubagentConfig = {
