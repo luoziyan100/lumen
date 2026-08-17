@@ -6,7 +6,7 @@
  *        对话列 useStickToBottom:流式贴底;上滑松手可自由阅读;钉态不重绘消息列;松钉后「回到最新」挂 composer-dock 上沿;
  *        标题栏工作区钮:阅读器开时一并关闭(drawer 与 ws.open 双态,不能只拨 drawer);
  *        侧栏未读灯:task_updated 终态且非当前 → unread(localStorage);打开会话清除;
- *        上传=对话事件见 doc/upload-awareness.md;当前稿 activePath 见 artifact-loop P0;
+ *        上传=对话事件见 doc/upload-awareness.md;当前稿 activePath 见 doc/artifact-loop.md;
  *        messages 容器 key=taskId|draft 强制 remount,配合 useAgent viewEpoch 防串台;
  *        助手终稿:模型正文 Sources 原样渲染;SourceList 仅漏写兜底
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md

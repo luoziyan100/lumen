@@ -1,6 +1,6 @@
 /**
  * 上传知情附言 + 当前稿附言:纯函数契约
- * (doc/upload-awareness.md S4;briefs/active/artifact-loop-P0.md)
+ * (doc/upload-awareness.md S4;doc/artifact-loop.md)
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'

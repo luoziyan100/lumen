@@ -1,6 +1,6 @@
 /**
  * [INPUT]: AgentClient.listAssets/readAsset;projectId + taskId
- * [OUTPUT]: useWorkspace → assets/open/refresh/reloadOpen;切会话清 open
+ * [OUTPUT]: useWorkspace → assets/open/refresh/reloadOpen;切会话清 open;write/edit 命中 open.path 则重读
  * [POS]: 工作区轨与阅读器的数据源;无会话只刷 shared;切会话乐观清 session 防串味;
  *        reloadOpen 供 write/edit 后刷新当前打开内容(产物闭环 P0)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md

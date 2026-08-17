@@ -17,7 +17,7 @@
 | `sourceCite.ts` | 检索/抓取 URL + 检测正文 Sources;宿主表仅漏写兜底 |
 | `openExternal.ts` | 外链走壳 `open_external_url` |
 | `trustedHosts.ts` | 外链确认「这个域名不再问」 |
-| `activePath.ts` | 当前稿路径消毒(产物闭环 P0) |
+| `activePath.ts` | 当前稿路径消毒(doc/artifact-loop.md) |
 
 ## src/ 子目录
 

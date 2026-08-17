@@ -1,7 +1,7 @@
 /**
  * [INPUT]: 工作区相对路径字符串
  * [OUTPUT]: isBindableActivePath / sanitizeActivePathClient —— 客户端当前稿白名单(与 service 同语义)
- * [POS]: 产物闭环 P0;仅 UI 决定是否绑 chip。服务端 sanitizeActivePath 再闸一次
+ * [POS]: 产物闭环(doc/artifact-loop.md);仅 UI 决定是否绑 chip。服务端 sanitizeActivePath 再闸一次
  * [PROTOCOL]: 变更时更新此头部,并与 agent-service upload-awareness 白名单对齐
  */
 

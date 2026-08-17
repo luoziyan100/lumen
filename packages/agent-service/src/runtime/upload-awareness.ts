@@ -2,7 +2,7 @@
  * [INPUT]: 无运行时依赖;消费 UploadRef / activePath(协议字段)
  * [OUTPUT]: UploadRef / formatUploadAnnex / formatActivePathAnnex / userContentForModel /
  *           parseUploads / sanitizeActivePath / isBindableActivePath
- * [POS]: 上传知情(S4)+产物闭环当前稿(见 briefs/active/artifact-loop-P0.md);
+ * [POS]: 上传知情(S4)+产物闭环当前稿(见 doc/artifact-loop.md);
  *        rebuildThread 与 submit/continue 共用,落库 display content 与机读附言可分离重建
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */

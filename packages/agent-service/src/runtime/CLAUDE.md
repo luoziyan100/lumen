@@ -15,7 +15,7 @@
 - `title-hub.ts` — 侧栏 title 异步回填;与对话共用 ModelPort,execute 终态 await
 - `compaction.ts` — 回合前水位 / 确定性压缩事件 / 终态水位;算法在 storage/context-budget.ts
 - `workspace-factory.ts` — 项目根 vs sessions/<tid> 定根;shared/* 走项目根
-- `upload-awareness.ts` — UploadRef / formatUploadAnnex / userContentForModel;知情附言纯函数
+- `upload-awareness.ts` — UploadRef / formatUploadAnnex / formatActivePathAnnex / sanitizeActivePath / userContentForModel;上传知情+当前稿附言纯函数(doc/artifact-loop.md)
 - `task-title.ts` — 抽摘 user/非空 assistant、清洗短标题、shouldBackfillTitle;`TITLE_PROMPT_MARKER` 标题轮识别标记(测试同源导入)
 - `mermaid-repair.ts` — Phase B sidecar:抽围栏 / hash 限次 / 三条禁令 / `runMermaidRepair` 单次无工具 chat,不落库
 
