@@ -5,6 +5,8 @@
 
 `run_code` 与 Seatbelt 一起生死。skill 只读根构造注入,不进 ToolContext。
 
+⚠ 调试铁律:**Seatbelt 拒读会伪装成文件不存在**——node 报 `Cannot find module <绝对路径>`、python 报 `can't open file`,而文件明明在盘上。先怀疑 profile 的 read 规则,再怀疑路径(2026-08-02~08 的 26 次失败即此病,修于 `41115a0` seatbelt workspace read)。
+
 ## 成员
 
 - `run-code.ts` — `createRunCodeTool({ skillReadRoots })`;`runCodeTool` 空根单例仅测/占位
