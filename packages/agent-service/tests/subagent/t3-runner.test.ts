@@ -1,6 +1,6 @@
 /**
  * [INPUT]: ChildRunner + coordinator + ScriptedModel + FsWorkspace
- * [OUTPUT]: T3 集成 —— spawn → runAgent → complete / usage / kill abort
+ * [OUTPUT]: T3 集成 —— spawn → runAgent → complete / usage 进父 budget / kill abort
  */
 import { test, type TestContext } from 'node:test'
 import assert from 'node:assert/strict'
@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import * as path from 'node:path'
 import { openDatabase } from '../../src/storage/db.ts'
 import { TaskStore } from '../../src/storage/task-store.ts'
+import { computeBudgetUsage, mergeBudget } from '../../src/storage/budget.ts'
 import { SubagentStore } from '../../src/subagent/store.ts'
 import { SubagentCoordinator } from '../../src/subagent/coordinator.ts'
 import { ChildRunner } from '../../src/subagent/runner.ts'
@@ -119,6 +120,45 @@ test('T3: start explore → runAgent 写文件 → complete + getOutput', async 
   const childTurn = turnStarts.find((e) => JSON.parse(e.payload_json).scope === 'subagent')
   assert.ok(childTurn)
   assert.notEqual(JSON.parse(childTurn!.payload_json).turn_id, turn)
+})
+
+test('T3: runAgent complete 后子 usage 进父 budget', async (t) => {
+  const h = await harness(t)
+  const model = new ScriptedModel([
+    {
+      message: { role: 'assistant', content: 'Scope 内 3 篇' },
+      toolCalls: [],
+      usage: { promptTokens: 80, completionTokens: 20 },
+    },
+  ])
+  const runner = makeRunner(h, model)
+  const task = h.taskStore.createTask('p', 'goal')
+  const turn = h.taskStore.beginTurn(task.id)
+  const before = computeBudgetUsage(mergeBudget(), h.taskStore.listEvents(task.id))
+  assert.equal(before.promptTokens, undefined)
+
+  const start = await runner.start({
+    parent_task_id: task.id,
+    parent_turn_id: turn,
+    subagent_type: 'explore',
+    description: '只读探查',
+    scope: 'test',
+    prompt: '列相关论文',
+    background: true,
+  })
+  assert.equal(start.success, true, start.error)
+  await start.handle!.done
+
+  const out = h.coord.getOutput(start.subagent_id!)!
+  assert.equal(out.status, 'done')
+  assert.equal(out.usage.prompt_tokens, 80)
+  assert.equal(out.usage.completion_tokens, 20)
+  assert.equal(out.usage_applied_to_parent, true)
+
+  const after = computeBudgetUsage(mergeBudget(), h.taskStore.listEvents(task.id))
+  assert.equal(after.promptTokens, 80)
+  assert.equal(after.completionTokens, 20)
+  assert.ok((after.promptTokens ?? 0) > (before.promptTokens ?? 0))
 })
 
 test('T3: kill 中止 running child → aborted', async (t) => {

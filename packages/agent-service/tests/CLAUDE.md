@@ -13,7 +13,7 @@ old_lumen 的教训:50 个绿测试没拦住致命 bug,因为全用替身绕过�
 7. **辅助模型轮**:标题回填与对话共用同一 ModelPort,且**异步竞跑**——脚本化测试的下一条答复会被标题轮吃掉。凡给 runtime 喂 ScriptedModel,先套 `helpers.withIgnoredTitleChats`;识别标记 `TITLE_PROMPT_MARKER` 从 `src/runtime/task-title.ts` **同源导入,禁止复制字面量**(隐形合同必同源,宪章·可维护性宪章第 5 条)。日后新增共用 ModelPort 的旁路调用(摘要、修图等),落地时同规格配同源标记 + 测试挡板。
 8. **资源必收口**:测试里 start 的服务/WS/DB,必须在 `after`/`finally` 里 await close。`protocol/server.ts` 的 `close()` 先 terminate 残留 WS 客户端再关 HTTP(2026-08-17 挂死修复);新起任何常驻资源,先写"怎么死"再写"怎么活"。挂死的套件 = 红的套件,禁用超时掩盖。
 
-目录镜像 src:`adapters/ agents/ client/ invariants/ replay/ research/ runtime/ service/ skills/ storage/ workspace/`;共享脚手架在 `helpers/`(scripted-model 仅限单元级,禁入端到端)。
+目录镜像 src:`adapters/ agents/ client/ invariants/ replay/ research/ runtime/ service/ skills/ storage/ subagent/ workspace/`;共享脚手架在 `helpers/`(scripted-model 仅限单元级,禁入端到端)。
 
 跑法:`npm test` = `tsc --noEmit` 先行,再 `node --experimental-strip-types --test`。验收底线:每个里程碑至少一条真实/重放路径的端到端用例。
 

@@ -1,7 +1,8 @@
 /**
  * [INPUT]: task-store.ts 的 TaskEvent
  * [OUTPUT]: TaskBudget / BudgetUsage / DEFAULT_BUDGET / mergeBudget / computeBudgetUsage / formatBudgetUsage
- * [POS]: §存储层。event-sourced 预算计量，搬自 old_lumen agent/budget.ts 并适配本项目事件形状
+ * [POS]: §存储层。event-sourced 预算计量。主 model_step 计步/token;
+ *        子 agent 的 live model_step(带 subagent_id)不计入父 token,complete 后由 subagent_completed.usage 滚入
  *
  * 与 core/limits.ts 区分：Limits 是循环内的硬上限；这里从持久化事件算"已用量"，供恢复与 UI。
  */
@@ -84,8 +85,11 @@ export function computeBudgetUsage(budget: TaskBudget, events: TaskEvent[], nowM
         if (typeof p.extraSeconds === 'number' && p.extraSeconds > 0) secExt += p.extraSeconds
       } else if (event.kind === 'model_step') {
         const p = JSON.parse(event.payload_json) as {
+          subagent_id?: string
           usage?: { promptTokens?: number; completionTokens?: number; costUsd?: number }
         }
+        // 子 live 步带 subagent_id:token 等 complete 滚入,避免与 subagent_completed 双计
+        if (p.subagent_id != null && String(p.subagent_id).trim() !== '') continue
         if (p.usage) {
           hasUsage = true
           promptTokens += p.usage.promptTokens ?? 0
@@ -93,6 +97,28 @@ export function computeBudgetUsage(budget: TaskBudget, events: TaskEvent[], nowM
           if (typeof p.usage.costUsd === 'number') {
             hasCost = true
             costUsd += p.usage.costUsd
+          }
+        }
+      } else if (event.kind === 'subagent_completed') {
+        const p = JSON.parse(event.payload_json) as {
+          usage?: {
+            prompt_tokens?: number
+            completion_tokens?: number
+            promptTokens?: number
+            completionTokens?: number
+            costUsd?: number
+          }
+        }
+        const u = p.usage
+        if (u) {
+          const pt = u.prompt_tokens ?? u.promptTokens ?? 0
+          const ct = u.completion_tokens ?? u.completionTokens ?? 0
+          if (pt || ct) hasUsage = true
+          promptTokens += pt
+          completionTokens += ct
+          if (typeof u.costUsd === 'number') {
+            hasCost = true
+            costUsd += u.costUsd
           }
         }
       }

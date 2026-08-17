@@ -1,7 +1,8 @@
 /**
  * [INPUT]: SubagentStore + TaskStore；R1.3 生命周期/并发/kill/wait/fg demote
  * [OUTPUT]: SubagentCoordinator —— spawn 登记、kill、cancel、wait、getOutput、sweep
- * [POS]: T2 全命令 + 落盘;Runner(runAgent) 在 T3 挂 live handle
+ * [POS]: T2 全命令 + 落盘;Runner(runAgent) 在 T3 挂 live handle;
+ *        complete 写 subagent_completed.usage,父 budget 经 computeBudgetUsage 滚入
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { TaskStore } from '../storage/task-store.ts'
@@ -359,8 +360,7 @@ export class SubagentCoordinator {
         completion_tokens: r.completion_tokens,
         total_tokens: r.total_tokens,
       },
-      // parent budget 接线在 T3 Runner
-      usage_applied_to_parent: false,
+      usage_applied_to_parent: isTerminalStatus(r.status),
       ...(truncated ? { truncated: true } : {}),
     }
   }

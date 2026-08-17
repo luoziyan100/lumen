@@ -40,6 +40,19 @@ test('computeBudgetUsage 步数耗尽时标记 exhausted=steps', () => {
   assert.equal(usage.exhaustedDimension, 'steps')
 })
 
+test('computeBudgetUsage:子 live model_step 不计入父 token;subagent_completed 滚入', () => {
+  const events: TaskEvent[] = [
+    ev(1, 'status_change', { to: 'running' }),
+    ev(2, 'model_step', { usage: { promptTokens: 40, completionTokens: 10 } }),
+    ev(3, 'model_step', { subagent_id: 'sa-1', usage: { promptTokens: 999, completionTokens: 999 } }),
+    ev(4, 'subagent_completed', { subagent_id: 'sa-1', usage: { prompt_tokens: 80, completion_tokens: 20 } }),
+  ]
+  const usage = computeBudgetUsage(mergeBudget({ maxSteps: 10 }), events)
+  assert.equal(usage.promptTokens, 120)
+  assert.equal(usage.completionTokens, 30)
+  assert.equal(usage.steps, 2)
+})
+
 test('budget_extension 抬高上限', () => {
   const events = [
     ev(1, 'status_change', { to: 'running' }),

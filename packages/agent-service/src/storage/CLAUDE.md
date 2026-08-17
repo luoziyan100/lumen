@@ -11,7 +11,7 @@
 - `project-store.ts` — ProjectStore:一等项目名册 + 重命名/软归档(`archived_at`) + `shared/`/`memory/`/`skills/` 目录播种;default 零感知、禁归档
 - `workspace-id.ts` — sanitizeWorkspaceId:工作区路径段消毒(防 `..` / 分隔符)
 - `resume.ts` — rebuildThread:从持久化事件重建可续跑线程(含 model_step.reasoningContent;user.uploads→附言)
-- `budget.ts` — 多维预算:从 task_events 计算用量(event-sourced),支持扩展预算
+- `budget.ts` — 多维预算:从 task_events 计算用量(event-sourced);主 model_step + `subagent_completed.usage`(子 live 步带 subagent_id 不计入父 token,防双计)
 - `session-file.ts` — session jsonl:LLM 视角 trace(append/read/list)
 - `settings.ts` — SettingsStore:供应商 profile(多配置单启用)+ 每卡 `models[]`/`activeModel`(旧 `model` 读盘迁移)+ 自定义指令;对外只回 key 掩码
 - `evidence-index.ts` — EvidenceIndex:工作区产物之上的结构化索引(去重/范围查询;**尚未接进 service 工具**)

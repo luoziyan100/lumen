@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import * as path from 'node:path'
 import { openDatabase } from '../../src/storage/db.ts'
 import { TaskStore } from '../../src/storage/task-store.ts'
+import { computeBudgetUsage, mergeBudget } from '../../src/storage/budget.ts'
 import { SubagentStore } from '../../src/subagent/store.ts'
 import { SubagentCoordinator } from '../../src/subagent/coordinator.ts'
 import {
@@ -177,6 +178,10 @@ test('getOutput: complete 后含 usage/resume 矩阵', async (t) => {
   assert.equal(out.tool_calls, 4)
   assert.equal(out.turns, 2)
   assert.equal(out.usage.total_tokens, 150)
+  assert.equal(out.usage_applied_to_parent, true)
+  const parent = computeBudgetUsage(mergeBudget(), taskStore.listEvents(task.id))
+  assert.equal(parent.promptTokens, 100)
+  assert.equal(parent.completionTokens, 50)
   assert.equal(out.resume_allowed, true)
   assert.ok(out.resume_hint.includes(r.record!.id))
   assert.equal(out.cwd_root, 'workers/x')
