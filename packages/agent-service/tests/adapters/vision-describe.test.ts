@@ -7,13 +7,13 @@ import {
   ImageStore,
   formatImagePlaceholder,
   stripImagesForModel,
-} from '../../src/tools/env/image-store.ts'
+} from '../../src/tools/env/vision/index.ts'
 import {
   createLookAtImageTool,
   normalizeVisionBaseUrl,
   shouldStripImagesForModel,
   withImageSanitize,
-} from '../../src/tools/env/vision-tools.ts'
+} from '../../src/tools/env/vision/index.ts'
 import { buildOpenAIRequest, isDeepSeekModel } from '../../src/adapters/openai.ts'
 import type { Message } from '../../src/core/types.ts'
 import type { ModelPort } from '../../src/core/model-port.ts'

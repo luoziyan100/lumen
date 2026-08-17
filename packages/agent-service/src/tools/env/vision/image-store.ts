@@ -5,7 +5,7 @@
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { createHash } from 'node:crypto'
-import type { ImageData, Message } from '../../core/types.ts'
+import type { ImageData, Message } from '../../../core/types.ts'
 
 /** 占位符标记:[[image:img-N]] */
 export const IMAGE_ID_RE = /\[\[image:(img-\d+)\]\]/g

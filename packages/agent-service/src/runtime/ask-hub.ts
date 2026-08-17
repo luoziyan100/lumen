@@ -1,5 +1,5 @@
 /**
- * [INPUT]: ask-user-tools 的 AskUserAnswer / AskUserWaiter / AskUserQuestion
+ * [INPUT]: env/ask-user 的 AskUserAnswer / AskUserWaiter / AskUserQuestion
  * [OUTPUT]: AskHub —— answerUser / makeAskUserWaiter / rejectPendingAsks
  * [POS]: runtime/ 的 ask_user 挂起表。key = taskId\\0toolCallId;cancel 时整 task 清挂起。
  *        不进 ToolContext;waiter 由 registry 构造注入。
@@ -9,7 +9,7 @@ import type {
   AskUserAnswer,
   AskUserQuestion,
   AskUserWaiter,
-} from '../tools/env/ask-user-tools.ts'
+} from '../tools/env/ask-user.ts'
 
 type PendingAsk = {
   resolve: (answer: AskUserAnswer) => void

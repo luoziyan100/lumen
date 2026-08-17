@@ -4,15 +4,15 @@
  * [POS]: 识图工具 look_at_image;DeepSeek 路径强制去图桩后再 chat;包装层透传 ChatHandlers
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import type { ChatHandlers, ModelPort, ModelResponse } from '../../core/model-port.ts'
-import type { Message, ToolSpec } from '../../core/types.ts'
-import type { Tool, ToolResult } from '../../core/tool.ts'
+import type { ChatHandlers, ModelPort, ModelResponse } from '../../../core/model-port.ts'
+import type { Message, ToolSpec } from '../../../core/types.ts'
+import type { Tool, ToolResult } from '../../../core/tool.ts'
 import {
   createOpenAIFetchTransport,
   type OpenAIRequest,
   type OpenAIResponseBody,
   type OpenAITransport,
-} from '../../adapters/openai.ts'
+} from '../../../adapters/openai.ts'
 import { ImageStore, stripImagesForModel } from './image-store.ts'
 
 export interface VisionEnv {

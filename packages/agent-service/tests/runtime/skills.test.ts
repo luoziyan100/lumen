@@ -10,7 +10,7 @@ import { openDatabase } from '../../src/storage/db.ts'
 import { TaskStore } from '../../src/storage/task-store.ts'
 import { AgentRuntime } from '../../src/runtime/agent-runtime.ts'
 import { ScriptedModel, assistantReply, assistantToolCall } from '../helpers/scripted-model.ts'
-import { seatbeltProfile } from '../../src/tools/env/sandbox.ts'
+import { seatbeltProfile } from '../../src/tools/env/run-code/index.ts'
 
 async function makeEnv(t: TestContext) {
   const base = await mkdtemp(path.join(tmpdir(), 'lumen-sk-rt-'))

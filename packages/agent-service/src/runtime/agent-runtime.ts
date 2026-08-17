@@ -25,7 +25,7 @@ import { mergeBudget, type TaskBudget } from '../storage/budget.ts'
 import { FsWorkspace } from '../workspace/fs-workspace.ts'
 import { sanitizeActivePath, userContentForModel, type UploadRef } from './upload-awareness.ts'
 import { LUMEN_PERSONA } from '../agents/persona.ts'
-import { readMemoryIndex } from '../tools/env/memory-tools.ts'
+import { readMemoryIndex } from '../tools/env/memory.ts'
 import { buildTaskTools, mergeToolUniverse } from '../tools/registry.ts'
 import {
   buildDiscoverRoots,
@@ -38,9 +38,9 @@ import {
   type InstallScope,
   type SkillPackage,
 } from '../skills/index.ts'
-import type { ImageStore } from '../tools/env/image-store.ts'
-import { withImageSanitize } from '../tools/env/vision-tools.ts'
-import type { AskUserAnswer } from '../tools/env/ask-user-tools.ts'
+import type { ImageStore } from '../tools/env/vision/index.ts'
+import { withImageSanitize } from '../tools/env/vision/index.ts'
+import type { AskUserAnswer } from '../tools/env/ask-user.ts'
 import { MermaidRepairGate, runMermaidRepair } from './mermaid-repair.ts'
 import { SubagentCoordinator } from '../subagent/coordinator.ts'
 import { SubagentStore } from '../subagent/store.ts'

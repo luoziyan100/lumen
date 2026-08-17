@@ -9,7 +9,7 @@ import { runAgent } from '../../src/core/loop.ts'
 import { DEFAULT_LIMITS } from '../../src/core/limits.ts'
 import type { ToolContext } from '../../src/core/tool.ts'
 import { FsWorkspace } from '../../src/workspace/fs-workspace.ts'
-import { ENV_TOOLS } from '../../src/tools/env/fs-tools.ts'
+import { ENV_TOOLS } from '../../src/tools/env/fs/index.ts'
 import { createOpenAIAdapter, createOpenAIReplayTransport, type OpenAIResponseBody } from '../../src/adapters/openai.ts'
 
 // 真实录制：claude-haiku-4-5 经 OpenAI-compatible 代理跑 write_file → read_file → 答（2026-06-08）

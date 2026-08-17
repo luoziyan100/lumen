@@ -8,7 +8,7 @@ import { TaskStore } from '../../src/storage/task-store.ts'
 import { AgentRuntime } from '../../src/runtime/agent-runtime.ts'
 import { startServer } from '../../src/protocol/server.ts'
 import { LumenClient } from '../../src/client/agent-client.ts'
-import { ENV_TOOLS } from '../../src/tools/env/fs-tools.ts'
+import { ENV_TOOLS } from '../../src/tools/env/fs/index.ts'
 import type { TaskEvent } from '../../src/storage/task-store.ts'
 import { ScriptedModel, assistantToolCall, assistantReply } from '../helpers/scripted-model.ts'
 

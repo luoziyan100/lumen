@@ -12,7 +12,7 @@ import {
   legacyPlanToTodos,
   todoToMarkdown,
   TODO_PATH,
-} from '../../src/tools/env/todo-tools.ts'
+} from '../../src/tools/env/todo.ts'
 import { FsWorkspace } from '../../src/workspace/fs-workspace.ts'
 import type { ToolContext } from '../../src/core/tool.ts'
 

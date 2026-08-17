@@ -1,5 +1,5 @@
 /**
- * [INPUT]: env / research 各工厂、withGuard;任务域依赖(memoryDir / skills / waiter / coordinator)
+ * [INPUT]: env / research 各单元工厂、withGuard;任务域依赖(memoryDir / skills / waiter / coordinator)
  * [OUTPUT]: buildStaticTools / buildTaskTools —— 工具存在性唯一真源
  * [POS]: tools/ 的目录。service 与 runtime.execute 只调用这里,不再各自拼装。
  *        withResultPersist / 旧 spawnTool 是可用性装饰,留在 runtime。
@@ -21,21 +21,28 @@
  */
 import type { Tool } from '../core/tool.ts'
 import { withGuard } from '../core/guard.ts'
-import { ENV_TOOLS } from './env/fs-tools.ts'
-import { createTodoTools } from './env/todo-tools.ts'
-import { createRunCodeTool } from './env/run-code.ts'
-import { createMemoryTools } from './env/memory-tools.ts'
-import { createSkillTools } from './env/skill-tools.ts'
-import { createAskUserTools, type AskUserWaiter } from './env/ask-user-tools.ts'
-import { createSubagentTools } from './env/subagent-tools.ts'
+import { ENV_TOOLS } from './env/fs/index.ts'
+import { createTodoTools } from './env/todo.ts'
+import { createRunCodeTool } from './env/run-code/index.ts'
+import { createMemoryTools } from './env/memory.ts'
+import { createSkillTools } from './env/skills.ts'
+import { createAskUserTools, type AskUserWaiter } from './env/ask-user.ts'
+import { createSubagentTools } from './env/subagent.ts'
+import { fetchHttp, type HttpClient } from './research/http.ts'
+import { createPaperTools } from './research/papers.ts'
+import { createFetchUrlTool } from './research/fetch-url.ts'
+import { createSearchWebTool, createTavilyWebSearch } from './research/search-web.ts'
+import { createPdfTools, type PdfTextEngine } from './research/pdf.ts'
 import type { SkillPackage } from '../skills/index.ts'
 import type { SubagentCoordinator } from '../subagent/coordinator.ts'
 import type { ChildRunner } from '../subagent/runner.ts'
 
 export interface StaticToolsOptions {
   demo: boolean
-  research: Tool[]
   lookAtImage: Tool
+  tavilyKey?: string
+  pdfEngine?: PdfTextEngine
+  http?: HttpClient
 }
 
 export interface TaskToolDeps {
@@ -50,10 +57,16 @@ export interface TaskToolDeps {
 
 /** 进程启动构造一次。demo 剔除 run_code(云上无 Seatbelt=RCE)。 */
 export function buildStaticTools(opts: StaticToolsOptions): Tool[] {
+  const http = opts.http ?? fetchHttp()
   const raw: Tool[] = [
     ...ENV_TOOLS,
     ...createTodoTools(),
-    ...opts.research,
+    ...createPaperTools({ http }),
+    createFetchUrlTool({ http }),
+    createSearchWebTool({
+      webSearch: opts.tavilyKey ? createTavilyWebSearch({ apiKey: opts.tavilyKey, http }) : undefined,
+    }),
+    ...createPdfTools({ engine: opts.pdfEngine, http }),
     opts.lookAtImage,
   ]
   if (!opts.demo) raw.push(createRunCodeTool({ skillReadRoots: [] }))

@@ -10,7 +10,8 @@ import assert from 'node:assert/strict'
 import { LUMEN_PERSONA } from '../../src/agents/persona.ts'
 import { createPaperTools } from '../../src/tools/research/papers.ts'
 import { createPdfTools } from '../../src/tools/research/pdf.ts'
-import { createWebTools } from '../../src/tools/research/web.ts'
+import { createFetchUrlTool } from '../../src/tools/research/fetch-url.ts'
+import { createSearchWebTool } from '../../src/tools/research/search-web.ts'
 
 type JsonProps = Record<string, { description?: string }>
 
@@ -81,8 +82,7 @@ describe('persona Sources 能力合同', () => {
 
 describe('研究工具 description Sources 合同', () => {
   it('search_web 覆盖何时用 + 兄弟 search_papers + Sources 回指作品,不列所有搜索 URL', () => {
-    const tools = createWebTools({ http: async () => ({ status: 200, ok: true, text: async () => '', json: async () => ({}), bytes: async () => new Uint8Array() }) })
-    const search = tools.find((t) => t.spec.name === 'search_web')
+    const search = createSearchWebTool()
     const desc = search?.spec.description ?? ''
     assert.match(desc, /何时用/)
     assert.match(desc, /search_papers/)
@@ -98,8 +98,7 @@ describe('研究工具 description Sources 合同', () => {
   })
 
   it('fetch_url 回指 persona 作品合同,并写清 vs extract_pdf', () => {
-    const tools = createWebTools({ http: async () => ({ status: 200, ok: true, text: async () => '', json: async () => ({}), bytes: async () => new Uint8Array() }) })
-    const fetch = tools.find((t) => t.spec.name === 'fetch_url')
+    const fetch = createFetchUrlTool({ http: async () => ({ status: 200, ok: true, text: async () => '', json: async () => ({}), bytes: async () => new Uint8Array() }) })
     const desc = fetch?.spec.description ?? ''
     assert.match(desc, /何时用/)
     assert.match(desc, /extract_pdf/)

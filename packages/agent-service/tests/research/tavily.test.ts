@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseTavily, createTavilyWebSearch, createResearchTools } from '../../src/tools/research/index.ts'
+import { parseTavily, createTavilyWebSearch, createSearchWebTool } from '../../src/tools/research/search-web.ts'
 import type { HttpClient, HttpResponse, HttpInit } from '../../src/tools/research/http.ts'
 import { noopCtx } from '../helpers/scripted-model.ts'
 
@@ -44,8 +44,7 @@ test('createTavilyWebSearch：POST /search，Bearer，正确请求体', async ()
 
 test('search_web 工具：接 Tavily 后端后返回格式化结果', async () => {
   const http: HttpClient = async () => jsonResponse(TAVILY_BODY)
-  const tools = createResearchTools({ webSearch: createTavilyWebSearch({ apiKey: 'tk', http }) })
-  const searchWeb = tools.find((t) => t.spec.name === 'search_web')!
+  const searchWeb = createSearchWebTool({ webSearch: createTavilyWebSearch({ apiKey: 'tk', http }) })
   const result = await searchWeb.run({ query: 'x' }, noopCtx())
   assert.match(result.llmContent, /Diffusion overview/)
   assert.match(result.llmContent, /https:\/\/a\.com\/1/)
@@ -53,8 +52,7 @@ test('search_web 工具：接 Tavily 后端后返回格式化结果', async () =
 
 test('search_web 工具：Tavily 4xx → 干净错误', async () => {
   const http: HttpClient = async () => ({ status: 401, ok: false, text: async () => 'unauthorized', json: async () => ({}), bytes: async () => new Uint8Array() })
-  const tools = createResearchTools({ webSearch: createTavilyWebSearch({ apiKey: 'bad', http }) })
-  const searchWeb = tools.find((t) => t.spec.name === 'search_web')!
+  const searchWeb = createSearchWebTool({ webSearch: createTavilyWebSearch({ apiKey: 'bad', http }) })
   const result = await searchWeb.run({ query: 'x' }, noopCtx())
   assert.match(result.llmContent, /error:/)
 })

@@ -40,6 +40,6 @@
 
 ## 实现锚点
 
-- 工具：`packages/agent-service/src/tools/env/todo-tools.ts`
+- 工具：`packages/agent-service/src/tools/env/todo.ts`
 - Persona：`packages/agent-service/src/agents/persona.ts`
 - UI：`TodoCard` + `UtilityRail` Progress；`useAgent` 的 `kind: 'todo'`

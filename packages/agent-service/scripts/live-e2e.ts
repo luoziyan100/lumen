@@ -14,7 +14,7 @@ import { runAgent } from '../src/core/loop.ts'
 import { DEFAULT_LIMITS } from '../src/core/limits.ts'
 import type { ToolContext } from '../src/core/tool.ts'
 import { FsWorkspace } from '../src/workspace/fs-workspace.ts'
-import { ENV_TOOLS } from '../src/tools/env/fs-tools.ts'
+import { ENV_TOOLS } from '../src/tools/env/fs/index.ts'
 import {
   createOpenAIAdapter,
   createOpenAIFetchTransport,

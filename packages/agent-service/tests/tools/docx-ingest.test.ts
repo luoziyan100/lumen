@@ -11,7 +11,7 @@ import { extractDocxText, docxExtractMarkdown } from '../../src/tools/ingest/doc
 import { openDatabase } from '../../src/storage/db.ts'
 import { TaskStore } from '../../src/storage/task-store.ts'
 import { AgentRuntime } from '../../src/runtime/agent-runtime.ts'
-import { ENV_TOOLS } from '../../src/tools/env/fs-tools.ts'
+import { ENV_TOOLS } from '../../src/tools/env/fs/index.ts'
 import { ScriptedModel } from '../helpers/scripted-model.ts'
 
 /** 最小可解析 docx(单 local header + document.xml) */

@@ -11,7 +11,7 @@ import { openDatabase } from '../../src/storage/db.ts'
 import { TaskStore } from '../../src/storage/task-store.ts'
 import { AgentRuntime } from '../../src/runtime/agent-runtime.ts'
 import { startServer, type ServerHandle } from '../../src/protocol/server.ts'
-import { ENV_TOOLS } from '../../src/tools/env/fs-tools.ts'
+import { ENV_TOOLS } from '../../src/tools/env/fs/index.ts'
 import type { ServerMessage } from '../../src/protocol/messages.ts'
 import { ScriptedModel, assistantReply } from '../helpers/scripted-model.ts'
 

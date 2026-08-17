@@ -23,7 +23,7 @@
 
 ## 实现锚点
 
-- 工具：`packages/agent-service/src/tools/env/ask-user-tools.ts`
+- 工具：`packages/agent-service/src/tools/env/ask-user.ts`
 - Runtime pending：`packages/agent-service/src/runtime/agent-runtime.ts`
 - 协议：`answer_user` in `protocol/messages.ts` + 双端 `agent-client.ts`
 - Persona：`packages/agent-service/src/agents/persona.ts`

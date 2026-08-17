@@ -7,7 +7,7 @@ import { Thread } from '../../src/core/thread.ts'
 import { runAgent } from '../../src/core/loop.ts'
 import { DEFAULT_LIMITS } from '../../src/core/limits.ts'
 import { FsWorkspace } from '../../src/workspace/fs-workspace.ts'
-import { ENV_TOOLS, readFileTool, writeFileTool, grepTool } from '../../src/tools/env/fs-tools.ts'
+import { ENV_TOOLS, readFileTool, writeFileTool, grepTool } from '../../src/tools/env/fs/index.ts'
 import { ScriptedModel, assistantToolCall, assistantReply, noopCtx } from '../helpers/scripted-model.ts'
 
 async function makeWs(t: TestContext): Promise<FsWorkspace> {

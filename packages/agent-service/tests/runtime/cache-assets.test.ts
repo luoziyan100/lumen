@@ -7,7 +7,7 @@ import * as path from 'node:path'
 import { openDatabase } from '../../src/storage/db.ts'
 import { TaskStore } from '../../src/storage/task-store.ts'
 import { AgentRuntime } from '../../src/runtime/agent-runtime.ts'
-import { ENV_TOOLS } from '../../src/tools/env/fs-tools.ts'
+import { ENV_TOOLS } from '../../src/tools/env/fs/index.ts'
 import { ScriptedModel } from '../helpers/scripted-model.ts'
 
 test('listAssets 不陈列 cache/(中间产物);readAsset 仍可读', async (t: TestContext) => {

@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import * as path from 'node:path'
 import { FsWorkspace } from '../../src/workspace/fs-workspace.ts'
-import { runCodeTool } from '../../src/tools/env/run-code.ts'
+import { runCodeTool } from '../../src/tools/env/run-code/index.ts'
 import { noopCtx } from '../helpers/scripted-model.ts'
 
 const darwin = process.platform === 'darwin'

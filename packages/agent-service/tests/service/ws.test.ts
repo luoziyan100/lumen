@@ -7,8 +7,9 @@ import { openDatabase } from '../../src/storage/db.ts'
 import { TaskStore } from '../../src/storage/task-store.ts'
 import { AgentRuntime } from '../../src/runtime/agent-runtime.ts'
 import { startServer, type ServerHandle } from '../../src/protocol/server.ts'
-import { ENV_TOOLS } from '../../src/tools/env/fs-tools.ts'
+import { ENV_TOOLS } from '../../src/tools/env/fs/index.ts'
 import type { ServerMessage } from '../../src/protocol/messages.ts'
+import { PROTOCOL_VERSION } from '../../src/protocol/version.ts'
 import { ScriptedModel, assistantToolCall, assistantReply } from '../helpers/scripted-model.ts'
 
 async function makeServer(t: TestContext): Promise<ServerHandle> {
@@ -49,6 +50,28 @@ function collectUntil(ws: WebSocket, done: (messages: ServerMessage[]) => boolea
     ws.addEventListener('error', (e) => reject(e as unknown as Error))
   })
 }
+
+test('WS：连接后 hello 携带 protocolVersion', async (t) => {
+  const handle = await makeServer(t)
+  const ws = new WebSocket(`ws://127.0.0.1:${handle.port}`)
+  await new Promise<void>((r) => ws.addEventListener('open', () => r(), { once: true }))
+  const hello = await new Promise<ServerMessage>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout 等待 hello')), 2000)
+    ws.addEventListener('message', (ev) => {
+      const m = JSON.parse(String((ev as MessageEvent).data)) as ServerMessage
+      if (m.type === 'hello') {
+        clearTimeout(timer)
+        resolve(m)
+      }
+    })
+  })
+  assert.equal(hello.type, 'hello')
+  if (hello.type === 'hello') {
+    assert.equal(typeof hello.demo, 'boolean')
+    assert.equal(hello.protocolVersion, PROTOCOL_VERSION)
+  }
+  ws.close()
+})
 
 test('WS：submit 后收到 task_created + 事件流直到 reply', async (t) => {
   const handle = await makeServer(t)

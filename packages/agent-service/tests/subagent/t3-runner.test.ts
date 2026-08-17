@@ -12,7 +12,7 @@ import { TaskStore } from '../../src/storage/task-store.ts'
 import { SubagentStore } from '../../src/subagent/store.ts'
 import { SubagentCoordinator } from '../../src/subagent/coordinator.ts'
 import { ChildRunner } from '../../src/subagent/runner.ts'
-import { ENV_TOOLS } from '../../src/tools/env/fs-tools.ts'
+import { ENV_TOOLS } from '../../src/tools/env/fs/index.ts'
 import { FsWorkspace } from '../../src/workspace/fs-workspace.ts'
 import {
   ScriptedModel,

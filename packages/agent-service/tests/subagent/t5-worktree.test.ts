@@ -21,7 +21,7 @@ import {
   expandUserPath,
 } from '../../src/subagent/worktree.ts'
 import { SUBAGENT_ERROR } from '../../src/subagent/types.ts'
-import { ENV_TOOLS } from '../../src/tools/env/fs-tools.ts'
+import { ENV_TOOLS } from '../../src/tools/env/fs/index.ts'
 import { FsWorkspace } from '../../src/workspace/fs-workspace.ts'
 import {
   ScriptedModel,

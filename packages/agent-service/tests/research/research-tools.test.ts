@@ -1,5 +1,5 @@
 /**
- * [INPUT]: createResearchTools + 罐装 HttpClient / WebSearchBackend
+ * [INPUT]: createResearchTools + createSearchWebTool + 罐装 HttpClient / WebSearchBackend
  * [OUTPUT]: 研究桥接纯函数与工具行为钉(排序/HTML/未配置错误/成功 REMINDER)
  * [POS]: research/ 工厂的真实路径单测;网络只走注入缝
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
@@ -17,6 +17,7 @@ import {
   type HttpClient,
   type HttpResponse,
 } from '../../src/tools/research/index.ts'
+import { createSearchWebTool } from '../../src/tools/research/search-web.ts'
 import { noopCtx } from '../helpers/scripted-model.ts'
 
 function jsonResponse(body: unknown): HttpResponse {
@@ -103,19 +104,16 @@ test('fetch_url 工具：抓 HTML 转正文', async () => {
 })
 
 test('search_web 未配置后端：返回清晰错误而非崩溃', async () => {
-  const tools = createResearchTools({ http: stubHttp(() => textResponse('')) })
-  const searchWeb = tools.find((t) => t.spec.name === 'search_web')!
+  const searchWeb = createSearchWebTool()
   const result = await searchWeb.run({ query: 'x' }, noopCtx())
   assert.match(result.llmContent, /后端未配置/)
   assert.doesNotMatch(result.llmContent, SOURCES_REMINDER)
 })
 
 test('search_web 成功：结果后附 Sources 回指 reminder,不倒 URL 清单', async () => {
-  const tools = createResearchTools({
-    http: stubHttp(() => textResponse('')),
+  const searchWeb = createSearchWebTool({
     webSearch: async () => [{ title: 'Example Paper', url: 'https://example.com/hit', snippet: 'a hit' }],
   })
-  const searchWeb = tools.find((t) => t.spec.name === 'search_web')!
   const result = await searchWeb.run({ query: 'x' }, noopCtx())
   assert.match(result.llmContent, /Example Paper/)
   assert.match(result.llmContent, SOURCES_REMINDER)

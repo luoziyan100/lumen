@@ -4,6 +4,7 @@
  * [POS]: §5.2 环境工具旁支。学 Claude Code 的第三层记忆(owner 拍板 2026-07-15):
  *        项目级 memory/ 目录,一条事实一个文件 + MEMORY.md 索引;索引由 runtime 开局注入系统提示词。
  *        对用户完全透明(真实文件,可看可改可删);记录事实而非对话本身——防漂移家法的延伸。
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import * as path from 'node:path'

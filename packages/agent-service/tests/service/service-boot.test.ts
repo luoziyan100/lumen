@@ -21,8 +21,9 @@ test('createService 组装真实工具集与角色并启动，submit 跑通，�
 
   const portfilePath = path.join(home, 'agent-service.json')
   assert.ok(existsSync(portfilePath), '应写出 portfile')
-  const portfile = JSON.parse(await readFile(portfilePath, 'utf8')) as { port: number; token: string }
+  const portfile = JSON.parse(await readFile(portfilePath, 'utf8')) as { port: number; token: string; protocolVersion?: number }
   assert.equal(portfile.token, service.token, 'portfile 应包含服务 token')
+  assert.equal(typeof portfile.protocolVersion, 'number', 'portfile 应带 protocolVersion')
   assert.equal(((await stat(portfilePath)).mode & 0o777), 0o600, 'portfile 权限应为 0600')
 
   const ws = new WebSocket(`ws://127.0.0.1:${handle.port}/?token=${portfile.token}`)

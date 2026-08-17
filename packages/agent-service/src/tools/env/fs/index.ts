@@ -1,13 +1,13 @@
 /**
  * [INPUT]: core 的 Tool/ToolContext/ToolResult/Workspace
  * [OUTPUT]: ENV_TOOLS —— L1 环境原语：read_file/write_file/edit_file/list_dir/grep/glob
- * [POS]: §5.2 第一层工具。agent 攒状态的"地面"；全部经 ctx.workspace 沙箱
+ * [POS]: env/fs 单元。agent 攒状态的"地面"；全部经 ctx.workspace 沙箱。六件套一起生死。
  *
  * 约定：工具不抛错——失败把 error 写进 llmContent，交给模型下一轮自行恢复（与 runAgent 的 recovery 一致）。
  * 路径：模型偶发传 file_name/filename 而非 path；必须解析别名并拒写 "undefined"/"null" 字面量。
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import type { Tool, ToolContext, ToolResult, Workspace } from '../../core/tool.ts'
+import type { Tool, ToolContext, ToolResult, Workspace } from '../../../core/tool.ts'
 
 const READ_MAX_CHARS = 30_000
 const GREP_MAX_HITS = 200

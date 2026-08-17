@@ -9,7 +9,7 @@ import {
   normalizeAskUserArgs,
   type AskUserAnswer,
   type AskUserQuestion,
-} from '../../src/tools/env/ask-user-tools.ts'
+} from '../../src/tools/env/ask-user.ts'
 import type { ToolContext } from '../../src/core/tool.ts'
 
 const sampleQ: AskUserQuestion[] = [

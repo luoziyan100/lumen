@@ -14,7 +14,7 @@ import { SubagentCoordinator } from '../../src/subagent/coordinator.ts'
 import { ChildRunner } from '../../src/subagent/runner.ts'
 import { rebuildChildThread } from '../../src/subagent/child-resume.ts'
 import { SUBAGENT_ERROR, resumeAllowed } from '../../src/subagent/types.ts'
-import { ENV_TOOLS } from '../../src/tools/env/fs-tools.ts'
+import { ENV_TOOLS } from '../../src/tools/env/fs/index.ts'
 import { FsWorkspace } from '../../src/workspace/fs-workspace.ts'
 import {
   ScriptedModel,

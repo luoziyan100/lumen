@@ -6,10 +6,10 @@
  *        skill 只读根构造注入,不进 ToolContext。
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
- * 约定:同 fs-tools——失败写进 llmContent 交给模型恢复,不抛出。
+ * 约定:同 env/fs——失败写进 llmContent 交给模型恢复,不抛出。
  */
 import { spawn } from 'node:child_process'
-import type { Tool, ToolContext, ToolResult } from '../../core/tool.ts'
+import type { Tool, ToolContext, ToolResult } from '../../../core/tool.ts'
 import { sandboxedCommand } from './sandbox.ts'
 
 const OUT_CAP = 6_000 // 回灌线程的 stdout/stderr 各自上限(超出截断,全量存 scratch)
