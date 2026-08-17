@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { MARQUEE_PX_PER_SEC, marqueeDurationSec } from '../src/marqueeDuration.ts'
+import { MARQUEE_PX_PER_SEC, marqueeDurationSec } from '../src/marquee/marqueeDuration.ts'
 
 describe('marqueeDurationSec', () => {
   it('cycle 加倍则 duration 加倍', () => {

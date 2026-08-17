@@ -1,9 +1,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { getTimeGreeting } from '../src/greeting.ts'
-import { SYSTEM_PROMPT_COPY } from '../src/settingsCopy.ts'
-import { APP_BRAND_COPY, APP_TITLEBAR_ACTIONS, APP_TITLEBAR_WORKSPACE_TOGGLE, WORKSPACE_DRAWER_COPY } from '../src/appCopy.ts'
+import { getTimeGreeting } from '../src/copy/greeting.ts'
+import { SYSTEM_PROMPT_COPY } from '../src/copy/settingsCopy.ts'
+import { APP_BRAND_COPY, APP_TITLEBAR_ACTIONS, APP_TITLEBAR_WORKSPACE_TOGGLE, WORKSPACE_DRAWER_COPY } from '../src/copy/appCopy.ts'
 
 // aura 相关断言随 aura 动效一并移除(2026-07-06 重构:画布改纯色暖纸)。
 // 本文件留存的是与 aura 无关的 UI 契约:问候文案、设置文案、标题栏形制。
@@ -49,7 +49,7 @@ test('navigation icon controls share one visual size', async () => {
 })
 
 test('settled thought is a summary label, not a duration', async () => {
-  const { APP_STATUS_COPY } = await import('../src/appCopy.ts')
+  const { APP_STATUS_COPY } = await import('../src/copy/appCopy.ts')
   assert.equal(APP_STATUS_COPY.thoughtSettled, 'Thought process')
   assert.equal(APP_STATUS_COPY.thoughtActive, '思考中')
   assert.equal('thoughtDone' in APP_STATUS_COPY, false)
@@ -63,7 +63,7 @@ test('attach lightbox has no dimming veil', async () => {
 })
 
 test('sources list can collapse after expand', async () => {
-  const { APP_STATUS_COPY } = await import('../src/appCopy.ts')
+  const { APP_STATUS_COPY } = await import('../src/copy/appCopy.ts')
   const src = await readFile(new URL('../src/components/SourceList.tsx', import.meta.url), 'utf8')
   assert.equal(APP_STATUS_COPY.sourcesLess, 'Show less')
   assert.match(src, /sourcesLess/)
@@ -72,20 +72,33 @@ test('sources list can collapse after expand', async () => {
 })
 
 test('assistant bubble keeps model Sources; host list is omit-fallback only', async () => {
-  const app = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')
-  assert.match(app, /shouldShowHostSourceList/)
-  assert.match(app, /content=\{it\.content\}/)
-  assert.doesNotMatch(app, /peeled\.body|extractSourceSection/)
+  const transcript = await readFile(new URL('../src/app/ChatTranscript.tsx', import.meta.url), 'utf8')
+  assert.match(transcript, /shouldShowHostSourceList/)
+  assert.match(transcript, /content=\{it\.content\}/)
+  assert.doesNotMatch(transcript, /peeled\.body|extractSourceSection/)
 })
 
 test('jump-latest is dock-anchored above the composer, not under it', async () => {
   const app = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')
+  const jumpBtn = await readFile(new URL('../src/app/JumpToLatestButton.tsx', import.meta.url), 'utf8')
   const css = await readFile(new URL('../src/styles.css', import.meta.url), 'utf8')
   const dockAt = app.indexOf('className="composer-dock"')
   const jumpAt = app.indexOf('<JumpToLatestButton')
   const dockClose = app.indexOf('</div>', app.indexOf('<ComposerCard'))
   assert.ok(dockAt > 0 && jumpAt > dockAt && jumpAt < dockClose, 'jump-latest must be a child of composer-dock')
-  assert.match(app, /className="jump-latest"/)
+  assert.match(jumpBtn, /className="jump-latest"/)
   assert.match(css, /\.jump-latest\s*{[^}]*bottom:\s*calc\(100%\s*\+\s*var\(--s-3\)\)/s)
   assert.doesNotMatch(css, /\.jump-latest\s*{[^}]*bottom:\s*\d+px/s)
+})
+
+test('hello protocol mismatch reuses sidebar offline banner copy', async () => {
+  const { SIDEBAR_PROJECT_COPY } = await import('../src/copy/appCopy.ts')
+  const sidebar = await readFile(new URL('../src/components/Sidebar.tsx', import.meta.url), 'utf8')
+  const client = await readFile(new URL('../src/agent-client.ts', import.meta.url), 'utf8')
+  assert.equal(SIDEBAR_PROJECT_COPY.staleService, '后台服务版本过旧，请重启 Lumen 后台服务(launchd)后重试')
+  assert.match(sidebar, /protocolMismatch/)
+  assert.match(sidebar, /staleService/)
+  assert.match(client, /from ['\"].*protocol\/messages\.ts['\"]/)
+  assert.doesNotMatch(client, /type ServerMessage\s*=/)
+  assert.doesNotMatch(client, /type ClientMessage\s*=/)
 })

@@ -7,8 +7,8 @@
  */
 import { InlineLoader } from 'generative-loaders'
 import 'generative-loaders/styles.css'
-import { APP_STATUS_COPY } from '../appCopy'
-import { useElapsedLabel } from '../elapsedLabel'
+import { APP_STATUS_COPY } from '../copy/appCopy'
+import { useElapsedLabel } from '../process/elapsedLabel'
 
 /** 行内比旧 orb(20) 更大,略大于库 demo 的 24 */
 const APERTURE_SIZE = 32

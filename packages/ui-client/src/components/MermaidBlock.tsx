@@ -14,12 +14,12 @@
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { glassMermaidThemeVariables } from '../mermaidSanitize'
-import { mermaidMetrics, prepareAndValidate } from '../mermaidSyntax'
-import { MERMAID_COPY } from '../appCopy'
+import { glassMermaidThemeVariables } from '../mermaid/mermaidSanitize'
+import { mermaidMetrics, prepareAndValidate } from '../mermaid/mermaidSyntax'
+import { MERMAID_COPY } from '../copy/appCopy'
 import { CheckIcon, CloseIcon, CopyIcon, ExpandIcon, ICON_SM, ZoomInIcon, ZoomOutIcon } from './icons'
-import { applySvgHostSize, ensureElkLayout, mermaidInitializeOptions } from '../mermaidLayout'
-import { clampZoom, panBy, panForZoom, sizeFromViewBox, viewBoxFromBBox, wheelZoomFactor, zoomByFactor, zoomByStep, ZOOM_MAX, ZOOM_MIN } from '../mermaidZoom'
+import { applySvgHostSize, ensureElkLayout, mermaidInitializeOptions } from '../mermaid/mermaidLayout'
+import { clampZoom, panBy, panForZoom, sizeFromViewBox, viewBoxFromBBox, wheelZoomFactor, zoomByFactor, zoomByStep, ZOOM_MAX, ZOOM_MIN } from '../mermaid/mermaidZoom'
 
 type CacheEntry = {
   svg: string | null

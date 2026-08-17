@@ -16,6 +16,7 @@ import { WebSocketServer, type WebSocket } from 'ws'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AgentRuntime } from '../runtime/agent-runtime.ts'
 import type { ClientMessage, ServerMessage, ConnModelConfig } from './messages.ts'
+import { PROTOCOL_VERSION } from './version.ts'
 import type { PublicSettings, SettingsPatch } from '../storage/settings.ts'
 import type { ModelPort } from '../core/model-port.ts'
 
@@ -139,7 +140,7 @@ function handleConnection(runtime: AgentRuntime, ws: WebSocket, settingsApi?: Se
     const owner = runtime.taskProject(taskId)
     return owner == null || owner === projectId // 不存在的 task 交下游返错;存在则必须归属匹配
   }
-  send({ type: 'hello', demo })
+  send({ type: 'hello', demo, protocolVersion: PROTOCOL_VERSION })
 
   const offTaskMeta = runtime.onTaskUpdated((task) => {
     send({ type: 'task_updated', task })

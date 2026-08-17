@@ -8,7 +8,7 @@
  */
 import { useMemo, useState } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
-import { ASK_USER_COPY } from '../appCopy'
+import { ASK_USER_COPY } from '../copy/appCopy'
 import type { AskUserOption, AskUserQuestion } from '../useAgent'
 import { BackIcon, ChevronIcon, CloseIcon } from './icons'
 

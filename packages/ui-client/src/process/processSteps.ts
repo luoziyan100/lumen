@@ -4,7 +4,7 @@
  * [POS]: ProcessRow;子代理一轮可堆几十步,不得整表铺开
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import type { ProcStep } from './useAgent'
+import type { ProcStep } from '../useAgent'
 
 export const PROCESS_RECENT_KEEP = 6
 

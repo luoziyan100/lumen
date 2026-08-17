@@ -34,8 +34,7 @@ Lumen 是独立研究者的论文研究 agent:**无头 Node agent 服务 + Tauri
 ## 已知的坑(动手前先读)
 
 - `pdfjs-dist` 锁 **4.10.38**:v5 的 ESM 加载在 Tauri WebKit 下不工作。
-- WS 协议类型在 `agent-service/src/protocol/messages.ts` 与 `ui-client/src/agent-client.ts` **各一份、手工同步**
-  (`@lumen/shared` 未建,详见 `packages/agent-service/src/protocol/CLAUDE.md`)。改消息格式必须两处一起改。
+- WS 协议类型已单源化:`agent-service/src/protocol/messages.ts` 为真源;ui-client `import type` 直连(不建 `@lumen/shared`,strip-types 不剥 node_modules)。hello / portfile 带 `protocolVersion`,不匹配只提示重启。
 - `better-sqlite3` 是 native 依赖:Tauri sidecar 打包时需匹配 Node ABI(M7 前留意)。
 - agent-service 用 `node --experimental-strip-types` 直跑 TS:**只吃可擦除语法**——禁 `constructor(private x)` 参数属性、`enum`、`namespace`(解析期即炸,错误出现在进程启动而非编译)。类成员一律显式声明 + 构造函数赋值(P1 分家实测踩坑,2026-08-17)。
 - macOS 上不要用 nohup 起常驻进程;正式常驻走 **LaunchAgent**(`npm run launchd:install -w packages/agent-service`);开发可用 Tauri sidecar / `supervisor.ts`。

@@ -14,7 +14,7 @@ import {
   isMeaningfulScrollDown,
   shouldEnterSticky,
   shouldLeaveSticky,
-} from '../src/useStickToBottom.ts'
+} from '../src/scroll/useStickToBottom.ts'
 
 function fakeScroller(partial: {
   scrollHeight: number

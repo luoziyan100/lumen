@@ -17,13 +17,14 @@ import { ProjectStore } from './storage/project-store.ts'
 import { SettingsStore } from './storage/settings.ts'
 import { AgentRuntime, defaultSystemPrompt } from './runtime/agent-runtime.ts'
 import { startServer, type ServerHandle } from './protocol/server.ts'
-import { ImageStore } from './tools/env/image-store.ts'
+import { PROTOCOL_VERSION } from './protocol/version.ts'
 import {
+  ImageStore,
   createLookAtImageTool,
   shouldStripImagesForModel,
   visionEnvFromProcess,
-} from './tools/env/vision-tools.ts'
-import { createResearchTools, createUnpdfEngine, createTavilyWebSearch } from './tools/research/index.ts'
+} from './tools/env/vision/index.ts'
+import { createUnpdfEngine } from './tools/research/index.ts'
 import { buildStaticTools } from './tools/registry.ts'
 import { buildRoles } from './agents/roles.ts'
 import { createClaudeAdapter, createClaudeStreamFetchTransport, createFetchTransport } from './adapters/claude.ts'
@@ -120,17 +121,18 @@ export function createService(config: ServiceConfig = {}): Service {
   }
 
   // search_web：Tavily。key 来自 process.env / .env / ~/.lumen/.env（见 loadDotenv）
-  const tavilyKey = (process.env.TAVILY_API_KEY ?? '').trim()
-  const research = createResearchTools({
-    pdfEngine: createUnpdfEngine(),
-    webSearch: tavilyKey ? createTavilyWebSearch({ apiKey: tavilyKey }) : undefined,
-  })
+  const tavilyKey = (process.env.TAVILY_API_KEY ?? '').trim() || undefined
   // 识图:侧车 + look_at_image;DeepSeek 主模型 chat 前去图插桩(见 imageBridge)
   const imageStore = new ImageStore()
   const visionEnv = visionEnvFromProcess()
   const lookAtImage = createLookAtImageTool({ store: imageStore, env: visionEnv })
   // 工具存在性只走 registry:静态一次;ask_user / memory / skill / subagent 在 execute 按任务构造
-  const staticTools = buildStaticTools({ demo, research, lookAtImage })
+  const staticTools = buildStaticTools({
+    demo,
+    lookAtImage,
+    tavilyKey,
+    pdfEngine: createUnpdfEngine(),
+  })
   const roles = buildRoles(staticTools)
 
   const runtime = new AgentRuntime({
@@ -192,7 +194,13 @@ export function createService(config: ServiceConfig = {}): Service {
       rmSync(portfile, { force: true }) // 先删再写，确保 0600 生效（writeFileSync 的 mode 只在新建时应用）
       writeFileSync(
         portfile,
-        JSON.stringify({ port: handle.port, pid: process.pid, token, startedAt: new Date().toISOString() }, null, 2),
+        JSON.stringify({
+          port: handle.port,
+          pid: process.pid,
+          token,
+          startedAt: new Date().toISOString(),
+          protocolVersion: PROTOCOL_VERSION,
+        }, null, 2),
         { mode: 0o600 },
       )
       return handle

@@ -1,8 +1,8 @@
 /**
- * [INPUT]: AgentClient;useAgent;useWorkspace;Sidebar;TurnPreviewRail;UtilityRail;AskUserDialog;ComposerCard;CollapsibleUserText;MsgFileChips
- * [OUTPUT]: App —— 形态 A 装配;项目树(p-*) + 最近平铺历史;轮次轨;TodoCard/ProcessRow/ThinkingIndicator;
- *           ask_user 悬浮问询;composer 暗玻璃;用户超长 prompt 折叠;上传 chip(知情 S4)
- * [POS]: ui-client 根组件;storage project_id ≠ 用户项目;历史不分类进「默认」;
+ * [INPUT]: AgentClient;useAgent;useWorkspace;Sidebar;ChatTranscript;TurnPreviewRail;UtilityRail;AskUserDialog;ComposerCard
+ * [OUTPUT]: App —— 形态 A 布局容器;项目树(p-*) + 最近平铺历史;轮次轨;composer 暗玻璃
+ * [POS]: ui-client 根装配;对话列下沉 ChatTranscript;连接下沉 useServiceConnection;
+ *        storage project_id ≠ 用户项目;历史不分类进「默认」;
  *        对话列 useStickToBottom:流式贴底;上滑松手可自由阅读;钉态不重绘消息列;松钉后「回到最新」挂 composer-dock 上沿;
  *        标题栏工作区钮:阅读器开时一并关闭(drawer 与 ws.open 双态,不能只拨 drawer);
  *        侧栏未读灯:task_updated 终态且非当前 → unread(localStorage);打开会话清除;
@@ -11,94 +11,42 @@
  *        助手终稿:模型正文 Sources 原样渲染;SourceList 仅漏写兜底
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Toasty, useKumoToastManager } from '@cloudflare/kumo/components/toast'
 import { Tooltip, TooltipProvider } from '@cloudflare/kumo/components/tooltip'
-import { AgentClient, type Asset, type ImageData, type Project, type SkillInfo, type SkillInstallScope, type Task, type UploadRef } from './agent-client'
+import { AgentClient, type Asset, type Project, type SkillInfo, type SkillInstallScope, type Task } from './agent-client'
 import { pathFromToolArgs, sanitizeActivePathClient } from './activePath.ts'
-import { ensureAgentService } from './ensureAgent'
-import { sortTasksForSidebar } from './sortTasks'
-import { shouldMarkUnreadOnStatus } from './sessionLamp'
-import { loadUnreadSessionIds, saveUnreadSessionIds } from './unreadSessions'
-import { useAgent, type ChatItem } from './useAgent'
-import { useStickToBottom } from './useStickToBottom'
+import { sortTasksForSidebar } from './sessions/sortTasks'
+import { shouldMarkUnreadOnStatus } from './sessions/sessionLamp'
+import { useUnreadSessions } from './app/useUnreadSessions'
+import { useThinkClock } from './app/useThinkClock'
+import { useAgent } from './useAgent'
+import { useStickToBottom } from './scroll/useStickToBottom'
 import { useWorkspace } from './useWorkspace'
-
-function isEmptyChat(items: ChatItem[], running: boolean): boolean {
-  return items.length === 0 && !running
-}
 import { Sidebar } from './components/Sidebar'
 import { CreateProjectModal, type CreateProjectPayload } from './components/CreateProjectModal'
 import { AskUserDialog } from './components/AskUserDialog'
-import { CollapsibleUserText } from './components/CollapsibleUserText'
-import { MsgFileChips } from './components/MsgFileChips'
 import { ComposerCard, type ComposerModelOption } from './components/ComposerCard'
 import { ManageSkillsDialog } from './components/ManageSkillsDialog'
-import { filterComposerFiles } from './composerAccept'
+import { useComposerDraft } from './app/useComposerDraft'
 import { SearchModal } from './components/SearchModal'
 import { SettingsModal } from './components/SettingsModal'
 import { useAppearance } from './appearance'
-import { shouldShowHostSourceList } from './sourceCite'
 import { ExternalLinkGate } from './components/ExternalLinkDialog'
-import { SourceList } from './components/SourceList'
-import { ArrowDownIcon, CheckIcon, CopyIcon, PanelIcon, RailIcon } from './components/icons'
+import { PanelIcon, RailIcon } from './components/icons'
 import { UtilityRail } from './components/UtilityRail'
 import { ReaderPane } from './components/ReaderPane'
-import { ProcessRow } from './components/ProcessRow'
-import { ThoughtRow } from './components/ThoughtRow'
-import { TodoCard } from './components/TodoCard'
-import { ThinkingIndicator } from './components/ThinkingIndicator'
 import { ScrollDebugHud } from './components/ScrollDebugHud'
 import { TurnPreviewRail } from './components/TurnPreviewRail'
 import { buildTurnRailItems, msgAnchorId } from './components/turnRail'
-import { AssistantContent } from './components/widget/AssistantContent'
-import { getTimeGreeting } from './greeting'
 import {
-  APP_BRAND_COPY, APP_NAV_ICON_BUTTON, APP_STATUS_COPY, APP_TITLEBAR_WORKSPACE_TOGGLE, SKILLS_COPY,
-} from './appCopy'
-
-// 默认必须 127.0.0.1:service 只绑 IPv4;localhost 常解析到 ::1 → 永远「服务未连接」
-const w = window as { __LUMEN_WS__?: string; __LUMEN_TOKEN__?: string }
-const SERVICE_URL = w.__LUMEN_WS__ ?? 'ws://127.0.0.1:8787'
-const SERVICE_TOKEN = w.__LUMEN_TOKEN__ || new URLSearchParams(window.location.search).get('token') || undefined
-const IS_DEMO = import.meta.env.VITE_LUMEN_DEMO === '1'
-
-/** demo=访客空间;本地=最近项目或 default */
-function initialProjectId(): string {
-  if (IS_DEMO) {
-    try {
-      let id = localStorage.getItem('lumen:visitor')
-      if (!id) { id = 'v-' + crypto.randomUUID(); localStorage.setItem('lumen:visitor', id) }
-      return id
-    } catch { return 'default' }
-  }
-  return localStorage.getItem('lumen:projectId') || 'default'
-}
-
-/** 钉态走 hook 外部 store,避免 sticky 翻转重绘整列消息(高度回弹主因之一) */
-function JumpToLatestButton({
-  pin,
-  subscribe,
-  getPinned,
-}: {
-  pin: () => void
-  subscribe: (onStoreChange: () => void) => () => void
-  getPinned: () => boolean
-}) {
-  const pinned = useSyncExternalStore(subscribe, getPinned, getPinned)
-  if (pinned) return null
-  return (
-    <button
-      type="button"
-      className="jump-latest"
-      onClick={() => pin()}
-      aria-label={APP_STATUS_COPY.jumpToLatest}
-      title={APP_STATUS_COPY.jumpToLatest}
-    >
-      <ArrowDownIcon size={18} />
-    </button>
-  )
-}
+  APP_BRAND_COPY, APP_NAV_ICON_BUTTON, APP_TITLEBAR_WORKSPACE_TOGGLE,
+} from './copy/appCopy'
+import { IS_DEMO, SERVICE_TOKEN, SERVICE_URL, initialProjectId } from './app/boot'
+import { isEmptyChat } from './app/isEmptyChat'
+import { JumpToLatestButton } from './app/JumpToLatestButton'
+import { useServiceConnection } from './app/useServiceConnection'
+import { ChatTranscript } from './app/ChatTranscript'
 
 export function App() {
   return (
@@ -116,85 +64,15 @@ function AppInner() {
   const toast = useKumoToastManager()
   const { state: appearance, setAppearance } = useAppearance()
   const client = useMemo(() => new AgentClient(SERVICE_URL, SERVICE_TOKEN), [])
-  const [connected, setConnected] = useState(false)
-  // 连接生命周期:断线必须把 connected 打回 false 并自动重连——否则 UI 假在线,send 静默失败。
-  // 睡眠常弄死 Node sidecar:重连前先请壳 ensure;可见性恢复时再推一把。
-  useEffect(() => {
-    let live = true
-    let retry: ReturnType<typeof setTimeout> | null = null
-    const connect = (askShell = false): void => {
-      void (async () => {
-        if (askShell) await ensureAgentService()
-        if (!live) return
-        client.connect()
-          .then(() => { if (live) setConnected(true) })
-          .catch(() => {
-            if (!live) return
-            setConnected(false)
-            retry = setTimeout(() => connect(true), 1200)
-          })
-      })()
-    }
-    const offClose = client.onClose(() => {
-      if (!live) return
-      setConnected(false)
-      retry = setTimeout(() => connect(true), 800)
-    })
-    const onVisible = (): void => {
-      if (document.visibilityState !== 'visible' || !live) return
-      if (!client.connected) connect(true)
-    }
-    document.addEventListener('visibilitychange', onVisible)
-    window.addEventListener('focus', onVisible)
-    connect(true)
-    return () => {
-      live = false
-      offClose()
-      document.removeEventListener('visibilitychange', onVisible)
-      window.removeEventListener('focus', onVisible)
-      if (retry) clearTimeout(retry)
-      client.close()
-    }
-  }, [client])
+  const { connected, protocolMismatch } = useServiceConnection(client)
 
   const [projectId, setProjectId] = useState(initialProjectId)
   const [projects, setProjects] = useState<Project[]>([])
   const [tasksByProject, setTasksByProject] = useState<Record<string, Task[]>>({})
   /** 项目行 + 后的临时「新建对话」;发言落库后清掉,未发言离开也清掉 */
   const [draftProjectId, setDraftProjectId] = useState<string | null>(null)
-  /** 会话未读(Claude 式实心灯);本机持久化 */
-  const [unreadIds, setUnreadIds] = useState<Set<string>>(() => loadUnreadSessionIds())
+  const { unreadIds, markUnread, clearUnread, toggleUnread } = useUnreadSessions()
   const taskIdForUnreadRef = useRef<string | null>(null)
-
-  function markUnread(id: string): void {
-    setUnreadIds((prev) => {
-      if (prev.has(id)) return prev
-      const next = new Set(prev)
-      next.add(id)
-      saveUnreadSessionIds(next)
-      return next
-    })
-  }
-
-  function clearUnread(id: string): void {
-    setUnreadIds((prev) => {
-      if (!prev.has(id)) return prev
-      const next = new Set(prev)
-      next.delete(id)
-      saveUnreadSessionIds(next)
-      return next
-    })
-  }
-
-  function toggleUnread(id: string): void {
-    setUnreadIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      saveUnreadSessionIds(next)
-      return next
-    })
-  }
 
   // 侧栏短标题/置顶/status 异步写回;非当前会话 running→终态 → 未读灯
   useEffect(() => {
@@ -234,24 +112,7 @@ function AppInner() {
     newConversation, selectConversation, taskId, ctxUsage,
   } = useAgent(client, projectId, connected)
   taskIdForUnreadRef.current = taskId
-  /** 本轮思考钟:点发送起跳;draft→正式 taskId 不断钟;停跑/切会话清零 */
-  const [thinkStartedAt, setThinkStartedAt] = useState<string | null>(null)
-  const thinkClockKeyRef = useRef<string | null>(null)
-  useEffect(() => {
-    const key = running ? (taskId ?? 'draft') : null
-    if (!key) {
-      thinkClockKeyRef.current = null
-      setThinkStartedAt(null)
-      return
-    }
-    if (thinkClockKeyRef.current === key) return
-    if (thinkClockKeyRef.current === 'draft' && taskId) {
-      thinkClockKeyRef.current = taskId
-      return
-    }
-    thinkClockKeyRef.current = key
-    setThinkStartedAt(new Date().toISOString())
-  }, [running, taskId])
+  const thinkStartedAt = useThinkClock(running, taskId)
   const [askBusy, setAskBusy] = useState(false)
   const [skills, setSkills] = useState<SkillInfo[]>([])
   const [skillsManageOpen, setSkillsManageOpen] = useState(false)
@@ -290,15 +151,6 @@ function AppInner() {
   }, [client, taskId, ws.reloadOpen])
   // 工作目录:默认收起;当前会话有产物(上传文件/模型写出报告)才自动展开——纯问答保持收起(owner 定 2026-07-10)
   const [drawer, setDrawer] = useState(false)
-  const [input, setInput] = useState('')
-  const taRef = useRef<HTMLTextAreaElement>(null)
-  // 输入框随内容自增高(单行起,约 6 行后内部滚动)
-  useLayoutEffect(() => {
-    const ta = taRef.current
-    if (!ta) return
-    ta.style.height = 'auto'
-    ta.style.height = `${Math.min(ta.scrollHeight, 168)}px`
-  }, [input])
   // 侧栏收起/展开(记住选择)
   const [sbOpen, setSbOpen] = useState(() => localStorage.getItem('lumen:sbOpen') !== '0')
   function toggleSidebar(next: boolean): void {
@@ -308,6 +160,29 @@ function AppInner() {
   function toggleRail(next: boolean): void {
     setDrawer(next) // 手动开合(标题栏钮/上传即时反馈);默认收起与自动展开由产物驱动
   }
+  const pinMessagesRef = useRef<() => void>(() => {})
+  const composer = useComposerDraft({
+    client,
+    projectId,
+    taskId,
+    running,
+    pendingAsk: !!pendingAsk,
+    activePath,
+    send,
+    selectConversation,
+    setDraftProjectId,
+    refreshWorkspace: (id) => ws.refresh(id),
+    openRail: () => toggleRail(true),
+    pinMessages: () => pinMessagesRef.current(),
+    toastError: (title, description) => toast.add({ variant: 'error', title, description }),
+  })
+  const {
+    input, setInput, taRef, fileRef,
+    attachments, setAttachments,
+    pendingFiles, setPendingFiles,
+    uploading,
+    onPaste, onSubmit, onComposerKey, activateSkill, onPickFiles, onAddFiles,
+  } = composer
   // 产物驱动:当前会话有产物→展开工作目录,纯问答(无产物)→收起;手动开合保持到下次产物变化/切会话
   useEffect(() => { setDrawer(ws.assets.length > 0) }, [ws.assets.length, taskId])
 
@@ -650,128 +525,6 @@ function AppInner() {
     if (taskId && draftProjectId) setDraftProjectId(null)
   }, [taskId, draftProjectId])
 
-  // 悬停复制:平时隐身,悬到消息上才浮现;点击复制该条原文(assistant=原始 markdown)
-  const [copiedId, setCopiedId] = useState<string | null>(null)
-  async function copyMsg(id: string, text: string): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(text)
-    } catch {
-      // WKWebView / 权限受限兜底:隐藏 textarea + execCommand
-      const ta = document.createElement('textarea')
-      ta.value = text
-      ta.style.position = 'fixed'
-      ta.style.opacity = '0'
-      document.body.appendChild(ta)
-      ta.select()
-      document.execCommand('copy')
-      ta.remove()
-    }
-    setCopiedId(id)
-    window.setTimeout(() => setCopiedId((cur) => (cur === id ? null : cur)), 1400)
-  }
-
-  // 粘贴进对话的图片(随消息发给模型,多模态)
-  const [attachments, setAttachments] = useState<ImageData[]>([])
-  const MAX_IMAGES = 4
-  const MAX_IMAGE_BYTES = 5 * 1024 * 1024
-
-  function onPaste(e: ClipboardEvent<HTMLTextAreaElement>): void {
-    const files = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith('image/'))
-    if (!files.length) return
-    e.preventDefault() // 阻止把二进制粘成乱码文本
-    for (const file of files.slice(0, MAX_IMAGES - attachments.length)) {
-      if (file.size > MAX_IMAGE_BYTES) continue
-      const reader = new FileReader()
-      reader.onload = () => {
-        const url = String(reader.result ?? '')
-        const base64 = url.slice(url.indexOf(',') + 1)
-        setAttachments((prev) => prev.length < MAX_IMAGES
-          ? [...prev, { mediaType: file.type, base64 }]
-          : prev)
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-
-  async function submit(): Promise<void> {
-    const t = input.trim()
-    // ask_user 挂起时禁普通发送——作答走 Dialog,避免与 running continue 打架
-    if ((!t && attachments.length === 0 && pendingFiles.length === 0) || running || uploading || pendingAsk) return
-    const images = attachments
-    const files = pendingFiles
-    // 仅附件无正文:气泡靠 chip,不必假文案「上传了 N 个」;机侧附言由 uploads[] 注入
-    const text = t || (files.length ? '' : '(见图)')
-    const receipts: UploadRef[] = []
-    // 带文件:先确保会话在(草稿,标题=第一句话而非文件名),文件入工作区后再开跑——模型第一轮就看得到
-    if (files.length) {
-      setUploading(true)
-      try {
-        let id = taskId
-        if (!id) {
-          id = await client.createTask(projectId, t || files.map((f) => f.name).join(', '))
-          selectConversation(id, false, projectId)
-        }
-        for (const file of files) {
-          const receipt = await client.uploadFile(projectId, file, id)
-          receipts.push({
-            name: file.name,
-            path: receipt.path,
-            ...(receipt.extractPath ? { extractPath: receipt.extractPath } : {}),
-          })
-        }
-        ws.refresh(id)
-        toggleRail(true) // 展开工作区轨,让用户看到刚入库的文件
-      } catch (err) {
-        toast.add({
-          variant: 'error',
-          title: '上传失败',
-          description: err instanceof Error ? err.message : '文件还在暂存区,可重试或移除',
-        })
-        setUploading(false)
-        return // 输入与文件都保留,便于重试
-      }
-      setUploading(false)
-    }
-    setInput('')
-    setAttachments([])
-    setPendingFiles([])
-    pinMessagesRef.current() // 新一轮输出默认贴底跟随
-    await send(
-      text,
-      images.length ? images : undefined,
-      receipts.length ? receipts : undefined,
-      activePath,
-    )
-  }
-  async function onSubmit(e: FormEvent): Promise<void> {
-    e.preventDefault()
-    await submit()
-  }
-  // Enter 发送;Shift+Enter 换行;输入法组字中的 Enter(isComposing)不发送(中文必须)
-  function onComposerKey(e: ReactKeyboardEvent<HTMLTextAreaElement>): void {
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-      e.preventDefault()
-      void submit()
-    }
-  }
-
-  async function activateSkill(name: string): Promise<void> {
-    if (running || uploading || pendingAsk) return
-    setInput('')
-    pinMessagesRef.current()
-    try {
-      const id = await client.activateSkill(projectId, name, taskId ?? undefined)
-      selectConversation(id, true, projectId)
-      setDraftProjectId(null)
-    } catch (err) {
-      toast.add({
-        variant: 'error',
-        title: SKILLS_COPY.activateFailed,
-        description: err instanceof Error ? err.message : '请重试',
-      })
-    }
-  }
-
   async function installSkillPath(scope: SkillInstallScope, path: string): Promise<void> {
     setSkillsBusy(true)
     try {
@@ -790,39 +543,10 @@ function AppInner() {
     }
   }
 
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [uploading, setUploading] = useState(false)
-  // 选中的文件先暂存在输入卡(像图片一样可 ❌ 反悔),发送时才建会话、入工作区(2026-07-09 客户定)
-  const [pendingFiles, setPendingFiles] = useState<File[]>([])
-  function onPickFiles(e: ChangeEvent<HTMLInputElement>): void {
-    const files = filterComposerFiles(e.target.files)
-    e.target.value = '' // 允许重选同名文件
-    if (files.length) setPendingFiles((prev) => [...prev, ...files])
-  }
-  function onAddFiles(files: File[]): void {
-    const ok = filterComposerFiles(files)
-    if (ok.length) setPendingFiles((prev) => [...prev, ...ok])
-  }
-
-  // 每轮只给"最终输出"配复制:该 assistant 消息之后、到下一条 user 之前再无 assistant;
-  // 正在流式的一轮先不配(收尾后才出现)
-  const finalAssistantIds = useMemo(() => {
-    const ids = new Set<string>()
-    let candidate: string | null = null
-    for (const it of items) {
-      if (it.kind !== 'msg') continue
-      if (it.role === 'assistant') candidate = it.id
-      else if (it.role === 'user') { if (candidate) ids.add(candidate); candidate = null }
-    }
-    if (candidate && !running) ids.add(candidate)
-    return ids
-  }, [items, running])
-
   const turnRailItems = useMemo(() => buildTurnRailItems(items), [items])
   const messagesRef = useRef<HTMLDivElement>(null)
   /** 消息内容根:贴底 RO 只盯它,composer 改视口高度不会误跟(doc/chat-scroll-ux.md) */
   const messagesContentRef = useRef<HTMLDivElement>(null)
-  const pinMessagesRef = useRef<() => void>(() => {})
 
   // 流式增高时贴底;用户上滚超过阈值则松手,不再强拉回 prompt
   const stickContentKey = useMemo(() => {
@@ -845,30 +569,6 @@ function AppInner() {
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
-  const copyBtn = (id: string, text: string, label: string) => (
-    <button type="button" className={`msg-copy${copiedId === id ? ' is-copied' : ''}`} aria-label={label} title="复制" onClick={() => void copyMsg(id, text)}>
-      {copiedId === id ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
-    </button>
-  )
-
-  const lastItem = items[items.length - 1]
-  // 工具真在跑（任一面 process.running）；完成后 running=false 让出思考指示
-  const toolsBusy =
-    items.some((it) => it.kind === 'process' && it.running)
-    || evidenceItems.some((it) => it.kind === 'process' && it.running)
-  // 终稿流式中；provisional 旁白也算「有字在出」，不叠第二套思考指示
-  const lastStreamingAssistant =
-    lastItem?.kind === 'msg'
-    && lastItem.role === 'assistant'
-    && Boolean(lastItem.streaming)
-  // 工具间隙 / 首 token 前 / 重连：必须有动效，避免「像说完了但不能发」
-  const hasOpenThought = items.some((it) => it.kind === 'thought' && !it.done)
-  const showThinking =
-    running
-    && !pendingAsk
-    && !lastStreamingAssistant
-    && !hasOpenThought
-    && (!toolsBusy || Boolean(modelRetry))
   const showReader = ws.open != null
   // 右栏可见 = 阅读器或工作目录轨;标题栏钮必须两边都能收,不能只拨 drawer
   const rightPaneOpen = showReader || drawer
@@ -916,6 +616,7 @@ function AppInner() {
         {sbOpen && (
           <Sidebar
             connected={connected}
+            protocolMismatch={protocolMismatch}
             projects={sidebarProjects}
             pinnedTasks={pinnedTasks}
             tasksByProject={tasksByProjectUnpinned}
@@ -960,111 +661,22 @@ function AppInner() {
               className={`messages ${isEmpty ? 'messages-empty' : ''}`}
             >
               <div ref={messagesContentRef} className="messages-content">
-              {isEmpty && <EmptyState />}
-              {items.map((it) => {
-                if (it.kind === 'compaction') {
-                  return <div key={it.id} className="ctx-divider"><span>已整理更早的上下文 · 细节在工作区与历史记录</span></div>
-                }
-                if (it.kind === 'todo') return <TodoCard key={it.id} todo={it} />
-                if (it.kind === 'thought') {
-                  return (
-                    <ThoughtRow
-                      key={it.id}
-                      thought={it}
-                      clockStart={it.done ? undefined : (thinkStartedAt ?? it.startedAt)}
-                    />
-                  )
-                }
-                // 进行中展示 process；终局归约会卸下 process（消失再出答案）
-                if (it.kind === 'process') return <ProcessRow key={it.id} block={it} />
-                if (it.role === 'assistant') {
-                  const isProvisional = Boolean(it.provisional)
-                  const streamingWidget =
-                    Boolean(it.streaming)
-                    || (running && isProvisional)
-                    || (running && !finalAssistantIds.has(it.id) && !isProvisional)
-                  // 中间旁白：弱样式 + 流式光标，不当终稿（无复制、不进 final 轨）
-                  if (isProvisional || !finalAssistantIds.has(it.id)) {
-                    return (
-                      <div
-                        key={it.id}
-                        id={msgAnchorId(it.id)}
-                        className={`bubble bubble-assistant${isProvisional ? ' is-provisional' : ''}${streamingWidget ? ' is-streaming' : ''}`}
-                      >
-                        <AssistantContent content={it.content} isStreaming={streamingWidget} onSendMessage={(t) => { void send(t) }} />
-                      </div>
-                    )
-                  }
-                  const showHostList = shouldShowHostSourceList(it.content, it.sources ?? [])
-                  return (
-                    <div key={it.id} id={msgAnchorId(it.id)} className="msg-group msg-group-assistant">
-                      <div className="bubble bubble-assistant">
-                        <AssistantContent
-                          content={it.content}
-                          onSendMessage={(t) => { void send(t) }}
-                          onRepairMermaid={taskId
-                            ? (source, error) => client.repairMermaid(taskId, source, error, projectId)
-                            : undefined}
-                        />
-                        {showHostList ? <SourceList sources={it.sources ?? []} /> : null}
-                      </div>
-                      <div className="msg-actions">{copyBtn(it.id, it.content, '复制这条回答')}</div>
-                    </div>
-                  )
-                }
-                if (it.role === 'user') {
-                  return (
-                    <div key={it.id} id={msgAnchorId(it.id)} className="msg-group msg-group-user">
-                      <div className="bubble bubble-user">
-                        <CollapsibleUserText
-                          text={it.content}
-                          leading={(it.uploads?.length || it.images?.length) ? (
-                            <>
-                              {it.uploads?.length ? (
-                                <MsgFileChips
-                                  uploads={it.uploads}
-                                  onOpen={(ref) => {
-                                    const asset = ws.assets.find((a) => a.path === ref.path)
-                                      ?? {
-                                        path: ref.path,
-                                        name: ref.name,
-                                        kind: assetKindFromPath(ref.path),
-                                        scope: 'session' as const,
-                                      }
-                                    void openAssetBound(asset)
-                                    toggleRail(true)
-                                  }}
-                                />
-                              ) : null}
-                              {it.images?.length ? (
-                                <div className="msg-images">
-                                  {it.images.map((im, i) => (
-                                    <img key={i} className="msg-image" src={`data:${im.mediaType};base64,${im.base64}`} alt="粘贴的图片" />
-                                  ))}
-                                </div>
-                              ) : null}
-                            </>
-                          ) : undefined}
-                        />
-                      </div>
-                      <div className="msg-actions">{copyBtn(it.id, it.content, '复制这条输入')}</div>
-                    </div>
-                  )
-                }
-                return <div key={it.id} id={msgAnchorId(it.id)} className={`bubble bubble-${it.role}`}>{it.content}</div>
-              })}
-              {showThinking && (
-                <ThinkingIndicator
-                  label={
-                    modelRetry
-                      ? APP_STATUS_COPY.retry(modelRetry.attempt, modelRetry.maxAttempts)
-                      : APP_STATUS_COPY.thinking
-                  }
-                  retrying={Boolean(modelRetry)}
-                  detail={modelRetry?.reason}
-                  startedAt={thinkStartedAt}
-                />
-              )}
+              <ChatTranscript
+                items={items}
+                evidenceItems={evidenceItems}
+                running={running}
+                pendingAsk={pendingAsk}
+                modelRetry={modelRetry}
+                thinkStartedAt={thinkStartedAt}
+                isEmpty={isEmpty}
+                taskId={taskId}
+                projectId={projectId}
+                client={client}
+                onSend={(t) => { void send(t) }}
+                assets={ws.assets}
+                onOpenAsset={(a) => { void openAssetBound(a) }}
+                onToggleRail={toggleRail}
+              />
               </div>
             </div>
           </div>
@@ -1183,22 +795,4 @@ function AppInner() {
       <ScrollDebugHud />
     </div>
   )
-}
-
-function EmptyState() {
-  return (
-    <div className="empty">
-      <div className="empty-mark">{getTimeGreeting()}</div>
-    </div>
-  )
-}
-
-/** 无 assets 列表命中时,按扩展名推断阅读器 kind */
-function assetKindFromPath(path: string): 'pdf' | 'doc' | 'html' | 'image' | 'file' {
-  const ext = (path.split('.').pop() ?? '').toLowerCase()
-  if (ext === 'pdf') return 'pdf'
-  if (ext === 'html' || ext === 'htm') return 'html'
-  if (['md', 'markdown', 'txt', 'tex', 'csv', 'json', 'yml', 'yaml'].includes(ext)) return 'doc'
-  if (['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) return 'image'
-  return 'file'
 }

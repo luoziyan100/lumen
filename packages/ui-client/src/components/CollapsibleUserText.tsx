@@ -5,8 +5,8 @@
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { MSG_FOLD_COPY } from '../appCopy'
-import { shouldCollapseUserText } from '../msgFold'
+import { MSG_FOLD_COPY } from '../copy/appCopy'
+import { shouldCollapseUserText } from '../composer/msgFold'
 import { CurtainFold } from './CurtainFold'
 
 /** 与 --dur-collapse-out 对齐,收起播完再露预览 */

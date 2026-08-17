@@ -11,7 +11,7 @@ import {
   zoomByStep,
   ZOOM_MAX,
   ZOOM_MIN,
-} from '../src/mermaidZoom.ts'
+} from '../src/mermaid/mermaidZoom.ts'
 
 describe('clampZoom / steps', () => {
   it('clamps to [0.5, 4]', () => {

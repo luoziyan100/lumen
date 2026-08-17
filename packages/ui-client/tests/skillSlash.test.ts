@@ -6,7 +6,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseSlashFilter } from '../src/skillSlash.ts'
+import { parseSlashFilter } from '../src/composer/skillSlash.ts'
 
 test('parseSlashFilter:仅整段 /token', () => {
   assert.equal(parseSlashFilter('/'), '')

@@ -11,18 +11,18 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
 import type { Project, Task } from '../agent-client'
-import { displayTaskTitle } from '../displayTaskTitle'
+import { displayTaskTitle } from '../sessions/displayTaskTitle'
 import {
   AccountIcon, ArchiveGlyph, ChatIcon, CheckIcon, ChevronIcon, CopyGlyph, FolderIcon, GearIcon,
   NewProjectIcon, PinGlyph, PlusIcon, RenameGlyph, SearchIcon, SectionChevronIcon, UnpinGlyph, ICON_MD, ICON_SM,
 } from './icons'
 import { CurtainFold } from './CurtainFold'
 import { MarqueeTitle } from './MarqueeTitle'
-import { isSessionMarqueeActive } from '../marqueeActive'
-import { SIDEBAR_ACCOUNT_COPY, SIDEBAR_PROJECT_COPY } from '../appCopy'
-import { sessionLampKind } from '../sessionLamp'
-import { useResizable } from '../useResizable'
-import { visibleSessions } from '../visibleSessions'
+import { isSessionMarqueeActive } from '../marquee/marqueeActive'
+import { SIDEBAR_ACCOUNT_COPY, SIDEBAR_PROJECT_COPY } from '../copy/appCopy'
+import { sessionLampKind } from '../sessions/sessionLamp'
+import { useResizable } from '../shell/useResizable'
+import { visibleSessions } from '../sessions/visibleSessions'
 
 async function copyText(text: string): Promise<void> {
   try {
@@ -45,6 +45,8 @@ type RenameTarget =
 
 interface SidebarProps {
   connected: boolean
+  /** hello.protocolVersion 与客户端常量不一致 */
+  protocolMismatch?: boolean
   /** 仅用户显式创建的项目(p-*),不含 default/孤儿桶 */
   projects: Project[]
   /** 全局置顶(跨项目);已从 tasksByProject/recent 剔除 */
@@ -79,6 +81,7 @@ function projectLabel(p: Project): string {
 
 export function Sidebar({
   connected,
+  protocolMismatch = false,
   projects,
   pinnedTasks,
   tasksByProject,
@@ -421,7 +424,11 @@ export function Sidebar({
       </nav>
 
       <nav className="sb-list" aria-label="项目与会话">
-        {!connected ? (
+        {protocolMismatch ? (
+          <div className="sb-empty sb-offline" role="status">
+            <div className="sb-offline-title">{SIDEBAR_PROJECT_COPY.staleService}</div>
+          </div>
+        ) : !connected ? (
           <div className="sb-empty sb-offline" role="status">
             <div className="sb-offline-title">{SIDEBAR_PROJECT_COPY.offline}</div>
             <div className="sb-offline-hint">{SIDEBAR_PROJECT_COPY.offlineHint}</div>

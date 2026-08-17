@@ -5,7 +5,7 @@
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useMemo, useRef, useState } from 'react'
-import { APP_STATUS_COPY } from '../appCopy'
+import { APP_STATUS_COPY } from '../copy/appCopy'
 import { SOURCE_PREVIEW, collapseSourcesBySite, type SourceCite } from '../sourceCite'
 import { useOpenExternal } from './ExternalLinkDialog'
 

@@ -10,11 +10,11 @@
 import { useRef, useState, type ChangeEvent, type CSSProperties } from 'react'
 import type { Asset } from '../agent-client'
 import type { ChatItem, TodoChatItem, TodoEntry } from '../useAgent'
-import { WORKSPACE_SCOPE_COPY } from '../appCopy'
-import { filterComposerFiles } from '../composerAccept'
+import { WORKSPACE_SCOPE_COPY } from '../copy/appCopy'
+import { filterComposerFiles } from '../composer/composerAccept'
 import { CurtainFold } from './CurtainFold'
 import { ChevronIcon, FileTypeIcon, FoldersIcon, PlusIcon, ICON_MD } from './icons'
-import { useResizable } from '../useResizable'
+import { useResizable } from '../shell/useResizable'
 
 const OPENABLE: Asset['kind'][] = ['pdf', 'doc', 'html']
 

@@ -5,10 +5,10 @@
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useEffect, useState } from 'react'
-import { APP_STATUS_COPY } from '../appCopy'
-import { useElapsedLabel } from '../elapsedLabel'
-import { orbStateFromSteps } from '../orbState'
-import { PROCESS_RECENT_KEEP, partitionProcessSteps, stepChip } from '../processSteps'
+import { APP_STATUS_COPY } from '../copy/appCopy'
+import { useElapsedLabel } from '../process/elapsedLabel'
+import { orbStateFromSteps } from '../process/orbState'
+import { PROCESS_RECENT_KEEP, partitionProcessSteps, stepChip } from '../process/processSteps'
 import type { ProcessItem } from '../useAgent'
 import { CurtainFold } from './CurtainFold'
 import { StatusOrb } from './StatusOrb'

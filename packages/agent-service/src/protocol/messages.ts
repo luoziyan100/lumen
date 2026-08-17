@@ -3,20 +3,25 @@
  * [OUTPUT]: WS 协议消息类型（client→server / server→client;含 rename_task/pin_task/unpin_task / Skills;
  *           submit/continue 可带 uploads[] / activePath — 上传知情 + 产物闭环当前稿;
  *           repair_mermaid → ok.source 为修正围栏 body（不改落库））
- * [POS]: §4 agent↔UI 协议。UI 发命令，service 推事件流；shared 包将复用这些类型。
+ * [POS]: §4 agent↔UI 协议。UI 发命令，service 推事件流；ui-client type-only 直连本文件。
  *        事件 kind 含 ephemeral text_delta / tool_call_start(仅 notify,不入库,见 runtime/event-hub);
  *        answer_user 解开 ask_user 挂起(见 doc/ask-user.md);
  *        rename_task 只写侧栏 title(≠ goal);pin_task/unpin_task 写 pinned_at;activate_skill 与 run_skill 同构回灌 playbook
- * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md;改格式须同步 ui-client agent-client
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md;改格式须跑 ws 契约测试(ui-client 已 type-only 直连)
  */
-import type { Task, TaskEvent } from '../storage/task-store.ts'
-import type { Project } from '../storage/project-store.ts'
-import type { WorkspaceAsset, SkillInfo } from '../runtime/agent-runtime.ts'
-import type { UploadRef } from '../runtime/upload-awareness.ts'
 import type { ImageData } from '../core/types.ts'
-import type { PublicSettings, SettingsPatch } from '../storage/settings.ts'
+import type { UploadRef } from '../runtime/upload-awareness.ts'
+import type {
+  Project,
+  PublicSettings,
+  SettingsPatch,
+  SkillInfo,
+  Task,
+  TaskEvent,
+  WorkspaceAsset,
+} from './dto.ts'
 
-export type { Project, SkillInfo, UploadRef }
+export type { Project, SkillInfo, UploadRef, Task, TaskEvent, PublicSettings, SettingsPatch, WorkspaceAsset }
 
 /** demo 模式:浏览器随连接带入的模型配置(含用户自己的 key),后端只在连接内存持有、不落盘 */
 export interface ConnModelConfig {
@@ -26,7 +31,7 @@ export interface ConnModelConfig {
   baseUrl?: string
 }
 
-/** ask_user 作答载荷(与 tools/env/ask-user-tools.AskUserAnswer 同构) */
+/** ask_user 作答载荷(与 tools/env/ask-user.AskUserAnswer 同构) */
 export interface AnswerUserPayload {
   answers: Record<string, { selected: string[]; note?: string }>
   skipped?: boolean
@@ -88,7 +93,7 @@ export type ClientMessage =
   | { type: 'repair_mermaid'; taskId: string; source: string; error: string; projectId?: string }
 
 export type ServerMessage =
-  | { type: 'hello'; demo: boolean }
+  | { type: 'hello'; demo: boolean; protocolVersion: number }
   | { type: 'task_created'; taskId: string }
   | { type: 'event'; event: TaskEvent }
   | { type: 'tasks'; tasks: Task[] }

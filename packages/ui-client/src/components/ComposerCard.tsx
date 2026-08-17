@@ -11,11 +11,11 @@ import { BorderBeam } from 'border-beam'
 import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
 import { Tooltip } from '@cloudflare/kumo/components/tooltip'
 import type { ImageData, SkillInfo } from '../agent-client'
-import { ACTIVE_DOC_COPY, ASK_USER_COPY, SKILLS_COPY } from '../appCopy'
-import { dragHasFiles, filterComposerFiles } from '../composerAccept'
+import { ACTIVE_DOC_COPY, ASK_USER_COPY, SKILLS_COPY } from '../copy/appCopy'
+import { dragHasFiles, filterComposerFiles } from '../composer/composerAccept'
 import { AtGlyph, BriefcaseGlyph, CheckIcon, ChevronDownIcon, CloseIcon, FileTextIcon, GearGlyph, PdfIcon, PlusIcon, SendIcon, SkillGlyph, skillGlyphForName } from './icons'
 import { SkillSlashMenu } from './SkillSlashMenu'
-import { parseSlashFilter } from '../skillSlash'
+import { parseSlashFilter } from '../composer/skillSlash'
 
 /** composer 芯片可选的一条模型(跨供应商扁平) */
 export type ComposerModelOption = {

@@ -11,5 +11,5 @@
     "allowImportingTsExtensions": true,
     "types": ["vite/client"]
   },
-  "include": ["src"]
+  "include": ["src", "../agent-service/src/protocol/messages.ts", "../agent-service/src/protocol/version.ts"]
 }

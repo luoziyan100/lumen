@@ -5,7 +5,7 @@
 import { useMemo, useState } from 'react'
 import { CommandPalette } from '@cloudflare/kumo/components/command-palette'
 import type { Task } from '../agent-client'
-import { displayTaskTitle } from '../displayTaskTitle'
+import { displayTaskTitle } from '../sessions/displayTaskTitle'
 
 interface ConvItem { id: string; title: string; task: Task }
 interface ConvGroup { id: string; label: string; items: ConvItem[] }

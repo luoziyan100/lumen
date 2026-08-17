@@ -6,7 +6,7 @@ import { PdfViewer } from './PdfViewer'
 import { HtmlViewer } from './HtmlViewer'
 import { Markdown } from './Markdown'
 import { BackIcon } from './icons'
-import { useResizable } from '../useResizable'
+import { useResizable } from '../shell/useResizable'
 
 const TAG: Record<OpenAsset['kind'], { cls: string; text: string }> = {
   pdf: { cls: 'pdf', text: 'PDF' },

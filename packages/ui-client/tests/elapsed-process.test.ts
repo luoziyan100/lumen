@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { elapsedMs, formatElapsed } from '../src/elapsedLabel.ts'
-import { partitionProcessSteps, stepChip, PROCESS_RECENT_KEEP } from '../src/processSteps.ts'
+import { elapsedMs, formatElapsed } from '../src/process/elapsedLabel.ts'
+import { partitionProcessSteps, stepChip, PROCESS_RECENT_KEEP } from '../src/process/processSteps.ts'
 import type { ProcStep } from '../src/useAgent.ts'
 
 describe('formatElapsed', () => {

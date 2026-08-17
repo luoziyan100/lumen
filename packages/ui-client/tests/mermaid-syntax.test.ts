@@ -12,7 +12,7 @@ import {
   prepareMermaid,
   prepareAndValidate,
   mermaidMetrics,
-} from '../src/mermaidSyntax.ts'
+} from '../src/mermaid/mermaidSyntax.ts'
 
 beforeEach(() => {
   mermaidMetrics.reset()

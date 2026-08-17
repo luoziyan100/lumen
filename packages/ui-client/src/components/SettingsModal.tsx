@@ -8,7 +8,7 @@ import { Button } from '@cloudflare/kumo/components/button'
 import { Dialog } from '@cloudflare/kumo/components/dialog'
 import { Select } from '@cloudflare/kumo/components/select'
 import type { AgentClient, PublicSettings, PublicModelProfile } from '../agent-client'
-import { BACKGROUND_SERVICE_COPY, SYSTEM_PROMPT_COPY } from '../settingsCopy'
+import { BACKGROUND_SERVICE_COPY, SYSTEM_PROMPT_COPY } from '../copy/settingsCopy'
 import {
   isTauriShell,
   launchdInstall,

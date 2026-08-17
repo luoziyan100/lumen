@@ -5,7 +5,7 @@
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { SkillInfo } from '../agent-client'
-import { SKILLS_COPY } from '../appCopy'
+import { SKILLS_COPY } from '../copy/appCopy'
 import { ManageSkillsIcon, SkillIcon } from './icons'
 
 export function SkillSlashMenu({

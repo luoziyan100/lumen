@@ -6,8 +6,8 @@
  */
 import { useEffect, useState, type FormEvent } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
-import { CREATE_PROJECT_COPY } from '../appCopy'
-import { pickFolder } from '../pickFolder'
+import { CREATE_PROJECT_COPY } from '../copy/appCopy'
+import { pickFolder } from '../shell/pickFolder'
 import { CloseIcon, FolderIcon, ICON_MD } from './icons'
 
 export interface CreateProjectPayload {

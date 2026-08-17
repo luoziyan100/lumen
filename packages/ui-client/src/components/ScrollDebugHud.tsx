@@ -12,7 +12,7 @@ import {
   getScrollDebugLog,
   scrollDebugEnabled,
   setScrollDebug,
-} from '../scrollDebug'
+} from '../scroll/scrollDebug'
 
 async function copyText(text: string): Promise<boolean> {
   try {

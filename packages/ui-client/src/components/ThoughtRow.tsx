@@ -5,8 +5,8 @@
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useEffect, useState } from 'react'
-import { APP_STATUS_COPY } from '../appCopy'
-import { useElapsedLabel } from '../elapsedLabel'
+import { APP_STATUS_COPY } from '../copy/appCopy'
+import { useElapsedLabel } from '../process/elapsedLabel'
 import type { ThoughtItem } from '../useAgent'
 import { CurtainFold } from './CurtainFold'
 

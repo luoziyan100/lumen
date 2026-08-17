@@ -8,8 +8,8 @@ import { useState } from 'react'
 import { Dialog } from '@cloudflare/kumo/components/dialog'
 import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
 import type { SkillInfo, SkillInstallScope } from '../agent-client'
-import { SKILLS_COPY } from '../appCopy'
-import { pickSkillFile, pickSkillFolder } from '../pickSkillPath'
+import { SKILLS_COPY } from '../copy/appCopy'
+import { pickSkillFile, pickSkillFolder } from '../composer/pickSkillPath'
 import { ChevronDownIcon, CloseIcon, PlusIcon, SkillIcon, TrashIcon } from './icons'
 
 function layerLabel(layer: SkillInfo['layer']): string {

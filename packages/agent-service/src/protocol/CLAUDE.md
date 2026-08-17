@@ -6,10 +6,11 @@
 
 ## 成员
 
-- `messages.ts` — 协议消息类型(client→server / server→client),协议的唯一真源;`uploads` 与 UploadRef 对齐
-- `server.ts` — startServer:把 AgentRuntime 暴露为 localhost WS(带 token 鉴权,4401 踢未授权);`POST /upload` 回 `UploadReceipt` JSON;close 先掐残留 WS 再关 HTTP
+- `messages.ts` — 协议消息类型(client→server / server→client),协议的唯一真源;`uploads` 与 UploadRef 对齐;hello 带 `protocolVersion`
+- `dto.ts` — 线上数据形(不 import storage/runtime 实现),供 messages 与 ui-client tsc 共用
+- `version.ts` — `PROTOCOL_VERSION` 运行时常量 + `protocolVersionOf`(缺字段视为 0);hello 与 portfile 同源
+- `server.ts` — startServer:把 AgentRuntime 暴露为 localhost WS(带 token 鉴权,4401 踢未授权);`POST /upload` 回 `UploadReceipt` JSON;close 先掐残留 WS 再关 HTTP;连上即推 hello(含 protocolVersion)
 
-## ⚠ 同步债(已知,计划以 @lumen/shared 消灭)
+## 同步债(已消灭)
 
-协议类型目前有**三份消费点**:本目录(真源)、`../client/agent-client.ts`、`packages/ui-client/src/agent-client.ts`(浏览器侧手工内联)。
-在 shared 包建立之前:改消息格式 = 三处一起改 + `tests/service/ws.test.ts` 契约测试过。这是全仓最容易漂移的地方。
+ui-client 以 `import type` 直连本目录 `messages.ts`(Vite 擦除,不进 bundle);Node 侧 `client/agent-client.ts` 本就同包直连。不建 `@lumen/shared`(strip-types 不剥 node_modules)。改消息格式 = 改真源 + `tests/service/ws.test.ts` 契约测试过;ui-client `tsc` 会在字段漂移时报错。

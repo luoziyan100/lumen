@@ -10,7 +10,7 @@ import {
   shouldCollapseUserText,
   USER_FOLD_MAX_CHARS,
   USER_FOLD_MAX_LINES,
-} from '../src/msgFold.ts'
+} from '../src/composer/msgFold.ts'
 
 describe('shouldCollapseUserText', () => {
   it('短文不折', () => {

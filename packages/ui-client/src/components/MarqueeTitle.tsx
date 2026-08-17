@@ -6,7 +6,7 @@
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
-import { MARQUEE_GAP_PX, marqueeDurationSec } from '../marqueeDuration'
+import { MARQUEE_GAP_PX, marqueeDurationSec } from '../marquee/marqueeDuration'
 
 /** 进跑马灯的最大字符 */
 const MAX_CHARS = 72

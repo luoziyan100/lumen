@@ -11,7 +11,7 @@ import {
   mermaidInitializeOptions,
   resetElkLayoutCache,
   SVG_HOST_SIZE_POLICY,
-} from '../src/mermaidLayout.ts'
+} from '../src/mermaid/mermaidLayout.ts'
 
 function fakeSvg(initialWidth = '100%', attrWidth = '100%') {
   const attrs = new Map<string, string>()

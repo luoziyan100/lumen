@@ -6,7 +6,7 @@
  */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { SESSION_PREVIEW_N, visibleSessions } from '../src/visibleSessions.ts'
+import { SESSION_PREVIEW_N, visibleSessions } from '../src/sessions/visibleSessions.ts'
 
 function ids(n: number): { id: string }[] {
   return Array.from({ length: n }, (_, i) => ({ id: `t${i + 1}` }))

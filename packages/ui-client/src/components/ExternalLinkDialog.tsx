@@ -7,7 +7,7 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import { Dialog } from '@cloudflare/kumo/components/dialog'
-import { APP_STATUS_COPY } from '../appCopy'
+import { APP_STATUS_COPY } from '../copy/appCopy'
 import { hostOf } from '../sourceCite'
 import { isTrustedHost, trustHost } from '../trustedHosts'
 import { openExternalUrl } from '../openExternal'

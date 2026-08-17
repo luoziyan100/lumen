@@ -4,56 +4,44 @@
 
 职责:形态 A 的 UI(对话主屏 + 会话侧栏 + 工作区抽屉 + 阅读器分屏 + 设置),连 agent-service 的 WS。Web 可跑;Tauri 外壳见 `src-tauri/`。
 
-## src/ 成员
+## src/ 根成员(≤15 散文件)
 
 | 成员 | 职责 |
 |---|---|
-| `App.tsx` | 布局与装配;断线重连前 `ensureAgentService`;可见性恢复再推一把 |
+| `App.tsx` | 布局容器;装配侧栏/对话列/composer/右轨;连接与会话编排 |
+| `main.tsx` | 入口 |
+| `useAgent.ts` | hook 相:订阅事件、viewEpoch、send/stop;归约再导出自 `chat/` |
+| `agent-client.ts` | 浏览器侧 WS 客户端;`import type` 直连 `agent-service/src/protocol/messages.ts`;hello 校验 `protocolVersion` |
 | `ensureAgent.ts` | Tauri invoke:`ensure_agent_service` + `launchd_status/install/uninstall` |
-| `agent-client.ts` | 浏览器侧 WS 客户端;含 listProjects/…/Skills/`repairMermaid`;`uploadFile`→UploadReceipt;submit/continue 可带 uploads[];⚠ 协议类型手工内联 |
-| `useAgent.ts` | 事件流 → ChatItem;`uploads[]`→气泡 chip;`text_delta` 累积 streaming 泡 / `model_step` 定稿;`tool_call_start` 尽早过程行;`ask_user`→pendingAsk;模型正文 Sources 不剥 |
-| `useStickToBottom.ts` | 对话列贴底跟随;上滑即松钉;回滞再钉;高度回缩不追;钉态外部 store 不重绘消息列;`.messages { overflow-anchor: none }` 恒 none |
-| `openExternal.ts` | 外链走壳 `open_external_url`(系统浏览器);WKWebView 的 window.open 无效 |
-| `elapsedLabel.ts` | 进行中计时(`3.2s` / `46m 51.5s`);收口 Thought 不报秒 |
-| `processSteps.ts` | 过程步窗口化(默认最近 6)+ 路径 chip |
-| `mermaidSyntax.ts` | 流程图确定性语法闸(S4′ Phase A；flowchart 含 R7 补 `]`)。对人报错在此;Phase B 回灌走 `repair_mermaid`,见 `doc/mermaid-pipeline.md` §3.5 |
-| `mermaidSanitize.ts` | 流程图颜色闸：语义 class / 字面色对比度 |
-| `mermaidZoom.ts` | 流程图放大层缩放/平移算术(双指、滚轮、±) |
-| `mermaidLayout.ts` | 可读性:官方 ELK 注册(失败回 dagre)+ SVG 停拉伸尺寸政策;见 `doc/mermaid-readability.md` |
-| `sourceCite.ts` | 检索/抓取 URL + 检测正文 Sources 段;挑选权在模型正文;宿主 SourceList 仅漏写兜底(按站折叠) |
+| `useWorkspace.ts` | 资产列表:无会话仅 shared;有会话 shared+session;切新对话乐观清 session |
+| `sourceCite.ts` | 检索/抓取 URL + 检测正文 Sources;宿主表仅漏写兜底 |
+| `openExternal.ts` | 外链走壳 `open_external_url` |
 | `trustedHosts.ts` | 外链确认「这个域名不再问」 |
-| `useWorkspace.ts` | 资产列表:无会话仅 shared;有会话 shared+session;切新对话乐观清 session 防串味 |
-| `tokens.css` | **设计系统唯一真源**(青瓷 v2):表面三级 / 语义五色 / 阴影 0–3 / 字体分工;头注释即规范 |
-| `styles.css` | 形态 A 布局与组件样式;只消费 token,禁硬编码颜色 |
-| `kumo.css` | 控件层样式入口:Tailwind v4(**刻意不含 preflight**)+ @cloudflare/kumo + 青瓷主题 |
-| `theme-celadon.css` | Kumo 青瓷主题(tokens.css 在 Kumo 变量合同上的派生物,light-dark 双值) |
-| `scripts/check-theme-celadon.mjs` | 主题覆盖校验(`npm run check:theme`);升级 kumo 后必跑 |
-| `composerAccept.ts` | 附件宽准入(`filterComposerFiles`);扩展名不挡门,落盘分类在 service `saveUpload` |
-| `skillSlash.ts` | composer `/token` 解析(`parseSlashFilter`) |
-| `marqueeDuration.ts` | 侧栏跑马灯恒定 px/s 时长 |
-| `marqueeActive.ts` | 跑马灯热态:同时最多一条(hoveredTaskId + 菜单) |
-| `displayTaskTitle.ts` | 侧栏/搜索展示名:`title ?? goal` |
-| `sortTasks.ts` | 侧栏序:钉档 → `pinned_at` → `created_at`(与 store list 同构) |
-| `visibleSessions.ts` | 项目树会话 Progressive Disclosure:默认前 N + active 保底 |
-| `sessionLamp.ts` | 侧栏会话灯状态机:idle / unread / running |
-| `unreadSessions.ts` | 未读会话 id 的 localStorage 读写 |
-| `pickSkillPath.ts` | Tauri 选 Skill 文件夹 / SKILL.md |
-| `appCopy.ts` / `settingsCopy.ts` / `greeting.ts` | 文案与问候(简体中文,不用 emoji);含 `SKILLS_COPY` |
-| `msgFold.ts` | 用户气泡折叠阈值(9 行 / 750 字);供 CollapsibleUserText 与测试 |
-| `orbState.ts` | tool / 过程步 → `thinking-orbs` 九态;等待态 `ORB_THINKING=breathing`(与工具态分离) |
-| `components/` `components/widget/` `aura/` | 见各自 CLAUDE.md;widget=对话/阅读器网页沙箱 |
+| `activePath.ts` | 当前稿路径消毒(产物闭环 P0) |
+
+## src/ 子目录
+
+| 目录 | 职责 |
+|---|---|
+| `app/` | App 拆出的连接/空态/对话列/composer 草稿 hooks |
+| `chat/` | 事件→ChatItem 纯函数(types / reduce / todo) |
+| `copy/` | 文案与问候(简体中文,不用 emoji) |
+| `mermaid/` | 流程图语法闸 / 颜色 / 布局 / 缩放 |
+| `scroll/` | 对话列贴底 + 滚动诊断 |
+| `composer/` | 附件准入 / 斜杠 / Skill 选路 / 用户长文折叠阈值 |
+| `sessions/` | 侧栏序 / 可见窗 / 未读灯 / 展示名 |
+| `marquee/` | 侧栏跑马灯热态与时长 |
+| `process/` | 过程步窗口 / 计时 / orb 九态 |
+| `shell/` | Tauri 选文件夹 / 栏宽拖拽 |
+| `appearance/` | 整窗皮肤 |
+| `components/` `components/widget/` `aura/` | 见各自 CLAUDE.md |
+
+样式:`tokens.css`(设计系统真源) / `styles.css` / `kumo.css` / `theme-celadon.css`。主题校验:`npm run check:theme`。
 
 ## 设计纪律(违者打回)
 
 - 颜色/阴影/圆角/字体只用 token;正文对比度 ≥ 4.5:1,元数据 ≥ 3:1。
 - 三层纵深:氛围(边缘)→ 纸面(正文所坐)→ 卡片(输入卡/弹窗)。**文字永远不直接压在动效上**;空态是唯一的全屏氛围(封面)。
 - 青绿只做品牌与确认;链接黛蓝、错误赭红、警示琥珀。
-- **控件一律来自 @cloudflare/kumo**(无头核 Base UI),禁止再手搓按钮/弹层/下拉。已落地:
-  Button(设置/标题栏/新对话/发送/停止/添加文件)/ Dialog(设置)/ Select / Tooltip(全部图标钮)/
-  Toasty+toast(上传失败)/ CommandPalette(⌘K 会话搜索)/ Collapsible(过程行+计划卡+抽屉卡片)。
-  **自绘白名单仅四类**(列表项/气泡/过程行/图标导航钮),见 doc/ui-design.md §3 控件形制。
-  皮肤经 `theme-celadon.css`(挂 `<html data-theme="celadon">`);改 tokens.css 语义色时同步它,升级 kumo 后跑 `npm run check:theme`。
+- **控件一律来自 @cloudflare/kumo**(无头核 Base UI),禁止再手搓按钮/弹层/下拉。
 - `pdfjs-dist` 锁 4.10.38(v5 在 Tauri WebKit 下 ESM 不工作)。
-- 待办(勿顺手乱做,单独立 brief):composer 多行 + 运行中禁用(可用 Kumo InputArea);字体本地打包(去 CDN);
-  aura 闲置降耗;Collapsible 高度动画(webfont 竞态会量高过期,待字体本地化后按 --collapsible-panel-height 方案补);
-  aura 在 WKWebView(Tauri)的 blocked 态渲染成铅笔线条感,与 Chrome 不一致,待校准 shader 参数或按引擎降级。

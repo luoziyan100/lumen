@@ -42,7 +42,7 @@
 
 存在性唯一真源:`packages/agent-service/src/tools/registry.ts`(`buildStaticTools` 进程一次 + `buildTaskTools` 每次 execute)。运行时只做可用性过滤(demo / 角色 / 任务域),不得第二处拼装。单工具依赖构造注入,不进 `ToolContext`。
 
-- **研究**:`extract_pdf`(PDF → 文本,产物进会话 `cache/`)、`search_papers` / `get_citations`(OpenAlex 检索与引文,期刊分级参与排序)、`search_web`、`fetch_url`
+- **研究**:`extract_pdf`(PDF → 文本,产物进会话 `cache/`)、`search_papers` / `get_citations`(OpenAlex 检索与引文,期刊分级参与排序)、`search_web` 与 `fetch_url` 分属两个可删除单元(Tavily key 只绑前者)
 - **摄取解析(模式 A)**:上传复合件时框架抽文本进 `docs/*.md`,原件留 `uploads/`;见 `doc/document-ingest.md`(Skill 创作属模式 B,后续)
 - **环境**:`read_file` / `write_file` / `edit_file` / `list_dir` / `grep` / `glob`(全部限定在工作区内)、`run_code`(沙箱执行;可读 Skills 根以跑包内脚本)
 - **记忆**:`read_memory` / `write_memory` —— 项目级跨会话记忆:`memory/` 目录一条事实一个文件 + `MEMORY.md` 索引开局注入系统提示词;对用户完全透明
@@ -115,7 +115,7 @@ WebSocket + JSON:
 | Skills | `list_skills` · `install_skill` · `uninstall_skill` · `activate_skill`(显式激活=run_skill 同构回灌) |
 | 设置 | `get_settings` · `update_settings` |
 
-UI 状态是事件流的纯函数:对 durable 子集重放必然得到同一界面;live 会话额外叠加 ephemeral 增量,由随后的 `model_step` 定稿替换 streaming 泡。`client/agent-client.ts`(LumenClient)是类型化客户端,浏览器与 Node 测试共用。
+UI 状态是事件流的纯函数:对 durable 子集重放必然得到同一界面;live 会话额外叠加 ephemeral 增量,由随后的 `model_step` 定稿替换 streaming 泡。消息类型真源是 `protocol/messages.ts`;ui-client type-only 直连,Node `client/agent-client.ts` 同包直连。握手 `hello.protocolVersion`(与 portfile 同源,`protocol/version.ts`);旧字段缺失视为 0,不匹配只提示重启。
 
 ## 模型接入(adapters/)
 
@@ -141,24 +141,24 @@ UI 状态是事件流的纯函数:对 durable 子集重放必然得到同一界�
 
 ## 服务与外壳
 
-- `service.ts` — 进程入口:起 WS 服务,写 portfile(`~/.lumen/agent-service.json`:端口 / token)
+- `service.ts` — 进程入口:起 WS 服务,写 portfile(`~/.lumen/agent-service.json`:端口 / token / protocolVersion)
 - `supervisor.ts` — 把服务作为子进程拉起、等 portfile 就绪(Node 侧;Tauri 的 Rust 壳镜像同一套逻辑)
 - **Tauri 壳(macOS)**:启动 sidecar → 等 portfile → 注入 WS 地址并开窗口
 - **浏览器形态**:`npm run dev` 同时起服务(8787)与 Vite 开发页;客户端默认连 `ws://localhost:8787`
 
 ## ui-client
 
-React + Vite。三栏工作台:会话列表 / 对话(全幅消息流,输入卡片悬浮其上)/ 工作区+阅读器(分栏可拖宽,工作区随产物自动展开)。`useAgent` 持有 WS 连接,把事件流 reduce 成界面状态;上传文件先在输入区暂存,发送时才进入工作区(宽准入,见上「上传策略」)。
+React + Vite。三栏工作台:会话列表 / 对话(全幅消息流,输入卡片悬浮其上)/ 工作区+阅读器(分栏可拖宽,工作区随产物自动展开)。`useAgent` 订阅事件,`chat/reduce.ts` 把事件流纯函数投影成界面状态;上传文件先在输入区暂存,发送时才进入工作区(宽准入,见上「上传策略」)。
 
 **对话可视化(网页沙箱):** assistant 文本中的 ` ```show-widget ` 围栏由 ui-client 解析,在 `sandbox="allow-scripts"`(无 same-origin)的 receiver iframe 内渲染 HTML/SVG/JS;CSP 限制 CDN 白名单且 `connect-src 'none'`。过程与验收见 `briefs/active/web-sandbox-widget.md`。这与 `run_code` 的进程沙箱(Seatbelt)是不同隔离面。
 
 ## 可维护性宪章(2026-08-17)
 
-> 背景:对照 Claude Code v2.1.88 还原源码的腐烂路径(约 50 字段的上帝 ToolUseContext、注册表里 lazy-require 打破循环依赖、564 文件 utils/)与 Mastra 的框架税,裁定:Lumen 不整抄任何一家;防熵靠下列六条**可执行的不变式**,与铁律同级。P0/P1 已归档于 `briefs/archive/`;余下 `briefs/active/arch-p2..p3-*.md`。
+> 背景:对照 Claude Code v2.1.88 还原源码的腐烂路径(约 50 字段的上帝 ToolUseContext、注册表里 lazy-require 打破循环依赖、564 文件 utils/)与 Mastra 的框架税,裁定:Lumen 不整抄任何一家;防熵靠下列六条**可执行的不变式**,与铁律同级。P0–P3 已归档于 `briefs/archive/`。
 
 1. **依赖只指向内。** `core/` 不 import 协议/存储/具体工具/UI(现状已达成)。此纪律须由测试固化(core import 白名单断言),不靠自觉。
 2. **合同保持窄(ToolContext 冻结令)。** 向 `ToolContext` 新增字段 = 修宪:先改本文档内核节并说明为何非进共享合同不可,再动 `core/tool.ts`。禁无类型杂物袋(`deps: Record<string, unknown>` 废除)、禁单工具专用字段进共享合同(`skillReadRoots` 迁出)——皆见 P0 工单。教训实证:`deps` 里的 `model`/`imageStore` 从注入之日起就无任何消费者,杂物袋必然装死货。
 3. **注册表唯一。** "模型能用什么工具"的**存在性**由 `tools/registry.ts` 一处声明(静态工具 + 任务域工厂);运行时只做**可用性**过滤(demo/角色/任务域),不得出现第二处拼装点。
 4. **能力 = 可删除单元。** 模块化的判据不是"好不好加",是**敢不敢删**:删一个能力 = 删一个文件(夹) + registry 一行,编译错误即完整残留清单。单元边界 = 一起生死的最小集合。
-5. **隐形合同必配合同测试。** 类型系统罩不住的边界,每条至少配一个"漂移即红"的测试:WS 协议(三处消费点,见 `protocol/CLAUDE.md` 同步债 → P3 以 @lumen/shared 消灭)、persona 指示的输出格式 ↔ UI 解析(sourceCite 一族)、portfile 契约。协议须带 `protocolVersion` 握手:daemon 与 App 升级节奏不同,版本偏斜必须可检测(P3)。
-6. **尺寸预算。** 单文件 ≤800 行(AGENTS.md 法定)。现役超标:`App.tsx` 1204、`useAgent.ts` 1139(P2 清偿)。`agent-runtime.ts` 已分家(P1,编排层 + 卫星)。超标文件冻结新职责:先分家,再长肉。
+5. **隐形合同必配合同测试。** 类型系统罩不住的边界,每条至少配一个"漂移即红"的测试:WS 协议(真源 `protocol/messages.ts`,ui-client type-only 直连;见 `protocol/CLAUDE.md`)、persona 指示的输出格式 ↔ UI 解析(sourceCite 一族)、portfile 契约。协议带 `protocolVersion` 握手:daemon 与 App 升级节奏不同,版本偏斜可检测、只提示不兼容层。
+6. **尺寸预算。** 单文件 ≤800 行(AGENTS.md 法定)。`App.tsx` / `useAgent.ts` 已分家(P2);`agent-runtime.ts` 已分家(P1)。超标文件冻结新职责:先分家,再长肉。

@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import {
   sessionLampKind,
   shouldMarkUnreadOnStatus,
-} from '../src/sessionLamp.ts'
+} from '../src/sessions/sessionLamp.ts'
 
 describe('sessionLampKind', () => {
   it('idle:空心', () => {

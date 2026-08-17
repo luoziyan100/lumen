@@ -1,13 +1,14 @@
 /**
- * [INPUT]: agent-service WS/HTTP 协议(messages 真源的浏览器侧内联副本);
+ * [INPUT]: agent-service WS/HTTP 协议(messages.ts type-only 真源 + version.ts 运行时常量);
  *          运行时读 window.__LUMEN_WS__/__LUMEN_TOKEN__(Tauri 注入,可晚于首屏)
  * [OUTPUT]: AgentClient —— connect/submit/continue/archiveTask/renameTask/pinTask/unpinTask/answerUser/…;
- *           submit/continue 可带 uploads[];uploadFile 回 UploadReceipt
+ *           submit/continue 可带 uploads[];uploadFile 回 UploadReceipt;protocolMismatch
  * [POS]: UI 唯一出站口;connect 每次解析端点并把 localhost→127.0.0.1(防 IPv6 假死);
- *        send 在 WS 非 OPEN 时必须失败,continue/archive/rename_task/pin·unpin/answer_user/rename·archive_project/Skills/repair_mermaid 等 ok/error 回执;
- *        上传知情见 doc/upload-awareness.md
- * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md;改消息格式须三处同步
+ *        send 在 WS 非 OPEN 时必须失败;hello.protocolVersion 缺失视为 0,不匹配只提示不崩
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
+import type { ClientMessage, ServerMessage } from '../../agent-service/src/protocol/messages.ts'
+import { isProtocolCurrent } from '../../agent-service/src/protocol/version.ts'
 
 /** ask_user 作答(与 service AnswerUserPayload 同构) */
 export interface AnswerUserPayload {
@@ -131,22 +132,6 @@ export interface SkillInfo {
 
 export type SkillInstallScope = 'user' | 'project'
 
-type ServerMessage =
-  | { type: 'hello'; demo: boolean }
-  | { type: 'task_created'; taskId: string }
-  | { type: 'event'; event: TaskEvent }
-  | { type: 'tasks'; tasks: Task[] }
-  | { type: 'projects'; projects: Project[] }
-  | { type: 'project_created'; project: Project }
-  | { type: 'project_updated'; project: Project }
-  | { type: 'task_updated'; task: Task }
-  | { type: 'assets'; assets: Asset[] }
-  | { type: 'asset'; path: string; content: string }
-  | { type: 'skills'; skills: SkillInfo[] }
-  | { type: 'settings'; settings: PublicSettings }
-  | { type: 'ok'; taskId?: string; source?: string }
-  | { type: 'error'; message: string }
-
 /** 解析当前应连的端点。Tauri 注入可晚于模块求值,故每次 connect 重读 window。 */
 function resolveServiceEndpoint(fallbackUrl: string, fallbackToken?: string): { wsUrl: string; httpBase: string } {
   const w = window as { __LUMEN_WS__?: string; __LUMEN_TOKEN__?: string }
@@ -187,7 +172,10 @@ export class AgentClient {
   private readonly fallbackToken?: string
   /** 服务端是否 demo 模式(公网多访客,key 走浏览器);连接后由 hello 事件置位 */
   demo = false
+  /** hello.protocolVersion 与本客户端常量不一致(旧 daemon 无字段=0) */
+  protocolMismatch = false
   private readonly helloHandlers = new Set<(demo: boolean) => void>()
+  private readonly protocolMismatchHandlers = new Set<() => void>()
 
   constructor(url: string, token?: string) {
     this.fallbackUrl = url
@@ -622,6 +610,11 @@ export class AgentClient {
     return () => this.helloHandlers.delete(handler)
   }
 
+  onProtocolMismatch(handler: () => void): () => void {
+    this.protocolMismatchHandlers.add(handler)
+    return () => this.protocolMismatchHandlers.delete(handler)
+  }
+
   close(): void {
     this.rejectPendingAck(new Error('连接已关闭'))
     if (this.pendingRepair) {
@@ -635,7 +628,7 @@ export class AgentClient {
   }
 
   /** WS 非 OPEN 一律抛错——静默丢包会让 UI 假「思考中」且用户气泡永不出现 */
-  private send(message: unknown): void {
+  private send(message: ClientMessage): void {
     if (this.ws?.readyState !== WebSocket.OPEN) {
       throw new Error('未连接到 agent-service(连接已断开)。请稍候重连后重试,或刷新窗口。')
     }
@@ -675,6 +668,10 @@ export class AgentClient {
     switch (message.type) {
       case 'hello':
         this.demo = message.demo
+        this.protocolMismatch = !isProtocolCurrent(message)
+        if (this.protocolMismatch) {
+          for (const h of this.protocolMismatchHandlers) h()
+        }
         // demo:连接/重连建立后,若浏览器存过自己的 key,自动注入本连接(后端不落盘)
         if (message.demo) {
           try {

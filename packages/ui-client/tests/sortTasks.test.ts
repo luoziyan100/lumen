@@ -4,7 +4,7 @@
  */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { compareTasksForSidebar, sortTasksForSidebar } from '../src/sortTasks.ts'
+import { compareTasksForSidebar, sortTasksForSidebar } from '../src/sessions/sortTasks.ts'
 
 describe('sortTasksForSidebar', () => {
   it('钉档在上;钉内按 pinned_at 新者上;未钉按 created_at', () => {

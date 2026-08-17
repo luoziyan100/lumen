@@ -6,7 +6,7 @@
  */
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { isSessionMarqueeActive } from '../src/marqueeActive.ts'
+import { isSessionMarqueeActive } from '../src/marquee/marqueeActive.ts'
 
 describe('isSessionMarqueeActive', () => {
   const a = 'task-a'

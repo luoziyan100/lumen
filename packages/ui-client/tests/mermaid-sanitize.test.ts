@@ -13,7 +13,7 @@ import {
   parseStyleProps,
   sanitizeMermaidSource,
   semanticStyle,
-} from '../src/mermaidSanitize.ts'
+} from '../src/mermaid/mermaidSanitize.ts'
 
 describe('contrastRatio / enforceNodeStyle', () => {
   it('浅底+浅字对比度不足', () => {

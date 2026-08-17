@@ -6,7 +6,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { filterComposerFiles, dragHasFiles } from '../src/composerAccept.ts'
+import { filterComposerFiles, dragHasFiles } from '../src/composer/composerAccept.ts'
 
 test('filterComposerFiles:宽准入 — 扩展名不挡门,空名剔除', () => {
   const files = [

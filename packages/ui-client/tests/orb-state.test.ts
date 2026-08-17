@@ -6,7 +6,7 @@
  */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { ORB_THINKING, orbStateFromSteps, orbStateFromTool } from '../src/orbState.ts'
+import { ORB_THINKING, orbStateFromSteps, orbStateFromTool } from '../src/process/orbState.ts'
 
 describe('orbStateFromTool', () => {
   it('检索类 → searching', () => {
