@@ -10,7 +10,7 @@
 
 ## 成员
 
-- `run-code.ts` — `createRunCodeTool({ skillReadRoots, allowedDomains })`;`network` 默认 false;`runCodeTool` 空根单例仅测/占位
+- `run-code.ts` — `createRunCodeTool({ skillReadRoots, allowedDomains })`;`network` 默认 false;env 含 `PYTHONDONTWRITEBYTECODE=1`(断 .pyc 树);`runCodeTool` 空根单例仅测/占位
 - `sandbox.ts` — allow-default + 精准 deny;无代理口时网络规则与改前逐字节一致;有则只放 `localhost:<port>`(Seatbelt 拒写 127.0.0.1)
 - `net-allowlist.ts` — `DEFAULT_ALLOWED_DOMAINS` + `hostAllowed`;精确域含子域;空清单=全拒
 - `net-proxy.ts` — 每次 run 起 CONNECT/HTTP 代理;拒绝 403 + 记入 llmContent;不解密 TLS

@@ -3,7 +3,7 @@
  */
 import { test, type TestContext } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import * as path from 'node:path'
 import { createService, type Service } from '../../src/service.ts'
@@ -91,6 +91,36 @@ test('create_project 可带 sourcePath', async (t: TestContext) => {
   }).project
   assert.equal(proj.name, '绑盘项目')
   assert.equal(proj.source_path, folder)
+})
+
+test('list_assets 不含 library/**(sourcePath 挂载)', async (t: TestContext) => {
+  const r = await rig(t)
+  const ws = await connect(r)
+  await until(ws, (m) => m.type === 'hello')
+  const folder = await mkdtemp(path.join(tmpdir(), 'lumen-src-lib-'))
+  t.after(async () => { await rm(folder, { recursive: true, force: true }) })
+  await writeFile(path.join(folder, 'README.md'), '# 源仓库')
+
+  const created = until(ws, (m) => m.type === 'project_created')
+  ws.send(JSON.stringify({ type: 'create_project', name: '绑盘展示', sourcePath: folder }))
+  const pid = ((await created).find((m) => m.type === 'project_created') as { project: { id: string } }).project.id
+
+  const taskWait = until(ws, (m) => m.type === 'task_created')
+  ws.send(JSON.stringify({ type: 'create_task', projectId: pid, goal: '看资产' }))
+  const taskId = ((await taskWait).find((m) => m.type === 'task_created') as { taskId: string }).taskId
+
+  const saved = await r.service.runtime.saveUpload(pid, 'ok.md', new TextEncoder().encode('可见'), taskId)
+  assert.equal(saved.path, 'docs/ok.md')
+
+  bufs.get(ws)!.msgs.length = 0
+  const listed = until(ws, (m) => m.type === 'assets')
+  ws.send(JSON.stringify({ type: 'list_assets', projectId: pid, taskId }))
+  const assets = ((await listed).find((m) => m.type === 'assets') as {
+    assets: Array<{ path: string }>
+  }).assets
+  assert.ok(assets.some((a) => a.path === 'docs/ok.md'), JSON.stringify(assets))
+  assert.ok(!assets.some((a) => a.path.startsWith('library/') || a.path.includes('/library/')),
+    `library 不得上墙: ${assets.map((a) => a.path).join(',')}`)
 })
 
 test('create_project 不抹掉 default 里已有会话', async (t: TestContext) => {

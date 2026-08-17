@@ -3,6 +3,7 @@
  * [OUTPUT]: createRunCodeTool({ skillReadRoots, allowedDomains }) + runCodeTool(空根单例,测/占位)
  * [POS]: §5.4 修订(owner 拍板 2026-07-05):L1 进程纪律(cwd 锁工作区/超时/输出上限/AbortSignal)
  *        + L2 Seatbelt(见 sandbox.ts)。network:true 时箱外起白名单代理,箱内只开代理口。
+ *        env 含 PYTHONDONTWRITEBYTECODE=1,避免 HOME=cwd 时 python 写出 Library/Caches。
  *        skill 只读根与域名清单构造注入,不进 ToolContext。
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
@@ -107,6 +108,7 @@ export function createRunCodeTool(opts: {
       HOME: cwd, // 脚本里的 ~ 落在工作区,不指向真实用户目录
       TMPDIR: '/private/tmp',
       LANG: 'en_US.UTF-8',
+      PYTHONDONTWRITEBYTECODE: '1', // 断掉 Apple python 往 cwd 写 Library/Caches/*.pyc
     }
     if (proxy) {
       const url = `http://127.0.0.1:${proxy.port}`

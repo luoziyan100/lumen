@@ -219,6 +219,21 @@ catch (e) { console.log('BLOCKED:' + e.code) }`,
   assert.doesNotMatch(r.llmContent, /READ-OK/)
 })
 
+test('run_code:python 不写 Library/Caches .pyc 树', async (t) => {
+  const ws = await makeWs(t)
+  const r = await runCodeTool.run(
+    { language: 'python', code: 'print("no-pyc")' },
+    noopCtx({ workspace: ws }),
+  )
+  if (/未检测到 python3|启动失败/.test(r.llmContent)) {
+    t.skip('本机无 python3')
+    return
+  }
+  assert.match(r.llmContent, /退出码 0/, r.llmContent)
+  const files = await ws.glob('**/*')
+  assert.ok(!files.some((p) => p === 'Library' || p.startsWith('Library/')), `不应出现 Library/: ${files.join(',')}`)
+})
+
 test('run_code:language 与首行不符且 SyntaxError 时给提示', async (t) => {
   const ws = await makeWs(t)
   const r = await runCodeTool.run(

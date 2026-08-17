@@ -11,7 +11,12 @@
 - **对话流**：商量、过程、短结论、路径指针。
 - **产物面**：阅读器 / 工作区文件；可迭代长交付必须能回到文件。
 
-磁盘是真源。不做云 Artifact 库、不做静默自动落盘、P0 不改 persona。
+**工作区展示面 = 目录合同**（`briefs/archive/workspace-surface.md`）：右轨资产不是全盘扫描。
+`notes/` `papers/` `drafts/` `docs/` `uploads/` `images/` 与根级交付文件是「给用户看」；
+`cache/` `workers/` `scratch/` `library/` `Library/` 与 `drafts/todo.md` 不上墙。
+规则在 `runtime/assets.ts` 执行，不依赖 Prompt。
+
+磁盘是真源。不做云 Artifact 库、不做静默自动落盘。
 
 ## Active Document
 

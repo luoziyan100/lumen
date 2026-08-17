@@ -83,7 +83,7 @@ Skill ≠ Memory。Skill 是可**启动**的研究工作流;Memory 是长期事�
 - `continue` 续跑:从事件表重建线程(见存储层)后追加新消息继续
 - durable 事件(model_step / tool_call / tool_result / reply / status_change / error …)经 `event-hub` 先落库再广播
 - ephemeral 事件(`text_delta` / `tool_call_start`)仅 live 广播(不占 seq、不入 SQLite/jsonl);断线重放只靠 durable,UI 用 `model_step` 定稿复原正文
-- 资产视图:`assets.ts` 列项目工作区文件,过滤 `cache/` 与 `sessions/`,只展示用户要的交付物
+- 资产视图:`assets.ts` 按目录合同列展示面(根级交付 + notes/papers/drafts/docs/uploads/images);`cache/` `workers/` `library/` 等不上墙
 
 ### 进程生命周期(本机)
 
@@ -135,7 +135,7 @@ UI 状态是事件流的纯函数:对 durable 子集重放必然得到同一界�
   sessions/<taskId>/            ← 会话私有 scratch(聊天线程永不跨会话共享)
 ```
 
-**共享的是资料,不是聊天。** 会话 cwd 仍是 `sessions/<taskId>/`;工具经 `shared/` 前缀只读访问共享区。`list_assets` 合并 shared + 当前会话并标注 `scope`。PDF 提取等中间产物进 `cache/`,不进资产列表。
+**共享的是资料,不是聊天。** 会话 cwd 仍是 `sessions/<taskId>/`;工具经 `shared/` 前缀只读访问共享区。`list_assets` 合并 shared + 当前会话并标注 `scope`。展示面按目录声明,原料进 `cache/` 不上墙。
 
 **上传策略(admission ≠ representation,对齐 OpenSquilla):** UI 不按扩展名拒收;服务端 `saveUpload` 按表示归位——`pdf`→`papers/`、文本与源码→`docs/`、图→`images/`、其余→`uploads/`(opaque:落盘给工具读,不假定 inline 进模型)。体积上限见 `maxUploadBytes`(默认 25MB)。
 
