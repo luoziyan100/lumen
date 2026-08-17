@@ -114,14 +114,14 @@ export class TaskStore {
         'INSERT INTO tasks (id, project_id, goal, status, last_error, created_at, updated_at, finished_at) VALUES (@id,@project_id,@goal,@status,@last_error,@created_at,@updated_at,@finished_at)',
       ),
       getTask: db.prepare('SELECT * FROM tasks WHERE id = ?'),
-      // 钉档优先 → 钉内 pinned_at 新者上 → 未钉 created_at;不跟活跃重排
+      // 钉档优先 → 钉内 pinned_at 新者上 → 未钉 updated_at;钉档不跟活跃重排
       listTasks: db.prepare(
         `SELECT * FROM tasks WHERE project_id = ? AND archived_at IS NULL
-         ORDER BY (pinned_at IS NULL) ASC, pinned_at DESC, created_at DESC`,
+         ORDER BY (pinned_at IS NULL) ASC, pinned_at DESC, updated_at DESC`,
       ),
       listAllTasks: db.prepare(
         `SELECT * FROM tasks WHERE archived_at IS NULL
-         ORDER BY (pinned_at IS NULL) ASC, pinned_at DESC, created_at DESC`,
+         ORDER BY (pinned_at IS NULL) ASC, pinned_at DESC, updated_at DESC`,
       ),
       updateTask: db.prepare('UPDATE tasks SET status=?, last_error=?, finished_at=?, updated_at=? WHERE id=?'),
       updateTaskTitle: db.prepare('UPDATE tasks SET title=?, updated_at=? WHERE id=?'),

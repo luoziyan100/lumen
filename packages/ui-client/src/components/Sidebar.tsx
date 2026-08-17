@@ -3,7 +3,7 @@
  * [OUTPUT]: Sidebar —— 可折「项目」整区 + 全局置顶 + 最近;双指点按置顶/重命名/复制/归档;标题溢出悬停跑马灯
  * [POS]: 左栏;「项目」标题右侧 chevron 收整区(lumen:sbProjectsOpen);项目行折叠记 lumen:sbExpandedProjects;
  *        项目行左侧 chevron 仍管单树;
- *        项目树会话 >N 条 Progressive Disclosure(内存展开,active 保底);会话行左侧 status 灯(idle/unread/running);
+ *        项目树/最近可见窗(visibleSessions,溢出换面会话页);会话行左侧 status 灯(idle/unread/running);
  *        置顶在项目区下、最近上;Trigger 须 render=<button>;开编延后+忽略菜单 blur;
  *        跑马灯热态=hoveredTaskId(行级,同时最多一条)+菜单打开,不信 Marquee 内 pointer;
  *        折叠动效见 CurtainFold(spring + 卷帘)
@@ -23,7 +23,7 @@ import { isSessionMarqueeActive } from '../marquee/marqueeActive'
 import { SIDEBAR_ACCOUNT_COPY, SIDEBAR_PROJECT_COPY } from '../copy/appCopy'
 import { sessionLampKind } from '../sessions/sessionLamp'
 import { useResizable } from '../shell/useResizable'
-import { visibleSessions } from '../sessions/visibleSessions'
+import { SESSION_RECENT_N, visibleSessions } from '../sessions/visibleSessions'
 import { isUserProjectId } from '../sessions/sidebarBuckets'
 import {
   loadExpandedProjectIds,
@@ -69,6 +69,8 @@ interface SidebarProps {
   onOpenCreateProject: () => void
   onNewChat: (projectId: string) => void
   onSearch: () => void
+  /** 换面会话页;projectId=预筛该项目,null=全部 */
+  onViewAllSessions: (projectId: string | null) => void
   onSelect: (task: Task) => void
   onSelectProject: (projectId: string) => void
   onArchive: (task: Task) => void
@@ -100,6 +102,7 @@ export function Sidebar({
   onOpenCreateProject,
   onNewChat,
   onSearch,
+  onViewAllSessions,
   onSelect,
   onSelectProject,
   onArchive,
@@ -115,8 +118,6 @@ export function Sidebar({
   const [expanded, setExpanded] = useState<Set<string>>(() =>
     loadExpandedProjectIds(isUserProjectId(activeProjectId) ? activeProjectId : null),
   )
-  /** 项目树会话 show-more 展开态(按 projectId;不持久化) */
-  const [sessMoreOpen, setSessMoreOpen] = useState<Set<string>>(() => new Set())
   /** 「项目」整区折起;默认开;记 localStorage */
   const [projectsOpen, setProjectsOpen] = useState(() => {
     try {
@@ -375,15 +376,6 @@ export function Sidebar({
     setExpanded((prev) => toggleExpandedProjectId(prev, id))
   }
 
-  function toggleSessMore(projectId: string): void {
-    setSessMoreOpen((prev) => {
-      const next = new Set(prev)
-      if (next.has(projectId)) next.delete(projectId)
-      else next.add(projectId)
-      return next
-    })
-  }
-
   function toggleProjectsSection(): void {
     setProjectsOpen((prev) => {
       const next = !prev
@@ -466,10 +458,7 @@ export function Sidebar({
                 const label = projectLabel(proj)
                 const hasSess = hasDraft || tasks.length > 0
                 const sess = hasSess
-                  ? visibleSessions(tasks, {
-                      expanded: sessMoreOpen.has(proj.id),
-                      activeId: activeTaskId,
-                    })
+                  ? visibleSessions(tasks, { activeId: activeTaskId })
                   : null
                 const menuOpen = menuProjectId === proj.id
                 const renamingThis = renaming?.kind === 'project' && renaming.id === proj.id
@@ -572,12 +561,9 @@ export function Sidebar({
                             <button
                               type="button"
                               className="sb-sess-more"
-                              aria-expanded={!sess.capped}
-                              onClick={() => toggleSessMore(proj.id)}
+                              onClick={() => { closeMenus(); onViewAllSessions(proj.id) }}
                             >
-                              {sess.capped
-                                ? SIDEBAR_PROJECT_COPY.showMoreSessions
-                                : SIDEBAR_PROJECT_COPY.showLessSessions}
+                              {SIDEBAR_PROJECT_COPY.viewAll}
                             </button>
                           )}
                         </div>
@@ -598,9 +584,26 @@ export function Sidebar({
             <div className="sb-section-h sb-section-h-recent">{SIDEBAR_PROJECT_COPY.recent}</div>
             {recentTasks.length === 0 ? (
               <div className="sb-empty">{SIDEBAR_PROJECT_COPY.emptyRecent}</div>
-            ) : (
-              recentTasks.map((task) => renderTaskRow(task, true))
-            )}
+            ) : (() => {
+              const recent = visibleSessions(recentTasks, {
+                activeId: activeTaskId,
+                n: SESSION_RECENT_N,
+              })
+              return (
+                <>
+                  {recent.visible.map((task) => renderTaskRow(task, true))}
+                  {recent.canToggle && (
+                    <button
+                      type="button"
+                      className="sb-sess-more sb-sess-more-recent"
+                      onClick={() => { closeMenus(); onViewAllSessions(null) }}
+                    >
+                      {SIDEBAR_PROJECT_COPY.viewAllSessions}
+                    </button>
+                  )}
+                </>
+              )
+            })()}
           </>
         )}
       </nav>

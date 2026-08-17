@@ -32,9 +32,10 @@ export const SIDEBAR_PROJECT_COPY = {
   newChatInProject: '在此项目新建会话',
   newProject: '新建项目',
   namePlaceholder: '项目名称',
-  /** 项目树会话 >N 条时 Progressive Disclosure(见 visibleSessions) */
-  showMoreSessions: '展开显示',
-  showLessSessions: '收起',
+  /** 项目树会话 >N:换面会话页(预筛该项目) */
+  viewAll: '查看全部',
+  /** 「最近」溢出:换面会话页(筛=全部) */
+  viewAllSessions: '查看全部会话',
   /** 会话灯:点圆 toggle 未读(Claude read/unread);空心=已读,实心=未读,脉动=运行中 */
   markUnread: '标为未读',
   markRead: '标为已读',
@@ -50,6 +51,26 @@ export const SIDEBAR_PROJECT_COPY = {
   archiveProject: '归档项目',
   renamePlaceholder: '项目名称',
   renameChatPlaceholder: '会话名称',
+} as const
+
+/** 会话页(主列档案室;名词见 doc/sessions-index.md) */
+export const SESSIONS_COPY = {
+  title: '会话',
+  searchPlaceholder: '搜索',
+  filter: '筛选',
+  filterAll: '全部',
+  filterRunning: '运行中',
+  filterPinned: '置顶',
+  newChat: '新对话',
+  empty: '还没有会话。',
+  emptySearch: '没有匹配的会话',
+  prevPage: '上一页',
+  nextPage: '下一页',
+  pageStatus: (i: number, n: number) => `第 ${i} / ${n} 页`,
+  justNow: '刚刚',
+  minutesAgo: (n: number) => `${n} 分钟前`,
+  hoursAgo: (n: number) => `${n} 小时前`,
+  daysAgo: (n: number) => `${n} 天前`,
 } as const
 
 export const CREATE_PROJECT_COPY = {

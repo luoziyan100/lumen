@@ -8,7 +8,8 @@
  *        侧栏未读灯:task_updated 终态且非当前 → unread(localStorage);打开会话清除;
  *        上传=对话事件见 doc/upload-awareness.md;当前稿 activePath 见 doc/artifact-loop.md;
  *        messages 容器 key=taskId|draft 强制 remount,配合 useAgent viewEpoch 防串台;
- *        助手终稿:模型正文 Sources 原样渲染;SourceList 仅漏写兜底
+ *        助手终稿:模型正文 Sources 原样渲染;SourceList 仅漏写兜底;
+ *        会话页(SessionsView)替换主列,侧栏留着;数据源=全量 convs
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -31,6 +32,7 @@ import { ComposerCard, type ComposerModelOption } from './components/ComposerCar
 import { ManageSkillsDialog } from './components/ManageSkillsDialog'
 import { useComposerDraft } from './app/useComposerDraft'
 import { SearchModal } from './components/SearchModal'
+import { SessionsView } from './components/SessionsView'
 import { SettingsModal } from './components/SettingsModal'
 import { useAppearance } from './appearance'
 import { ExternalLinkGate } from './components/ExternalLinkDialog'
@@ -202,6 +204,8 @@ function AppInner() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [createProjectOpen, setCreateProjectOpen] = useState(false)
+  /** 非 null=主列换会话页;projectId 预筛,null=全部 */
+  const [sessionsOpen, setSessionsOpen] = useState<{ projectId: string | null } | null>(null)
   useEffect(() => {
     function onKey(e: KeyboardEvent): void {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -219,6 +223,7 @@ function AppInner() {
     selectConversation(task.id, task.status === 'running', task.project_id)
     ws.close()
     setSearchOpen(false)
+    setSessionsOpen(null)
   }
 
   /** 软归档:列表消失;若正看着该会话则清到空态 */
@@ -318,6 +323,7 @@ function AppInner() {
     persistProjectId(target)
     newConversation(target)
     setDraftProjectId(isUserProjectId(target) ? target : null)
+    setSessionsOpen(null)
     ws.close()
     requestAnimationFrame(() => taRef.current?.focus({ preventScroll: true }))
   }
@@ -625,6 +631,7 @@ function AppInner() {
             onOpenCreateProject={() => setCreateProjectOpen(true)}
             onNewChat={startNewChat}
             onSearch={() => setSearchOpen(true)}
+            onViewAllSessions={(pid) => setSessionsOpen({ projectId: pid })}
             onSelect={pickConversation}
             onSelectProject={selectProject}
             onArchive={(t) => { void archiveConversation(t) }}
@@ -643,7 +650,17 @@ function AppInner() {
             onCreate={handleCreateProject}
           />
         )}
-        <main className={`chat ${showReader ? 'chat-with-reader' : ''} ${isEmpty ? 'chat-empty' : ''}${pendingAsk ? ' has-ask-user' : ''}`}>
+        <main className={`chat ${showReader ? 'chat-with-reader' : ''} ${isEmpty && !sessionsOpen ? 'chat-empty' : ''}${pendingAsk && !sessionsOpen ? ' has-ask-user' : ''}${sessionsOpen ? ' chat-sessions' : ''}`}>
+          {sessionsOpen ? (
+            <SessionsView
+              key={sessionsOpen.projectId ?? 'all'}
+              sessions={convs}
+              projects={sidebarProjects}
+              initialProjectId={sessionsOpen.projectId}
+              onSelect={pickConversation}
+              onNewChat={() => startNewChat()}
+            />
+          ) : (
           <div className="chat-stage">
             {!isEmpty && (
               <TurnPreviewRail
@@ -677,6 +694,8 @@ function AppInner() {
               </div>
             </div>
           </div>
+          )}
+          {!sessionsOpen && (
           <div className="composer-dock">
             {!isEmpty && (
               <JumpToLatestButton
@@ -753,6 +772,7 @@ function AppInner() {
             onClearActivePath={() => setActivePath(null)}
           />
           </div>
+          )}
         </main>
 
         {showReader && ws.open && <ReaderPane open={ws.open} pdfUrl={(p) => client.pdfUrl(projectId, p, taskId ?? undefined)} onClose={ws.close} />}

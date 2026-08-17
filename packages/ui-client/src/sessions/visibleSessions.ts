@@ -1,38 +1,38 @@
 /**
- * [INPUT]: 已排序的项目内会话列表(未置顶);可选 activeId
- * [OUTPUT]: visibleSessions / SESSION_PREVIEW_N —— 收起态前 N + active 保底
- * [POS]: Sidebar 项目树 Progressive Disclosure;置顶/最近不经此函数
+ * [INPUT]: 已排序的会话列表;可选 activeId
+ * [OUTPUT]: visibleSessions / SESSION_PREVIEW_N / SESSION_RECENT_N —— 前 N + active 保底
+ * [POS]: Sidebar 项目树与「最近」共用可见窗;溢出换面会话页,不再原地展开
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 
-/** 项目树默认可见会话条数(Claude Workspace 类比 ~3–4) */
+/** 项目树默认可见会话条数 */
 export const SESSION_PREVIEW_N = 4
+/** 「最近」桶默认可见条数 */
+export const SESSION_RECENT_N = 20
 
 export interface VisibleSessionsResult<T extends { id: string }> {
-  /** 应收起/展开后实际渲染的会话 */
   visible: T[]
-  /** 总数超过预览窗,需展示 toggle */
+  /** 总数超过预览窗,侧栏应出「查看全部」 */
   canToggle: boolean
-  /** 当前处于截断态(未展开且 canToggle) */
+  /** 当前处于截断态 */
   capped: boolean
 }
 
 /**
- * 收起:前 n 条;若 active 不在窗内则追加(允许 n+1)。
- * 展开或总数 ≤ n:全量。顺序保持入参序。
+ * 前 n 条;若 active 不在窗内则追加(允许 n+1)。
+ * 总数 ≤ n:全量。顺序保持入参序。无展开态。
  */
 export function visibleSessions<T extends { id: string }>(
   tasks: T[],
   opts: {
-    expanded: boolean
     activeId: string | null
     n?: number
   },
 ): VisibleSessionsResult<T> {
   const n = opts.n ?? SESSION_PREVIEW_N
   const canToggle = tasks.length > n
-  if (!canToggle || opts.expanded) {
-    return { visible: tasks, canToggle, capped: false }
+  if (!canToggle) {
+    return { visible: tasks, canToggle: false, capped: false }
   }
 
   const head = tasks.slice(0, n)

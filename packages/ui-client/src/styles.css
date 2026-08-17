@@ -2150,6 +2150,64 @@ html[data-skin="cosmic-latte"] .thought {
 .empty { margin: auto; text-align: center; color: var(--ink-mute); }
 .empty-mark { font-family: var(--font-serif); font-size: 34px; color: var(--ink); letter-spacing: .04em; }
 
+/* ---- 会话页(主列档案室) ---- */
+.chat-sessions { justify-content: flex-start; }
+.sessions-view {
+  flex: 1; min-height: 0; display: flex; flex-direction: column;
+  padding: var(--s-6) calc((100% - min(var(--chat-max), 100% - 2 * var(--s-8))) / 2) var(--s-8);
+}
+.sessions-head {
+  display: flex; align-items: center; gap: var(--s-3); flex-wrap: wrap;
+  margin-bottom: var(--s-5);
+}
+.sessions-title {
+  margin: 0; flex: 1; min-width: 8rem;
+  font-family: var(--font-serif); font-size: var(--t-display-md); font-weight: var(--w-regular);
+  color: var(--ink); letter-spacing: .02em;
+}
+.sessions-tools { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+.sessions-search {
+  display: flex; align-items: center; gap: var(--s-2);
+  min-width: 12rem; padding: 6px 10px;
+  border: 1px solid var(--sand-deep); border-radius: var(--radius-md);
+  color: var(--ink-mute); background: var(--card);
+}
+.sessions-search input {
+  flex: 1; min-width: 0; border: none; background: none;
+  color: var(--ink); font: inherit; font-size: var(--t-body-sm);
+  outline: none;
+}
+.sessions-search input::placeholder { color: var(--ink-mute); }
+.sessions-filter {
+  border: 1px solid var(--sand-deep); border-radius: var(--radius-md);
+  background: var(--card); color: var(--ink-soft);
+  font: inherit; font-size: var(--t-body-sm);
+  padding: 6px 10px; cursor: pointer;
+}
+.sessions-filter:hover { color: var(--ink); }
+.sessions-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; min-height: 0; }
+.sessions-row {
+  width: 100%; display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--s-4); padding: 12px 4px;
+  border: none; border-bottom: 1px solid var(--sand);
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.sessions-row:hover { background: var(--sand); }
+.sessions-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sessions-row-title { color: var(--ink); font-size: var(--t-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sessions-row-proj { color: var(--ink-mute); font-size: var(--t-caption); }
+.sessions-row-meta {
+  flex: none; display: flex; align-items: center; gap: var(--s-2);
+  color: var(--ink-mute); font-size: var(--t-caption); white-space: nowrap;
+}
+.sessions-empty { margin: var(--s-8) 0; color: var(--ink-mute); font-size: var(--t-body-sm); }
+.sessions-pager {
+  display: flex; align-items: center; justify-content: center; gap: var(--s-3);
+  padding-top: var(--s-4);
+}
+.sessions-pager-status { color: var(--ink-mute); font-size: var(--t-caption); }
+.sb-sess-more-recent { margin-left: var(--s-2); }
+
 /* ---- Markdown 输出渲染 ---- */
 .md-body { font-family: var(--font-serif); font-size: var(--t-body-lg); line-height: var(--lh-body-lg); color: var(--ink); white-space: normal; }
 .md-body > :first-child { margin-top: 0; }

@@ -72,6 +72,20 @@ test('findInterrupted 只返回 running / interrupted', async (t) => {
   assert.deepEqual(ids, [a.id, b.id].sort())
 })
 
+test('listTasks 未钉按 updated_at;钉档仍优先且不跟活跃跳', async (t) => {
+  const store = await makeStore(t)
+  const cold = store.createTask('p', 'cold')
+  const hot = store.createTask('p', 'hot')
+  const pin = store.createTask('p', 'pin')
+  await new Promise((r) => setTimeout(r, 8))
+  store.appendEvent(hot.id, 'model_step', { content: 'touch' })
+  store.setTaskPinned(pin.id, true)
+  const listed = store.listTasks('p')
+  assert.equal(listed[0]?.id, pin.id, '钉档在上,即使 updated 更旧')
+  assert.equal(listed[1]?.id, hot.id, '未钉里最近动过的在上')
+  assert.equal(listed[2]?.id, cold.id)
+})
+
 test('archiveTask 软归档:list 排除,事件仍在', async (t) => {
   const store = await makeStore(t)
   const keep = store.createTask('p', 'keep')

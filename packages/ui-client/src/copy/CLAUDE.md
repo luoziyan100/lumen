@@ -7,6 +7,6 @@
 
 ## 成员
 
-- `appCopy.ts` — 品牌/侧栏/状态/Sources/Skills/过期服务横幅
+- `appCopy.ts` — 品牌/侧栏/会话页/状态/Sources/Skills/过期服务横幅
 - `settingsCopy.ts` — 设置页(系统提示词/后台服务)
 - `greeting.ts` — 按时辰问候

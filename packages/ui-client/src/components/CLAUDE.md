@@ -4,13 +4,14 @@
 
 ## 成员
 
-- `Sidebar.tsx` — Cursor 式:可折「项目」整区(标题 chevron + `lumen:sbProjectsOpen`) → 全局「置顶」→「最近」;项目行 chevron 折单树并记 `lumen:sbExpandedProjects`;折叠动效走 `CurtainFold`;项目树会话 >N 条 Progressive Disclosure(`visibleSessions`,active 保底);会话行左灯(`sessionLamp`:idle 空心/unread 实心/running 脉动,点圆 toggle 未读);双指点按置顶/重命名/复制/归档;钉会话不重复出现在树/最近;行内重命名写 `title`;`protocolMismatch` 复用离线横幅位显示重启提示
+- `Sidebar.tsx` — Cursor 式:可折「项目」整区(标题 chevron + `lumen:sbProjectsOpen`) → 全局「置顶」→「最近」;项目行 chevron 折单树并记 `lumen:sbExpandedProjects`;折叠动效走 `CurtainFold`;项目树/最近走 `visibleSessions`(4/20)+ active 保底,溢出「查看全部」换面会话页;会话行左灯(`sessionLamp`:idle 空心/unread 实心/running 脉动,点圆 toggle 未读);双指点按置顶/重命名/复制/归档;钉会话不重复出现在树/最近;行内重命名写 `title`;`protocolMismatch` 复用离线横幅位显示重启提示
+- `SessionsView.tsx` — 会话页:全量 list 上搜索∩筛选+分页;主列替换对话,侧栏留着
 - `CurtainFold.tsx` — **Curtain Language 原语**:grid Accordion + 卷帘 clip + spring 展开/curtain 收起;`stagger` 子项 cascade;关合保持挂载+`inert`;Accordion 式开合默认用它(过程块/侧栏/右轨目录/用户长文),禁再引入第二套高度动画
 - `MarqueeTitle.tsx` — 溢出单向走马灯:双份文案 + track `translateX(-50%)`;热态由 Sidebar `hoveredTaskId`(同时最多一条)+菜单打开注入,组件不自管 pointer(Trigger 内 leave 会粘行)
 - `turnRail.ts` — `buildTurnRailItems`:ChatItem→用户轮次(一问+随后助手答);过程行不占刻度
 - `TurnPreviewRail.tsx` — 对话列左侧轮次轨(≥4 轮);空闲小圆点、悬停鱼眼放大+预览;窄栏/阅读器开时隐藏;点圆点滚到 `msg-<id>`;可见轮 IO 在本组件(不抬 App)
 - `CreateProjectModal.tsx` — 创建项目悬浮卡(无遮罩):名称 + 可选本机源文件夹(Tauri pick / 粘贴路径)
-- `SearchModal.tsx` — 会话搜索(⌘K):Kumo CommandPalette,内部过滤,↑↓/↵ 键盘导航
+- `SearchModal.tsx` — 会话搜索(⌘K):Kumo CommandPalette;`sessionMatchesQuery` 过滤,↑↓/↵ 键盘导航
 - `SettingsModal.tsx` — 设置:供应商接入目录(卡内多模型 ID;列表自滚动;悬停启用/删除)/系统提示词/LaunchAgent;选用权在 composer 芯片
 - `UtilityRail.tsx` — 右轨:Todo Progress 优先(无 Todo 回退 process);工作目录(共享区/本会话,`CurtainFold` 开合);左缘拖拽调宽(默认 300,`lumen:railWidth.v4`)
 - `ReaderPane.tsx` — 右分屏阅读器:doc 衬线正文 / PDF / HTML 沙箱
