@@ -1,7 +1,8 @@
 /**
  * [INPUT]: Project / Task;icons;SIDEBAR_*_COPY;useResizable;Kumo DropdownMenu;MarqueeTitle;visibleSessions;sessionLamp
  * [OUTPUT]: Sidebar —— 可折「项目」整区 + 全局置顶 + 最近;双指点按置顶/重命名/复制/归档;标题溢出悬停跑马灯
- * [POS]: 左栏;「项目」标题右侧 chevron 收整区(localStorage lumen:sbProjectsOpen);项目行左侧 chevron 仍管单树;
+ * [POS]: 左栏;「项目」标题右侧 chevron 收整区(lumen:sbProjectsOpen);项目行折叠记 lumen:sbExpandedProjects;
+ *        项目行左侧 chevron 仍管单树;
  *        项目树会话 >N 条 Progressive Disclosure(内存展开,active 保底);会话行左侧 status 灯(idle/unread/running);
  *        置顶在项目区下、最近上;Trigger 须 render=<button>;开编延后+忽略菜单 blur;
  *        跑马灯热态=hoveredTaskId(行级,同时最多一条)+菜单打开,不信 Marquee 内 pointer;
@@ -23,6 +24,11 @@ import { SIDEBAR_ACCOUNT_COPY, SIDEBAR_PROJECT_COPY } from '../copy/appCopy'
 import { sessionLampKind } from '../sessions/sessionLamp'
 import { useResizable } from '../shell/useResizable'
 import { visibleSessions } from '../sessions/visibleSessions'
+import {
+  loadExpandedProjectIds,
+  saveExpandedProjectIds,
+  toggleExpandedProjectId,
+} from '../sessions/expandedProjects'
 
 async function copyText(text: string): Promise<void> {
   try {
@@ -105,9 +111,9 @@ export function Sidebar({
   onToggleUnread,
 }: SidebarProps) {
   const { width, handleProps } = useResizable({ edge: 'right', min: 220, max: 420, fallback: 300, storageKey: 'lumen:sbWidth' })
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(
-    activeProjectId.startsWith('p-') ? [activeProjectId] : [],
-  ))
+  const [expanded, setExpanded] = useState<Set<string>>(() =>
+    loadExpandedProjectIds(activeProjectId.startsWith('p-') ? activeProjectId : null),
+  )
   /** 项目树会话 show-more 展开态(按 projectId;不持久化) */
   const [sessMoreOpen, setSessMoreOpen] = useState<Set<string>>(() => new Set())
   /** 「项目」整区折起;默认开;记 localStorage */
@@ -360,13 +366,12 @@ export function Sidebar({
     })
   }, [activeProjectId, draftProjectId])
 
+  useEffect(() => {
+    saveExpandedProjectIds(expanded)
+  }, [expanded])
+
   function toggle(id: string): void {
-    setExpanded((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
+    setExpanded((prev) => toggleExpandedProjectId(prev, id))
   }
 
   function toggleSessMore(projectId: string): void {

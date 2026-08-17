@@ -1,5 +1,5 @@
 /**
- * Projects M1:list_projects / create_project + 双项目会话/shared 隔离(真服务+真 WS)。
+ * Projects M1:list_projects / create_project + 双项目隔离 + 同项目多会话(真服务+真 WS)。
  */
 import { test, type TestContext } from 'node:test'
 import assert from 'node:assert/strict'
@@ -192,6 +192,68 @@ test('双项目:会话 list 隔离;shared 上传仅本项目可见', async (t: T
   assert.ok(bareAssets.every((x) => x.scope === 'shared' || x.path.startsWith('shared/')),
     '无 taskId 不得冒充 session 文件')
   assert.ok(bareAssets.some((x) => x.path === 'shared/papers/paper.pdf'))
+})
+
+test('同项目两会话:聊天独立,shared 两边可读', async (t: TestContext) => {
+  const r = await rig(t)
+  const ws = await connect(r)
+  await until(ws, (m) => m.type === 'hello')
+
+  const mk = until(ws, (m) => m.type === 'project_created')
+  ws.send(JSON.stringify({ type: 'create_project', name: '共享论文' }))
+  const pid = ((await mk).find((m) => m.type === 'project_created') as { project: { id: string } }).project.id
+
+  const mkTask = async (goal: string) => {
+    const created = until(ws, (m) => m.type === 'task_created')
+    ws.send(JSON.stringify({ type: 'create_task', projectId: pid, goal }))
+    return ((await created).find((m) => m.type === 'task_created') as { taskId: string }).taskId
+  }
+  const t1 = await mkTask('会话一')
+  const t2 = await mkTask('会话二')
+
+  const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46])
+  const u = new URL(`http://127.0.0.1:${r.port}/upload`)
+  u.searchParams.set('project', pid)
+  u.searchParams.set('name', 'shared.pdf')
+  u.searchParams.set('scope', 'shared')
+  assert.equal((await fetch(u.toString(), { method: 'POST', body: pdf })).status, 200)
+
+  const listAssets = async (taskId: string) => {
+    bufs.get(ws)!.msgs.length = 0
+    const listed = until(ws, (m) => m.type === 'assets')
+    ws.send(JSON.stringify({ type: 'list_assets', projectId: pid, taskId }))
+    return ((await listed).find((m) => m.type === 'assets') as {
+      assets: Array<{ path: string; scope?: string }>
+    }).assets
+  }
+  const a1 = await listAssets(t1)
+  const a2 = await listAssets(t2)
+  assert.ok(a1.some((x) => x.path === 'shared/papers/shared.pdf' && x.scope === 'shared'))
+  assert.ok(a2.some((x) => x.path === 'shared/papers/shared.pdf' && x.scope === 'shared'))
+
+  const waitReply = (taskId: string, text: string) => {
+    const done = until(ws, (m) => m.type === 'event' && m.event.kind === 'reply' && m.event.task_id === taskId)
+    ws.send(JSON.stringify({ type: 'continue', taskId, userText: text, projectId: pid }))
+    return done
+  }
+  await waitReply(t1, '会话一独有句')
+  await waitReply(t2, '会话二独有句')
+
+  const replayUsers = async (taskId: string) => {
+    bufs.get(ws)!.msgs.length = 0
+    ws.send(JSON.stringify({ type: 'subscribe', taskId, projectId: pid }))
+    await new Promise((r) => setTimeout(r, 400))
+    return bufs.get(ws)!.msgs
+      .filter((m): m is Extract<ServerMessage, { type: 'event' }> =>
+        m.type === 'event' && m.event.task_id === taskId && m.event.kind === 'user')
+      .map((m) => (JSON.parse(m.event.payload_json) as { content?: string }).content ?? '')
+  }
+  const u1 = await replayUsers(t1)
+  const u2 = await replayUsers(t2)
+  assert.ok(u1.some((c) => c.includes('会话一独有句')), `t1 应有自己的话,got ${JSON.stringify(u1)}`)
+  assert.ok(!u1.some((c) => c.includes('会话二独有句')), 't1 不得看见 t2 的聊天')
+  assert.ok(u2.some((c) => c.includes('会话二独有句')), `t2 应有自己的话,got ${JSON.stringify(u2)}`)
+  assert.ok(!u2.some((c) => c.includes('会话一独有句')), 't2 不得看见 t1 的聊天')
 })
 
 test('rename_project / archive_project:改名可见,归档后 list 排除', async (t: TestContext) => {

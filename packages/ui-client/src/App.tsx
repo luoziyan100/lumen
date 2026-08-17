@@ -17,6 +17,7 @@ import { Tooltip, TooltipProvider } from '@cloudflare/kumo/components/tooltip'
 import { AgentClient, type Asset, type Project, type SkillInfo, type SkillInstallScope, type Task } from './agent-client'
 import { pathFromToolArgs, sanitizeActivePathClient } from './activePath.ts'
 import { sortTasksForSidebar } from './sessions/sortTasks'
+import { tasksOutsideUserProjects, userProjects } from './sessions/sidebarBuckets'
 import { shouldMarkUnreadOnStatus } from './sessions/sessionLamp'
 import { useUnreadSessions } from './app/useUnreadSessions'
 import { useThinkClock } from './app/useThinkClock'
@@ -436,7 +437,7 @@ function AppInner() {
    * - 最近:default/live/等历史桶平铺——绝不塞进「默认」文件夹
    */
   const sidebarProjects = useMemo(
-    () => projects.filter((p) => p.id.startsWith('p-')),
+    () => userProjects(projects),
     [projects],
   )
   /** 全局置顶区:跨项目抽一层;项目树/最近不再重复列出 */
@@ -454,11 +455,7 @@ function AppInner() {
     return next
   }, [tasksByProject])
   const recentTasks = useMemo(
-    () => sortTasksForSidebar(
-      Object.entries(tasksByProjectUnpinned)
-        .filter(([pid]) => !pid.startsWith('p-'))
-        .flatMap(([, tasks]) => tasks),
-    ),
+    () => sortTasksForSidebar(tasksOutsideUserProjects(tasksByProjectUnpinned)),
     [tasksByProjectUnpinned],
   )
   /** 搜索跨项目(仍按会话点选) */
