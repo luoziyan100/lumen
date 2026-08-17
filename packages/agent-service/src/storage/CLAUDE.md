@@ -8,7 +8,7 @@
 
 - `db.ts` — openDatabase:打开 SQLite 并跑**纯增量** migration(当前 v10:`tasks.active_turn_id` + subagents 表);导出 `Stmt<Bind, Row>` 钉 better-sqlite3 绑定位数(`ReturnType<DB['prepare']>` 会塌成单参)
 - `task-store.ts` — TaskStore:tasks / task_events;`title`(≠ goal);`pinned_at`;`EPHEMERAL_EVENT_KINDS`(text_delta/tool_call_start,runtime 不入库);`archived_at` 软归档;`updateTaskTitle`/`setTaskPinned`;list 钉档优先+钉内 `pinned_at` 倒序
-- `project-store.ts` — ProjectStore:一等项目名册 + 重命名/软归档(`archived_at`) + `shared/`/`memory/`/`skills/` 目录播种;default 零感知、禁归档
+- `project-store.ts` — ProjectStore:一等项目名册 + 重命名/软归档(`archived_at`) + `shared/`/`memory/`/`skills/` 目录播种;用户 id 铸自 `PROJECT_ID_PREFIX`;default 零感知、禁归档
 - `workspace-id.ts` — sanitizeWorkspaceId:工作区路径段消毒(防 `..` / 分隔符)
 - `resume.ts` — rebuildThread:从持久化事件重建可续跑线程(含 model_step.reasoningContent;user.uploads→附言)
 - `budget.ts` — 多维预算:从 task_events 计算用量(event-sourced);所有 model_step.usage 折 token(含子 live 步);steps 只计无 subagent_id 的主步;`subagent_completed` 不入账

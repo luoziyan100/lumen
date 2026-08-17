@@ -24,6 +24,7 @@ import { SIDEBAR_ACCOUNT_COPY, SIDEBAR_PROJECT_COPY } from '../copy/appCopy'
 import { sessionLampKind } from '../sessions/sessionLamp'
 import { useResizable } from '../shell/useResizable'
 import { visibleSessions } from '../sessions/visibleSessions'
+import { isUserProjectId } from '../sessions/sidebarBuckets'
 import {
   loadExpandedProjectIds,
   saveExpandedProjectIds,
@@ -112,7 +113,7 @@ export function Sidebar({
 }: SidebarProps) {
   const { width, handleProps } = useResizable({ edge: 'right', min: 220, max: 420, fallback: 300, storageKey: 'lumen:sbWidth' })
   const [expanded, setExpanded] = useState<Set<string>>(() =>
-    loadExpandedProjectIds(activeProjectId.startsWith('p-') ? activeProjectId : null),
+    loadExpandedProjectIds(isUserProjectId(activeProjectId) ? activeProjectId : null),
   )
   /** 项目树会话 show-more 展开态(按 projectId;不持久化) */
   const [sessMoreOpen, setSessMoreOpen] = useState<Set<string>>(() => new Set())
@@ -356,7 +357,7 @@ export function Sidebar({
   }
 
   useEffect(() => {
-    const focus = draftProjectId ?? (activeProjectId.startsWith('p-') ? activeProjectId : null)
+    const focus = draftProjectId ?? (isUserProjectId(activeProjectId) ? activeProjectId : null)
     if (!focus) return
     setExpanded((prev) => {
       if (prev.has(focus)) return prev

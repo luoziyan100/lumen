@@ -10,6 +10,7 @@
 - `dto.ts` — 线上数据形(不 import storage/runtime 实现),供 messages 与 ui-client tsc 共用
 - `dto-compat.ts` — 编译期断言 storage/runtime 同名形可赋给 dto 线上形(Store extends Wire);无运行时导出
 - `version.ts` — `PROTOCOL_VERSION` 运行时常量 + `protocolVersionOf`(缺字段视为 0);hello 与 portfile 同源
+- `ids.ts` — `PROJECT_ID_PREFIX` / `isUserProjectId`;用户项目 id 前缀真源(铸 id 与 UI 分桶同源)
 - `server.ts` — startServer:把 AgentRuntime 暴露为 localhost WS(带 token 鉴权,4401 踢未授权);`POST /upload` 回 `UploadReceipt` JSON;close 先掐残留 WS 再关 HTTP;连上即推 hello(含 protocolVersion)
 
 ## 同步债(已消灭)

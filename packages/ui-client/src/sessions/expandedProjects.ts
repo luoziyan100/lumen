@@ -1,9 +1,11 @@
 /**
- * [INPUT]: localStorage
+ * [INPUT]: localStorage;protocol/ids.ts 的 isUserProjectId
  * [OUTPUT]: loadExpandedProjectIds / saveExpandedProjectIds / toggleExpandedProjectId
  * [POS]: 侧栏项目行折叠态的客户端真源(brief M1:最近展开记 localStorage)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
+
+import { isUserProjectId } from '../../../agent-service/src/protocol/ids.ts'
 
 export const EXPANDED_PROJECTS_KEY = 'lumen:sbExpandedProjects'
 
@@ -15,14 +17,14 @@ export function loadExpandedProjectIds(seed?: string | null): Set<string> {
       const parsed = JSON.parse(raw) as unknown
       if (Array.isArray(parsed)) {
         for (const x of parsed) {
-          if (typeof x === 'string' && x.startsWith('p-')) ids.add(x)
+          if (typeof x === 'string' && isUserProjectId(x)) ids.add(x)
         }
       }
     }
   } catch {
     // quota / private / 坏 JSON
   }
-  if (seed && seed.startsWith('p-')) ids.add(seed)
+  if (seed && isUserProjectId(seed)) ids.add(seed)
   return ids
 }
 

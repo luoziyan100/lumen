@@ -17,7 +17,7 @@ import { Tooltip, TooltipProvider } from '@cloudflare/kumo/components/tooltip'
 import { AgentClient, type Asset, type Project, type SkillInfo, type SkillInstallScope, type Task } from './agent-client'
 import { pathFromToolArgs, sanitizeActivePathClient } from './activePath.ts'
 import { sortTasksForSidebar } from './sessions/sortTasks'
-import { tasksOutsideUserProjects, userProjects } from './sessions/sidebarBuckets'
+import { isUserProjectId, tasksOutsideUserProjects, userProjects } from './sessions/sidebarBuckets'
 import { shouldMarkUnreadOnStatus } from './sessions/sessionLamp'
 import { useUnreadSessions } from './app/useUnreadSessions'
 import { useThinkClock } from './app/useThinkClock'
@@ -314,10 +314,10 @@ function AppInner() {
 
   /** 新对话:p-* 下出现临时「新建对话」行;default 桶不造项目草稿 */
   function startNewChat(pid: string = projectId): void {
-    const target = pid.startsWith('p-') || pid === 'default' ? pid : 'default'
+    const target = isUserProjectId(pid) || pid === 'default' ? pid : 'default'
     persistProjectId(target)
     newConversation(target)
-    setDraftProjectId(target.startsWith('p-') ? target : null)
+    setDraftProjectId(isUserProjectId(target) ? target : null)
     ws.close()
     requestAnimationFrame(() => taRef.current?.focus({ preventScroll: true }))
   }

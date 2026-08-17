@@ -6,6 +6,7 @@
  */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { PROJECT_ID_PREFIX } from '../../agent-service/src/protocol/ids.ts'
 import {
   isUserProjectId,
   tasksOutsideUserProjects,
@@ -21,18 +22,18 @@ import {
 describe('sidebarBuckets:不建项目零感知', () => {
   it('default 不是用户项目,不进树', () => {
     assert.equal(isUserProjectId('default'), false)
-    assert.equal(isUserProjectId('p-abc'), true)
+    assert.equal(isUserProjectId(`${PROJECT_ID_PREFIX}abc`), true)
     const tree = userProjects([
       { id: 'default', name: 'default' },
-      { id: 'p-1', name: '论文' },
+      { id: `${PROJECT_ID_PREFIX}1`, name: '论文' },
     ])
-    assert.deepEqual(tree.map((p) => p.id), ['p-1'])
+    assert.deepEqual(tree.map((p) => p.id), [`${PROJECT_ID_PREFIX}1`])
   })
 
   it('default 会话落最近;p-* 会话不进最近', () => {
     const recent = tasksOutsideUserProjects({
       default: [{ id: 't-old' }],
-      'p-1': [{ id: 't-proj' }],
+      [`${PROJECT_ID_PREFIX}1`]: [{ id: 't-proj' }],
     })
     assert.deepEqual(recent.map((t) => t.id), ['t-old'])
   })
@@ -51,15 +52,17 @@ describe('expandedProjects:往返 localStorage', () => {
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: stub })
     mem.clear()
     try {
-      saveExpandedProjectIds(new Set(['p-keep', 'default']))
+      const keep = `${PROJECT_ID_PREFIX}keep`
+      const nowId = `${PROJECT_ID_PREFIX}now`
+      saveExpandedProjectIds(new Set([keep, 'default']))
       const raw = JSON.parse(mem.get(EXPANDED_PROJECTS_KEY) ?? '[]') as string[]
-      assert.ok(raw.includes('p-keep'))
-      const loaded = loadExpandedProjectIds('p-now')
-      assert.equal(loaded.has('p-keep'), true)
-      assert.equal(loaded.has('p-now'), true)
+      assert.ok(raw.includes(keep))
+      const loaded = loadExpandedProjectIds(nowId)
+      assert.equal(loaded.has(keep), true)
+      assert.equal(loaded.has(nowId), true)
       assert.equal(loaded.has('default'), false)
-      const toggled = toggleExpandedProjectId(loaded, 'p-keep')
-      assert.equal(toggled.has('p-keep'), false)
+      const toggled = toggleExpandedProjectId(loaded, keep)
+      assert.equal(toggled.has(keep), false)
     } finally {
       Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: prev })
     }

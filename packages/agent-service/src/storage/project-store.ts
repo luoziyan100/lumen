@@ -1,13 +1,14 @@
 /**
- * [INPUT]: db.ts 的 DB;sanitizeWorkspaceId;node:fs
+ * [INPUT]: db.ts 的 DB;sanitizeWorkspaceId;protocol/ids.ts 的 PROJECT_ID_PREFIX;node:fs
  * [OUTPUT]: Project / ProjectStore —— 一等项目 CRUD + 重命名/软归档 + 可选源文件夹 + shared/memory/skills 播种
- * [POS]: storage/ 项目实体;用户项目 id=p-*;default 为隐形历史桶(UI 不展示为项目,禁归档)
+ * [POS]: storage/ 项目实体;用户项目 id 铸自 PROJECT_ID_PREFIX;default 为隐形历史桶(UI 不展示为项目,禁归档)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { mkdirSync } from 'node:fs'
 import * as path from 'node:path'
 import type { DB, Stmt } from './db.ts'
 import { sanitizeWorkspaceId } from './workspace-id.ts'
+import { PROJECT_ID_PREFIX } from '../protocol/ids.ts'
 
 export interface Project {
   id: string
@@ -141,7 +142,7 @@ export class ProjectStore {
     const name = typeof input === 'string' ? input : input.name
     const sourcePath = typeof input === 'string' ? null : normalizeSourcePath(input.sourcePath)
     const trimmed = normalizeName(name)
-    const rawId = `p-${globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`
+    const rawId = `${PROJECT_ID_PREFIX}${globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`
     const id = sanitizeWorkspaceId(rawId)
     const t = now()
     const row: Project = { id, name: trimmed, source_path: sourcePath, created_at: t, updated_at: t }

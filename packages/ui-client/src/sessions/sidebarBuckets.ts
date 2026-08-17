@@ -1,14 +1,11 @@
 /**
- * [INPUT]: Project.id / Task 按 project_id 分桶
- * [OUTPUT]: isUserProjectId / userProjects / tasksOutsideUserProjects
- * [POS]: 侧栏「项目树 vs 最近」分桶;storage 的 default ≠ 用户项目(零感知)
+ * [INPUT]: protocol/ids.ts 的 isUserProjectId;Project.id / Task 按 project_id 分桶
+ * [OUTPUT]: 再导出 isUserProjectId;userProjects / tasksOutsideUserProjects
+ * [POS]: 侧栏「项目树 vs 最近」分桶;前缀合同在协议层,此处只消费
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-
-/** 用户显式 create_project 的 id;default / 访客桶不进树 */
-export function isUserProjectId(id: string): boolean {
-  return id.startsWith('p-')
-}
+import { isUserProjectId } from '../../../agent-service/src/protocol/ids.ts'
+export { isUserProjectId }
 
 export function userProjects<T extends { id: string }>(projects: readonly T[]): T[] {
   return projects.filter((p) => isUserProjectId(p.id))

@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os'
 import * as path from 'node:path'
 import { createService, type Service } from '../../src/service.ts'
 import type { ServerMessage } from '../../src/protocol/messages.ts'
+import { PROJECT_ID_PREFIX } from '../../src/protocol/ids.ts'
 import { ScriptedModel, assistantReply } from '../helpers/scripted-model.ts'
 
 interface Rig { service: Service; port: number; sockets: WebSocket[] }
@@ -65,6 +66,17 @@ function until(ws: WebSocket, pred: (m: ServerMessage) => boolean, ms = 4000): P
   })
 }
 
+test('create_project id 以 PROJECT_ID_PREFIX 开头', async (t: TestContext) => {
+  const r = await rig(t)
+  const ws = await connect(r)
+  await until(ws, (m) => m.type === 'hello')
+  const created = until(ws, (m) => m.type === 'project_created')
+  ws.send(JSON.stringify({ type: 'create_project', name: '前缀合同' }))
+  const proj = ((await created).find((m) => m.type === 'project_created') as { project: { id: string } }).project
+  assert.ok(proj.id.startsWith(PROJECT_ID_PREFIX), `id=${proj.id} 应以 ${PROJECT_ID_PREFIX} 开头`)
+  assert.equal(proj.id === 'default', false)
+})
+
 test('create_project 可带 sourcePath', async (t: TestContext) => {
   const r = await rig(t)
   const ws = await connect(r)
@@ -115,7 +127,7 @@ test('list_projects 含隐形 default;create_project 后可见', async (t: TestC
   ws.send(JSON.stringify({ type: 'create_project', name: '论文 A' }))
   const proj = ((await created).find((m) => m.type === 'project_created') as { project: { id: string; name: string } }).project
   assert.equal(proj.name, '论文 A')
-  assert.match(proj.id, /^p-/)
+  assert.ok(proj.id.startsWith(PROJECT_ID_PREFIX))
 
   const listed2 = until(ws, (m) => m.type === 'projects' && m.projects.some((p) => p.id === proj.id))
   ws.send(JSON.stringify({ type: 'list_projects' }))

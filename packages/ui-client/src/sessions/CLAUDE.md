@@ -12,5 +12,5 @@
 - `sessionLamp.ts` — idle / unread / running
 - `unreadSessions.ts` — 未读 id 的 localStorage 读写
 - `displayTaskTitle.ts` — `title ?? goal`
-- `sidebarBuckets.ts` — p-* 进项目树;default/历史桶平铺「最近」(零感知)
+- `sidebarBuckets.ts` — 消费 `isUserProjectId` 分桶:用户项目进树;default/历史桶平铺「最近」
 - `expandedProjects.ts` — 项目行展开 id 的 localStorage(`lumen:sbExpandedProjects`)
