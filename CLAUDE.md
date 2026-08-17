@@ -43,6 +43,7 @@ Lumen 是独立研究者的论文研究 agent:**无头 Node agent 服务 + Tauri
  `npm run check:theme -w packages/ui-client`(青瓷主题对 Kumo 变量合同的覆盖校验)。
 - **tauri:build 后拷贝产物必须以构建日志末尾打印的 bundle 路径为准**:Agent 沙箱可能把 cargo target 重定向到
  cursor-sandbox-cache,盲拷 `src-tauri/target/release/bundle/…` 会装到旧产物(2026-08-17 实测踩坑);装完 `shasum` 比对两侧二进制。
+- `run_code` 开网时 Seatbelt 只认 `localhost:<代理端口>`(写 `127.0.0.1` 会拒编译);域名白名单在箱外代理执行,不解密 TLS。Node fetch 靠注入 `NODE_USE_ENV_PROXY=1`。
 
 ## 文档验收(每次收尾自检)
 

@@ -27,6 +27,6 @@
 ## 安全边界(硬约束)
 
 - fs 原语只能读写工作区,拒 `..` / 符号链接逃逸(由 workspace/ 强制);**fs 原语一律不许联网**。
-- 网络只走 research/ 受审桥接:key 走 env、限流与 UA 集中在 http.ts。
+- 网络默认只走 research/ 受审桥接:key 走 env、限流与 UA 集中在 http.ts。`run_code` 可选 `network:true`:箱内只开 localhost:代理端口,域名白名单在箱外代理执行,不解密 TLS。
 - 所有工具接 AbortSignal;大结果落工作区文件,线程里给路径与预览。
 - M10 教训别回退:grep 对文件路径不吞错、命中带 charOffset、read_file 支持 offset/limit 分段读、extract_pdf 引导读全文。

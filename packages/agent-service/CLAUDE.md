@@ -24,7 +24,7 @@
 
 ## 纪律
 
-- 运行时依赖极简(现仅 better-sqlite3 / unpdf / ws);新增依赖须在本文档记一行理由。
+- 运行时依赖极简(现仅 better-sqlite3 / unpdf / ws);新增依赖须在本文档记一行理由。`run_code` 网络白名单自建 CONNECT 代理(不引 sandbox-runtime),不验 TLS。
 - 测试用 node:test,零框架;纪律见 `tests/CLAUDE.md`(禁全 mock、录制-重放、不变式、交叉矩阵)。
 - API key 只走 `.env`(gitignored)与 SettingsStore,不入库不入代码。
 - 本机常驻:`npm run launchd:install`(→ `~/Library/LaunchAgents/com.lumen.agent-service.plist`,KeepAlive);卸载 `launchd:uninstall`;状态 `launchd:status`;手工验收见 `launchd/README.md`。

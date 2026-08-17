@@ -8,7 +8,7 @@
  *   实测 Homebrew node 在 deny-default 下启动即 SIGABRT——它要摸大量 dyld/mach/ipc 资源,
  *   逐条 allow 既脆又会随 node 版本漂。本地单用户的威胁模型是"防模型伤到用户自己"
  *   (删文件、外泄隐私、写持久化),不是云端的租户逃逸;精准封死三条危险路径即达标:
- *   - 网络:全禁(联网取数走受审的检索/抓取工具,不给裸 socket)
+ *   - 网络:默认全禁;network:true 时只放行 localhost:<代理端口>(箱外判定域名,不放 DNS,不解密 TLS)
  *   - 写:默认禁,仅放行工作区 + 系统临时目录
  *   - 读:封死 ~/.ssh 等 + **~/.lumen 下的 token/settings 文件**(勿整树 deny `.lumen`:
  *     工作区在 ~/.lumen/workspaces/,node/python 解析脚本会 lstat 父目录,整树禁读 →
@@ -28,6 +28,8 @@ export interface SandboxedCommand {
 export interface SeatbeltOptions {
   /** 额外只读根(skills 目录等);默认含 ~/.lumen/skills */
   skillReadRoots?: string[]
+  /** 箱外代理端口;缺省则网络规则与改前逐字节一致(仍 deny network*) */
+  proxyPort?: number
 }
 
 const q = (s: string): string => s.replace(/"/g, '\\"')
@@ -57,10 +59,15 @@ export function seatbeltProfile(
   ]
   const uniqRead = [...new Set(readRoots.map((p) => p.trim()).filter(Boolean))]
   const allowRead = uniqRead.map((p) => `  (subpath "${q(p)}")`).join('\n')
+  // Seatbelt 的 remote tcp 只认 * 或 localhost(写 127.0.0.1 直接拒编译);localhost:port 能匹配连到 127.0.0.1:port
+  const proxyAllow =
+    options.proxyPort != null
+      ? `(allow network-outbound (remote tcp "localhost:${options.proxyPort}"))\n`
+      : ''
   return `(version 1)
 (allow default)
 (deny network*)
-(deny file-write*)
+${proxyAllow}(deny file-write*)
 (allow file-write*
   (subpath "${ws}")
   (subpath "/private/var/folders") (subpath "/private/tmp")
