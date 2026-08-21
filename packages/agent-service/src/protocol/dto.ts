@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 无运行时依赖(不 import storage/runtime 实现)
- * [OUTPUT]: 协议线上的数据形(Task/Project/SkillInfo/…);messages.ts 只从此处取形
+ * [OUTPUT]: 协议线上的数据形(Task/Project/SkillInfo/PublicModelProfile.vision/…);messages.ts 只从此处取形
  * [POS]: 让 ui-client type-only 直连 messages 时不把 sqlite/fs 拉进 tsc;
  *        与 storage/runtime 的同名接口结构兼容(多字段可赋给少字段)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
@@ -61,6 +61,8 @@ export interface PublicModelProfile {
   model: string
   hasApiKey: boolean
   apiKeyMasked: string
+  /** 视觉能力;缺省 auto。加法字段,不动 protocolVersion */
+  vision?: 'auto' | 'on' | 'off'
 }
 
 export interface PublicSettings {
@@ -80,6 +82,7 @@ export interface SettingsPatch {
     models?: string[]
     activeModel?: string
     model?: string
+    vision?: 'auto' | 'on' | 'off'
   }
   deleteProfileId?: string
   activeProfileId?: string

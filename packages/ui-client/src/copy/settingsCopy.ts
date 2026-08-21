@@ -5,6 +5,15 @@ export const SYSTEM_PROMPT_COPY = {
   placeholder: '例:你是 Lumen,一个严谨的研究伙伴。引用论文时带 DOI;先给结论再给论证;用中文回答。',
 } as const
 
+/** 设置 · 模型卡视觉能力 */
+export const VISION_COPY = {
+  label: '视觉',
+  hint: '自动按模型名判断。开=像素进主模型;关=去图走识图工具。未知模型默认走工具。',
+  auto: '自动',
+  on: '开',
+  off: '关',
+} as const
+
 /** 设置 · 后台常驻(LaunchAgent) */
 export const BACKGROUND_SERVICE_COPY = {
   nav: '后台服务',

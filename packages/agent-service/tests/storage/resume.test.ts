@@ -10,6 +10,8 @@ import type { AgentEvent } from '../../src/core/types.ts'
 import { openDatabase } from '../../src/storage/db.ts'
 import { TaskStore } from '../../src/storage/task-store.ts'
 import { rebuildThread, INTERRUPTED_TOOL_RESULT } from '../../src/storage/resume.ts'
+import { ImageStore, stripImagesForModel } from '../../src/tools/env/vision/index.ts'
+import { buildOpenAIRequest } from '../../src/adapters/openai.ts'
 import { AgentRuntime } from '../../src/runtime/agent-runtime.ts'
 import { ENV_TOOLS } from '../../src/tools/env/fs/index.ts'
 import { buildRoles } from '../../src/agents/roles.ts'
@@ -182,6 +184,28 @@ test('悬空 tool_use：中断落在工具批次中间 → 重建合成"已中�
     }
   }
   assert.deepEqual(uses.sort(), results.sort(), '每个 tool_use 必须有配对 tool_result（否则 API 400）')
+})
+
+test('rebuild 保留历史图;text→vision 变原生,vision→text 桩回来', async (t: TestContext) => {
+  const store = await makeStore(t)
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64')
+  const task = store.createTask('p', '看图')
+  store.appendEvent(task.id, 'user', {
+    content: '看图',
+    images: [{ mediaType: 'image/png', base64: png }],
+  }, 'main')
+  const rebuilt = rebuildThread(store.listEvents(task.id), { systemPrompt: 'S', userText: '看图' })
+  const user = rebuilt.messages.find((m) => m.role === 'user')
+  assert.equal(user?.images?.length, 1, '重建必须带回事件里的原图')
+
+  const visionReq = buildOpenAIRequest([...rebuilt.messages], [], 'deepseek-v4-flash-vision-exp', 1024, 'auto')
+  assert.ok(JSON.stringify(visionReq).includes('image_url'), 'text→vision:历史图变原生可见')
+
+  const imageStore = new ImageStore()
+  const stripped = stripImagesForModel([...rebuilt.messages], imageStore, task.id)
+  const textReq = buildOpenAIRequest(stripped, [], 'deepseek-v4-flash', 1024, 'auto')
+  assert.equal(JSON.stringify(textReq).includes('image_url'), false)
+  assert.match(String(textReq.messages.find((m) => m.role === 'user')?.content), /\[\[image:img-1\]\]/, 'vision→text:桩回来')
 })
 
 test('model_step.reasoningContent 重建进线程(DeepSeek thinking 回灌)', async (t: TestContext) => {

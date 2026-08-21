@@ -9,6 +9,7 @@
  * DeepSeek V4 thinking 默认 enabled(与官方一致);推理与正文共享 max_tokens——抬到 ≥16k;
  * 带 tools 时必须回灌 assistant.reasoningContent,否则 API 400;
  * 额度烧光 → HTTP 200 + content="" + finish_reason=length → 可观测错误(不静默 done)。
+ * DeepSeek 最后防线只拦未声明视觉的漏接;档案 vision 命中则放行 image_url。
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { ChatHandlers, ModelPort, ModelResponse } from '../core/model-port.ts'
@@ -21,6 +22,7 @@ import {
   createOpenAIStreamAccum,
   finalizeOpenAIStreamAccum,
 } from './openai-sse.ts'
+import { resolveVision, type VisionMode } from '../tools/env/vision/vision-capability.ts'
 
 type OAToolCall = { id: string; type: 'function'; function: { name: string; arguments: string } }
 type OAContentPart =
@@ -140,7 +142,13 @@ function safeParseArgs(raw: string | undefined): Record<string, unknown> {
   return {}
 }
 
-export function buildOpenAIRequest(messages: Message[], tools: ToolSpec[], model: string, maxTokens = 4096): OpenAIRequest {
+export function buildOpenAIRequest(
+  messages: Message[],
+  tools: ToolSpec[],
+  model: string,
+  maxTokens = 4096,
+  vision: VisionMode = 'auto',
+): OpenAIRequest {
   const oaMessages: OAMessage[] = messages.map((message): OAMessage => {
     if (message.role === 'tool_result') {
       return { role: 'tool', tool_call_id: message.toolCallId ?? '', content: message.content }
@@ -163,8 +171,8 @@ export function buildOpenAIRequest(messages: Message[], tools: ToolSpec[], model
       return out
     }
     if (message.images?.length) {
-      // DeepSeek 最后防线:绝不发 image_url(正常应由 runtime withImageSanitize 先去图插桩)
-      if (isDeepSeekModel(model)) {
+      // DeepSeek 最后防线:文本档漏接时仍不发 image_url;视觉档(档案声明)放行
+      if (isDeepSeekModel(model) && !resolveVision({ vision }, model)) {
         const text = message.content.includes('[[image:')
           ? message.content
           : [
@@ -379,6 +387,8 @@ export interface OpenAIAdapterOptions {
   streamTransport?: OpenAIStreamTransport
   model?: string
   maxTokens?: number
+  /** 视觉声明;函数则热读(换芯片即生效) */
+  vision?: VisionMode | (() => VisionMode)
 }
 
 function assertNonEmptyOpenAI(parsed: ModelResponse, body: OpenAIResponseBody): void {
@@ -402,7 +412,8 @@ export function createOpenAIAdapter(options: OpenAIAdapterOptions): ModelPort {
       signal?: AbortSignal,
       handlers?: ChatHandlers,
     ): Promise<ModelResponse> {
-      const request = buildOpenAIRequest(messages, tools, model, maxTokens)
+      const vision = typeof options.vision === 'function' ? options.vision() : (options.vision ?? 'auto')
+      const request = buildOpenAIRequest(messages, tools, model, maxTokens, vision)
       const body =
         handlers && options.streamTransport
           ? await options.streamTransport(request, signal, handlers)

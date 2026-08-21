@@ -137,7 +137,7 @@ UI 状态是事件流的纯函数:对 durable 子集重放必然得到同一界�
 
 **共享的是资料,不是聊天。** 会话 cwd 仍是 `sessions/<taskId>/`;工具经 `shared/` 前缀只读访问共享区。`list_assets` 合并 shared + 当前会话并标注 `scope`。展示面按目录声明,原料进 `cache/` 不上墙。
 
-**上传策略(admission ≠ representation,对齐 OpenSquilla):** UI 不按扩展名拒收;服务端 `saveUpload` 按表示归位——`pdf`→`papers/`、文本与源码→`docs/`、图→`images/`、其余→`uploads/`(opaque:落盘给工具读,不假定 inline 进模型)。体积上限见 `maxUploadBytes`(默认 25MB)。
+**上传策略(admission ≠ representation,对齐 OpenSquilla):** UI 不按扩展名拒收;服务端 `saveUpload` 按表示归位——`pdf`→`papers/`、文本与源码→`docs/`、图→`images/`、其余→`uploads/`(opaque:落盘给工具读,不假定 inline 进模型)。体积上限见 `maxUploadBytes`(默认 25MB)。表示按模型能力声明分流:档案 `vision`(auto/on/off)命中则像素进主模型,未声明则去图插桩走 `look_at_image`。
 
 ## 服务与外壳
 

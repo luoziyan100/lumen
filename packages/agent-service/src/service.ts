@@ -91,6 +91,7 @@ export function createService(config: ServiceConfig = {}): Service {
         transport: createOpenAIFetchTransport(fetchOpts),
         streamTransport: createOpenAIStreamFetchTransport(fetchOpts),
         model: cfg.model,
+        vision: () => settings.effective().vision,
       })
     }
     const fetchOpts = { apiKey: cfg.apiKey, baseUrl: cfg.baseUrl }
@@ -122,10 +123,17 @@ export function createService(config: ServiceConfig = {}): Service {
 
   // search_web：Tavily。key 来自 process.env / .env / ~/.lumen/.env（见 loadDotenv）
   const tavilyKey = (process.env.TAVILY_API_KEY ?? '').trim() || undefined
-  // 识图:侧车 + look_at_image;DeepSeek 主模型 chat 前去图插桩(见 imageBridge)
+  // 识图:侧车 + look_at_image;去图与否读档案 vision 声明(见 imageBridge)
   const imageStore = new ImageStore()
   const visionEnv = visionEnvFromProcess()
-  const lookAtImage = createLookAtImageTool({ store: imageStore, env: visionEnv })
+  const lookAtImage = createLookAtImageTool({
+    store: imageStore,
+    env: visionEnv,
+    visionActive: () => {
+      const eff = settings.effective()
+      return !shouldStripImagesForModel(eff.model, process.env, eff.vision)
+    },
+  })
   // 工具存在性只走 registry:静态一次;ask_user / memory / skill / subagent 在 execute 按任务构造
   const staticTools = buildStaticTools({
     demo,
@@ -148,11 +156,10 @@ export function createService(config: ServiceConfig = {}): Service {
     roles,
     imageBridge: {
       store: imageStore,
-      // 模型名或 baseUrl 含 deepseek 都去图(防 profile 只改了 endpoint)
+      // 热读档案:未声明视觉则去图;换芯片即生效
       enabled: () => {
         const eff = settings.effective()
-        return shouldStripImagesForModel(eff.model)
-          || /deepseek/i.test(eff.baseUrl ?? '')
+        return shouldStripImagesForModel(eff.model, process.env, eff.vision)
       },
     },
     // 人格(owner 主导,persona.ts)不动;用户自定义指令作为独立小节追加,实时读设置=保存即生效

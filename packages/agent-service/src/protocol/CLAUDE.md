@@ -7,7 +7,7 @@
 ## 成员
 
 - `messages.ts` — 协议消息类型(client→server / server→client),协议的唯一真源;`uploads` 与 UploadRef 对齐;hello 带 `protocolVersion`
-- `dto.ts` — 线上数据形(不 import storage/runtime 实现),供 messages 与 ui-client tsc 共用
+- `dto.ts` — 线上数据形(不 import storage/runtime 实现),供 messages 与 ui-client tsc 共用;`PublicModelProfile.vision` 加法可选(auto/on/off),不动 protocolVersion
 - `dto-compat.ts` — 编译期断言 storage/runtime 同名形可赋给 dto 线上形(Store extends Wire);无运行时导出
 - `version.ts` — `PROTOCOL_VERSION` 运行时常量 + `protocolVersionOf`(缺字段视为 0);hello 与 portfile 同源
 - `ids.ts` — `PROJECT_ID_PREFIX` / `isUserProjectId`;用户项目 id 前缀真源(铸 id 与 UI 分桶同源)

@@ -185,3 +185,43 @@ test('WS 端到端:profiles CRUD + 用户指令进系统提示词', async (t: Te
 
   ws.close()
 })
+
+test('WS:settings PATCH vision 字段落盘并回读', async (t: TestContext) => {
+  const home = await tmp(t)
+  const service = createService({ home, port: 0, modelPort: new ScriptedModel([]), provider: 'openai', model: 'glm-5', apiKey: 'sk-x' })
+  const handle = await service.start()
+  t.after(async () => {
+    await service.runtime.drain()
+    await handle.close()
+  })
+
+  const ws = new WebSocket(`ws://127.0.0.1:${handle.port}/?token=${service.token}`)
+  await new Promise<void>((r) => ws.addEventListener('open', () => r(), { once: true }))
+  const ask = (payload: unknown): Promise<PublicSettings> =>
+    new Promise((resolve) => {
+      const handler = (ev: MessageEvent): void => {
+        const m = JSON.parse(String(ev.data)) as ServerMessage
+        if (m.type === 'settings') {
+          ws.removeEventListener('message', handler as never)
+          resolve(m.settings as PublicSettings)
+        }
+      }
+      ws.addEventListener('message', handler as never)
+      ws.send(JSON.stringify(payload))
+    })
+
+  let pub = await ask({ type: 'update_settings', settings: { upsertProfile: { name: 'DeepSeek', provider: 'openai', models: ['deepseek-v4-flash-vision-exp'], vision: 'on', apiKey: 'sk-ds' } } })
+  const ds = pub.profiles.find((p) => p.name === 'DeepSeek')!
+  assert.equal(ds.vision, 'on')
+
+  pub = await ask({ type: 'update_settings', settings: { upsertProfile: { id: ds.id, vision: 'off' } } })
+  assert.equal(pub.profiles.find((p) => p.id === ds.id)!.vision, 'off')
+
+  const disk = JSON.parse(await readFile(path.join(home, 'settings.json'), 'utf8')) as { profiles: Array<{ vision?: string }> }
+  assert.equal(disk.profiles.find((p) => p.vision === 'off')?.vision, 'off')
+
+  pub = await ask({ type: 'update_settings', settings: { upsertProfile: { id: ds.id, vision: 'auto' } } })
+  assert.equal(pub.profiles.find((p) => p.id === ds.id)!.vision, 'auto')
+
+  ws.close()
+})

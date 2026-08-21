@@ -1,7 +1,7 @@
 /**
  * [INPUT]: ImageStore;OpenAI transport;硅基 VL chat/completions
  * [OUTPUT]: createLookAtImageTool / withImageSanitize / shouldStripImagesForModel / visionEnv
- * [POS]: 识图工具 look_at_image;DeepSeek 路径强制去图桩后再 chat;包装层透传 ChatHandlers
+ * [POS]: 识图工具 look_at_image;去图与否读档案 resolveVision;描述随 visionActive 两态
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { ChatHandlers, ModelPort, ModelResponse } from '../../../core/model-port.ts'
@@ -14,6 +14,7 @@ import {
   type OpenAITransport,
 } from '../../../adapters/openai.ts'
 import { ImageStore, stripImagesForModel } from './image-store.ts'
+import { resolveVision, type VisionMode } from './vision-capability.ts'
 
 export interface VisionEnv {
   apiKey?: string
@@ -37,11 +38,19 @@ export function visionEnvFromProcess(env: NodeJS.ProcessEnv = process.env): Visi
   }
 }
 
-/** DeepSeek 等不吃 image_url 时必须 strip;Claude 原生多模态跳过 */
-export function shouldStripImagesForModel(modelName: string, env: NodeJS.ProcessEnv = process.env): boolean {
+/**
+ * 主模型 chat 前是否去图插桩。
+ * `LUMEN_VISION_FORCE=1` 强制去图;`=0` 强制透传(调试后门,最高优先)。
+ * 其余读 `resolveVision`(档案声明);名字正则已退役。
+ */
+export function shouldStripImagesForModel(
+  modelName: string,
+  env: NodeJS.ProcessEnv = process.env,
+  vision: VisionMode = 'auto',
+): boolean {
   if (env.LUMEN_VISION_FORCE === '1') return true
   if (env.LUMEN_VISION_FORCE === '0') return false
-  return /deepseek/i.test(modelName)
+  return !resolveVision({ vision }, modelName)
 }
 
 export function withImageSanitize(
@@ -78,10 +87,20 @@ function focusHint(focus?: string): string {
   return `用户额外要求:${f}`
 }
 
+const LOOK_AT_IMAGE_TEXT =
+  '识图:查看用户附带的图片(占位符 [[image:img-N]])。你看不到像素,涉及图片内容时必须先调用本工具。' +
+  'image_id 形如 img-1;可选 focus=ocr|layout|graphics 或自由提示。'
+
+const LOOK_AT_IMAGE_VISION =
+  '查看工作区图片文件或历史占位图;当前模型可直接看到本回合图片,仅在读磁盘图片文件时需要本工具。' +
+  'image_id 形如 img-1;可选 focus=ocr|layout|graphics 或自由提示。'
+
 export function createLookAtImageTool(options: {
   store: ImageStore
   env: VisionEnv
   transport?: OpenAITransport
+  /** 热读:视觉模型态用中性描述;缺省按文本模型(必须先调本工具) */
+  visionActive?: () => boolean
 }): Tool {
   const transport = options.transport ?? (
     options.env.apiKey
@@ -90,22 +109,22 @@ export function createLookAtImageTool(options: {
   )
 
   return {
-    spec: {
-      name: 'look_at_image',
-      description:
-        '识图:查看用户附带的图片(占位符 [[image:img-N]])。你看不到像素,涉及图片内容时必须先调用本工具。' +
-        'image_id 形如 img-1;可选 focus=ocr|layout|graphics 或自由提示。',
-      parameters: {
-        type: 'object',
-        properties: {
-          image_id: { type: 'string', description: '图片序列名,如 img-1' },
-          focus: {
-            type: 'string',
-            description: '可选:ocr / layout / graphics,或一句自由聚焦提示',
+    get spec() {
+      return {
+        name: 'look_at_image',
+        description: options.visionActive?.() ? LOOK_AT_IMAGE_VISION : LOOK_AT_IMAGE_TEXT,
+        parameters: {
+          type: 'object',
+          properties: {
+            image_id: { type: 'string', description: '图片序列名,如 img-1' },
+            focus: {
+              type: 'string',
+              description: '可选:ocr / layout / graphics,或一句自由聚焦提示',
+            },
           },
+          required: ['image_id'],
         },
-        required: ['image_id'],
-      },
+      }
     },
     run: async (args, ctx, signal): Promise<ToolResult> => {
       const imageId = String(args.image_id ?? '').trim()

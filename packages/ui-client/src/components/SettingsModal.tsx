@@ -1,6 +1,6 @@
 /**
  * 设置弹窗:左导航(模型 / 提示词 / 常驻)。
- * 模型页 = 接入目录:供应商卡 + 卡内多模型 ID;不负责「当前用哪个」(由 composer 芯片下拉决定)。
+ * 模型页 = 接入目录:供应商卡 + 卡内多模型 ID + 视觉三态;不负责「当前用哪个」(由 composer 芯片下拉决定)。
  * 列表区 mpc-list 自滚动(卡 flex:none,禁被挤扁)。全行统一 trail 对齐。
  */
 import { useEffect, useRef, useState, type FormEvent } from 'react'
@@ -8,7 +8,7 @@ import { Button } from '@cloudflare/kumo/components/button'
 import { Dialog } from '@cloudflare/kumo/components/dialog'
 import { Select } from '@cloudflare/kumo/components/select'
 import type { AgentClient, PublicSettings, PublicModelProfile } from '../agent-client'
-import { BACKGROUND_SERVICE_COPY, SYSTEM_PROMPT_COPY } from '../copy/settingsCopy'
+import { BACKGROUND_SERVICE_COPY, SYSTEM_PROMPT_COPY, VISION_COPY } from '../copy/settingsCopy'
 import {
   isTauriShell,
   launchdInstall,
@@ -29,6 +29,7 @@ type ProfileForm = {
   baseUrl: string
   apiKey: string
   models: string[]
+  vision: 'auto' | 'on' | 'off'
 }
 
 const EMPTY_FORM: ProfileForm = {
@@ -37,6 +38,7 @@ const EMPTY_FORM: ProfileForm = {
   baseUrl: '',
   apiKey: '',
   models: [''],
+  vision: 'auto',
 }
 
 function modelsFromProfile(p: PublicModelProfile): string[] {
@@ -112,6 +114,7 @@ export function SettingsModal({
         baseUrl: p.baseUrl,
         apiKey: '',
         models: modelsFromProfile(p),
+        vision: p.vision === 'on' || p.vision === 'off' ? p.vision : 'auto',
       })
     }
     setView('edit')
@@ -131,6 +134,7 @@ export function SettingsModal({
         baseUrl: form.baseUrl,
         models: cleaned,
         activeModel: keep,
+        vision: form.vision,
         ...(form.apiKey.trim() ? { apiKey: form.apiKey.trim() } : {}),
       },
     })
@@ -148,6 +152,7 @@ export function SettingsModal({
         baseUrl: mine.baseUrl,
         apiKey: '',
         models: models.length ? models : [''],
+        vision: mine.vision === 'on' || mine.vision === 'off' ? mine.vision : 'auto',
       })
     }
     flash('已保存')
@@ -318,6 +323,20 @@ export function SettingsModal({
                 />
                 <span className="set-row-trail" aria-hidden />
               </div>
+
+              <div className="set-row">
+                <span className="set-label">{VISION_COPY.label}</span>
+                <Select
+                  aria-label={VISION_COPY.label}
+                  size="sm"
+                  className="set-control min-w-0"
+                  value={form.vision}
+                  onValueChange={(v) => setForm({ ...form, vision: (v === 'on' || v === 'off' ? v : 'auto') })}
+                  items={{ auto: VISION_COPY.auto, on: VISION_COPY.on, off: VISION_COPY.off }}
+                />
+                <span className="set-row-trail" aria-hidden />
+              </div>
+              <p className="set-hint">{VISION_COPY.hint}</p>
 
               {form.models.map((mid, i) => {
                 const isLast = i === form.models.length - 1

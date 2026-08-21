@@ -140,8 +140,8 @@ export interface AgentRuntimeConfig {
     persistToolResultChars?: number
   }
   /**
-   * 识图桥:DeepSeek 等不吃 image_url 时,chat 前去图并插 [[image:img-N]] 桩;
-   * look_at_image 工具读同一 ImageStore。enabled 热读当前主模型名。
+   * 识图桥:未声明视觉时 chat 前去图并插 [[image:img-N]] 桩;
+   * look_at_image 工具读同一 ImageStore。enabled 热读当前档案 vision 声明。
    */
   imageBridge?: {
     store: ImageStore

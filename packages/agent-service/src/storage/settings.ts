@@ -1,6 +1,6 @@
 /**
  * [INPUT]: node:fs / node:crypto
- * [OUTPUT]: SettingsStore —— 供应商 profile 列表(多配置单启用)+ 每卡 models[]/activeModel + 自定义指令
+ * [OUTPUT]: SettingsStore —— 供应商 profile 列表(多配置单启用)+ 每卡 models[]/activeModel/vision + 自定义指令
  * [POS]: §存储层。~/.lumen/settings.json(0600);env/.env 是出厂默认,settings 是用户层
  *
  * 纪律:
@@ -11,6 +11,7 @@
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
+import type { VisionMode } from '../tools/env/vision/vision-capability.ts'
 
 export type Provider = 'anthropic' | 'openai'
 
@@ -26,6 +27,8 @@ export interface ModelProfile {
   activeModel: string
   /** 上下文窗口(token);缺省按模型名保守推断(见 context-budget.ts) */
   contextWindow?: number
+  /** 视觉能力声明;缺省 auto(读白名单) */
+  vision?: VisionMode
 }
 
 interface SettingsData {
@@ -52,6 +55,8 @@ export interface PublicModelProfile {
   /** = activeModel,兼容旧客户端/芯片文案 */
   model: string
   contextWindow?: number
+  /** 缺省 auto;加法字段,旧客户端可忽略 */
+  vision?: VisionMode
   hasApiKey: boolean
   apiKeyMasked: string // 掩码或「继承 .env」,永不含明文
 }
@@ -75,6 +80,7 @@ export interface ProfileUpsert {
   /** 兼容旧单字段:无 models 时当作单模型写入 */
   model?: string
   contextWindow?: number // >0 设置;0 或负数清除(回到按模型名推断)
+  vision?: VisionMode
 }
 
 export interface SettingsPatch {
@@ -122,7 +128,13 @@ function normalizeProfile(raw: Record<string, unknown>, fallbackModel: string): 
     models,
     activeModel,
     contextWindow: typeof raw.contextWindow === 'number' && raw.contextWindow > 0 ? raw.contextWindow : undefined,
+    vision: parseVision(raw.vision),
   }
+}
+
+function parseVision(raw: unknown): VisionMode | undefined {
+  if (raw === 'on' || raw === 'off' || raw === 'auto') return raw
+  return undefined
 }
 
 function pickActive(models: string[], want: string | undefined, fallback: string): string {
@@ -221,7 +233,7 @@ export class SettingsStore {
   private save(): void {
     // 落盘只写 models/activeModel,不写遗留 model 字段
     const payload = {
-      profiles: this.data.profiles.map(({ id, name, provider, baseUrl, apiKey, models, activeModel, contextWindow }) => ({
+      profiles: this.data.profiles.map(({ id, name, provider, baseUrl, apiKey, models, activeModel, contextWindow, vision }) => ({
         id,
         name,
         provider,
@@ -230,6 +242,7 @@ export class SettingsStore {
         models,
         activeModel,
         ...(contextWindow ? { contextWindow } : {}),
+        ...(vision && vision !== 'auto' ? { vision } : {}),
       })),
       ...(this.data.activeProfileId ? { activeProfileId: this.data.activeProfileId } : {}),
       ...(this.data.userInstructions !== undefined ? { userInstructions: this.data.userInstructions } : {}),
@@ -255,11 +268,11 @@ export class SettingsStore {
   }
 
   /** 生效配置(启用的 profile) */
-  effective(): { provider: Provider; baseUrl?: string; apiKey?: string; model: string; contextWindow?: number; userInstructions: string; profileName: string } {
+  effective(): { provider: Provider; baseUrl?: string; apiKey?: string; model: string; contextWindow?: number; vision: VisionMode; userInstructions: string; profileName: string } {
     const p = this.active()
     const userInstructions = this.data.userInstructions ?? ''
     if (!p) {
-      return { provider: this.defaults.provider, baseUrl: this.defaults.baseUrl, apiKey: this.defaults.apiKey, model: this.defaults.model, userInstructions, profileName: '默认' }
+      return { provider: this.defaults.provider, baseUrl: this.defaults.baseUrl, apiKey: this.defaults.apiKey, model: this.defaults.model, vision: 'auto', userInstructions, profileName: '默认' }
     }
     const r = this.resolved(p)
     return {
@@ -268,6 +281,7 @@ export class SettingsStore {
       apiKey: r.apiKey,
       model: this.resolvedModel(p),
       contextWindow: p.contextWindow,
+      vision: p.vision ?? 'auto',
       userInstructions,
       profileName: p.name,
     }
@@ -287,6 +301,7 @@ export class SettingsStore {
           activeModel,
           model: activeModel,
           ...(p.contextWindow ? { contextWindow: p.contextWindow } : {}),
+          vision: p.vision ?? 'auto',
           hasApiKey: Boolean(r.apiKey),
           apiKeyMasked: p.apiKey ? mask(p.apiKey) : (r.apiKey ? '继承 .env' : ''),
         }
@@ -308,6 +323,7 @@ export class SettingsStore {
         if (typeof u.baseUrl === 'string') existing.baseUrl = u.baseUrl.trim() || undefined
         if (typeof u.apiKey === 'string' && u.apiKey.trim()) existing.apiKey = u.apiKey.trim()
         if (typeof u.contextWindow === 'number') existing.contextWindow = u.contextWindow > 0 ? u.contextWindow : undefined
+        if (u.vision === 'auto' || u.vision === 'on' || u.vision === 'off') existing.vision = u.vision === 'auto' ? undefined : u.vision
         applyModelFields(existing, u, this.defaults.model)
       } else {
         const models = Array.isArray(u.models)
@@ -323,6 +339,7 @@ export class SettingsStore {
           models: models.length ? models : [this.defaults.model],
           activeModel: models.length ? activeModel : this.defaults.model,
           contextWindow: typeof u.contextWindow === 'number' && u.contextWindow > 0 ? u.contextWindow : undefined,
+          vision: parseVision(u.vision) === 'auto' ? undefined : parseVision(u.vision),
         }
         this.data.profiles.push(profile)
         if (!this.data.activeProfileId) this.data.activeProfileId = profile.id

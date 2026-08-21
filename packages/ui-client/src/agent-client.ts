@@ -99,6 +99,8 @@ export interface PublicModelProfile {
   model: string
   hasApiKey: boolean
   apiKeyMasked: string
+  /** 视觉能力;缺省 auto */
+  vision?: 'auto' | 'on' | 'off'
 }
 export interface PublicSettings {
   profiles: PublicModelProfile[]
@@ -116,6 +118,7 @@ export interface SettingsPatch {
     models?: string[]
     activeModel?: string
     model?: string // 兼容旧单字段
+    vision?: 'auto' | 'on' | 'off'
   }
   deleteProfileId?: string
   activeProfileId?: string

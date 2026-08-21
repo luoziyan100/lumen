@@ -14,7 +14,7 @@
 - `record-replay.ts` — 录制 / 重放 transport:测试基座,fixture 为真实线格式
 - `retry.ts` — postJsonWithRetry:单次超时 + 指数退避(claude/openai 共用的可靠性层)
 - `index.ts` — 出口
-- DeepSeek 带图:不在 adapter 硬编码兜底;由 `tools/env/vision` 的 `withImageSanitize` + `look_at_image` 在 runtime 收口(去 image_url / 侧车识图)
+- DeepSeek 带图:runtime 按档案 `vision` 分流;`openai.ts` 最后防线只拦未声明视觉的 DeepSeek 漏接(视觉档放行 `image_url`)
 
 ## 规则
 

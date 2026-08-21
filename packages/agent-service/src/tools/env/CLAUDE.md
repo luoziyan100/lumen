@@ -9,7 +9,7 @@
 
 - `fs/` — 六件套(read/write/edit/list/grep/glob),一起生死。出口 `index.ts`
 - `run-code/` — `run_code` + Seatbelt(`sandbox.ts`) + 箱外白名单代理。改 profile 必跑 `tests/workspace/run-code.test.ts` + `tests/runtime/skills.test.ts`
-- `vision/` — `look_at_image` + ImageStore 侧车。一起生死
+- `vision/` — `look_at_image` + ImageStore 侧车 + `resolveVision` 档案声明。一起生死
 - `todo.ts` — `todo_write`(+ `update_plan` 兼容)
 - `memory.ts` — read_memory / write_memory(registry 按项目注入)
 - `skills.ts` — `run_skill`(≠ memory)
