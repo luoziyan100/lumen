@@ -4,6 +4,7 @@ import {
   buildOpenAIRequest,
   createOpenAIAdapter,
   parseOpenAIResponse,
+  resolveOpenAIEndpointUrl,
   resolveOpenAIMaxTokens,
   type OpenAIResponseBody,
 } from '../../src/adapters/openai.ts'
@@ -107,6 +108,29 @@ test('parseOpenAIResponse 保留 reasoning_content', () => {
   assert.equal(parsed.message.reasoningContent, '想了一下')
   assert.equal(parsed.message.content, '答')
   assert.equal(parsed.toolCalls.length, 1)
+})
+
+test('resolveOpenAIEndpointUrl:尾部 /v1 只留一份,否则第三方面板 404 page not found', () => {
+  assert.equal(
+    resolveOpenAIEndpointUrl('https://api.louhu.com/v1'),
+    'https://api.louhu.com/v1/chat/completions',
+  )
+  assert.equal(
+    resolveOpenAIEndpointUrl('https://api.louhu.com/v1/'),
+    'https://api.louhu.com/v1/chat/completions',
+  )
+  assert.equal(
+    resolveOpenAIEndpointUrl('https://api.deepseek.com'),
+    'https://api.deepseek.com/v1/chat/completions',
+  )
+  assert.equal(
+    resolveOpenAIEndpointUrl('https://api.openai.com/v1'),
+    'https://api.openai.com/v1/chat/completions',
+  )
+  assert.equal(
+    resolveOpenAIEndpointUrl('https://gw.example/openai/v1', '/custom'),
+    'https://gw.example/openai/v1/custom',
+  )
 })
 
 test('DeepSeek V4 空 content+finish length → adapter 抛可观测错误(不静默 done)', async () => {

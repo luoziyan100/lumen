@@ -1,6 +1,6 @@
 /**
  * [INPUT]: core 的 Message / ToolSpec / ModelPort / ModelResponse / ChatHandlers
- * [OUTPUT]: buildOpenAIRequest / parseOpenAIResponse / resolveOpenAIMaxTokens /
+ * [OUTPUT]: buildOpenAIRequest / parseOpenAIResponse / resolveOpenAIMaxTokens / resolveOpenAIEndpointUrl /
  *           createOpenAIFetchTransport / createOpenAIStreamFetchTransport / createOpenAIAdapter + 录制重放
  * [POS]: ModelPort 的 OpenAI-Chat-Completions 实现（兼容第三方代理）
  *
@@ -10,6 +10,7 @@
  * 带 tools 时必须回灌 assistant.reasoningContent,否则 API 400;
  * 额度烧光 → HTTP 200 + content="" + finish_reason=length → 可观测错误(不静默 done)。
  * DeepSeek 最后防线只拦未声明视觉的漏接;档案 vision 命中则放行 image_url。
+ * Base URL 尾部 /v1 会剥掉再拼 /v1/chat/completions(第三方面板常带 /v1,双拼即 404 page not found)。
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { ChatHandlers, ModelPort, ModelResponse } from '../core/model-port.ts'
@@ -229,13 +230,23 @@ export function parseOpenAIResponse(body: OpenAIResponseBody): ModelResponse {
 
 export interface OpenAIFetchTransportOptions {
   apiKey: string
-  baseUrl: string // OpenAI-compatible base URL
+  baseUrl: string // OpenAI-compatible base URL(可带或不带尾部 /v1)
   path?: string // 默认 /v1/chat/completions
   retry?: RetryOptions
 }
 
+const DEFAULT_OPENAI_CHAT_PATH = '/v1/chat/completions'
+
+/** 剥尾斜杠;默认路径含 /v1 时再剥尾 /v1,避免 https://host/v1 + /v1/chat/completions */
+export function resolveOpenAIEndpointUrl(baseUrl: string, path = DEFAULT_OPENAI_CHAT_PATH): string {
+  let base = baseUrl.trim().replace(/\/+$/, '')
+  const p = path.startsWith('/') ? path : `/${path}`
+  if (p.startsWith('/v1/') && /\/v1$/i.test(base)) base = base.replace(/\/v1$/i, '')
+  return `${base}${p}`
+}
+
 export function createOpenAIFetchTransport(options: OpenAIFetchTransportOptions): OpenAITransport {
-  const url = `${options.baseUrl.replace(/\/$/, '')}${options.path ?? '/v1/chat/completions'}`
+  const url = resolveOpenAIEndpointUrl(options.baseUrl, options.path)
   return async (request, signal) =>
     (await postJsonWithRetry(
       url,
@@ -292,7 +303,7 @@ function isRetryableNetworkError(error: unknown): boolean {
  * - 已推送 text/tool 后再断流 → 不重试（避免重复 delta）
  */
 export function createOpenAIStreamFetchTransport(options: OpenAIFetchTransportOptions): OpenAIStreamTransport {
-  const url = `${options.baseUrl.replace(/\/$/, '')}${options.path ?? '/v1/chat/completions'}`
+  const url = resolveOpenAIEndpointUrl(options.baseUrl, options.path)
   const doFetch = options.retry?.fetchImpl ?? fetch
   const timeoutMs = options.retry?.timeoutMs ?? 600_000
   const maxConnectAttempts = options.retry?.maxAttempts ?? resolveModelMaxAttempts()

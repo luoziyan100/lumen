@@ -1,5 +1,5 @@
 /**
- * [OUTPUT]: adapters 出口(Claude/OpenAI 整包+SSE、coalesce、录制重放)
+ * [OUTPUT]: adapters 出口(Claude/OpenAI 整包+SSE、coalesce、录制重放、resolveOpenAIEndpointUrl)
  * [POS]: ModelPort 实现层的入口
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
@@ -22,6 +22,7 @@ export {
   createOpenAIFetchTransport,
   createOpenAIStreamFetchTransport,
   createOpenAIAdapter,
+  resolveOpenAIEndpointUrl,
   type OpenAITransport,
   type OpenAIStreamTransport,
 } from './openai.ts'
