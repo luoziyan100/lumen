@@ -2,6 +2,7 @@
  * [INPUT]: mermaidSyntax Phase A 规则
  * [OUTPUT]: kind 门控 / 引号修复 / R7 补 ] / sequence·class 不误伤 / 错误摘要
  * [POS]: doc/mermaid-pipeline.md AT-A1/A6/A7 + R7 Omarchy 漏括号
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { describe, it, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
@@ -170,5 +171,15 @@ describe('prepareMermaid 组合颜色闸', () => {
     const { source, kind } = prepareMermaid('flowchart TB\n  A[入口] --> B[出口]\n')
     assert.equal(kind, 'flowchart')
     assert.ok(source.includes('flowchart'))
+  })
+
+  it('L98 极宽 LR 不改方向、不改节点', async () => {
+    const { WIDE_LR_FIXTURE } = await import('./fixtures/l98-rendering.ts')
+    const { source, kind, actions } = prepareMermaid(WIDE_LR_FIXTURE)
+    assert.equal(kind, 'flowchart')
+    assert.match(source, /flowchart LR/)
+    assert.doesNotMatch(source, /flowchart TD/)
+    assert.equal(source, WIDE_LR_FIXTURE)
+    assert.deepEqual(actions, [])
   })
 })

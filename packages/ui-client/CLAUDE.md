@@ -26,7 +26,7 @@
 | `app/` | App 拆出的连接/空态/对话列/composer 草稿 hooks |
 | `chat/` | 事件→ChatItem 纯函数(types / reduce / todo) |
 | `copy/` | 文案与问候(简体中文,不用 emoji) |
-| `mermaid/` | 流程图语法闸 / 颜色 / 布局 / 缩放 |
+| `mermaid/` | 流程图语法闸 / 颜色 / 固有尺寸 / 缩放 |
 | `scroll/` | 对话列贴底 + 滚动诊断 |
 | `composer/` | 附件准入 / 斜杠 / Skill 选路 / 用户长文折叠阈值 |
 | `sessions/` | 侧栏序 / 可见窗 / 会话页查询与分页 / 未读灯 / 展示名 / 项目树分桶与折叠持久化 |
@@ -36,7 +36,7 @@
 | `appearance/` | 整窗皮肤 |
 | `components/` `components/widget/` `aura/` | 见各自 CLAUDE.md |
 
-样式:`tokens.css`(设计系统真源) / `styles.css` / `kumo.css` / `theme-celadon.css`。主题校验:`npm run check:theme`。类型闸门:`npm test` / `npm run typecheck` 先 `tsc --noEmit`(协议真源在 agent-service `messages.ts`)。
+样式:`tokens.css`(设计系统真源) / `styles.css` / `kumo.css` / `theme-celadon.css`。主题校验:`npm run check:theme`。类型闸门:`npm test` / `npm run typecheck` 先 `tsc --noEmit`(协议真源在 agent-service `messages.ts`)。测试地图:`tests/CLAUDE.md`;渲染夹具:`tests/fixtures/`。
 
 ## 设计纪律(违者打回)
 

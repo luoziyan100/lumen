@@ -4,7 +4,9 @@
  *           sealRunningProcesses / sealOpenTodos / coalesceTurnThoughts;
  *           parseAskUserQuestions / isLiveTaskEvent / safeParse
  * [POS]: 事件→界面状态的纯函数核(宪法:UI 状态是事件流的纯函数);
- *        useAgent hook 只订阅/投影,不内嵌归约分支
+ *        useAgent hook 只订阅/投影,不内嵌归约分支。
+ *        ChatMsg.id 是界面身份:无工具定稿封口当前 provisional 时继承其 id,
+ *        不是 model_step 事件 id;无 provisional 的整包 replay 才用 event.id。
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { ImageData, TaskEvent, UploadRef } from '../agent-client'
@@ -460,8 +462,9 @@ function reduceUserFacingInner(prev: ChatItem[], event: TaskEvent, p: Record<str
       if (streamingIdx >= 0) {
         const out = next.slice()
         if (content) {
-          const carried = out[streamingIdx]?.kind === 'msg' ? (out[streamingIdx] as ChatMsg).sources : undefined
-          out[streamingIdx] = finishAssistant(event.id, content, mergeSources(toolSources, carried ?? []))
+          const provisional = out[streamingIdx] as ChatMsg
+          const carried = provisional.sources
+          out[streamingIdx] = finishAssistant(provisional.id, content, mergeSources(toolSources, carried ?? []))
           return markThoughtsDone(out, event.created_at)
         }
         out.splice(streamingIdx, 1)
@@ -585,8 +588,9 @@ export function reduceChatItems(prev: ChatItem[], event: TaskEvent, p: Record<st
       }
       if (streamingIdx >= 0) {
         const next = base.slice()
+        const provisional = next[streamingIdx] as ChatMsg
         if (content) {
-          next[streamingIdx] = { kind: 'msg', id: event.id, role: 'assistant', content }
+          next[streamingIdx] = { kind: 'msg', id: provisional.id, role: 'assistant', content }
         } else if (tools.length === 0) {
           next[streamingIdx] = {
             kind: 'msg',

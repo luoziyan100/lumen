@@ -9,6 +9,7 @@ import type { SourceCite } from '../sourceCite.ts'
 
 export interface ChatMsg {
   kind: 'msg'
+  /** 界面身份:封口 provisional 时继承其 id,不是 model_step 事件 id */
   id: string
   role: 'user' | 'assistant' | 'error'
   content: string

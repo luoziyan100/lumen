@@ -3,7 +3,8 @@
  * [OUTPUT]: useAgent → items(用户面)/evidenceItems(归因面)/running/modelRetry/…;
  *           归约纯函数从 chat/reduce.ts 再导出(测试仍可从本文件 import)
  * [POS]: UI 对话状态核的 hook 相;事件→状态投影是纯函数(chat/reduce);
- *        切会话 bump viewEpoch,setItems updater 内二次 isLiveTaskEvent
+ *        切会话 bump viewEpoch,setItems updater 内二次 isLiveTaskEvent。
+ *        统一 trace 只在 onEvent 入口记一次,不进 reducer。
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * user 也走事件流,不在前端乐观插入。taskId 按项目键存 localStorage。
@@ -18,6 +19,8 @@ import {
   reduceUserFacingItems,
   safeParse,
 } from './chat/reduce.ts'
+import { scrollDebugEnabled, scrollDebugLog } from './scroll/scrollDebug.ts'
+import type { ChatTraceTrigger } from './scroll/scrollDebug.ts'
 
 export type {
   AskUserOption,
@@ -88,6 +91,23 @@ export function useAgent(client: AgentClient, projectId: string, connected: bool
       const epoch = viewEpochRef.current
       seenEventIds.current.add(event.id)
       const payload = safeParse(event.payload_json)
+      if (scrollDebugEnabled()) {
+        const kind = event.kind
+        const trigger: ChatTraceTrigger | undefined =
+          kind === 'text_delta' || kind === 'model_step' || kind === 'tool_call_start'
+          || kind === 'tool_call' || kind === 'tool_result' || kind === 'reply'
+            ? kind
+            : undefined
+        const text = typeof payload.text === 'string' ? payload.text : ''
+        const content = typeof payload.content === 'string' ? payload.content : ''
+        const tools = Array.isArray(payload.toolCalls) ? payload.toolCalls.length : 0
+        scrollDebugLog('agent-event', {
+          trigger,
+          eventId: event.id,
+          contentLength: text.length || content.length || undefined,
+          note: `kind=${kind} task=${event.task_id.slice(0, 8)} tools=${tools}`,
+        })
+      }
       setItems((prev) => {
         if (!isLiveTaskEvent(event.task_id, taskIdRef.current, epoch, viewEpochRef.current)) return prev
         return reduceUserFacingItems(prev, event, payload)

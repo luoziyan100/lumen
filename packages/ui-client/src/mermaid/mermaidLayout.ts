@@ -1,23 +1,24 @@
 /**
- * [INPUT]: mermaid 的 Mermaid.registerLayoutLoaders; SVG 宿主节点
- * [OUTPUT]: ELK 注册、flowchart initialize 合同、SVG 停拉伸尺寸政策
- * [POS]: MermaidBlock 渲染前的布局/宿主尺寸层;不碰 Phase A 语法闸。
- *        方法=官方 ELK + measure-then-box;库=beautiful-mermaid 本轮不接。
+ * [INPUT]: mermaid 的 Mermaid.registerLayoutLoaders; SVG 节点
+ * [OUTPUT]: ELK 注册、flowchart initialize 合同、SVG 固有尺寸归一(剥离百分比宽与卡片 max-width)
+ * [POS]: MermaidBlock 渲染前的布局/固有尺寸层;不碰 Phase A 语法闸。
+ *        卡片横滚与 lightbox fit 由各自宿主 CSS 决定,禁止写进缓存 SVG。
  *        合同真源:doc/mermaid-readability.md
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import type { Mermaid } from 'mermaid'
 
-export type SvgHostSizePolicy = {
-  maxWidth: '100%'
+export type SvgIntrinsicSizePolicy = {
+  /** 缓存 SVG 不得携带卡片专属 max-width */
+  maxWidth: 'none'
   height: 'auto'
   /** 禁止铺满栏;固有宽走 width 属性,不走 style.width */
   stretchWidth: false
 }
 
-/** AT1:卡片内 SVG 保持固有宽,只允许 max-width 收缩 */
-export const SVG_HOST_SIZE_POLICY: SvgHostSizePolicy = {
-  maxWidth: '100%',
+/** 固有宽政策:停拉伸,同时不把栏宽收缩写进 SVG */
+export const SVG_INTRINSIC_SIZE_POLICY: SvgIntrinsicSizePolicy = {
+  maxWidth: 'none',
   height: 'auto',
   stretchWidth: false,
 }
@@ -33,11 +34,11 @@ type StyleHost = {
   removeAttribute?: (name: string) => void
 }
 
-/** 清掉 width:100% 拉伸;保留 max-width 与 height:auto */
-export function applySvgHostSize(svg: StyleHost): void {
-  svg.style.maxWidth = SVG_HOST_SIZE_POLICY.maxWidth
-  svg.style.height = SVG_HOST_SIZE_POLICY.height
+/** 清掉百分比宽与 inline max-width;height:auto 让属性宽驱动比例 */
+export function normalizeSvgIntrinsicSize(svg: StyleHost): void {
   svg.style.removeProperty('width')
+  svg.style.removeProperty('max-width')
+  svg.style.height = SVG_INTRINSIC_SIZE_POLICY.height
   const attrW = svg.getAttribute?.('width')
   if (attrW && attrW.includes('%')) svg.removeAttribute?.('width')
 }

@@ -70,7 +70,7 @@ describe('reduceChatItems streaming', () => {
     items = reduceChatItems(items, step.event, step.p)
     assert.equal(items.length, 1)
     if (items[0]?.kind === 'msg') {
-      assert.equal(items[0].id, 'm1')
+      assert.equal(items[0].id, 'd1')
       assert.equal(items[0].content, '你好世界')
       assert.equal(items[0].streaming, undefined)
     }
@@ -80,7 +80,10 @@ describe('reduceChatItems streaming', () => {
     const step = ev('model_step', 'm2', { content: '整包', toolCalls: [] })
     const items = reduceChatItems([], step.event, step.p)
     assert.equal(items.length, 1)
-    if (items[0]?.kind === 'msg') assert.equal(items[0].content, '整包')
+    if (items[0]?.kind === 'msg') {
+      assert.equal(items[0].content, '整包')
+      assert.equal(items[0].id, 'm2')
+    }
   })
 
   it('tool_call_start 开 process,后续同 id tool_call 不重复', () => {

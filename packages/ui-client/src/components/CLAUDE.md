@@ -18,7 +18,7 @@
 - `PdfViewer.tsx` — pdf.js 竖向连续滚动渲染(锁 4.10.38)
 - `HtmlViewer.tsx` — 工作区 HTML 预览:复用 `widget/WidgetFrame`(allow-scripts + CSP,无 same-origin)
 - `StatusOrb.tsx` — 行内点云球:thinking-orbs **原生 size=20**(禁 64→CSS 缩,否则九态糊成虚线圈);支持 `paused` 冻帧
-- `ProcessRow.tsx` — 可折叠过程块(`CurtainFold` + 步骤 cascade);长轨迹只露最近 6 步;运行中 shimmer + 等宽计时;左侧 `StatusOrb` 按焦点工具态(`orbStateFromSteps`);与 ThinkingIndicator 的 breathing 分离
+- `ProcessRow.tsx` — 可折叠过程块(`CurtainFold` + 步骤 cascade);长轨迹只露最近 6 步;运行中 shimmer + 等宽计时;左侧 `StatusOrb` 按焦点工具态(`orbStateFromSteps`);`running` 与用户 `open` 解耦(首次按 running 展开,之后只由点击改变)
 - `ThoughtRow.tsx` — 同 turn 一条思考轨迹;运行中 shimmer「思考中」+ live 计时;收口只留 Thought process 摘要(不报秒)
 - `SourceList.tsx` — 模型漏写 Sources 时的答末兜底表;按站点一行(`collapseSourcesBySite`);超 8 **站** +N more / Show less;点开走 ExternalLinkGate。挑选权在模型正文
 - `ExternalLinkDialog.tsx` — Claude 式外链确认 + 按域名记住
@@ -30,8 +30,10 @@
 - `ManageSkillsDialog.tsx` — Manage skills:列表/添加文件夹·SKILL.md/卸载(Kumo Dialog,禁 glass-beam);行左 `SkillIcon`
 - `CollapsibleUserText.tsx` — 用户超长 prompt 默认折叠(>9 行或 >750 字);预览 clamp + `CurtainFold` 揭开全文;助手消息不折
 - `MsgFileChips.tsx` — 用户气泡附件 chip(上传知情 S4);点开读阅读器;见 `doc/upload-awareness.md`
-- `Markdown.tsx` — .md 文档与纯文本段渲染:GFM + KaTeX + 代码高亮 + ` ```mermaid ` → MermaidBlock;流式 `deferMath` 暂缓 KaTeX/mermaid 防高度抖
-- `MermaidBlock.tsx` — mermaid.js 动态加载;flowchart 优先官方 ELK(失败回 dagre);SVG 固有宽+max-width(禁 100% 拉伸);卡片右上角放大+复制;放大层 ± / 双指缩放;失败回退源码+「尝试修复」(Phase B,不改落库);见 `doc/mermaid-readability.md`
+- `Markdown.tsx` — .md 文档与纯文本段渲染:GFM + KaTeX + 代码高亮 + ` ```mermaid ` → MermaidBlock;终稿 `normalizeMathDelimiters` 兼容 `\( \)`/`\[ \]`;流式 `deferMath` 暂缓 KaTeX,mermaid 保持源码 pre
+- `markdownMath.ts` — 围栏/code span 感知的数学定界符归一:`\( \)`→`$ $`、`\[ \]`→`$$ $$`;未闭合 opener 不得跨代码区配对 closer;不碰美元形式与代码区
+- `MermaidBlock.tsx` — mermaid.js 动态加载;flowchart 优先官方 ELK(失败回 dagre);箱外测量 host 完成 tighten 后一次提交 final SVG;卡片固有宽+内层横滚,放大层单独 fit;右上角放大+复制;失败回退源码+「尝试修复」(Phase B,不改落库);见 `doc/mermaid-readability.md`
+- `ScrollDebugHud.tsx` — ⌃⌥⇧S 统一 trace HUD(清空本轮 / 场景号 / 复制日志);默认关闭
 - `widget/` — 对话网页沙箱(`show-widget` 围栏 → iframe);见 `widget/CLAUDE.md`
 - `hljs-celadon.css` — highlight.js 青瓷主题:消费 tokens.css 的 --code-* 语法色板
 - `icons.tsx` — **图标唯一入口**:re-export @phosphor-icons/react(Kumo 同源家族)并统一缺省尺寸;组件不得绕过它直接 import phosphor;不用 emoji;`FolderIcon` 接受 `open` → FolderSimple/FolderOpen;`ChevronIcon`(树左 CaretRight)/`SectionChevronIcon`(区右 CaretDown);Skills:`skillGlyphForName`/`SkillIcon`/`ManageSkillsIcon`(Briefcase,非齿轮)

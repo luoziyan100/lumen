@@ -1,3 +1,9 @@
+/**
+ * [INPUT]: 文案常量 / ChatTranscript / Markdown / Mermaid / styles.css
+ * [OUTPUT]: 问候、标题栏、来源表、助手外壳、mermaid 一次提交与固有宽横滚合同
+ * [POS]: 锁住用户可见 UI 契约,禁止只改文案或 CSS 名称就让行为漂走
+ * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
+ */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
@@ -76,6 +82,42 @@ test('assistant bubble keeps model Sources; host list is omit-fallback only', as
   assert.match(transcript, /shouldShowHostSourceList/)
   assert.match(transcript, /content=\{it\.content\}/)
   assert.doesNotMatch(transcript, /peeled\.body|extractSourceSection/)
+})
+
+test('assistant provisional and final share msg-group shell with inner bubble', async () => {
+  const transcript = await readFile(new URL('../src/app/ChatTranscript.tsx', import.meta.url), 'utf8')
+  assert.match(transcript, /className="msg-group msg-group-assistant"/)
+  assert.match(transcript, /bubble bubble-assistant/)
+  assert.match(transcript, /<AssistantContent/)
+  assert.doesNotMatch(transcript, /if \(isProvisional \|\| !finalAssistantIds/)
+  assert.match(transcript, /isFinal \? <div className="msg-actions"/)
+})
+
+test('mermaid main flow has no 3.5rem pending placeholder', async () => {
+  const block = await readFile(new URL('../src/components/MermaidBlock.tsx', import.meta.url), 'utf8')
+  const css = await readFile(new URL('../src/styles.css', import.meta.url), 'utf8')
+  assert.doesNotMatch(block, /mermaid-pending/)
+  assert.doesNotMatch(block, /setPending/)
+  assert.doesNotMatch(css, /\.mermaid-pending/)
+  assert.match(block, /createMermaidMeasureHost/)
+  assert.match(block, /tightened: true/)
+})
+
+test('mermaid card uses intrinsic width + inner scroll; lightbox fits separately', async () => {
+  const layout = await readFile(new URL('../src/mermaid/mermaidLayout.ts', import.meta.url), 'utf8')
+  const css = await readFile(new URL('../src/styles.css', import.meta.url), 'utf8')
+  const host = await readFile(new URL('../src/mermaid/mermaidMeasureHost.ts', import.meta.url), 'utf8')
+  assert.match(layout, /maxWidth: 'none'/)
+  assert.doesNotMatch(layout, /style\.maxWidth\s*=/)
+  assert.match(host, /normalizeSvgIntrinsicSize/)
+  assert.match(css, /\.mermaid-scroll\s*\{[^}]*overflow-x:\s*auto/s)
+  assert.doesNotMatch(css, /\.mermaid-scroll\s*\{[^}]*justify-content:\s*center/s)
+  assert.match(css, /\.mermaid-svg\s*\{[^}]*width:\s*max-content/s)
+  assert.match(css, /\.mermaid-svg\s*\{[^}]*min-width:\s*100%/s)
+  assert.match(css, /\.mermaid-svg\s*>\s*svg\s*\{[^}]*max-width:\s*none/s)
+  assert.match(css, /\.mermaid-block\s*\{[^}]*overflow:\s*hidden/s)
+  assert.match(css, /\.mermaid-lightbox-stage svg\s*\{[^}]*max-width:\s*100%/s)
+  assert.match(css, /\.mermaid-lightbox-stage svg\s*\{[^}]*width:\s*auto\s*!important/s)
 })
 
 test('jump-latest is dock-anchored above the composer, not under it', async () => {

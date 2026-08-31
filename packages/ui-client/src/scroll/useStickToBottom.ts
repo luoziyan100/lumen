@@ -1,17 +1,13 @@
 /**
  * [INPUT]: 消息列表 scroller + 可选 contentRef; contentKey
- * [OUTPUT]: useStickToBottom —— sticky/manual 双态; mermaid 高度雪崩时 manual 锚定可见消息
- * [POS]: 对话列滚动核 · doc/chat-scroll-ux.md · 诊断报告 P1
+ * [OUTPUT]: useStickToBottom —— sticky/manual 双态; 增高按帧追底,回缩不追
+ * [POS]: 对话列滚动核 · doc/chat-scroll-ux.md
  *
  * OpenWork: 手势窗 + 程序化可打断 + 只跟内容增高
  * opensquilla: 高度突变时 anchor 可见消息,用户手势 cancel 自动修正
  *
- * V1 2026-08-11 日志结案:
- *   contentH ~3.5k 振荡 → gap 被挤到贴底阈值 → 误 sticky→true → follow 拽底
- *   修: 进 sticky 必须用户意图(手势/下滑);大塌缩后 guard;RO 重绑不得 force 拽底
- * V2 2026-08-13 用户日志(答末 Sources 轻滑上下跳):
- *   gestured && gap>4 误离 sticky → overflow-anchor 拨成 auto → 高度 ±318 回弹拽视口
- *   修: 离钉只认上滑/大 gap;塌缩护栏内不离;钉态走外部 store,不重绘消息列;anchor 恒 none
+ * sticky follow: ResizeObserver 发现增高 → 同一帧一个 rAF → 再测再 scrollTop=scrollHeight。
+ * contentKey 只刷新 manual 锚点,不再续期静默窗。
  * [PROTOCOL]: 变更时更新此头部与 doc/chat-scroll-ux.md
  */
 import { useCallback, useEffect, useEffectEvent, useRef, type RefObject } from 'react'
@@ -23,8 +19,6 @@ export interface StickToBottomOptions {
   leaveBottomGapPx?: number
   upwardThresholdPx?: number
   gestureWindowMs?: number
-  /** sticky 下多次 RO 合并贴底的静默窗 ms。默认 140(mermaid 逐个落位) */
-  followSettleMs?: number
   /** 内容高度一次塌缩超过该 px 后,短时禁止仅因 gap 进 sticky。默认 80 */
   collapseGuardPx?: number
   /** 塌缩护栏时长 ms。默认 800 */
@@ -100,6 +94,19 @@ export function shouldLeaveSticky(args: {
   return false
 }
 
+/** sticky 增高且无手势时才排 follow rAF;回缩/等高/manual 不排 */
+export function shouldScheduleFollowFrame(args: {
+  enabled: boolean
+  sticky: boolean
+  hasGesture: boolean
+  prevHeight: number
+  nextHeight: number
+}): boolean {
+  if (!args.enabled || !args.sticky || args.hasGesture) return false
+  if (args.prevHeight <= 0) return true
+  return args.nextHeight > args.prevHeight
+}
+
 export function useStickToBottom(
   scrollerRef: RefObject<HTMLElement | null>,
   contentKey: unknown,
@@ -113,7 +120,6 @@ export function useStickToBottom(
   const leaveBottomGapPx = options.leaveBottomGapPx ?? 64
   const upwardThresholdPx = options.upwardThresholdPx ?? 16
   const gestureWindowMs = options.gestureWindowMs ?? 600
-  const followSettleMs = options.followSettleMs ?? 140
   const collapseGuardPx = options.collapseGuardPx ?? 80
   const collapseGuardMs = options.collapseGuardMs ?? 800
   const enabled = options.enabled ?? true
@@ -132,7 +138,7 @@ export function useStickToBottom(
   /** 本 hook 实例是否已做过首次 force 贴底(防 RO 重绑拽底) */
   const didInitFollowRef = useRef(false)
   const rafRef = useRef(0)
-  const settleTimerRef = useRef(0)
+  const followRafRef = useRef(0)
   const progReleaseRafRef = useRef(0)
   const msgAnchorRef = useRef<VisibleMsgAnchor | null>(null)
 
@@ -246,6 +252,8 @@ export function useStickToBottom(
       gap: distanceFromBottom(el),
       contentH: contentHeight(),
       lastH: lastHeightRef.current,
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
       note: behavior,
     })
 
@@ -302,52 +310,85 @@ export function useStickToBottom(
     lastHeightRef.current = h
     scrollDebugLog('follow', {
       sticky: true,
+      trigger: 'animation-frame',
       contentH: h,
       lastH: prev,
+      scrollTop: el.scrollTop,
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+      visibleMsgId: msgAnchorRef.current?.id,
       note: force ? 'force' : `grew ${Math.round(prev)}→${Math.round(h)}`,
     })
     scrollToBottom('auto')
   })
 
-  /** sticky:合并多次 RO(mermaid 逐个落位);manual:锚定可见消息 */
+  const scheduleFollowFrame = useEffectEvent(() => {
+    if (followRafRef.current) return
+    followRafRef.current = requestAnimationFrame(() => {
+      followRafRef.current = 0
+      scrollDebugLog('follow-raf', { trigger: 'animation-frame', sticky: stickyRef.current })
+      if (!stickyRef.current || hasGesture()) return
+      runFollowNow(false)
+    })
+  })
+
+  /** sticky:RO 增高按帧追;manual:锚定可见消息 */
   const onContentResized = useEffectEvent(() => {
     if (!enabled) return
     const h = contentHeight()
     const prev = lastHeightRef.current
+    const node = scrollerRef.current
     noteHeightSample(h)
-    scrollDebugLog('content-resize-H2?', {
+    scrollDebugLog('content-resize', {
+      trigger: 'resize-observer',
       sticky: stickyRef.current,
       gesture: hasGesture(),
       contentH: h,
       lastH: prev,
-      scrollTop: scrollerRef.current?.scrollTop,
-      gap: scrollerRef.current ? distanceFromBottom(scrollerRef.current) : undefined,
-      note: stickyRef.current ? '→settle-follow' : '→stabilize',
+      scrollTop: node?.scrollTop,
+      scrollHeight: node?.scrollHeight,
+      clientHeight: node?.clientHeight,
+      gap: node ? distanceFromBottom(node) : undefined,
+      visibleMsgId: msgAnchorRef.current?.id,
+      semanticAnchor: msgAnchorRef.current?.id,
+      anchorTop: msgAnchorRef.current?.offsetTop,
+      note: stickyRef.current ? '→follow-raf' : '→stabilize',
     })
     if (stickyRef.current) {
-      // 回缩只改基线,不追(合同);增高再 settle follow
       if (shouldResetHeightBaseline(prev, h)) {
         lastHeightRef.current = h
-        const node = scrollerRef.current
         if (node && !hasGesture()) {
           const max = node.scrollHeight - node.clientHeight
-          if (node.scrollTop > max) node.scrollTop = Math.max(0, max)
+          if (node.scrollTop > max) {
+            const topBefore = node.scrollTop
+            node.scrollTop = Math.max(0, max)
+            scrollDebugLog('scroll-clamp-shrink', {
+              sticky: true,
+              programmatic: true,
+              scrollTop: node.scrollTop,
+              scrollHeight: node.scrollHeight,
+              clientHeight: node.clientHeight,
+              deltaTop: node.scrollTop - topBefore,
+            })
+          }
         }
         return
       }
       if (hasGesture()) {
-        // 点「+N more」会增高;不更新基线的话手势窗结束后会误 follow 拽到最后一条
         if (h > prev) lastHeightRef.current = h
         return
       }
-      if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current)
-      settleTimerRef.current = window.setTimeout(() => {
-        settleTimerRef.current = 0
-        runFollowNow(false)
-      }, followSettleMs)
+      if (shouldScheduleFollowFrame({
+        enabled: true,
+        sticky: true,
+        hasGesture: false,
+        prevHeight: prev,
+        nextHeight: h,
+      })) {
+        scheduleFollowFrame()
+      }
       return
     }
-    // manual: 高度突变后把「正在看的消息」钉回原位(诊断报告 P1)
     if (rafRef.current) cancelAnimationFrame(rafRef.current)
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = 0
@@ -364,6 +405,14 @@ export function useStickToBottom(
     ignoreScrollRef.current = true
     const node = scrollerRef.current
     if (node) {
+      scrollDebugLog('pin-scroll', {
+        sticky: true,
+        programmatic: true,
+        scrollTop: node.scrollTop,
+        scrollHeight: node.scrollHeight,
+        clientHeight: node.clientHeight,
+        note: 'smooth',
+      })
       node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' })
       lastScrollTopRef.current = node.scrollTop
       lastHeightRef.current = contentHeight()
@@ -530,8 +579,8 @@ export function useStickToBottom(
       ro.disconnect()
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       rafRef.current = 0
-      if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current)
-      settleTimerRef.current = 0
+      if (followRafRef.current) cancelAnimationFrame(followRafRef.current)
+      followRafRef.current = 0
       if (progReleaseRafRef.current) cancelAnimationFrame(progReleaseRafRef.current)
       progReleaseRafRef.current = 0
     }
@@ -539,17 +588,9 @@ export function useStickToBottom(
 
   useEffect(() => {
     if (!enabled) return
-    // contentKey 变化:sticky 合并 follow;manual 刷锚点
-    if (stickyRef.current) {
-      if (settleTimerRef.current) window.clearTimeout(settleTimerRef.current)
-      settleTimerRef.current = window.setTimeout(() => {
-        settleTimerRef.current = 0
-        runFollowNow(false)
-      }, followSettleMs)
-    } else {
-      refreshMsgAnchor()
-    }
-  }, [contentKey, enabled, followSettleMs, runFollowNow, refreshMsgAnchor])
+    // contentKey 只刷新 manual 锚点;sticky 几何真源是 ResizeObserver
+    if (!stickyRef.current) refreshMsgAnchor()
+  }, [contentKey, enabled, refreshMsgAnchor])
 
   const subscribePinned = useCallback((onStoreChange: () => void) => {
     pinnedListenersRef.current.add(onStoreChange)

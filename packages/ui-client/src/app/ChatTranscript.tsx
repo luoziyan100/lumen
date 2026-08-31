@@ -1,10 +1,11 @@
 /**
  * [INPUT]: ChatItem 用户面;useAgent 思考/重试态;AgentClient.repairMermaid;工作区资产
  * [OUTPUT]: ChatTranscript —— 对话列(空态/Thought/过程/气泡/思考指示)
- * [POS]: App 对话舞台的消息相;终稿 Sources 原样;SourceList 仅漏写兜底
+ * [POS]: App 对话舞台的消息相;终稿 Sources 原样;SourceList 仅漏写兜底。
+ *        assistant 全阶段共用 .msg-group 根外壳;provisional 只改内层 class。
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import { useMemo, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { AgentClient, Asset } from '../agent-client'
 import type { ChatItem, ModelRetryState, PendingAsk } from '../useAgent'
 import { shouldShowHostSourceList } from '../sourceCite'
@@ -21,6 +22,79 @@ import { AssistantContent } from '../components/widget/AssistantContent'
 import { msgAnchorId } from '../components/turnRail'
 import { EmptyState } from './EmptyState'
 import { assetKindFromPath } from './assetKind'
+import { scrollDebugLog } from '../scroll/scrollDebug'
+import type { ChatMsg } from '../chat/types.ts'
+
+let assistantMountGen = 0
+
+function AssistantMessage({
+  it,
+  isFinal,
+  streamingWidget,
+  onSend,
+  onRepairMermaid,
+  copyBtn,
+}: {
+  it: ChatMsg
+  isFinal: boolean
+  streamingWidget: boolean
+  onSend: (text: string) => void
+  onRepairMermaid?: (source: string, error: string) => Promise<string>
+  copyBtn: (id: string, text: string, label: string) => ReactNode
+}) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const genRef = useRef(0)
+  const isProvisional = Boolean(it.provisional)
+  const showHostList = isFinal && shouldShowHostSourceList(it.content, it.sources ?? [])
+
+  useLayoutEffect(() => {
+    genRef.current = assistantMountGen += 1
+    const el = rootRef.current
+    const r = el?.getBoundingClientRect()
+    scrollDebugLog('assistant-mount', {
+      trigger: 'layout-effect',
+      assistantUiId: it.id,
+      mountGeneration: genRef.current,
+      rootType: 'assistant-group',
+      provisional: isProvisional,
+      streaming: streamingWidget,
+      contentLength: it.content.length,
+      rectTop: r?.top,
+      rectHeight: r?.height,
+    })
+    return () => {
+      scrollDebugLog('assistant-unmount', {
+        trigger: 'layout-effect',
+        assistantUiId: it.id,
+        mountGeneration: genRef.current,
+        rootType: 'assistant-group',
+        provisional: isProvisional,
+        streaming: streamingWidget,
+      })
+    }
+    // 只记这一次 DOM 实例的挂载/卸载;id 连续时不得因 streaming 翻转而重跑
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return (
+    <div
+      ref={rootRef}
+      id={msgAnchorId(it.id)}
+      className="msg-group msg-group-assistant"
+    >
+      <div className={`bubble bubble-assistant${isProvisional ? ' is-provisional' : ''}${streamingWidget ? ' is-streaming' : ''}`}>
+        <AssistantContent
+          content={it.content}
+          isStreaming={streamingWidget}
+          onSendMessage={(t) => { onSend(t) }}
+          onRepairMermaid={isFinal ? onRepairMermaid : undefined}
+        />
+        {showHostList ? <SourceList sources={it.sources ?? []} /> : null}
+      </div>
+      {isFinal ? <div className="msg-actions">{copyBtn(it.id, it.content, '复制这条回答')}</div> : null}
+    </div>
+  )
+}
 
 export function ChatTranscript({
   items,
@@ -54,6 +128,11 @@ export function ChatTranscript({
   onToggleRail: (open: boolean) => void
 }) {
   const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  const onRepairMermaid = useCallback((source: string, error: string) => {
+    if (!taskId) return Promise.resolve('')
+    return client.repairMermaid(taskId, source, error, projectId)
+  }, [taskId, client, projectId])
 
   async function copyMsg(id: string, text: string): Promise<void> {
     try {
@@ -132,32 +211,17 @@ export function ChatTranscript({
             Boolean(it.streaming)
             || (running && isProvisional)
             || (running && !finalAssistantIds.has(it.id) && !isProvisional)
-          if (isProvisional || !finalAssistantIds.has(it.id)) {
-            return (
-              <div
-                key={it.id}
-                id={msgAnchorId(it.id)}
-                className={`bubble bubble-assistant${isProvisional ? ' is-provisional' : ''}${streamingWidget ? ' is-streaming' : ''}`}
-              >
-                <AssistantContent content={it.content} isStreaming={streamingWidget} onSendMessage={(t) => { onSend(t) }} />
-              </div>
-            )
-          }
-          const showHostList = shouldShowHostSourceList(it.content, it.sources ?? [])
+          const isFinal = !isProvisional && finalAssistantIds.has(it.id)
           return (
-            <div key={it.id} id={msgAnchorId(it.id)} className="msg-group msg-group-assistant">
-              <div className="bubble bubble-assistant">
-                <AssistantContent
-                  content={it.content}
-                  onSendMessage={(t) => { onSend(t) }}
-                  onRepairMermaid={taskId
-                    ? (source, error) => client.repairMermaid(taskId, source, error, projectId)
-                    : undefined}
-                />
-                {showHostList ? <SourceList sources={it.sources ?? []} /> : null}
-              </div>
-              <div className="msg-actions">{copyBtn(it.id, it.content, '复制这条回答')}</div>
-            </div>
+            <AssistantMessage
+              key={it.id}
+              it={it}
+              isFinal={isFinal}
+              streamingWidget={streamingWidget}
+              onSend={onSend}
+              onRepairMermaid={taskId ? onRepairMermaid : undefined}
+              copyBtn={copyBtn}
+            />
           )
         }
         if (it.role === 'user') {

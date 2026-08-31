@@ -32,6 +32,8 @@
 | 2026-08-16 | 对照「保证 JSON」文：分层不可混；否决 `json_schema` 锁 mermaid 字符串；报错对人前端、对模型后端；本轮不上 Phase B/S5 | 会话决策落盘 |
 | 2026-08-16 | Phase B 履约：`repair_mermaid` sidecar（手动、同 hash 限 1 次、不改落库） | 实现 |
 | 2026-08-16 | 可读性本轮（R1′）交叉引用：`doc/mermaid-readability.md`；§5 R1–R7 冻结；§5.3 短标签 | 会话决策 |
+| 2026-08-31 | 最终几何一次进入主流:箱外 measurement host 完成 tighten 后一次替换源码;Phase A/B、ELK、复制原文、失败源码冻结 | 跳动修复 |
+| 2026-08-31 | 缓存 final SVG 不再携带卡片 max-width;宿主改为固有宽 + 内层真横滚;§5.3 长链优先 TD | 数学/宽图 brief |
 
 ---
 
@@ -68,7 +70,7 @@
 |------|------|
 | Persona | 可视化合同已镜像 §5.3（含先闭合再写边）；仍是**劝说**，不是推理层截断 |
 | 语法闸 | `mermaidSyntax.ts` R1–R7 + kind 门控；漏 `]` 等高频脏数据在前端补 |
-| 最终门 | `MermaidBlock` 同源 `mermaid.parse` → `render`；失败红字+源码 |
+| 最终门 | `MermaidBlock` 同源 `mermaid.parse` → **箱外** `render` + `tightenSvgInk` → 主流一次提交 final SVG；失败红字+源码。禁止 pending/raw SVG 进 `.messages-content` |
 | 回传模型 | **Phase B 已接**：失败卡「尝试修复」→ `repair_mermaid` sidecar。仍不进主研究循环、不改 `task_events`。`model_retry` 只处理 API 运输层 |
 | Structured Outputs | adapter **未接** `response_format: json_schema` |
 | 出图通道 | 正文 ` ```mermaid ` 围栏；**不**走 tool_calls |
@@ -99,6 +101,7 @@
 | `reply` 定稿后后端扫围栏、自动再打主循环 | 用户已见终稿；费用/延迟即「重试税」；与落库原文不改打架 |
 | 后端另起 mermaid 实例当最终门、前端盲信 | 破坏不变式 2（parser parity） |
 | 学 Cursor：失败时图消失 | 已登记为反模式 |
+| 主流 pending / raw SVG / rAF 再 tighten | 中间态不得进入 `.messages-content`;测量走箱外 host,禁止 `display:none` 后 `getBBox` |
 | Codex 式完全不内渲 | 与 Lumen「对话内见图」产品形态冲突；可保留「复制源码」旁路 |
 
 ---
@@ -320,7 +323,7 @@ validateMermaid(source: string, mermaidApi) →
 2. 含路径、模板、`{}`、`()`、`/` 的文案必须在引号内。  
 3. 简单短 ID + **短**标签（标题级，禁止把论述写进节点）；禁止用保留字 `end` 作节点 ID；解释写围栏外。  
 4. **输出前自检**：数 `subgraph`/`alt`/`loop` 开启次数与 `end` 次数，**必须相等**后再结束围栏。  
-5. 优先 `flowchart TD|LR` 与 `-->`；复杂交互优先 `show-widget`。  
+5. 长链/流水线优先 `flowchart TD`；`LR` 只用于短链、并列比较或天然横向关系；复杂交互优先 `show-widget`。渲染器不改方向。  
 6. sequence 用 `A->>B: 消息` 等序列语法，勿把 flowchart 习惯硬套进 sequence。
 7. 节点形状必须先闭合再写边：`A["标签"] --> B`，禁止 `A["标签" --> B`。
 8. 安全子集（节点约 ≤15、分支 `-- "是" -->`、避免裸括号/HTML/深 subgraph）以 `doc/mermaid-readability.md` 为准，与上列不矛盾。
@@ -487,10 +490,11 @@ validateMermaid(source: string, mermaidApi) →
 
 > 出图漏斗不变。本小节只钉「画出来之后」的宿主合同；全文见 `doc/mermaid-readability.md`。
 
-- **停拉伸**：`tightenSvgInk` 可收紧 viewBox、写固有 `width`/`height` 属性，**禁止** `style.width='100%'`。CSS 已是 `max-width:100%; margin:auto`。
+- **停拉伸 + 固有宽横滚**：`tightenSvgInk` 可收紧 viewBox、写固有 `width`/`height` 属性，**禁止** `style.width='100%'`，**禁止**把卡片 `max-width:100%` 写进缓存 SVG。卡片 CSS：`.mermaid-scroll` 真横滚；`.mermaid-svg` `max-content` + `min-width:100%`。lightbox 宿主单独 fit。
 - **官方 ELK**：flowchart 注册 `@mermaid-js/layout-elk` 后 `defaultRenderer:'elk'`（+ `layout:'elk'`）。注册失败回退 dagre，不硬崩。
 - **不换库**：仍官方 mermaid.js。`beautiful-mermaid` / IR·S5 / R8+ 见可读性文档否决项。
 - **parser parity** 仍约束出图层（同一 mermaid 实例 parse+render），**不**禁止换官方 layout。
+- **主流一次提交**：箱外 tighten 后只把 final SVG 送进 `.messages-content`；缓存键含列宽桶。
 
 ---
 

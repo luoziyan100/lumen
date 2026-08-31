@@ -14,6 +14,7 @@ import {
   isMeaningfulScrollDown,
   shouldEnterSticky,
   shouldLeaveSticky,
+  shouldScheduleFollowFrame,
 } from '../src/scroll/useStickToBottom.ts'
 
 function fakeScroller(partial: {
@@ -162,6 +163,38 @@ describe('V1 sticky 进出(mermaid 高度塌缩)', () => {
       scrolledUp: true,
       gestured: true,
       heightRecentlyCollapsed: true,
+    }), true)
+  })
+})
+
+describe('shouldScheduleFollowFrame', () => {
+  it('sticky 增高才排,等高/回缩不排', () => {
+    assert.equal(shouldScheduleFollowFrame({
+      enabled: true, sticky: true, hasGesture: false, prevHeight: 100, nextHeight: 120,
+    }), true)
+    assert.equal(shouldScheduleFollowFrame({
+      enabled: true, sticky: true, hasGesture: false, prevHeight: 100, nextHeight: 100,
+    }), false)
+    assert.equal(shouldScheduleFollowFrame({
+      enabled: true, sticky: true, hasGesture: false, prevHeight: 100, nextHeight: 80,
+    }), false)
+  })
+
+  it('manual / 手势 / 关闭 不排', () => {
+    assert.equal(shouldScheduleFollowFrame({
+      enabled: true, sticky: false, hasGesture: false, prevHeight: 100, nextHeight: 120,
+    }), false)
+    assert.equal(shouldScheduleFollowFrame({
+      enabled: true, sticky: true, hasGesture: true, prevHeight: 100, nextHeight: 120,
+    }), false)
+    assert.equal(shouldScheduleFollowFrame({
+      enabled: false, sticky: true, hasGesture: false, prevHeight: 100, nextHeight: 120,
+    }), false)
+  })
+
+  it('无基线时允许排一次', () => {
+    assert.equal(shouldScheduleFollowFrame({
+      enabled: true, sticky: true, hasGesture: false, prevHeight: 0, nextHeight: 50,
     }), true)
   })
 })

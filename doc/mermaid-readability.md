@@ -1,6 +1,6 @@
 # Mermaid 可读性（停拉伸 · 官方 ELK · persona 安全子集）
 
-状态: **现行（决策+本轮履约）** · 2026-08-16  
+状态: **现行（决策+履约）** · 2026-08-31  
 分支语境: `experiment/glass-ui`  
 决策编号: **R1′**（可读性本轮；语法管线仍是 `doc/mermaid-pipeline.md` 的 S4′）
 
@@ -25,6 +25,8 @@
 | 日期 | 变更 | 作者 |
 |------|------|------|
 | 2026-08-16 | 初版：锁定停拉伸 + 官方 ELK + persona 安全子集；否决 beautiful-mermaid / IR·S5 / R8+ | 会话决策落盘并履约 |
+| 2026-08-31 | 叠加：最终几何一次进入主流(箱外 tighten);不停拉伸/ELK/Phase A/B 合同 | 跳动修复 |
+| 2026-08-31 | 宿主展示改为固有宽 + 内层真横滚;缓存 SVG 不再写卡片 `max-width:100%`;lightbox 单独 fit;persona 长链优先 TD | 数学/宽图 brief |
 
 ---
 
@@ -54,14 +56,14 @@
 | 层 | 问的问题 | 成功长什么样 | 本轮手段 | 明确不是 |
 |----|----------|--------------|----------|----------|
 | **出图** | 这张 DSL 能不能被官方 mermaid 画出来？ | 高频脏数据零模型调用可渲；仍失败则源码可见 + 可选 1 次 sidecar | **不改**。继续 Phase A R1–R7 + 同源 `parse`/`render` + Phase B | 不加 R8+；不自动打主循环；不用非官方 parser 当最终门 |
-| **好看 / 可读** | 画出来的像素在对话栏里能不能扫读？ | TB 图保持固有宽、居中、不铺满栏；flowchart 边尽量正交（H/V）；放大层已有 | **停拉伸** + **官方 ELK** + 宿主「量完再装盒」（viewBox 收紧 + max-width 100%） | 不换渲染库；不重写主题/配色；不把 parse===render 当成美学宗教 |
+| **好看 / 可读** | 画出来的像素在对话栏里能不能扫读？ | 小图固有宽居中、不铺满栏;宽图保持固有宽并由 `.mermaid-scroll` 完整横滚;文字等效 ≥12px;flowchart 边尽量正交;放大层已有 | **停拉伸** + **官方 ELK** + 宿主「量完再装盒」（viewBox 收紧 + **固有宽横滚**,禁止无下限 `max-width:100%` 缩字） | 不换渲染库；不重写主题/配色；不把 parse===render 当成美学宗教；渲染器不改 LR/TD |
 | **业务正确** | 图意是否等于研究结论？ | 节点关系与论文/笔记一致；复制/历史仍是模型原文 | **不改**。repair 只修语法；落库不改 | 不上 IR/S5（锁图意要另开合同，达 pipeline §7.1 阈值） |
 
 **本轮产品目标（owner 已拍板）：** 对话窗里一张可读的 flowchart（干净层次、正交线、放大/缩放已存在）+ 高概率真的能渲染。
 
 **方法 vs 库：**
 
-- **方法**（接受）：官方 ELK 正交布局 + measure-then-box（先量墨迹/固有宽，再 `max-width:100%` 装进栏，**不**把 width 设成 100%）。
+- **方法**（接受）：官方 ELK 正交布局 + measure-then-box（先量墨迹/固有宽，**卡片内保持固有像素并由内层滚动端口承载**；lightbox 单独 fit。**禁止**把 `width` 设成 100%，也**禁止**用 `max-width:100%` 把宽图缩到不可读）。
 - **库**（推迟）：`beautiful-mermaid` 等第三方渲染器。须等「ELK + 停拉伸」被证明不够用，再单独立项。本文接受方法、推迟库。
 
 `doc/mermaid-pipeline.md` 的「parse 与 render 必须同一 mermaid.js」是**出图层**不变式，不是美学教条。本轮仍用官方 mermaid.js，只改 layout（ELK）与宿主尺寸。
@@ -72,10 +74,10 @@
 
 | 项 | 做？ | 说明 |
 |----|------|------|
-| 停 `tightenSvgInk` 写 `width:100%` | **做** | 保留 viewBox 收紧、`width`/`height` **属性**走固有像素、`maxWidth:100%`、`height:auto`；CSS 居中。JS 不得再把 style.width 盖成 100% |
+| 停 `tightenSvgInk` 写 `width:100%` | **做** | 保留 viewBox 收紧、`width`/`height` **属性**走固有像素、`height:auto`；**缓存 SVG 不得** `style.maxWidth='100%'`。卡片是否滚动、lightbox 是否 fit 由各自宿主 CSS 决定 |
+| persona 安全子集（Codex 风格） | **做** | 长链/流水线优先 `flowchart TD`（约 ≥6 连续节点）；`LR` 只用于短链、并列比较或天然横向关系；简单 ID；标签加引号；禁止悬空边；分支 `-- "是" -->`；约 ≤15 节点否则拆图；避免裸括号、HTML、深层 subgraph、超长单行。**删除/改写「短 ID + 长标签」**，改为短标题；解释在围栏外。渲染器不改方向 |
 | 官方 mermaid ELK | **做** | mermaid 11.16 需 `@mermaid-js/layout-elk` + `mermaid.registerLayoutLoaders`。initialize：`flowchart: { useMaxWidth:false, htmlLabels:true, padding:8, defaultRenderer:'elk' }`，并在注册成功时设顶层 `layout:'elk'`（mermaid 11 官方入口） |
 | ELK 注册失败回退 dagre | **做** | 不硬崩；仍走现有 parse→render。日志/降级静默即可（用户仍能见图，只是曲线） |
-| persona 安全子集（Codex 风格） | **做** | 优先 `flowchart TD/LR`；简单 ID；标签加引号；禁止悬空边；分支 `-- "是" -->`；约 ≤15 节点否则拆图；避免裸括号、HTML、深层 subgraph、超长单行。**删除/改写「短 ID + 长标签」**，改为短标题；解释在围栏外 |
 | 保留既有引号 / 先闭合再写边 | **做** | 与 pipeline §5.3 第 2、7 条不矛盾，只叠加，不删 |
 | Phase A R1–R7 | **冻结** | 不加 R8+ |
 | Phase B `repair_mermaid` | **冻结** | 手动、同 hash 一次、不改落库 |
@@ -84,6 +86,7 @@
 | IR / S5 | **不做** | 见否决项 |
 | 自动主循环重试 | **不做** | 见否决项 |
 | 新颜色 / 硬编码色 | **不做** | 只消费 tokens |
+| 最终几何一次进入主流 | **做** | `mermaidMeasureHost` 箱外 tighten;主流只收 source 或 final SVG;Phase A/B 冻结项仍冻结 |
 
 ---
 
@@ -104,7 +107,7 @@
 
 **本轮改（仅此）：**
 
-1. 宿主 SVG **不得** `style.width='100%'`；固有宽 + `max-width:100%` + 居中。
+1. 宿主 SVG **不得** `style.width='100%'`，**不得**把卡片 `max-width:100%` 写进缓存 SVG。小图固有宽居中；宽图固有宽 + `.mermaid-scroll` 真横滚。lightbox 宿主单独 `max-width/max-height` fit。
 2. flowchart 在 ELK 注册成功后走官方 ELK（`defaultRenderer:'elk'` + `layout:'elk'`）。
 3. persona 可视化段采用安全子集；禁止再写「短 ID + 长标签」。
 4. pipeline §5.3 第 3 条与 persona **镜像同步**（短标题，不是长标签）。
@@ -134,14 +137,13 @@
 | `doc/mermaid-readability.md` | 本文（审计真源） |
 | `doc/mermaid-pipeline.md` | 增补「可读性本轮」短节；§5 标明 R1–R7 冻结；§5.3 第 3 条改为短标题；状态表交叉引用 |
 | `doc/CLAUDE.md` | 状态表增加本文 |
-| `packages/ui-client/src/mermaidLayout.ts` | **新建**：ELK 注册（失败→false）、flowchart initialize 合同、SVG 停拉伸尺寸政策 |
-| `packages/ui-client/src/components/MermaidBlock.tsx` | `tightenSvgInk` 改走停拉伸政策；initialize 接 ELK 合同；头部 POS 指向本文 |
-| `packages/ui-client/package.json` | 增加 `@mermaid-js/layout-elk`（官方包，peer mermaid ^11） |
-| `packages/ui-client/tests/mermaid-layout.test.ts` | AT1 尺寸政策；AT2 initialize 含 elk |
-| `packages/ui-client/src/styles.css` | **原则上不改**（`.mermaid-svg svg` 已是 max-width 100% + margin auto）。若 JS 清掉 inline width 后仍被某条规则拉伸，只允许补「不设 width:100%」的 clarifier，禁硬编码色 |
-| `packages/agent-service/src/agents/persona.ts` | mermaid 段：安全子集；删「短 ID + 长标签」；保留引号/闭合/end 自检 |
-| `packages/ui-client/CLAUDE.md`、`components/CLAUDE.md`、`agents/CLAUDE.md` | 成员职责回写 ELK / 停拉伸 / 安全子集 |
-| `packages/agent-service/tests/agents/persona-mermaid.test.ts` | AT5：persona 含安全子集、不含「短 ID + 长标签」 |
+| `packages/ui-client/src/mermaid/mermaidLayout.ts` | ELK 注册（失败→false）、flowchart initialize 合同、SVG 固有尺寸归一（剥离百分比宽与卡片 max-width） |
+| `packages/ui-client/src/components/MermaidBlock.tsx` | 箱外 tighten 后一次提交；initialize 接 ELK；头部 POS 指向本文 |
+| `packages/ui-client/tests/mermaid-layout.test.ts` | AT1 固有尺寸政策；AT2 initialize 含 elk |
+| `packages/ui-client/src/styles.css` | `.mermaid-scroll` 为滚动端口；`.mermaid-svg` 用 `max-content` + `min-width:100%` 居中小图；`> svg { max-width:none }`。`.mermaid-block { overflow:hidden }` **默认保留**（不禁用内层滚动）。lightbox `.mermaid-lightbox-stage svg` 单独 fit |
+| `packages/agent-service/src/agents/persona.ts` | 安全子集 + 长链优先 TD；LR 仅短链/并列；保留引号/闭合/end 自检 |
+| `packages/ui-client/CLAUDE.md`、`components/CLAUDE.md`、`agents/CLAUDE.md` | 成员职责回写 ELK / 固有宽横滚 / 安全子集 |
+| `packages/agent-service/tests/agents/persona-mermaid.test.ts` | AT5：persona 含长链 TD、不含「短 ID + 长标签」 |
 
 ### 不改
 
@@ -173,17 +175,17 @@ mermaid.registerLayoutLoaders(elkLayouts)
 
 ---
 
-## 验收标准 AT（可执行：AT1 停拉伸后 TB 图不铺满栏；AT2 flowchart 走 ELK；AT3 既有 mermaid-syntax 单测仍绿；AT4 Phase B 协议不动；AT5 persona 含安全子集）
+## 验收标准 AT（可执行：AT1 停拉伸且宽图真横滚；AT2 flowchart 走 ELK；AT3 既有 mermaid-syntax 单测仍绿；AT4 Phase B 协议不动；AT5 persona 含安全子集）
 
 | ID | 操作 | 预期 | 证据 |
 |----|------|------|------|
-| **AT1** | 读 `svgHostSizePolicy` / 对假 SVG 调 `applySvgHostSize` | `maxWidth==='100%'`、`height==='auto'`、**不**存在 `style.width==='100%'`（若原先有则被清掉）。TB 图在栏内以固有宽居中，不铺满 | 单测 V1 + 重装后目视 |
+| **AT1** | 读 `SVG_INTRINSIC_SIZE_POLICY` / 对假 SVG 调 `normalizeSvgIntrinsicSize` | `maxWidth==='none'`、`height==='auto'`、**不**存在 `style.width==='100%'`、**不**存在 inline `max-width:100%`。小图固有宽居中不铺满；宽图 `scrollWidth` 覆盖完整 SVG 宽；`scrollLeft=0` 见左端、最大值见右端；inline 等效字号 ≥12px | 单测 V1 + 重装后几何探针 |
 | **AT2** | `elkReady===true` 时的 initialize 合同；并能 `import('@mermaid-js/layout-elk')` | `flowchart.defaultRenderer==='elk'` 且 `layout==='elk'`；`useMaxWidth===false`。注册失败路径返回 false 且配置不含 elk | 单测 V1 |
 | **AT3** | `packages/ui-client` 既有 `mermaid-syntax` / `mermaid-sanitize` / `mermaid-zoom` | 全绿；R1–R7 行为不变 | `node --test` |
 | **AT4** | 读 `mermaid-repair.ts` + `tests/runtime/mermaid-repair.test.ts` | 协议字段、同 hash 限 1、禁令文案、不改落库——本轮 diff 不碰这些文件的行为 | 单测绿 + diff 审查 |
-| **AT5** | 读 `LUMEN_PERSONA` | 含：`flowchart TD`/`LR`、引号标签、`-- "是" -->`、约 15 节点、短标题/围栏外解释；**不含**「短 ID + 长标签」；仍含先闭合再写边 | 单测 V1 |
+| **AT5** | 读 `LUMEN_PERSONA` | 含：长链优先 TD、LR 用于短链/并列、引号标签、`-- "是" -->`、约 15 节点、短标题/围栏外解释、渲染器不会改方向；**不含**「短 ID + 长标签」；仍含先闭合再写边 | 单测 V1 |
 
-E2E（owner）：重装 Lumen.app 后打开含 TB flowchart 的会话——图不扁铺、线尽量正交；坏图仍能见源码。
+E2E（owner）：重装 Lumen.app 后打开含 TB 与极宽 LR 的会话——小图不扁铺、宽图可横滚且左右端可达、字 ≥12px；坏图仍能见源码。
 
 ---
 
@@ -193,13 +195,13 @@ E2E（owner）：重装 Lumen.app 后打开含 TB flowchart 的会话——图�
 |------|------|------|
 | `@mermaid-js/layout-elk` 打包进 Tauri WebKit 失败 / 体积涨 | 动态 import；失败回退 dagre | 去掉 register 与依赖，initialize 回到本轮前 |
 | ELK 对某些脏图比 dagre 更易 layout 失败 | 仍有同源 parse；layout 抛错走现有 catch → 源码卡 | `elkReady` 强制 false（代码开关或卸包） |
-| 停拉伸后极宽 LR 图溢出，需横向滚 | `.mermaid-scroll` 已存在；放大层仍在 | 不恢复 100% 拉伸（那是把 TB 写扁）。溢出用滚动/放大，不用拉伸 |
+| 停拉伸后极宽 LR 图固有宽超过对话列 | `.mermaid-scroll` 必须出现 `scrollWidth > clientWidth`，且左右端均可 `scrollLeft` 到达。禁止再用 `max-width:100%` 把字缩到 <12px。`.mermaid-block overflow:hidden` **不是**滚动禁用开关（内层独立端口仍可滚）。宽 wrapper 自身等于内容宽，避免窄 flex 上 `justify-content:center` 造成左侧负溢出不可达 | 不恢复无下限缩小。WebKit 若对 `max-content+min-width:100%` 不一致，改等价 inline-flex/显式 wrapper 宽 |
 | persona 安全子集让模型少画复杂图 | 这是目标：复杂交互走 show-widget；大图拆开 | 只回滚 persona 段，不动渲染 |
 | ELK 正交仍不够「好看」 | **预期中的下一决策点**，不是本轮加库的理由 | 另开 brief；此时才评估 beautiful-mermaid |
 
 **回滚动作（短）：**
 
-1. `tightenSvgInk` 恢复 `style.width='100%'`（不推荐，除非 AT1 被证伪为误伤）。  
+1. 禁止把卡片 `max-width:100%` 写回缓存 SVG 或 `.mermaid-svg > svg`（那会再次缩掉极宽 LR）。停拉伸（禁 `style.width='100%'`）仍必须保留。  
 2. 卸载 `@mermaid-js/layout-elk`，initialize 去掉 elk 字段。  
 3. persona 可视化段回退到本轮前（保留引号/闭合）。  
 4. Phase A/B **不必**回滚——本轮不该改它们。
@@ -227,7 +229,7 @@ E2E（owner）：重装 Lumen.app 后打开含 TB flowchart 的会话——图�
 1. 本文是否把「出图 / 好看 / 业务正确」拆成三层，且本轮代码只被授权改「好看」的宿主层（停拉伸 + 官方 ELK）和 persona 劝说层？  
 2. 否决项是否同时覆盖这四件：**不接 beautiful-mermaid、不上 IR/S5、不加 R8、不自动主循环重试**，并且理由不是「以后再说」而是可再议条件？  
 3. 实现合同是否**禁止**改 `mermaidSyntax.ts` 的 R1–R7 行为，以及禁止改 Phase B `repair_mermaid` 的限次/落库语义？  
-4. AT1 是否可执行地禁止 `style.width='100%'`，同时仍允许 viewBox 收紧与 `max-width:100%`？（若源码一边删 100%、一边 CSS/JS 又写回去 → 标矛盾）  
+4. AT1 是否可执行地禁止 `style.width='100%'` **以及** 缓存 SVG 上的卡片 `max-width:100%`，并要求宽图 `scrollWidth` 覆盖固有宽、左右端可达、等效字号 ≥12px？（若 CSS/JS 仍把成功 SVG 缩进栏宽 → 标矛盾）  
 5. AT2 是否要求 flowchart 走官方 ELK，且写明「注册失败回退 dagre、不硬崩」？实现是否真的有这条回退，而不是假设包一定加载成功？  
 6. persona 是否已去掉「短 ID + 长标签」，改为短标题 + 围栏外解释，并且**仍保留**「标签加引号」与「先闭合再写边」？（丢掉后两条 → 标矛盾）  
 7. 本文是否仍坚持官方 mermaid.js 同源 parse/render，只改 layout 与宿主尺寸——而不是把 pipeline「parser parity」理解成「连美学也不能换 layout」？  
@@ -237,4 +239,4 @@ E2E（owner）：重装 Lumen.app 后打开含 TB flowchart 的会话——图�
 
 ## 一句话合同
 
-**本轮把流程图从「能画」推进到「能读」：停 100% 拉伸、flowchart 走官方 ELK（失败回 dagre）、persona 改安全子集；出图漏斗与 Phase B 协议冻结；beautiful-mermaid / IR / R8 / 自动重试一律不准上车。**
+**本轮把流程图从「能画」推进到「能读」：停 100% 拉伸、宽图固有宽真横滚、flowchart 走官方 ELK（失败回 dagre）、persona 长链优先 TD；出图漏斗与 Phase B 协议冻结；beautiful-mermaid / IR / R8 / 自动重试一律不准上车。**

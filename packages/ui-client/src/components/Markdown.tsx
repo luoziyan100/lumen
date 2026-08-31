@@ -1,8 +1,10 @@
 /**
- * [INPUT]: react-markdown + remark-gfm/math + rehype-katex/highlight;MermaidBlock
+ * [INPUT]: react-markdown + remark-gfm/math + rehype-katex/highlight;MermaidBlock;markdownMath
  * [OUTPUT]: Markdown —— GFM/数学/代码高亮 + ```mermaid 流程图;deferMath 流式暂缓 KaTeX
  * [POS]: .md 阅读器与 AssistantContent 的文本段;show-widget 不经此组件;
- *        onRepairMermaid 只由对话终稿注入,阅读器不修图
+ *        终稿在 ReactMarkdown 前走 normalizeMathDelimiters(\( \)/\[ \]→$/$$);流式不归一、不跑 KaTeX。
+ *        onRepairMermaid 只由对话终稿注入,阅读器不修图。
+ *        流式 mermaid 保持源码 pre;定稿后 MermaidBlock 箱外测量,主流一次提交 final SVG。
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { Children, isValidElement, useMemo, type ComponentProps, type ReactNode } from 'react'
@@ -15,6 +17,7 @@ import 'katex/dist/katex.min.css'
 import './hljs-celadon.css'
 import { MermaidBlock } from './MermaidBlock'
 import { useOpenExternal } from './ExternalLinkDialog'
+import { normalizeMathDelimiters } from './markdownMath.ts'
 
 const REMARK_FULL = [remarkGfm, remarkMath]
 const REHYPE_FULL = [rehypeKatex, rehypeHighlight]
@@ -47,6 +50,7 @@ export function Markdown({
 }) {
   const remarkPlugins = deferMath ? REMARK_STREAM : REMARK_FULL
   const rehypePlugins = deferMath ? REHYPE_STREAM : REHYPE_FULL
+  const markdown = deferMath ? children : normalizeMathDelimiters(children)
   const openExternal = useOpenExternal()
   const components = useMemo(() => ({
     a({ href, children, ...props }: ComponentProps<'a'>) {
@@ -90,7 +94,7 @@ export function Markdown({
         rehypePlugins={rehypePlugins}
         components={components}
       >
-        {children}
+        {markdown}
       </ReactMarkdown>
     </div>
   )

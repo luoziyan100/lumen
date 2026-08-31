@@ -7,6 +7,6 @@
 
 ## 成员
 
-- `types.ts` — ChatItem 族与 ask_user / modelRetry 形
+- `types.ts` — ChatItem 族与 ask_user / modelRetry 形;`ChatMsg.id` 是界面身份(封口继承 provisional)
 - `todo.ts` — todo_write 解析与 upsert;safeParse
-- `reduce.ts` — reduceUserFacingItems(用户面) / reduceChatItems(证据面);seal / Thought 合并 / isLiveTaskEvent;write/edit path 优先 payload、回退 args、「完成(无 path)」
+- `reduce.ts` — reduceUserFacingItems / reduceChatItems;无工具定稿继承 provisional UI ID,无泡时才用 event.id;seal / Thought 合并 / isLiveTaskEvent

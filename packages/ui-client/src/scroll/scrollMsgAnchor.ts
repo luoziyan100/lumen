@@ -1,9 +1,12 @@
 /**
  * [INPUT]: 对话滚动容器 + [id^=msg-] 消息锚点
  * [OUTPUT]: captureVisibleMsgAnchor / restoreMsgAnchor —— 高度突变时保持「正在看的那条」
- * [POS]: useStickToBottom manual 浏览态;对标 opensquilla scrollAnchor / ChatGPT pagination anchor
+ * [POS]: useStickToBottom manual 浏览态;对标 opensquilla scrollAnchor / ChatGPT pagination anchor。
+ *        写入 scrollTop 必打 restore-msg-anchor。
  * [PROTOCOL]: 变更时更新此头部与 doc/chat-scroll-ux.md
  */
+
+import { scrollDebugLog } from './scrollDebug.ts'
 
 export interface VisibleMsgAnchor {
   id: string
@@ -36,7 +39,19 @@ export function restoreMsgAnchor(
   const r = el.getBoundingClientRect()
   const delta = (r.top - crect.top) - anchor.offsetTop
   if (Math.abs(delta) > 0.5) {
+    const topBefore = container.scrollTop
     container.scrollTop += delta
+    scrollDebugLog('restore-msg-anchor', {
+      visibleMsgId: anchor.id,
+      semanticAnchor: anchor.id,
+      anchorTop: anchor.offsetTop,
+      anchorDelta: delta,
+      scrollTop: container.scrollTop,
+      scrollHeight: container.scrollHeight,
+      clientHeight: container.clientHeight,
+      deltaTop: container.scrollTop - topBefore,
+      note: 'scrollTop+=delta',
+    })
   }
   return delta
 }

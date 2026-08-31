@@ -124,6 +124,7 @@ describe('user-facing Claude 两阶段', () => {
     assert.equal(u.filter((i) => i.kind === 'process').length, 0)
     const ans = u.find((i) => i.kind === 'msg' && i.role === 'assistant')
     assert.ok(ans && ans.kind === 'msg' && !ans.provisional && !ans.streaming)
+    assert.equal(ans!.id, 'd1')
     assert.match(ans!.content, /三条线索/)
   })
 
@@ -138,6 +139,8 @@ describe('user-facing Claude 两阶段', () => {
     })
     const kinds = u.map((i) => (i.kind === 'msg' ? `msg:${i.role}` : i.kind))
     assert.deepEqual(kinds, ['msg:user', 'thought', 'msg:assistant'])
+    const ans = u.find((i) => i.kind === 'msg' && i.role === 'assistant')
+    if (ans?.kind === 'msg') assert.equal(ans.id, 'd1')
     const th = u.find((i) => i.kind === 'thought')
     if (th?.kind === 'thought') {
       assert.equal(th.done, true)
@@ -287,5 +290,77 @@ describe('user-facing Claude 两阶段', () => {
     assert.equal(u.filter((i) => i.kind === 'process').length, 1)
     const proc = u.find((i) => i.kind === 'process')
     if (proc?.kind === 'process') assert.equal(proc.steps.length, 1)
+  })
+})
+
+describe('provisional 封口身份连续', () => {
+  it('d1+d2 后无工具 model_step 终稿仍是 d1,正文用整包', () => {
+    let u: ChatItem[] = []
+    u = applyUser(u, 'text_delta', 'd1', { text: '你' })
+    u = applyUser(u, 'text_delta', 'd2', { text: '好' })
+    u = applyUser(u, 'model_step', 'm1', { content: '你好世界', toolCalls: [] })
+    const ans = u.find((i) => i.kind === 'msg' && i.role === 'assistant')
+    assert.ok(ans && ans.kind === 'msg')
+    if (ans?.kind === 'msg') {
+      assert.equal(ans.id, 'd1')
+      assert.equal(ans.content, '你好世界')
+      assert.equal(ans.streaming, undefined)
+      assert.equal(ans.provisional, undefined)
+    }
+  })
+
+  it('无 streaming 的 replay 用 model_step.id', () => {
+    const u = applyUser([], 'model_step', 'm2', { content: '整包', toolCalls: [] })
+    const ans = u.find((i) => i.kind === 'msg' && i.role === 'assistant')
+    if (ans?.kind === 'msg') assert.equal(ans.id, 'm2')
+  })
+
+  it('provisional 遇 tool_call 降级 Thought,终稿不得复用 Thought id', () => {
+    let u: ChatItem[] = []
+    u = applyUser(u, 'text_delta', 'd1', { text: '我先搜' })
+    u = applyUser(u, 'tool_call_start', 's1', { id: 't1', name: 'search_web' })
+    u = applyUser(u, 'tool_result', 'r1', { id: 't1', name: 'search_web', llmContent: 'ok' })
+    const th = u.find((i) => i.kind === 'thought')
+    u = applyUser(u, 'text_delta', 'd2', { text: '结论' })
+    u = applyUser(u, 'model_step', 'm1', { content: '结论在此', toolCalls: [] })
+    const ans = u.find((i) => i.kind === 'msg' && i.role === 'assistant')
+    assert.ok(th && th.kind === 'thought')
+    assert.ok(ans && ans.kind === 'msg')
+    if (ans?.kind === 'msg' && th?.kind === 'thought') {
+      assert.equal(ans.id, 'd2')
+      assert.notEqual(ans.id, th.id)
+    }
+  })
+
+  it('空正文 reasoning hop 不得封口 provisional', () => {
+    let u: ChatItem[] = []
+    u = applyUser(u, 'text_delta', 'd1', { text: '草稿' })
+    u = applyUser(u, 'model_step', 'm0', {
+      content: '',
+      toolCalls: [],
+      reasoningContent: '还在想',
+    })
+    const draft = u.find((i) => i.kind === 'msg' && i.role === 'assistant')
+    assert.ok(draft && draft.kind === 'msg' && draft.streaming && draft.id === 'd1')
+    assert.equal(draft!.content, '草稿')
+  })
+
+  it('过程 sources 与 provisional 已有 sources 合并进终稿', () => {
+    let u: ChatItem[] = []
+    u = applyUser(u, 'user', 'u1', { content: '搜' })
+    u = applyUser(u, 'tool_call_start', 's1', {
+      id: 't1',
+      name: 'fetch_url',
+      args: { url: 'https://example.com/paper' },
+    })
+    u = applyUser(u, 'tool_result', 'r1', { id: 't1', name: 'fetch_url', llmContent: 'ok' })
+    u = applyUser(u, 'text_delta', 'd1', { text: '见' })
+    u = applyUser(u, 'model_step', 'm1', { content: '见原文', toolCalls: [] })
+    const ans = u.find((i) => i.kind === 'msg' && i.role === 'assistant')
+    assert.ok(ans && ans.kind === 'msg')
+    if (ans?.kind === 'msg') {
+      assert.equal(ans.id, 'd1')
+      assert.ok((ans.sources ?? []).some((s) => s.url.includes('example.com/paper')))
+    }
   })
 })

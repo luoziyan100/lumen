@@ -2296,9 +2296,7 @@ html[data-skin="cosmic-latte"] .thought {
 }
 .mermaid-scroll {
   overflow-x: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
   min-height: 0;
 }
 .mermaid-toolbar {
@@ -2325,18 +2323,27 @@ html[data-skin="cosmic-latte"] .thought {
 .mermaid-toolbar .mermaid-tool:hover { background: var(--sand); color: var(--ink); }
 .mermaid-toolbar .mermaid-tool.is-copied { color: var(--ember); }
 .mermaid-svg {
-  display: flex; align-items: center; justify-content: center;
-  width: 100%;
-}
-.mermaid-svg svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
-.mermaid-pending {
-  min-height: 3.5rem;
   display: flex;
+  width: max-content;
+  min-width: 100%;
+  justify-content: center;
   align-items: center;
-  color: var(--ink-mute);
-  font-size: var(--t-caption);
-  font-family: var(--font-sans);
 }
+.mermaid-svg > svg {
+  flex: 0 0 auto;
+  display: block;
+  max-width: none;
+  height: auto;
+}
+.mermaid-measure-host {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+.mermaid-source-slot pre { margin: 0.9em 0; }
 .mermaid-fallback { display: flex; flex-direction: column; gap: var(--s-2); }
 .mermaid-error { color: var(--danger); font-size: var(--t-caption); font-family: var(--font-sans); }
 .mermaid-error-detail-toggle {
@@ -2665,6 +2672,17 @@ html[data-skin="cosmic-latte"] .thought {
   color: var(--ink-mute);
   min-width: 3.5em;
 }
+.scroll-debug-scene {
+  width: 4.5em;
+  border: 1px solid var(--sand);
+  background: var(--card);
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1;
+  padding: 5px 6px;
+  border-radius: 8px;
+}
+.scroll-debug-scene::placeholder { color: var(--ink-mute); }
 .scroll-debug-btn {
   appearance: none;
   border: 1px solid var(--sand);
