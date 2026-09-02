@@ -31,6 +31,7 @@ export const TOOL_KIND_BY_NAME: Readonly<Record<string, ToolKind>> = {
   // Edit / Write
   edit_file: 'Edit',
   write_file: 'Write',
+  install_skill: 'Write',
   write_memory: 'MemoryWrite',
   // Execute
   run_code: 'Execute',

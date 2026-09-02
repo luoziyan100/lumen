@@ -118,6 +118,7 @@ export function formatSkillCatalog(skills: SkillPackage[]): string {
     '# 可运行的 Skills',
     '以下是可调用的研究工作流(不是记忆)。任务匹配时用 run_skill(name=…) **启动**;',
     '启动后按 playbook 执行,包内脚本经 run_code 在沙箱中跑,产物写入工作区。',
+    '工作区里新写的包装进本表用 install_skill(path=相对目录, scope=user|project)。',
     '',
   ]
   for (const s of visible) {

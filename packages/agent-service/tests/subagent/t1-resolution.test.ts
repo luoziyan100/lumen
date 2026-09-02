@@ -27,7 +27,7 @@ function fakeTool(name: string): Tool {
 
 const ALL_NAMES = [
   'read_file', 'write_file', 'edit_file', 'list_dir', 'grep', 'glob',
-  'run_code', 'run_skill', 'search_papers', 'search_web', 'get_citations',
+  'run_code', 'run_skill', 'install_skill', 'search_papers', 'search_web', 'get_citations',
   'fetch_url', 'extract_pdf', 'look_at_image', 'read_memory', 'write_memory',
   'todo_write', 'update_plan', 'ask_user',
   'spawn_subagent', 'get_subagent_output', 'kill_subagent',
@@ -38,6 +38,7 @@ const allTools = ALL_NAMES.map(fakeTool)
 test('kindOf 登记表覆盖主要工具', () => {
   assert.equal(kindOf('read_file'), 'Read')
   assert.equal(kindOf('write_file'), 'Write')
+  assert.equal(kindOf('install_skill'), 'Write')
   assert.equal(kindOf('run_code'), 'Execute')
   assert.equal(kindOf('spawn_subagent'), 'Task')
   assert.equal(kindOf('get_subagent_output'), 'TaskControl')

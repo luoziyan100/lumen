@@ -705,6 +705,12 @@ export class AgentRuntime {
       memoryDir: this.memoryDir(task.project_id),
       skills: this.skillsForProject(task.project_id),
       skillReadRoots: this.skillReadRootsForProject(task.project_id),
+      installSkill: (scope, absPath) => installSkillFromPath({
+        scope,
+        path: absPath,
+        workspacesDir: this.cfg.workspacesDir,
+        projectId: sanitizeWorkspaceId(task.project_id),
+      }),
       askUser: this.asks.makeAskUserWaiter(task.id),
       subagents: this.subagents,
       childRunner,

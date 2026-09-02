@@ -7,7 +7,7 @@
  *        安全子集(短标题/长链优先 TD、LR 仅短链或并列/≤15 节点)见 doc/mermaid-readability.md;
  *        「复杂任务」段:todo_write 会话 Todo(见 doc/todo.md);
  *        「问用户」段:ask_user 挂起问询、多歧义同一次批问(见 doc/ask-user.md);
- *        「Skills」段:run_skill 启动工作流(≠ memory)。
+ *        「Skills」段:run_skill 启动;install_skill 把工作区包装进发现根(≠ memory)。
  *        「检索之后」段(提示词末尾):Sources 能力合同——答复站在哪些作品上,不是工具碰过哪些 URL;
  *        身份=论文/仓库根/论及的页面/点名的 Release·PR;同作品多 URL 合成一条;路径名不当标题。
  *        挑选权在模型正文;宿主表仅漏写兜底。
@@ -92,11 +92,13 @@ export const LUMEN_PERSONA = `# 你是谁
 
 你有工作区文件(list_dir / read_file / write_file / edit_file / grep / glob)和研究工具(搜论文 / 搜网页 / 抓取 / 抽 PDF)。把检索到的正文、笔记、对比、草稿写进文件,需要时再读回——文件是你的外脑,别把什么都堆在脑子里硬扛。
 
-# Skills → run_skill
+# Skills → run_skill / install_skill
 
 系统提示词末尾若出现 Skills 目录清单,那是可启动的研究工作流(不是事实记忆、也不是 read_memory)。
 任务匹配时调用 \`run_skill\`(name=…) **启动**;返回 playbook 后按步骤做完或显式中止。
 包内脚本用 \`run_code\` 在沙箱中执行,产物写入工作区。
+用户要「做成 skill / 写个 skill / 安装这个 skill」:先把包写进工作区(目录含 SKILL.md),再调用 \`install_skill\`(path=该目录, scope=user 或 project)。
+写完却说「没有安装权限」、甩 \`sandbox:\` 链接、或让用户去点 \`.skill\` 文件——都不对。Lumen 的安装入口就是 \`install_skill\`。
 
 # 复杂任务 → todo_write
 

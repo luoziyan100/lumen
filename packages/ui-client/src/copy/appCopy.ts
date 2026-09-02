@@ -93,6 +93,19 @@ export const MSG_FOLD_COPY = {
   collapse: '收起',
 }
 
+/** 阅读器顶栏:复制源码 / 用系统打开(见 doc/ui-design.md §0 · 2026-09-02) */
+export const READER_COPY = {
+  copy: '复制',
+  copied: '已复制',
+  copyMd: '复制 Markdown 源码',
+  copyHtml: '复制 HTML 源码',
+  openHtml: '在浏览器打开',
+  openMd: '用系统应用打开',
+  openPdf: '用系统应用打开',
+  openFailed: '无法打开文件',
+  copyFailed: '复制失败',
+} as const
+
 /** 产物闭环:当前稿 chip */
 export const ACTIVE_DOC_COPY = {
   chipPrefix: '当前',

@@ -1,14 +1,18 @@
 /**
- * [INPUT]: SkillInfo;SKILLS_COPY;skillSlash.parseSlashFilter(由父级传入 filter)
+ * [INPUT]: SkillInfo;SKILLS_COPY;skillSlash.parseSlashFilter / slashMenuBox;anchor 输入卡
  * [OUTPUT]: SkillSlashMenu —— composer `/` 浮层:过滤 skills + Manage 入口
- * [POS]: ComposerCard 内绝对定位;选中即 activate,不插入文本等待模型再猜
+ * [POS]: portal 到 document.body(fixed),锚 composer 卡顶;避开 BorderBeam overflow:hidden
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
+import { useLayoutEffect, useState, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import type { SkillInfo } from '../agent-client'
 import { SKILLS_COPY } from '../copy/appCopy'
+import { slashMenuBox, type SlashMenuBox } from '../composer/skillSlash'
 import { ManageSkillsIcon, SkillIcon } from './icons'
 
 export function SkillSlashMenu({
+  anchorRef,
   skills,
   filter,
   highlight,
@@ -16,6 +20,7 @@ export function SkillSlashMenu({
   onPickSkill,
   onManage,
 }: {
+  anchorRef: RefObject<HTMLElement | null>
   skills: SkillInfo[]
   filter: string
   highlight: number
@@ -28,9 +33,32 @@ export function SkillSlashMenu({
     if (!q) return true
     return s.name.includes(q) || s.description.toLowerCase().includes(q)
   })
+  const [box, setBox] = useState<SlashMenuBox | null>(null)
 
-  return (
-    <div className="skill-slash-menu glass-card" role="listbox" aria-label="Skills">
+  useLayoutEffect(() => {
+    function place(): void {
+      const el = anchorRef.current
+      if (!el) return
+      setBox(slashMenuBox(el.getBoundingClientRect(), window.innerHeight))
+    }
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [anchorRef])
+
+  if (!box) return null
+
+  return createPortal(
+    <div
+      className="skill-slash-menu glass-card"
+      role="listbox"
+      aria-label="Skills"
+      style={{ left: box.left, width: box.width, bottom: box.bottom }}
+    >
       <div className="skill-slash-hint">{SKILLS_COPY.slashFilter}</div>
       <ul className="skill-slash-list">
         {rows.map((s, i) => (
@@ -58,6 +86,7 @@ export function SkillSlashMenu({
         <ManageSkillsIcon size={16} />
         <span className="skill-slash-name">{SKILLS_COPY.manageItem}</span>
       </button>
-    </div>
+    </div>,
+    document.body,
   )
 }

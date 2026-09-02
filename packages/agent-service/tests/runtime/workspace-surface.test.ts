@@ -21,6 +21,7 @@ test('isWorkspaceSurfacePath:病例路径全拒,交付路径全收', () => {
     'scratch/run-1.py',
     'notes/search-123.md',
     'reports/out.html',
+    'prompt-graph/references/audit.md',
   ]
   for (const p of hidden) assert.equal(isWorkspaceSurfacePath(p), false, p)
 
@@ -31,6 +32,8 @@ test('isWorkspaceSurfacePath:病例路径全拒,交付路径全收', () => {
     'uploads/d.docx',
     '报告.md',
     'cover.png',
+    'prompt-graph/SKILL.md',
+    'prompt-graph.skill',
     'drafts/review.md',
     'images/fig.PNG',
     'shared/papers/x.pdf',

@@ -12,7 +12,7 @@
 - `vision/` — `look_at_image` + ImageStore 侧车 + `resolveVision` 档案声明。一起生死
 - `todo.ts` — `todo_write`(+ `update_plan` 兼容)
 - `memory.ts` — read_memory / write_memory(registry 按项目注入)
-- `skills.ts` — `run_skill`(≠ memory)
+- `skills.ts` — `run_skill`(≠ memory) + `install_skill`(工作区包装进 user/project 发现根)
 - `subagent.ts` — spawn / get_output / kill / wait
 - `ask-user.ts` — `createAskUserTools({ waiter })`;不套 withGuard
 

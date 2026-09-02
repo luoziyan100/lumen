@@ -8,14 +8,14 @@
 
 | 成员 | 职责 |
 |---|---|
-| `App.tsx` | 布局容器;装配侧栏/对话列/composer/右轨;连接与会话编排 |
+| `App.tsx` | 布局容器;装配侧栏/对话列/composer/右轨;连接与会话编排;skills 连上/回前台/开 Manage/斜杠时热刷 |
 | `main.tsx` | 入口 |
 | `useAgent.ts` | hook 相:订阅事件、viewEpoch、send/stop;归约再导出自 `chat/` |
 | `agent-client.ts` | 浏览器侧 WS 客户端;`import type` 直连 `agent-service/src/protocol/messages.ts`;hello 校验 `protocolVersion` |
 | `ensureAgent.ts` | Tauri invoke:`ensure_agent_service` + `launchd_status/install/uninstall` |
 | `useWorkspace.ts` | 资产列表:无会话仅 shared;有会话 shared+session;切新对话乐观清 session |
 | `sourceCite.ts` | 检索/抓取 URL + 检测正文 Sources;宿主表仅漏写兜底 |
-| `openExternal.ts` | 外链走壳 `open_external_url` |
+| `openExternal.ts` | 外链走壳 `open_external_url`;阅读器本地文件走 `open_workspace_file` |
 | `trustedHosts.ts` | 外链确认「这个域名不再问」 |
 | `activePath.ts` | 当前稿路径消毒(doc/artifact-loop.md) |
 

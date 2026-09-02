@@ -13,4 +13,7 @@
 - `mermaid-syntax.test.ts` — Phase A;L98 极宽 LR 不改方向
 - `app-contract.test.ts` — 卡片横滚 CSS 与 lightbox 宿主分离
 
+- `skillSlash.test.ts` — `/token` 解析 + `slashMenuBox` 视口盒
+- `reader-actions.test.ts` — 阅读器工作区定根 + MD/HTML 复制源码、PDF 不复制
+
 其余 `*.test.ts` 仍按文件头 L3 维护;新增测试文件必须带 `[INPUT]/[OUTPUT]/[POS]/[PROTOCOL]`。

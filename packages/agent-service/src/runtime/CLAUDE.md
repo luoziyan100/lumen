@@ -11,7 +11,7 @@
 - `event-hub.ts` — durable 先落库再推送;ephemeral(seq=-1)只 notify;subscribe / emitUser / notifyStatus / task_updated
 - `ask-hub.ts` — ask_user 挂起表(taskId+toolCallId);answerUser / cancel 清挂起
 - `uploads.ts` — saveUpload 按表示归位(pdf→papers/ 文本→docs/ 图→images/ 其余 uploads/)+ docx 抽 docs/<stem>.md
-- `assets.ts` — list/read 展示面(目录即声明:根级交付 + notes/papers/drafts/docs/uploads/images;任意深度排除 cache/workers/scratch/library/Library 与 drafts/todo.md)
+- `assets.ts` — list/read 展示面(目录即声明:根级交付 + notes/papers/drafts/docs/uploads/images + 根级 *.skill + 一层 <name>/SKILL.md;任意深度排除 cache/workers/scratch/library/Library 与 drafts/todo.md)
 - `title-hub.ts` — 侧栏 title 异步回填;与对话共用 ModelPort,execute 终态 await
 - `compaction.ts` — 回合前水位 / 确定性压缩事件 / 终态水位;算法在 storage/context-budget.ts
 - `workspace-factory.ts` — 项目根 vs sessions/<tid> 定根;shared/* 走项目根

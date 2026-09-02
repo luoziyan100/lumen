@@ -123,6 +123,144 @@ fn open_external_url(url: String) -> Result<(), String> {
     Err("unsupported platform".into())
 }
 
+fn sanitize_workspace_id(id: &str) -> String {
+    let cleaned: String = id
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let s: String = cleaned.chars().take(64).collect();
+    if s.is_empty() {
+        "default".into()
+    } else {
+        s
+    }
+}
+
+fn lumen_root() -> Result<PathBuf, String> {
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .ok_or_else(|| "HOME unset".to_string())?;
+    Ok(home.join(".lumen"))
+}
+
+/// 与 ui-client `shell/workspaceFile.ts` 同构。
+fn resolve_workspace_abs_path(
+    project_id: &str,
+    rel_path: &str,
+    task_id: Option<&str>,
+) -> Result<PathBuf, String> {
+    let n = rel_path.replace('\\', "/").trim_start_matches("./").to_string();
+    if n.is_empty() || n.starts_with('/') || n.contains('\0') || n.contains("..") {
+        return Err("invalid path".into());
+    }
+    let pid = sanitize_workspace_id(project_id);
+    let root = lumen_root()?.join("workspaces").join(pid);
+    let base = if n.starts_with("shared/") || task_id.is_none() {
+        root
+    } else {
+        root.join("sessions").join(sanitize_workspace_id(task_id.unwrap()))
+    };
+    Ok(base.join(n))
+}
+
+fn open_local_path(path: &std::path::Path) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        let status = Command::new("open")
+            .arg(path)
+            .status()
+            .map_err(|e| e.to_string())?;
+        if !status.success() {
+            return Err(format!("open failed: {status}"));
+        }
+        return Ok(());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let status = Command::new("cmd")
+            .args(["/C", "start", "", &path.to_string_lossy()])
+            .status()
+            .map_err(|e| e.to_string())?;
+        if !status.success() {
+            return Err(format!("open failed: {status}"));
+        }
+        return Ok(());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let status = Command::new("xdg-open")
+            .arg(path)
+            .status()
+            .map_err(|e| e.to_string())?;
+        if !status.success() {
+            return Err(format!("open failed: {status}"));
+        }
+        return Ok(());
+    }
+    #[allow(unreachable_code)]
+    Err("unsupported platform".into())
+}
+
+/// 用系统默认应用打开工作区文件(HTML→浏览器, MD→默认编辑器, PDF→Preview)。
+#[tauri::command]
+fn open_workspace_file(
+    project_id: String,
+    path: String,
+    task_id: Option<String>,
+) -> Result<(), String> {
+    let resolved = resolve_workspace_abs_path(&project_id, &path, task_id.as_deref())?;
+    if !resolved.is_file() {
+        return Err("file not found".into());
+    }
+    let canon = resolved.canonicalize().map_err(|e| e.to_string())?;
+    let lumen = lumen_root()?.canonicalize().map_err(|e| e.to_string())?;
+    if !canon.starts_with(&lumen) {
+        return Err("path outside workspace".into());
+    }
+    open_local_path(&canon)
+}
+
+fn safe_preview_name(name: &str) -> String {
+    let base = name.rsplit('/').next().unwrap_or("preview.html");
+    let cleaned: String = base
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let lower = cleaned.to_ascii_lowercase();
+    if lower.ends_with(".html") || lower.ends_with(".htm") {
+        cleaned
+    } else if cleaned.is_empty() {
+        "preview.html".into()
+    } else {
+        format!("{cleaned}.html")
+    }
+}
+
+/// 工作区文件不在盘上时:把 HTML 源落到临时文件再用系统浏览器打开。
+#[tauri::command]
+fn open_temp_html(html: String, name: String) -> Result<(), String> {
+    if html.len() > 8 * 1024 * 1024 {
+        return Err("html too large".into());
+    }
+    let dir = std::env::temp_dir().join("lumen-preview");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let file = dir.join(safe_preview_name(&name));
+    std::fs::write(&file, html).map_err(|e| e.to_string())?;
+    open_local_path(&file)
+}
+
 /// 前端断线重连前:探活;无 LaunchAgent 时才临时 spawn
 #[tauri::command]
 fn ensure_agent_service(
@@ -354,6 +492,8 @@ fn main() {
             pick_skill_folder,
             pick_skill_file,
             open_external_url,
+            open_workspace_file,
+            open_temp_html,
             ensure_agent_service,
             launchd_status,
             launchd_install,

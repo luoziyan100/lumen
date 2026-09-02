@@ -13,7 +13,7 @@
 
 ## 成员
 
-- `src/main.rs` — ensure / LaunchAgent 探测 / launchd_* / 注入 / Focused+Reopen / `open_external_url`;`widget_put_script` + `lumenwidget://` 协议(widget 内联改 src);默认窗 `1160×800`;`disable_drag_drop_handler` 让前端 HTML5 文件拖放生效
+- `src/main.rs` — ensure / LaunchAgent 探测 / launchd_* / 注入 / Focused+Reopen / `open_external_url` / `open_workspace_file` / `open_temp_html`;`widget_put_script` + `lumenwidget://` 协议(widget 内联改 src);默认窗 `1160×800`;`disable_drag_drop_handler` 让前端 HTML5 文件拖放生效
 - `tauri.conf.json` — `productName: Lumen`;窗口由代码创建;CSP `script-src 'self' lumenwidget:`(无 unsafe-inline/eval)
 - `Cargo.toml` — crate=`lumen-ui`,二进制=`Lumen`
 - `icons/` / `build.rs`

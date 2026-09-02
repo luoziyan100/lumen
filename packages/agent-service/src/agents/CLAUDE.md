@@ -8,12 +8,12 @@
 
 - `persona.ts` — LUMEN_PERSONA:人格剧本(L0–L3)+ 工具/可视化/计划/问用户/Skills/Sources 能力段。人格源自 briefs 工程线
   (P0→P4);可视化合同:结构图→`mermaid`(节点先闭合再写边,与 pipeline §5.3 镜像;安全子集=短标题/长链优先 TD、LR 仅短链或并列/≤15,见 `doc/mermaid-readability.md`),交互→`show-widget`;复杂任务→`todo_write`(见 `doc/todo.md`);
-  歧义决策→`ask_user`(见 `doc/ask-user.md`);可运行工作流→`run_skill`(≠ memory);
+  歧义决策→`ask_user`(见 `doc/ask-user.md`);可运行工作流→`run_skill`;新包落盘后→`install_skill`(≠ memory);
   检索后(提示词末尾)→答末 `Sources:`:答复站在哪些作品上(论文/仓库根/论及的页面/点名的 Release·PR),不是工具碰过的 URL;同作品多 URL 合成一条。挑选权在模型正文;宿主表仅漏写兜底。
 - `roles.ts` — WORKER_ROLE_SPECS / buildRoles:worker 角色定义与受限工具装配(spawn 用);`ask_user` 不进 worker。
 
 ## 规则
 
 - 改人格(L0–L3)不许直接拍:提案落 brief → 按 P4 的三方回测法(同模型换 prompt 对比)出报告 → 过了再改 `persona.ts`,并在文件头记版本与依据。
-- 能力合同段(工具用法 / show-widget / todo_write / ask_user / run_skill / Sources 格式)可随对应 brief 追加,不强制走人格回测。
+- 能力合同段(工具用法 / show-widget / todo_write / ask_user / run_skill / install_skill / Sources 格式)可随对应 brief 追加,不强制走人格回测。
 - 角色的工具子集只能收窄,不能越过 `tools/` 的安全边界(fs 沙箱、网络白名单)。

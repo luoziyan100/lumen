@@ -5,11 +5,13 @@
  *        storage project_id ≠ 用户项目;历史不分类进「默认」;
  *        对话列 useStickToBottom:流式贴底;上滑松手可自由阅读;钉态不重绘消息列;松钉后「回到最新」挂 composer-dock 上沿;
  *        标题栏工作区钮:阅读器开时一并关闭(drawer 与 ws.open 双态,不能只拨 drawer);
+ *        阅读器顶栏复制源码 + 系统打开(传 projectId/taskId 定根);
  *        侧栏未读灯:task_updated 终态且非当前 → unread(localStorage);打开会话清除;
  *        上传=对话事件见 doc/upload-awareness.md;当前稿 activePath 见 doc/artifact-loop.md;
  *        messages 容器 key=taskId|draft 强制 remount,配合 useAgent viewEpoch 防串台;
  *        助手终稿:模型正文 Sources 原样渲染;SourceList 仅漏写兜底;
- *        会话页(SessionsView)替换主列,侧栏留着;数据源=全量 convs
+ *        会话页(SessionsView)替换主列,侧栏留着;数据源=全量 convs;
+ *        skills 在连上/窗口回前台/开 Manage/斜杠打开时热刷(箱外装包不推 WS)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -199,6 +201,17 @@ function AppInner() {
   }, [client, connected, projectId])
 
   useEffect(() => { void refreshSkills() }, [refreshSkills])
+  useEffect(() => {
+    function onVis(): void {
+      if (document.visibilityState === 'visible') void refreshSkills()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('focus', onVis)
+    return () => {
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('focus', onVis)
+    }
+  }, [refreshSkills])
 
   // 会话搜索弹窗(侧栏🔍 / ⌘K)+ 设置弹窗 + 新建项目弹框
   const [searchOpen, setSearchOpen] = useState(false)
@@ -767,7 +780,11 @@ function AppInner() {
             canSend={!pendingAsk && !uploading && !!(input.trim() || attachments.length || pendingFiles.length)}
             skills={skills}
             onActivateSkill={(name) => { void activateSkill(name) }}
-            onOpenManageSkills={() => setSkillsManageOpen(true)}
+            onOpenManageSkills={() => {
+              setSkillsManageOpen(true)
+              void refreshSkills()
+            }}
+            onRefreshSkills={() => { void refreshSkills() }}
             activePath={activePath}
             onClearActivePath={() => setActivePath(null)}
           />
@@ -775,7 +792,15 @@ function AppInner() {
           )}
         </main>
 
-        {showReader && ws.open && <ReaderPane open={ws.open} pdfUrl={(p) => client.pdfUrl(projectId, p, taskId ?? undefined)} onClose={ws.close} />}
+        {showReader && ws.open && (
+          <ReaderPane
+            open={ws.open}
+            projectId={projectId}
+            taskId={taskId}
+            pdfUrl={(p) => client.pdfUrl(projectId, p, taskId ?? undefined)}
+            onClose={ws.close}
+          />
+        )}
         {drawer && !showReader && (
           <UtilityRail
             assets={ws.assets}

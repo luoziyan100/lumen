@@ -1,6 +1,6 @@
 /**
- * [INPUT]: skills install/uninstall/discover
- * [OUTPUT]: node:test —— 安装/卸载/包装契约
+ * [INPUT]: skills install/uninstall/discover;createSkillTools.install_skill
+ * [OUTPUT]: node:test —— 安装/卸载/包装契约 + 工作区相对路径安装工具
  * [POS]: skills/ 安装面回归
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
@@ -10,6 +10,8 @@ import { mkdtemp, mkdir, writeFile, rm, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import * as path from 'node:path'
 import { discoverSkills, installSkillFromPath, uninstallSkill } from '../../src/skills/index.ts'
+import { createSkillTools } from '../../src/tools/env/skills.ts'
+import { FsWorkspace } from '../../src/workspace/fs-workspace.ts'
 
 async function tmpBase(): Promise<string> {
   return mkdtemp(path.join(tmpdir(), 'lumen-sk-ins-'))
@@ -127,6 +129,42 @@ test('uninstallSkill:删 user 包', async () => {
       workspaceSkillsDir: path.join(base, 'ws', 'p', 'skills'),
     })
     assert.ok(!found.some((s) => s.name === 'doomed'))
+  } finally {
+    await rm(base, { recursive: true, force: true })
+  }
+})
+
+test('install_skill 工具:工作区相对路径装进 user 根', async () => {
+  const base = await tmpBase()
+  try {
+    const session = path.join(base, 'session')
+    const userRoot = path.join(base, 'user-skills')
+    const ws = new FsWorkspace({ root: session })
+    await ws.writeFile(
+      'prompt-graph/SKILL.md',
+      `---
+name: prompt-graph
+description: 图化
+---
+g1
+`,
+    )
+    const [runSkill, install] = createSkillTools([], (scope, absPath) => installSkillFromPath({
+      scope,
+      path: absPath,
+      workspacesDir: path.join(base, 'ws'),
+      projectId: 'p1',
+      userSkillsDir: userRoot,
+    }))
+    assert.equal(runSkill.spec.name, 'run_skill')
+    assert.equal(install.spec.name, 'install_skill')
+    const result = await install.run(
+      { path: 'prompt-graph', scope: 'user' },
+      { taskId: 't', agentRole: 'main', depth: 0, spawn: async () => ({ llmContent: '' }), emit: () => {}, workspace: ws },
+    )
+    assert.match(result.llmContent, /Skill installed: prompt-graph/)
+    const body = await readFile(path.join(userRoot, 'prompt-graph', 'SKILL.md'), 'utf8')
+    assert.match(body, /g1/)
   } finally {
     await rm(base, { recursive: true, force: true })
   }

@@ -1,12 +1,13 @@
 /** 图标唯一入口:一律 @phosphor-icons/react(Kumo 同源家族),经此单点 re-export。
  *  [INPUT]: @phosphor-icons/react;doc/ui-design.md §3.1
- *  [OUTPUT]: ICON_* + Panel/Folder/Chevron/SectionChevron/FileType/Skill 等统一出口
+ *  [OUTPUT]: ICON_* + Panel/Folder/Chevron/SectionChevron/FileType/Skill/OpenOut 等统一出口
  *  [POS]: components 图标单点;树左 ChevronIcon(CaretRight)、区右 SectionChevronIcon(CaretDown);
- *        Skills 菜单:条目用 skillGlyphForName,Manage 用 Briefcase(对齐 Claude)
+ *        Skills 菜单:条目用 skillGlyphForName,Manage 用 Briefcase(对齐 Claude);
+ *        阅读器打开用 OpenOutIcon(ArrowSquareOut)
  *  [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *  规范:三档尺寸 + weight 全站统一 regular;禁手写 SVG / 字符凑图标 / emoji / 绕过本文件。 */
 import {
-  Archive, ArrowDown, ArrowUp, ArrowsOut, At, BookOpen, Brain, Briefcase, CalendarBlank, CaretDown, CaretLeft, CaretRight,
+  Archive, ArrowDown, ArrowSquareOut, ArrowUp, ArrowsOut, At, BookOpen, Brain, Briefcase, CalendarBlank, CaretDown, CaretLeft, CaretRight,
   ChatCircle, Check, Code, Copy, File, FileCode, FileCsv, FileDoc, FileHtml, FileImage, FilePdf, FilePpt, FileText, FileZip,
   FolderOpen, FolderSimple, Gear, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, Minus, Palette, PencilSimple, Play, Plus, PushPin, PushPinSlash,
   Question, Scroll, SidebarSimple, Stack, Trash, User, Wrench, X,
@@ -179,6 +180,11 @@ export function AccountIcon({ size = ICON_LG }: { size?: number }) {
 /** 消息悬停操作:复制 / 已复制 */
 export function CopyIcon({ size = ICON_SM }: { size?: number }) {
   return <Copy size={size} />
+}
+
+/** 阅读器:用系统应用/浏览器打开本地产物 */
+export function OpenOutIcon({ size = ICON_SM }: { size?: number }) {
+  return <ArrowSquareOut size={size} />
 }
 
 /** 会话软归档 */

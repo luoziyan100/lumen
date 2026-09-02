@@ -8,6 +8,6 @@
 ## 成员
 
 - `composerAccept.ts` — `filterComposerFiles`;扩展名不挡门
-- `skillSlash.ts` — `/token` 解析
+- `skillSlash.ts` — `/token` 解析;`slashMenuBox` 给斜杠浮层视口定位(portal)
 - `pickSkillPath.ts` — Tauri 选 Skill 文件夹 / SKILL.md
 - `msgFold.ts` — 用户气泡折叠阈值(9 行 / 750 字)

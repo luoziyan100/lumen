@@ -21,5 +21,6 @@
 ## 规则
 
 - 激活走 `run_skill` 工具回灌,**或**协议 `activate_skill`(同构事件);不做静默改 system。
+- 会话里写好的包装进发现根走 `install_skill` 工具(path=工作区相对路径);与 UI 的 `install_skill` 协议同函数。
 - 脚本执行不在本包;经 `run_code` + Seatbelt(只读技能根)。
 - 安装单位=文件夹;单文件仅 SKILL.md → 包成目录后拷贝。

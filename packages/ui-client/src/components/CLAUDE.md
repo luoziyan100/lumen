@@ -14,7 +14,7 @@
 - `SearchModal.tsx` — 会话搜索(⌘K):Kumo CommandPalette;`sessionMatchesQuery` 过滤,↑↓/↵ 键盘导航
 - `SettingsModal.tsx` — 设置:供应商接入目录(卡内多模型 ID+视觉三态;列表自滚动;悬停启用/删除)/系统提示词/LaunchAgent;选用权在 composer 芯片
 - `UtilityRail.tsx` — 右轨:Todo Progress 优先(无 Todo 回退 process);工作目录(共享区/本会话,`CurtainFold` 开合);左缘拖拽调宽(默认 300,`lumen:railWidth.v4`)
-- `ReaderPane.tsx` — 右分屏阅读器:doc 衬线正文 / PDF / HTML 沙箱
+- `ReaderPane.tsx` — 右分屏阅读器:doc 衬线正文 / PDF / HTML 沙箱;顶栏复制源码 + 系统打开(Claude 形,见 ui-design §0 2026-09-02)
 - `PdfViewer.tsx` — pdf.js 竖向连续滚动渲染(锁 4.10.38)
 - `HtmlViewer.tsx` — 工作区 HTML 预览:复用 `widget/WidgetFrame`(allow-scripts + CSP,无 same-origin)
 - `StatusOrb.tsx` — 行内点云球:thinking-orbs **原生 size=20**(禁 64→CSS 缩,否则九态糊成虚线圈);支持 `paused` 冻帧
@@ -25,8 +25,8 @@
 - `ThinkingIndicator.tsx` — 首 token 前等待:光圈 + shimmer + live 计时;有开放 Thought 时不叠
 - `TodoCard.tsx` — 会话 Todo 次要卡(`todo_write`→`kind:'todo'`);主呈现右轨 Progress(见 `doc/todo.md`)
 - `AskUserDialog.tsx` — `ask_user` 悬浮问询卡;多题 Claude 式一页一题 + `i of n` 切换;「其他」幽灵输入;见 `doc/ask-user.md`
-- `ComposerCard.tsx` — 对话输入暗玻璃岛;`+` Skills;/ 斜杠;模型芯片;拖放;液态抛光;待发图放大(无灰幕,点空白/X/Esc 关);当前稿 chip(activePath);见 `doc/ui-design.md` §0
-- `SkillSlashMenu.tsx` — `/` 过滤 Skills + Manage 入口;行左 `SkillIcon`,Manage 用公文包
+- `ComposerCard.tsx` — 对话输入暗玻璃岛;`+` Skills;/ 斜杠(菜单 portal 出 Beam);开斜杠热刷 skills;模型芯片;拖放;液态抛光;待发图放大(无灰幕,点空白/X/Esc 关);当前稿 chip(activePath);见 `doc/ui-design.md` §0
+- `SkillSlashMenu.tsx` — `/` 过滤 Skills + Manage 入口;portal 到 body(fixed 锚卡顶),避开 BorderBeam overflow:hidden;行左 `SkillIcon`,Manage 用公文包
 - `ManageSkillsDialog.tsx` — Manage skills:列表/添加文件夹·SKILL.md/卸载(Kumo Dialog,禁 glass-beam);行左 `SkillIcon`
 - `CollapsibleUserText.tsx` — 用户超长 prompt 默认折叠(>9 行或 >750 字);预览 clamp + `CurtainFold` 揭开全文;助手消息不折
 - `MsgFileChips.tsx` — 用户气泡附件 chip(上传知情 S4);点开读阅读器;见 `doc/upload-awareness.md`
@@ -36,7 +36,7 @@
 - `ScrollDebugHud.tsx` — ⌃⌥⇧S 统一 trace HUD(清空本轮 / 场景号 / 复制日志);默认关闭
 - `widget/` — 对话网页沙箱(`show-widget` 围栏 → iframe);见 `widget/CLAUDE.md`
 - `hljs-celadon.css` — highlight.js 青瓷主题:消费 tokens.css 的 --code-* 语法色板
-- `icons.tsx` — **图标唯一入口**:re-export @phosphor-icons/react(Kumo 同源家族)并统一缺省尺寸;组件不得绕过它直接 import phosphor;不用 emoji;`FolderIcon` 接受 `open` → FolderSimple/FolderOpen;`ChevronIcon`(树左 CaretRight)/`SectionChevronIcon`(区右 CaretDown);Skills:`skillGlyphForName`/`SkillIcon`/`ManageSkillsIcon`(Briefcase,非齿轮)
+- `icons.tsx` — **图标唯一入口**:re-export @phosphor-icons/react(Kumo 同源家族)并统一缺省尺寸;组件不得绕过它直接 import phosphor;不用 emoji;`FolderIcon` 接受 `open` → FolderSimple/FolderOpen;`ChevronIcon`(树左 CaretRight)/`SectionChevronIcon`(区右 CaretDown);Skills:`skillGlyphForName`/`SkillIcon`/`ManageSkillsIcon`(Briefcase,非齿轮);阅读器打开:`OpenOutIcon`(ArrowSquareOut)
 
 ## 规则
 

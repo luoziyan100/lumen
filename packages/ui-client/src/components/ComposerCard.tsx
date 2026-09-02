@@ -2,7 +2,7 @@
  * [INPUT]: border-beam;icons;ASK_USER_COPY;SKILLS_COPY;ImageData;composerAccept;SkillSlashMenu;父级传入
  * [OUTPUT]: ComposerCard —— Border Beam 暗玻璃对话输入卡;液态抛光;+/Skills;/ 斜杠;模型芯片;
  *           拖放文件;待发图可放大(无灰幕);当前稿 chip(产物闭环 P0)
- * [POS]: 贴 composer-dock;仅改输入岛,不染暖纸消息流;见 doc/ui-design.md §0
+ * [POS]: 贴 composer-dock;斜杠菜单 portal 出 Beam;开斜杠时请父级热刷 skills;见 doc/ui-design.md §0
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ClipboardEvent, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react'
@@ -54,6 +54,7 @@ export function ComposerCard({
   skills,
   onActivateSkill,
   onOpenManageSkills,
+  onRefreshSkills,
   activePath,
   onClearActivePath,
 }: {
@@ -86,12 +87,15 @@ export function ComposerCard({
   skills: SkillInfo[]
   onActivateSkill: (name: string) => void
   onOpenManageSkills: () => void
+  /** 斜杠打开时再拉一次:箱外装包后连上那份列表会过期 */
+  onRefreshSkills: () => void
   /** 当前稿 path(可写文本);chip 展示,发送时注入机读附言 */
   activePath?: string | null
   onClearActivePath?: () => void
 }) {
   const shortModel = shortenModel(modelLabel)
   const dropBlocked = uploading || pendingAsk
+  const cardRef = useRef<HTMLFormElement>(null)
   const [dragOver, setDragOver] = useState(false)
   const dragDepth = useRef(0)
   const slashFilter = useMemo(() => parseSlashFilter(input), [input])
@@ -107,6 +111,11 @@ export function ComposerCard({
   useEffect(() => {
     setSlashHi(0)
   }, [slashFilter, skills.length])
+
+  useEffect(() => {
+    if (!slashOpen) return
+    onRefreshSkills()
+  }, [slashOpen, onRefreshSkills])
 
   useEffect(() => {
     if (!previewSrc) return
@@ -205,6 +214,7 @@ export function ComposerCard({
       duration={2.8}
     >
       <form
+        ref={cardRef}
         className={`composer-card${dragOver ? ' is-drop-target' : ''}`}
         onSubmit={onSubmit}
         onDragEnter={onDragEnter}
@@ -219,6 +229,7 @@ export function ComposerCard({
         )}
         {slashOpen && (
           <SkillSlashMenu
+            anchorRef={cardRef}
             skills={skills}
             filter={slashFilter ?? ''}
             highlight={slashHi}

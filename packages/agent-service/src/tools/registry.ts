@@ -14,7 +14,7 @@
  *     run_code          ← 非 demo;空 skill 根,供 roles/child 占位;主任务由任务域重绑
  *   任务域(每次 execute,ask_user 不套 withGuard):
  *     read_memory write_memory
- *     run_skill
+ *     run_skill install_skill
  *     ask_user
  *     spawn_subagent get_subagent_output kill_subagent wait_subagents
  *     run_code          ← 非 demo;构造时喂 skillReadRoots
@@ -34,6 +34,7 @@ import { createFetchUrlTool } from './research/fetch-url.ts'
 import { createSearchWebTool, createTavilyWebSearch } from './research/search-web.ts'
 import { createPdfTools, type PdfTextEngine } from './research/pdf.ts'
 import type { SkillPackage } from '../skills/index.ts'
+import type { InstallSkillFn } from './env/skills.ts'
 import type { SubagentCoordinator } from '../subagent/coordinator.ts'
 import type { ChildRunner } from '../subagent/runner.ts'
 
@@ -49,6 +50,7 @@ export interface TaskToolDeps {
   memoryDir: string
   skills: SkillPackage[]
   skillReadRoots: string[]
+  installSkill?: InstallSkillFn
   askUser: AskUserWaiter
   subagents: SubagentCoordinator
   childRunner: ChildRunner
@@ -77,7 +79,7 @@ export function buildStaticTools(opts: StaticToolsOptions): Tool[] {
 export function buildTaskTools(deps: TaskToolDeps): Tool[] {
   const out: Tool[] = [
     ...createMemoryTools(deps.memoryDir),
-    ...createSkillTools(deps.skills),
+    ...createSkillTools(deps.skills, deps.installSkill),
     ...createAskUserTools({ waiter: deps.askUser }),
     ...createSubagentTools({ subagents: deps.subagents, childRunner: deps.childRunner }),
   ]
