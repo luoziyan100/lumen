@@ -1,0 +1,11 @@
+/* [INPUT]: 原rail/reader与共享Disclosure样式；[OUTPUT]: 工作区局部布局；[POS]: 不覆盖对话与输入区。
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md */
+.mw-workspace-rail { flex: 0 1 var(--rail-w, 300px); min-width: 260px; }
+.mw-workspace-heading { display: flex; align-items: center; gap: var(--s-2); }
+.mw-workspace-heading .rail-h { margin-bottom: 0; }
+.mw-workspace-heading .icon-btn { flex: none; }
+.mw-workspace-rail .ws-item { width: 100%; }
+
+.mw-workspace-usage { font-size: var(--t-caption); color: var(--ink-soft); }
+.mw-workspace-usage > .curtain-disclosure-trigger { cursor: pointer; }
+.mw-workspace-usage .mw-progress { padding: 0; }

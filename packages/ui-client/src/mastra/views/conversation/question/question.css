@@ -1,0 +1,10 @@
+/* [INPUT]: styles.css 的原 ask-user 玻璃卡与设计 tokens
+ * [OUTPUT]: 原生问询长题干、失败提示与提交禁用态
+ * [POS]: 只补原卡缺少的原生状态，不改变输入坞布局
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md */
+.mw-native-question { margin: 0; font-family: var(--font-sans); }
+.mw-native-question .ask-user-title,
+.mw-native-question .ask-user-opt-main { overflow-wrap: anywhere; }
+.mw-native-question .ask-user-opt:disabled { cursor: default; opacity: 0.6; }
+.mw-native-question .ask-user-opt:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.ask-user-error { margin: 0; color: var(--danger); font-size: var(--t-body-sm); overflow-wrap: anywhere; }

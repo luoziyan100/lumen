@@ -1,12 +1,171 @@
 # 诊断/
 
 > L2 | 父级: `doc/CLAUDE.md`
-> [PROTOCOL]: 变更时更新此头部,然后检查 `doc/CLAUDE.md`
+> [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 
-调查归档,不是宪法。结论要进产品规格时迁到对应 `doc/*.md`(滚动 → `chat-scroll-ux.md`;图 → `mermaid-pipeline.md`),此处只留指针。
+调查归档,不是宪法。结论要进产品规格时迁到对应 `doc/*.md`(滚动 → `chat-scroll-ux.md`;图 → `mermaid-pipeline.md`;测试体系 → `testing-matrix.md`、`testing-defects.md` 与 `测试体系-总合同-2026-09-08.md`),此处只留指针。
 
 ## 成员
 
+- `源码体检-2026-10-02.md` — 现役 Mastra/React/Tauri 源码体检；材料覆盖、模型快照、widget 幂等及轮询乱序的隔离证据，迁移残留和热路径的精简顺序；未修改业务源码
+- `架构体检报告-2026-09-05.md` — 全仓架构审计:信任边界、实例所有权、协议并发、会话归属、事件一致性与验收门禁;含隔离复现证据及治理顺序
+- `架构治理与执行追溯路线图-2026-09-05.md` — 五批总范围与依赖;v2.0 三批已有实现、独立复核 FAIL,治理保持性与 F16-F24 返工纳入内部 Loop,全部完成统一终审;CI/正式分发暂缓
+- `治理批次1-3验收报告-2026-09-05.md` — 独立验收:保留初验 R01-R16，追加第二轮原路径 8 项通过/7 项部分通过/R13 未通过及 S01-S13 复现、修复顺序与验证边界
+- `架构治理体检验收-2026-09-07.md` — 保留 9-07 主验、9-08 Computer Use 与范围确认历史;当前 v2.0 进度指向独立复核,不将历史通过外推到新候选
+- `总Spec-v2-执行报告-2026-09-08.md` — Grok 三批执行自报与安装现场;保留原文并指向后续 FAIL 裁定,测试通过不代表合同完成
+- `总Spec-v2-独立复核-2026-09-08.md` — 原审查者复跑 498/338/54 与隔离反例;V2R-01 至 V2R-17 对照 F16-F24,记录返工顺序、保持性及统一交审边界
+- `总Spec-v2-返工-2026-09-08.md` — 独立复核 FAIL 后的内部返工跟踪;含原 `/tmp` 探针复跑结果与 V2R-17 同轮回放反例;作废自报通过结论,不升格终审
+- `测试体系-v1-交付报告-2026-09-08.md` — 初版体系交付,独立验收 FAIL(缺缺陷字段、F24-RPL-10 列错位);已作废
+- `测试体系-v1-交付报告-2026-09-08-r2.md` — r2 再提交:完整缺陷表 + 矩阵列修正;仍不是 F01–F24 MAIN_PASS
+- `测试体系-v1-补测交付-2026-09-08.md` — 整批补测候选已作废(checker 非双向)
+- `测试体系-v1-补测交付-2026-09-09.md` — 双向 checker 候选已作废(收口写入失效)
+- `测试体系-v1-收敛交付-2026-09-09.md` — 测试体系 v1 收口候选已作废（本轮业务写入后换新候选）
+- `测试体系-v1-治理推进-2026-09-09.md` — 已作废候选 `test-system-v1-gov-2026-09-09` 的台账快照
+- `总Spec-v2.1-治理推进-2026-09-09.md` — 已作废实现候选 `governance-impl-f07-f16-f24-2026-09-09` 内部推进快照
+- `测试体系-v1-F18-2026-09-09.md` — 已作废候选 `test-system-v1-gov-f18-2026-09-09` 的台账快照
+- `总Spec-v2.2-F18-F20-F21-2026-09-09.md` — 已作废实现候选 `governance-impl-f18-f20-f21-2026-09-09` 内部推进快照
+- `测试体系-v1-F17-2026-09-09.md` — 已作废候选 `test-system-v1-gov-f17-2026-09-09` 的台账快照
+- `总Spec-v2.2-F17-F19-F22-F23-2026-09-09.md` — 已作废实现候选 `governance-impl-f17-f19-f22-f23-2026-09-09` 内部推进快照
+- `测试体系-v1-keep-2026-09-09.md` — 已作废候选 `test-system-v1-gov-keep-2026-09-09` 的台账快照
+- `总Spec-v2.2-keep-uncovered-2026-09-09.md` — 已作废实现候选 `governance-impl-keep-uncovered-2026-09-09` 内部推进快照
+- `测试体系-v1-partials-2026-09-09.md` — 已作废候选 `test-system-v1-gov-partials-2026-09-09` 的台账快照
+- `总Spec-v2.2-partials-2026-09-09.md` — 已作废实现候选 `governance-impl-partials-2026-09-09` 内部推进快照
+- `测试体系-v1-split-2026-09-09.md` — 已作废候选 `test-system-v1-gov-split-2026-09-09` 的台账快照
+- `总Spec-v2.2-split-2026-09-09.md` — 已作废实现候选 `governance-impl-runtime-split-2026-09-09` 内部推进快照
+- `测试体系-v1-gaps-2026-09-09.md` — 已作废候选 `test-system-v1-gov-gaps-2026-09-09` 的台账快照
+- `总Spec-v2.2-gaps-2026-09-09.md` — 已作废实现候选 `governance-impl-gaps-2026-09-09` 内部推进快照
+- `测试体系-v1-closable-2026-09-09.md` — 已作废候选 `test-system-v1-gov-closable-2026-09-09` 的台账快照
+- `总Spec-v2.2-closable-2026-09-09.md` — 已作废实现候选 `governance-impl-closable-2026-09-09` 内部推进快照
+- `测试体系-v1-sec-2026-09-09.md` — 已作废候选 `test-system-v1-gov-sec-2026-09-09` 的台账快照
+- `总Spec-v2.2-sec-2026-09-09.md` — 已作废实现候选 `governance-impl-sec-2026-09-09` 内部推进快照
+- `测试体系-v1-remain2-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain2-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain2-2026-09-09.md` — 已作废实现候选 `governance-impl-remain2-2026-09-09` 内部推进快照
+- `测试体系-v1-remain3-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain3-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain3-2026-09-09.md` — 已作废实现候选 `governance-impl-remain3-2026-09-09` 内部推进快照
+- `测试体系-v1-remain4-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain4-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain4-2026-09-09.md` — 已作废实现候选 `governance-impl-remain4-2026-09-09` 内部推进快照
+- `测试体系-v1-remain5-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain5-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain5-2026-09-09.md` — 已作废实现候选 `governance-impl-remain5-2026-09-09` 内部推进快照
+- `测试体系-v1-remain6-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain6-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain6-2026-09-09.md` — 已作废实现候选 `governance-impl-remain6-2026-09-09` 内部推进快照
+- `测试体系-v1-remain7-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain7-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain7-2026-09-09.md` — 已作废实现候选 `governance-impl-remain7-2026-09-09` 内部推进快照
+- `测试体系-v1-remain8-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain8-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain8-2026-09-09.md` — 已作废实现候选 `governance-impl-remain8-2026-09-09` 内部推进快照
+- `测试体系-v1-remain9-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain9-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain9-2026-09-09.md` — 已作废实现候选 `governance-impl-remain9-2026-09-09` 内部推进快照
+- `测试体系-v1-remain10-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain10-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain10-2026-09-09.md` — 已作废实现候选 `governance-impl-remain10-2026-09-09` 内部推进快照
+- `测试体系-v1-remain11-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain11-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain11-2026-09-09.md` — 已作废实现候选 `governance-impl-remain11-2026-09-09` 内部推进快照
+- `测试体系-v1-remain12-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain12-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain12-2026-09-09.md` — 已作废实现候选 `governance-impl-remain12-2026-09-09` 内部推进快照
+- `测试体系-v1-remain13-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain13-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain13-2026-09-09.md` — 已作废实现候选 `governance-impl-remain13-2026-09-09` 内部推进快照
+- `测试体系-v1-remain14-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain14-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain14-2026-09-09.md` — 已作废实现候选 `governance-impl-remain14-2026-09-09` 内部推进快照
+- `测试体系-v1-remain15-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain15-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain15-2026-09-09.md` — 已作废实现候选 `governance-impl-remain15-2026-09-09` 内部推进快照
+- `测试体系-v1-remain16-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain16-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain16-2026-09-09.md` — 已作废实现候选 `governance-impl-remain16-2026-09-09` 内部推进快照
+- `测试体系-v1-remain17-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain17-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain17-2026-09-09.md` — 已作废实现候选 `governance-impl-remain17-2026-09-09` 内部推进快照
+- `测试体系-v1-remain18-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain18-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain18-2026-09-09.md` — 已作废实现候选 `governance-impl-remain18-2026-09-09` 内部推进快照
+- `测试体系-v1-remain19-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain19-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain19-2026-09-09.md` — 已作废实现候选 `governance-impl-remain19-2026-09-09` 内部推进快照
+- `测试体系-v1-remain20-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain20-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain20-2026-09-09.md` — 已作废实现候选 `governance-impl-remain20-2026-09-09` 内部推进快照
+- `测试体系-v1-remain21-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain21-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain21-2026-09-09.md` — 已作废实现候选 `governance-impl-remain21-2026-09-09` 内部推进快照
+- `测试体系-v1-remain22-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain22-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain22-2026-09-09.md` — 已作废实现候选 `governance-impl-remain22-2026-09-09` 内部推进快照
+- `测试体系-v1-remain23-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain23-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain23-2026-09-09.md` — 已作废实现候选 `governance-impl-remain23-2026-09-09` 内部推进快照
+- `测试体系-v1-remain24-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain24-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain24-2026-09-09.md` — 已作废实现候选 `governance-impl-remain24-2026-09-09` 内部推进快照
+- `测试体系-v1-remain25-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain25-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain25-2026-09-09.md` — 已作废实现候选 `governance-impl-remain25-2026-09-09` 内部推进快照
+- `测试体系-v1-remain26-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain26-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain26-2026-09-09.md` — 已作废实现候选 `governance-impl-remain26-2026-09-09` 内部推进快照
+- `测试体系-v1-remain27-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain27-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain27-2026-09-09.md` — 已作废实现候选 `governance-impl-remain27-2026-09-09` 内部推进快照
+- `测试体系-v1-remain28-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain28-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain28-2026-09-09.md` — 已作废实现候选 `governance-impl-remain28-2026-09-09` 内部推进快照
+- `测试体系-v1-remain29-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain29-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain29-2026-09-09.md` — 已作废实现候选 `governance-impl-remain29-2026-09-09` 内部推进快照
+- `测试体系-v1-remain30-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain30-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain30-2026-09-09.md` — 已作废实现候选 `governance-impl-remain30-2026-09-09` 内部推进快照
+- `测试体系-v1-remain31-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain31-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain31-2026-09-09.md` — 已作废实现候选 `governance-impl-remain31-2026-09-09` 内部推进快照
+- `测试体系-v1-remain32-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain32-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain32-2026-09-09.md` — 已作废实现候选 `governance-impl-remain32-2026-09-09` 内部推进快照
+- `测试体系-v1-remain33-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain33-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain33-2026-09-09.md` — 已作废实现候选 `governance-impl-remain33-2026-09-09` 内部推进快照
+- `测试体系-v1-remain34-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain34-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain34-2026-09-09.md` — 已作废实现候选 `governance-impl-remain34-2026-09-09` 内部推进快照
+- `测试体系-v1-remain35-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain35-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain35-2026-09-09.md` — 已作废实现候选 `governance-impl-remain35-2026-09-09` 内部推进快照
+- `测试体系-v1-remain36-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain36-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain36-2026-09-09.md` — 已作废实现候选 `governance-impl-remain36-2026-09-09` 内部推进快照
+- `测试体系-v1-remain37-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain37-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain37-2026-09-09.md` — 已作废实现候选 `governance-impl-remain37-2026-09-09` 内部推进快照
+- `测试体系-v1-remain38-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain38-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain38-2026-09-09.md` — 已作废实现候选 `governance-impl-remain38-2026-09-09` 内部推进快照
+- `测试体系-v1-remain39-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain39-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain39-2026-09-09.md` — 已作废实现候选 `governance-impl-remain39-2026-09-09` 内部推进快照
+- `测试体系-v1-remain40-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain40-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain40-2026-09-09.md` — 已作废实现候选 `governance-impl-remain40-2026-09-09` 内部推进快照
+- `测试体系-v1-remain41-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain41-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain41-2026-09-09.md` — 已作废实现候选 `governance-impl-remain41-2026-09-09` 内部推进快照
+- `测试体系-v1-remain42-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain42-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain42-2026-09-09.md` — 已作废实现候选 `governance-impl-remain42-2026-09-09` 内部推进快照
+- `测试体系-v1-remain43-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain43-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain43-2026-09-09.md` — 已作废实现候选 `governance-impl-remain43-2026-09-09` 内部推进快照
+- `测试体系-v1-remain44-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain44-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain44-2026-09-09.md` — 已作废实现候选 `governance-impl-remain44-2026-09-09` 内部推进快照
+- `测试体系-v1-remain45-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain45-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain45-2026-09-09.md` — 已作废实现候选 `governance-impl-remain45-2026-09-09` 内部推进快照
+- `测试体系-v1-remain46-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain46-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain46-2026-09-09.md` — 已作废实现候选 `governance-impl-remain46-2026-09-09` 内部推进快照
+- `测试体系-v1-remain47-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain47-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain47-2026-09-09.md` — 已作废实现候选 `governance-impl-remain47-2026-09-09` 内部推进快照
+- `测试体系-v1-remain48-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain48-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain48-2026-09-09.md` — 已作废实现候选 `governance-impl-remain48-2026-09-09` 内部推进快照
+- `测试体系-v1-remain49-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain49-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain49-2026-09-09.md` — 已作废实现候选 `governance-impl-remain49-2026-09-09` 内部推进快照
+- `测试体系-v1-remain50-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain50-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain50-2026-09-09.md` — 已作废实现候选 `governance-impl-remain50-2026-09-09` 内部推进快照
+- `测试体系-v1-remain51-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain51-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain51-2026-09-09.md` — 已作废实现候选 `governance-impl-remain51-2026-09-09` 内部推进快照
+- `测试体系-v1-remain52-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain52-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain52-2026-09-09.md` — 已作废实现候选 `governance-impl-remain52-2026-09-09` 内部推进快照
+- `测试体系-v1-remain53-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain53-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain53-2026-09-09.md` — 已作废实现候选 `governance-impl-remain53-2026-09-09` 内部推进快照
+- `测试体系-v1-remain54-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain54-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain54-2026-09-09.md` — 已作废实现候选 `governance-impl-remain54-2026-09-09` 内部推进快照
+- `测试体系-v1-remain55-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain55-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain55-2026-09-09.md` — 已作废实现候选 `governance-impl-remain55-2026-09-09` 内部推进快照
+- `测试体系-v1-remain56-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain56-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain56-2026-09-09.md` — 已作废实现候选 `governance-impl-remain56-2026-09-09` 内部推进快照
+- `测试体系-v1-remain57-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain57-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain57-2026-09-09.md` — 已作废实现候选 `governance-impl-remain57-2026-09-09` 内部推进快照
+- `测试体系-v1-remain58-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain58-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain58-2026-09-09.md` — 已作废实现候选 `governance-impl-remain58-2026-09-09` 内部推进快照
+- `测试体系-v1-remain59-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain59-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain59-2026-09-09.md` — 已作废实现候选 `governance-impl-remain59-2026-09-09` 内部推进快照
+- `测试体系-v1-remain60-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain60-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain60-2026-09-09.md` — 已作废实现候选 `governance-impl-remain60-2026-09-09` 内部推进快照
+- `测试体系-v1-remain61-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain61-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain61-2026-09-09.md` — 已作废实现候选 `governance-impl-remain61-2026-09-09` 内部推进快照
+- `测试体系-v1-remain62-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain62-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain62-2026-09-09.md` — 已作废实现候选 `governance-impl-remain62-2026-09-09` 内部推进快照
+- `测试体系-v1-remain63-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain63-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain63-2026-09-09.md` — 已作废实现候选 `governance-impl-remain63-2026-09-09` 内部推进快照
+- `测试体系-v1-remain64-2026-09-09.md` — 已作废候选 `test-system-v1-gov-remain64-2026-09-09` 的台账快照
+- `总Spec-v2.2-remain64-2026-09-09.md` — 已作废实现候选 `governance-impl-remain64-2026-09-09` 内部推进快照
+- `测试体系-v1-remain65-2026-09-09.md` — 测试体系候选 `test-system-v1-gov-remain65-2026-09-09`；只报台账，禁止 MAIN_PASS / 自行宣布 TEST_SYSTEM_PASS
+- `总Spec-v2.2-remain65-2026-09-09.md` — 实现候选 `governance-impl-remain65-2026-09-09`；闭合 F22-BAD-02 / F22-BAD-03，未冻结整体，不能交终审
 - `对话滚动跳动诊断报告-2026-08-11.md` — 贴底层(A):定稿 mermaid 高度雪崩 + sticky 抢权;P0/P2 已落地,P1 未做
 - `对话列生成期跳动诊断报告-2026-08-31.md` — 内容层(B/C);§15 已对拍独立复核(承认 ID 断裂与 sticky 140ms 链)
 - `对话页面流式跳动独立复核报告-2026-08-31.md` — 双态复核:sticky 140ms 锯齿追底 + manual 消息内锚点盲区 + 流式/终稿身份断裂;对照 OpenWork / OpenSquilla

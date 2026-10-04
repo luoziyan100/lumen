@@ -1,3 +1,9 @@
+/**
+ * [INPUT]: pdfjs-dist 与文件 API 已认证的 PDF Blob
+ * [OUTPUT]: PdfViewer：连续页面、文本层、缩放、限定阅读容器的页码定位与加载错误
+ * [POS]: 旧阅读器与新工作台复用的 PDF 展示器，不处理后端协议
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ */
 /** PDF 竖向连续滚动渲染 + 可选文本层 + 缩放。pdf.js 锁 4.10.38(v5 在 WebKit/Tauri 下 ESM 加载不工作)。
  *  必须配 cMapUrl + standardFontDataUrl(资产从 pdfjs-dist 复制到 public/pdfjs/):否则内嵌 CJK/
  *  标准字体(如中文译本的 FandolSong)渲染为空白——poppler 能渲、pdf.js 不配就渲不出(2026-07-06 踩过)。
@@ -22,18 +28,39 @@ const MAX_SCALE = 3
 const STEP = 0.2
 const clampScale = (s: number): number => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(s * 100) / 100))
 
-export function PdfViewer({ url }: { url: string }) {
+export function PdfViewer({ blob, page }: { blob: Blob; page?: number }) {
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null)
+  const [error, setError] = useState('')
   const [scale, setScale] = useState(1.3)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancelled = false
     setDoc(null)
-    const task = pdfjs.getDocument({ url, cMapUrl: CMAP_URL, cMapPacked: true, standardFontDataUrl: STD_FONTS_URL })
-    task.promise.then((d) => { if (!cancelled) setDoc(d) }).catch(() => {})
-    return () => { cancelled = true; void task.destroy() }
-  }, [url])
+    setError('')
+    let task: ReturnType<typeof pdfjs.getDocument> | undefined
+    // 文件已通过认证 API 读取；直接传字节，避免 blob URL 二次 fetch 被桌面 CSP 拦截。
+    void blob.arrayBuffer().then(async data => {
+      if (cancelled) return
+      task = pdfjs.getDocument({ data, cMapUrl: CMAP_URL, cMapPacked: true, standardFontDataUrl: STD_FONTS_URL })
+      const next = await task.promise
+      if (!cancelled) setDoc(next)
+    }).catch(error => {
+      if (!cancelled) setError(`无法读取这份 PDF：${error instanceof Error ? error.message : String(error)}`)
+    })
+    return () => { cancelled = true; void task?.destroy() }
+  }, [blob])
+
+  useEffect(() => {
+    if (!doc || !page) return
+    const container = scrollRef.current
+    const target = container?.querySelector<HTMLElement>(`[data-page="${Math.min(page, doc.numPages)}"]`)
+    if (!container || !target) return
+    const toolbar = container.querySelector<HTMLElement>('.pdf-toolbar')
+    const top = container.scrollTop + target.getBoundingClientRect().top - container.getBoundingClientRect().top
+    // 仅滚动 PDF 容器；scrollIntoView 会把 overflow:hidden 的工作台祖先一起卷走。
+    container.scrollTo({ top: Math.max(0, top - container.clientTop - (toolbar?.offsetHeight ?? 0)), left: 0 })
+  }, [doc, page])
 
   // 触控板双指捏合 / Ctrl+滚轮 = 缩放(浏览器把捏合发成带 ctrlKey 的 wheel);普通滚轮照常滚动
   useEffect(() => {
@@ -50,7 +77,7 @@ export function PdfViewer({ url }: { url: string }) {
 
   const zoom = (d: number): void => setScale((s) => clampScale(s + d))
 
-  if (!doc) return <div className="pdf-scroll pdf-loading">载入中…</div>
+  if (!doc) return <div className="pdf-scroll pdf-loading" role={error ? 'alert' : 'status'}>{error || '载入中…'}</div>
   return (
     <div className="pdf-scroll" ref={scrollRef}>
       <div className="pdf-toolbar" role="toolbar" aria-label="缩放">
@@ -116,7 +143,7 @@ function PdfPage({ doc, pageNumber, scale }: { doc: PDFDocumentProxy; pageNumber
   }, [doc, pageNumber, visible, scale])
 
   return (
-    <div ref={wrapRef} className="pdf-page" style={{ width: size.w, height: size.h, '--scale-factor': scale } as CSSProperties}>
+    <div ref={wrapRef} data-page={pageNumber} className="pdf-page" style={{ width: size.w, height: size.h, '--scale-factor': scale } as CSSProperties}>
       {visible && (
         <>
           <canvas ref={canvasRef} className="pdf-canvas" />

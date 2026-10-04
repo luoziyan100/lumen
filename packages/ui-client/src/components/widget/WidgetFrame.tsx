@@ -2,7 +2,7 @@
  * [INPUT]: receiver/sanitize;宿主 onSendMessage;collectThemeVars/hostChromeIsDark
  * [OUTPUT]: WidgetFrame —— 沙箱 iframe + 高度同步(策略见 height.ts);
  *           WIDGET_DIAG 常挂 data-widget-diag,可见条默认隐藏(localStorage lumen:widgetDiag=1 打开);
- *           finalize 前 hoistInlineScripts(内联→lumenwidget: src)
+ *           finalize 前 hoistInlineScripts(内联→lumenwidget: src);同代同内容只推送一次
  * [POS]: widget/ 渲染核心;被 AssistantContent 与 HtmlViewer 消费;
  *       暗壳内容岛浅档 + color-scheme:light,防 WKWebView 洗灰;
  *       fillHeight(阅读器)经 THEME.fillHeight 开岛内滚动,对话跟高仍 overflow:hidden
@@ -37,6 +37,13 @@ const UPDATE_DEBOUNCE_MS = 120
 const MIN_H = 48
 const MAX_H = 2400
 
+type ContentPushState = {
+  iframe: HTMLIFrameElement | null
+  key: string
+  token: number
+  nextToken: number
+}
+
 /** 走查仪表可见性:产品默认隐藏,验收时 localStorage.setItem('lumen:widgetDiag','1') 打开 */
 function diagBarEnabled(): boolean {
   try {
@@ -70,6 +77,7 @@ export function WidgetFrame({
   const readyRef = useRef(false)
   const firstResizeRef = useRef(true)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const contentPushRef = useRef<ContentPushState>({ iframe: null, key: '', token: 0, nextToken: 0 })
   const onSendRef = useRef(onSendMessage)
   onSendRef.current = onSendMessage
 
@@ -90,8 +98,16 @@ export function WidgetFrame({
     if (!iframe) return
     readyRef.current = false
     firstResizeRef.current = true
+    const state = contentPushRef.current
+    state.iframe = iframe
+    state.key = ''
+    state.token = ++state.nextToken
     iframe.src = receiverUrl()
   }, [])
+
+  function sendContent(iframe: HTMLIFrameElement, code: string, streaming: boolean): void {
+    pushContent(iframe, code, streaming, contentPushRef)
+  }
 
   function pushTheme(win: Window): void {
     win.postMessage({
@@ -112,7 +128,7 @@ export function WidgetFrame({
         case WIDGET_READY:
           readyRef.current = true
           if (iframe.contentWindow) pushTheme(iframe.contentWindow)
-          pushContent(iframe, widgetCode, isStreaming)
+          sendContent(iframe, widgetCode, isStreaming)
           break
         case WIDGET_RESIZE: {
           if (fillHeight) break
@@ -189,9 +205,9 @@ export function WidgetFrame({
     if (!iframe || !readyRef.current) return
     if (debounceRef.current) clearTimeout(debounceRef.current)
     if (isStreaming) {
-      debounceRef.current = setTimeout(() => pushContent(iframe, widgetCode, true), UPDATE_DEBOUNCE_MS)
+      debounceRef.current = setTimeout(() => sendContent(iframe, widgetCode, true), UPDATE_DEBOUNCE_MS)
     } else {
-      pushContent(iframe, widgetCode, false)
+      sendContent(iframe, widgetCode, false)
     }
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [widgetCode, isStreaming])
@@ -233,7 +249,7 @@ export function WidgetFrame({
             if (!el?.contentWindow) return
             readyRef.current = true
             pushTheme(el.contentWindow)
-            pushContent(el, widgetCode, isStreaming)
+            sendContent(el, widgetCode, isStreaming)
           }}
         />
         {showOverlay ? <div className="widget-frame-overlay" aria-hidden>正在为可视化添加交互动画</div> : null}
@@ -242,21 +258,36 @@ export function WidgetFrame({
   )
 }
 
-function pushContent(iframe: HTMLIFrameElement, widgetCode: string, streaming: boolean): void {
-  void pushContentAsync(iframe, widgetCode, streaming)
+function pushContent(
+  iframe: HTMLIFrameElement,
+  widgetCode: string,
+  streaming: boolean,
+  stateRef: { current: ContentPushState },
+): void {
+  const state = stateRef.current
+  const key = `${streaming ? 'stream' : 'final'}:${widgetCode}`
+  if (state.iframe === iframe && state.key === key) return
+  const token = ++state.nextToken
+  state.iframe = iframe
+  state.key = key
+  state.token = token
+  void pushContentAsync(iframe, widgetCode, streaming, token, stateRef)
 }
 
 async function pushContentAsync(
   iframe: HTMLIFrameElement,
   widgetCode: string,
   streaming: boolean,
+  token: number,
+  stateRef: { current: ContentPushState },
 ): Promise<void> {
   const win = iframe.contentWindow
   if (!win) return
   if (streaming) {
     const { html, truncated } = truncateOpenScript(widgetCode)
     void truncated
-    win.postMessage({ type: WIDGET_UPDATE, html: sanitizeForStreaming(html) }, '*')
+    if (stateRef.current.token !== token) return
+    win.postMessage({ type: WIDGET_UPDATE, html: sanitizeForStreaming(html), generation: token }, '*')
     return
   }
   const cleaned = sanitizeForIframe(widgetCode)
@@ -266,6 +297,6 @@ async function pushContentAsync(
   } catch {
     html = cleaned
   }
-  if (iframe.contentWindow !== win) return
-  win.postMessage({ type: WIDGET_FINALIZE, html }, '*')
+  if (iframe.contentWindow !== win || stateRef.current.token !== token) return
+  win.postMessage({ type: WIDGET_FINALIZE, html, generation: token }, '*')
 }

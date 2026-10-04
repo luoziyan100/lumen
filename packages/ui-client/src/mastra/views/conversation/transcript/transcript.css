@@ -1,0 +1,13 @@
+/* [INPUT]: 原 styles.css 消息、附件、轮次导航和设计 tokens
+ * [OUTPUT]: Mastra 会话宿主下的原交互视觉
+ * [POS]: 仅补宿主选择器，不覆盖侧栏或工作台布局
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md */
+.mw-message { position: relative; scroll-margin-top: var(--s-6); }
+.mw-message:hover .msg-copy, .mw-message:focus-within .msg-copy { opacity: 1; pointer-events: auto; }
+.mw-user > .msg-actions { right: 0; }
+.mw-assistant > .msg-actions { left: 0; }
+.mw-message .msg-actions [role="alert"] { color: var(--danger); font-size: var(--t-caption); white-space: nowrap; }
+.mw-history-images { display: flex; flex-wrap: wrap; gap: var(--s-2); }
+.mw-history-image { padding: 0; border: 0; border-radius: var(--radius-md); overflow: hidden; cursor: zoom-in; background: none; }
+.mw-history-image img { display: block; max-width: 220px; max-height: 160px; object-fit: contain; }
+@media (hover: none) { .mw-message .msg-copy { opacity: 1; pointer-events: auto; } }

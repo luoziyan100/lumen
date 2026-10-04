@@ -1,15 +1,15 @@
 /** 图标唯一入口:一律 @phosphor-icons/react(Kumo 同源家族),经此单点 re-export。
  *  [INPUT]: @phosphor-icons/react;doc/ui-design.md §3.1
- *  [OUTPUT]: ICON_* + Panel/Folder/Chevron/SectionChevron/FileType/Skill/OpenOut 等统一出口
+ *  [OUTPUT]: ICON_SM/MD + Panel/Folder/Chevron/SectionChevron/FileType/Skill/OpenOut 等现役图标出口
  *  [POS]: components 图标单点;树左 ChevronIcon(CaretRight)、区右 SectionChevronIcon(CaretDown);
  *        Skills 菜单:条目用 skillGlyphForName,Manage 用 Briefcase(对齐 Claude);
  *        阅读器打开用 OpenOutIcon(ArrowSquareOut)
- *  [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
+ *  [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  *  规范:三档尺寸 + weight 全站统一 regular;禁手写 SVG / 字符凑图标 / emoji / 绕过本文件。 */
 import {
   Archive, ArrowDown, ArrowSquareOut, ArrowUp, ArrowsOut, At, BookOpen, Brain, Briefcase, CalendarBlank, CaretDown, CaretLeft, CaretRight,
   ChatCircle, Check, Code, Copy, File, FileCode, FileCsv, FileDoc, FileHtml, FileImage, FilePdf, FilePpt, FileText, FileZip,
-  FolderOpen, FolderSimple, Gear, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, Minus, Palette, PencilSimple, Play, Plus, PushPin, PushPinSlash,
+  FolderOpen, FolderSimple, Gear, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, Minus, Palette, Play, Plus,
   Question, Scroll, SidebarSimple, Stack, Trash, User, Wrench, X,
   type Icon,
 } from '@phosphor-icons/react'
@@ -17,7 +17,7 @@ import {
 // 尺寸三档:行内(列表/标签内) / 按钮内 / 导航按钮
 export const ICON_SM = 16
 export const ICON_MD = 18
-export const ICON_LG = 20
+const ICON_LG = 20
 
 export function PanelIcon({ size = ICON_LG }: { size?: number }) {
   return <SidebarSimple size={size} />
@@ -106,11 +106,6 @@ export function SendIcon({ size = ICON_MD }: { size?: number }) {
   return <ArrowUp size={size} />
 }
 
-/** composer 左上角 @:添加文件(Border Beam 暗玻璃试点形制) */
-export function AtIcon({ size = ICON_MD }: { size?: number }) {
-  return <At size={size} />
-}
-
 /** pill 下拉示意:CaretDown */
 export function ChevronDownIcon({ size = ICON_SM }: { size?: number }) {
   return <CaretDown size={size} />
@@ -192,22 +187,11 @@ export function ArchiveIcon({ size = ICON_SM }: { size?: number }) {
   return <Archive size={size} />
 }
 
-/** 项目重命名 */
-export function RenameIcon({ size = ICON_SM }: { size?: number }) {
-  return <PencilSimple size={size} />
-}
-
 /** Kumo DropdownMenu.Item 的 icon= 要 phosphor 组件引用 */
 export {
-  Archive as ArchiveGlyph,
   At as AtGlyph,
   Briefcase as BriefcaseGlyph,
-  Copy as CopyGlyph,
-  FileText as FileTextGlyph,
   Gear as GearGlyph,
-  PencilSimple as RenameGlyph,
-  PushPin as PinGlyph,
-  PushPinSlash as UnpinGlyph,
   Scroll as SkillGlyph,
 }
 

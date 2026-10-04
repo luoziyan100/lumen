@@ -3,7 +3,7 @@
  * [OUTPUT]: sanitizeMermaidSource → 宿主裁决后的源码 + 动作日志;
  *           enforceNodeStyle / contrastRatio / parseStyleProps 供单测
  * [POS]: MermaidBlock 渲染前闸;Policy v0 中性底座 + v1 语义 class + v2 字面色对比度门禁
- * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  *
  * 原则:颜色可建议,像素必须过宿主验收。不可读比「色不对」更严重。
  */
@@ -128,8 +128,6 @@ export const DEFAULT_COLOR_POLICY: ColorPolicy = {
   minContrast: 4.5,
   onFail: 'remap-text',
 }
-
-const COLOR_KEYS = new Set(['fill', 'color', 'stroke', 'bg', 'background'])
 
 /** 解析 #rgb / #rrggbb / #rrggbbaa / rgb() / rgba() → [r,g,b] 0-255;失败 null */
 export function parseColorToRgb(raw: string): [number, number, number] | null {

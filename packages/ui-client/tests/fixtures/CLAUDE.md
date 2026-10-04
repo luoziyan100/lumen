@@ -1,8 +1,9 @@
-# tests/fixtures/ — ui-client 回归夹具
+# tests/fixtures/ — 阅读渲染夹具
 
-> L2 | 父级: packages/ui-client/tests/CLAUDE.md
-> [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+> L2 | 父级: ../CLAUDE.md
 
-最小样本,禁止把完整会话 JSONL 拷进仓库。
+- `l98-rendering.ts`：合成数学定界符方言和极宽 flowchart LR，验证真实 Markdown/Mermaid 内核，不含真实会话数据。
 
-- `l98-rendering.ts` — L98 数学方言(`MATH_DIALECT_FIXTURE`)与极宽 `flowchart LR`(`WIDE_LR_FIXTURE`)
+2026-09-19：旧事件 reducer 的长会话性能夹具随运行时退役。
+
+[PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

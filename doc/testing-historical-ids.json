@@ -1,0 +1,4092 @@
+{
+  "format": "historical-unbound-v1",
+  "note": "历史 unbound 合法形态: AT|CT|RP|IT|UT-<TOKEN>-<NNN>。不要求出现在测试标题。candidate_id 必须 unbound。禁止 covered。实体=现存测试文件 + (40 位 git commit 或 evidence_docs) + 文件 sha256。绑定 ID 只活在 testing-manifest.json。",
+  "generated_from": "doc/testing-matrix.md",
+  "count": 141,
+  "records": [
+    {
+      "test_id": "AT-F15-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F15-INT-05",
+        "DEL-SETTINGS-NATIVE"
+      ],
+      "matrix_statuses": [
+        "uncovered"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f16.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f16.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f16.test.ts": "7c14269b2574435446bc82d612f533d77dbcc6c1abd23ee98070cca22a3ace94"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "仅静态 SettingsModal 解析"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "AT-F16-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F16-HAN-10"
+      ],
+      "matrix_statuses": [
+        "uncovered"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f16.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f16.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f16.test.ts": "7c14269b2574435446bc82d612f533d77dbcc6c1abd23ee98070cca22a3ace94"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "无"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F01-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F01-DEC-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-batch1.test.ts",
+        "packages/agent-service/tests/service/governance-rework.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-batch1.test.ts": null,
+        "packages/agent-service/tests/service/governance-rework.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-batch1.test.ts": "d464f8b83be99da1031f37e8bf53e2a88775024294685d4014ccdf6ff4b0f8d6",
+        "packages/agent-service/tests/service/governance-rework.test.ts": "b31df891ca122a6f174c8c5be1b1a1d9e22f8e4f5359c3f87f81328a0aa69fe6"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`governance-batch1` decode；`governance-rework` decode"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F01-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F01-DEC-02"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-rework.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-rework.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-rework.test.ts": "b31df891ca122a6f174c8c5be1b1a1d9e22f8e4f5359c3f87f81328a0aa69fe6"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`governance-rework` R01"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F01-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F01-PRE-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round2.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round2.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round2.test.ts": "81c9a47ff8ceda9a31670c16f1d9905a566ad9be83594854ea8e41a0b1f9d3ac"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`governance-round2` F01 两例"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F01-004",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F01-AUTH-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-batch1.test.ts",
+        "packages/agent-service/tests/service/service-boot.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-batch1.test.ts": null,
+        "packages/agent-service/tests/service/service-boot.test.ts": "2139968733e5105f96990a4386397e5d619d88e8"
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-batch1.test.ts": "d464f8b83be99da1031f37e8bf53e2a88775024294685d4014ccdf6ff4b0f8d6",
+        "packages/agent-service/tests/service/service-boot.test.ts": "c2bff76dd7614eb2841c2279c894778b5c36e5674cbe2e1d8a37b5df6d5e9e73"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`governance-batch1` A01；`service-boot` 鉴权"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F01-005",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F01-AUTH-02"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-batch1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-batch1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-batch1.test.ts": "d464f8b83be99da1031f37e8bf53e2a88775024294685d4014ccdf6ff4b0f8d6"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`governance-batch1` A01 空 token"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F01-006",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F01-CONN-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-batch1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-batch1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-batch1.test.ts": "d464f8b83be99da1031f37e8bf53e2a88775024294685d4014ccdf6ff4b0f8d6"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`governance-batch1` 非法帧"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F01-007",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F01-HTTP-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-batch1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-batch1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-batch1.test.ts": "d464f8b83be99da1031f37e8bf53e2a88775024294685d4014ccdf6ff4b0f8d6"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`governance-batch1` A01 upload"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F01-008",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F01-SIDE-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/ct-f01-009.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/ct-f01-009.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/ct-f01-009.test.ts": "d0066f3c76b0519ecf89e213de908ec043b8e54898e23e8743fadbf97a6bf942"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`ct-f01-009` 全 CLIENT_TYPES WS；HTTP 未穷尽"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F02-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F02-OWN-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-batch2.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-batch2.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-batch2.test.ts": "49f9687a4f8ab9b0df1bea6c2fd5b40c080d9da0042b7e4de37c53b5a17dc0aa"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`governance-batch2` 第二实例"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F02-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F02-OWN-02",
+        "CON-TRIPLE-RECLAIM"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-batch2.test.ts",
+        "packages/agent-service/tests/service/governance-round5.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-batch2.test.ts": null,
+        "packages/agent-service/tests/service/governance-round5.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-batch2.test.ts": "49f9687a4f8ab9b0df1bea6c2fd5b40c080d9da0042b7e4de37c53b5a17dc0aa",
+        "packages/agent-service/tests/service/governance-round5.test.ts": "4382130c06561104ae249e9aa47fd27fae1a580eb3638d701d7b0b8c2755970b"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`governance-batch2` 死锁；`round5` 三进程"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F02-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F02-OWN-03"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round1.test.ts",
+        "packages/agent-service/tests/service/governance-round4.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": null,
+        "packages/agent-service/tests/service/governance-round4.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866",
+        "packages/agent-service/tests/service/governance-round4.test.ts": "3f440380703aa1a0e7f888d545638b95e339be9253a939e589f80ec702d18b37"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round1`/`round4` 回收"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F02-004",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F02-OWN-04"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round4.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round4.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round4.test.ts": "3f440380703aa1a0e7f888d545638b95e339be9253a939e589f80ec702d18b37"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round4` 活持有者"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F02-005",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F02-OWN-05",
+        "CON-LOCK-SWAP"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/ct-f02-013.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/ct-f02-013.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/ct-f02-013.test.ts": "3a3ff50d9e5055f0d2fc8c0e7e89c84a243568d0e511424c89be6ceab4907aa3"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`ct-f02-013` 完成换 inode",
+        "全入口未穷尽"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F02-006",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F02-OWN-06",
+        "CON-LOCK-SWAP"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/ct-f02-013.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/ct-f02-013.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/ct-f02-013.test.ts": "3a3ff50d9e5055f0d2fc8c0e7e89c84a243568d0e511424c89be6ceab4907aa3"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`ct-f02-013` 放弃/释放",
+        "全入口未穷尽"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F02-007",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F02-OWN-07",
+        "SEC-SYMLINK-WRITE"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round10.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round10.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round10.test.ts": "c22bfb3dc55085fcbaf4d786c7297804fcd5c7eda1fdc9276804a14669b57e0f",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round10/12` 软链",
+        "锁路径有；凭证 realpath 无"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F02-008",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F02-OWN-08"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round13.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round13.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round13.test.ts": "aeab1866382b89921eec660c7da826a646533864ea4d4fb2c957a37a89efd2ea",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round13` 硬链"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F02-009",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F02-OWN-09",
+        "F11-BOT-05",
+        "CON-LOCK-SWAP"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/ct-f02-013.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/ct-f02-013.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/ct-f02-013.test.ts": "3a3ff50d9e5055f0d2fc8c0e7e89c84a243568d0e511424c89be6ceab4907aa3"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`ct-f02-013` 发布后打开失败",
+        "见 F02-OWN-09",
+        "全入口未穷尽"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F02-010",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F02-OWN-10"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round10.test.ts",
+        "packages/agent-service/tests/service/governance-round13.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round10.test.ts": null,
+        "packages/agent-service/tests/service/governance-round13.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round10.test.ts": "c22bfb3dc55085fcbaf4d786c7297804fcd5c7eda1fdc9276804a14669b57e0f",
+        "packages/agent-service/tests/service/governance-round13.test.ts": "aeab1866382b89921eec660c7da826a646533864ea4d4fb2c957a37a89efd2ea",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round10`/`round13` 无内核互斥"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F02-011",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F02-OWN-11"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round13.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round13.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round13.test.ts": "aeab1866382b89921eec660c7da826a646533864ea4d4fb2c957a37a89efd2ea",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round13` unlinkIfSameHolder"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F02-012",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F02-OWN-12"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/ct-f02-013.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/ct-f02-013.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/ct-f02-013.test.ts": "3a3ff50d9e5055f0d2fc8c0e7e89c84a243568d0e511424c89be6ceab4907aa3"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`ct-f02-013` 回收不得删活锁"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F03-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F03-DRN-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round1` F03 close 排空"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F03-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F03-DRN-02"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round4.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round4.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round4.test.ts": "3f440380703aa1a0e7f888d545638b95e339be9253a939e589f80ec702d18b37"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round4` 取消排空"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F03-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F03-DRN-03"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round4.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round4.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round4.test.ts": "3f440380703aa1a0e7f888d545638b95e339be9253a939e589f80ec702d18b37"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round4` complete drain"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F03-004",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F03-DRN-04",
+        "LC-SHUTDOWN-MODEL"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round14-a.test.ts",
+        "packages/agent-service/tests/service/governance-round14-d.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round14-a.test.ts": null,
+        "packages/agent-service/tests/service/governance-round14-d.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round14-a.test.ts": "037242c44395f034fb0d87a259a436217d5e7743530ad2e1c9394f61524c051b",
+        "packages/agent-service/tests/service/governance-round14-d.test.ts": "55f489ad741351126d532f3696bdcdb3293e960aeb0cc5c346a4766c22bb8eb8",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round14-a` G14-10；`round14-d` F03"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F03-005",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F03-DRN-05",
+        "LC-CLOSE-REOPEN"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-rework.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-rework.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-rework.test.ts": "b31df891ca122a6f174c8c5be1b1a1d9e22f8e4f5359c3f87f81328a0aa69fe6"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`rework` R04"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F03-007",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F03-DRN-07"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round6.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round6.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round6.test.ts": "bc941e0bfd4e5f2b4dee6e8e7ca81201d0d1fdb53e19df669be99ca55e9865c3"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round6` complete 写入失败无派生拒绝"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F04-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F04-IDM-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round4.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round4.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round4.test.ts": "3f440380703aa1a0e7f888d545638b95e339be9253a939e589f80ec702d18b37"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round4` 同轮两次"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F04-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F04-IDM-02"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round1` 新轮不进历史"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F04-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F04-IDM-03"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/subagent/governance-round14-c.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/subagent/governance-round14-c.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/subagent/governance-round14-c.test.ts": "320085c6469187b56cf135800ab59f69cd87c5dbe93107147106d28cf0ca09db",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round14-c` F04 迟到 complete"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F05-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F05-DST-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/ui-client/tests/governance-projection.test.ts",
+        "packages/ui-client/tests/governance-round14-b.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts",
+        "packages/ui-client/tests/governance-f05.test.ts"
+      ],
+      "commits": {
+        "packages/ui-client/tests/governance-projection.test.ts": null,
+        "packages/ui-client/tests/governance-round14-b.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null,
+        "packages/ui-client/tests/governance-f05.test.ts": null
+      },
+      "content_sha256": {
+        "packages/ui-client/tests/governance-projection.test.ts": "d9a929ae76730e8000caf54e1a3636f9cbc162d220e8f26336f213b5f0665688",
+        "packages/ui-client/tests/governance-round14-b.test.ts": "0b670cc25db87536744f9d3dbaebaa378978aae756464aee1b1d7fd960d02f62",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866",
+        "packages/ui-client/tests/governance-f05.test.ts": "e253aa0a98bbee2207f06fe345e9d44964ac8082b46497c469fdea10f90357aa"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`governance-projection` 冻结 dest；`round14-b` G14-07"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F05-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F05-DST-02",
+        "ID-SWITCH-UPLOAD"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/ui-client/tests/governance-f05.test.ts"
+      ],
+      "commits": {
+        "packages/ui-client/tests/governance-f05.test.ts": null
+      },
+      "content_sha256": {
+        "packages/ui-client/tests/governance-f05.test.ts": "e253aa0a98bbee2207f06fe345e9d44964ac8082b46497c469fdea10f90357aa"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`governance-f05` A 切 B",
+        "jsdom；缺 WebKit"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F05-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F05-DST-03",
+        "CON-DUAL-SUBMIT"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/ui-client/tests/governance-round14-b.test.ts",
+        "packages/agent-service/tests/service/governance-round14-d.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts",
+        "packages/ui-client/tests/governance-f05.test.ts"
+      ],
+      "commits": {
+        "packages/ui-client/tests/governance-round14-b.test.ts": null,
+        "packages/agent-service/tests/service/governance-round14-d.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null,
+        "packages/ui-client/tests/governance-f05.test.ts": null
+      },
+      "content_sha256": {
+        "packages/ui-client/tests/governance-round14-b.test.ts": "0b670cc25db87536744f9d3dbaebaa378978aae756464aee1b1d7fd960d02f62",
+        "packages/agent-service/tests/service/governance-round14-d.test.ts": "55f489ad741351126d532f3696bdcdb3293e960aeb0cc5c346a4766c22bb8eb8",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866",
+        "packages/ui-client/tests/governance-f05.test.ts": "e253aa0a98bbee2207f06fe345e9d44964ac8082b46497c469fdea10f90357aa"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round14-b`/`round14-d` 双 submit"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F05-004",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F05-DST-04",
+        "ID-DRAFT-GEN"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/ui-client/tests/governance-f05-hook.test.ts",
+        "packages/ui-client/tests/governance-f05.test.ts"
+      ],
+      "commits": {
+        "packages/ui-client/tests/governance-f05-hook.test.ts": null,
+        "packages/ui-client/tests/governance-f05.test.ts": null
+      },
+      "content_sha256": {
+        "packages/ui-client/tests/governance-f05-hook.test.ts": "700bccea83ede4c22890541027d450e4fc60978d5d2b733fa31d627754afcf3d",
+        "packages/ui-client/tests/governance-f05.test.ts": "e253aa0a98bbee2207f06fe345e9d44964ac8082b46497c469fdea10f90357aa"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f05`/`f05-hook` 文本世代",
+        "全矩阵未穷尽"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F05-005",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F05-DST-05",
+        "ID-DRAFT-GEN"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/ui-client/tests/governance-f05-hook.test.ts",
+        "packages/ui-client/tests/governance-f05.test.ts"
+      ],
+      "commits": {
+        "packages/ui-client/tests/governance-f05-hook.test.ts": null,
+        "packages/ui-client/tests/governance-f05.test.ts": null
+      },
+      "content_sha256": {
+        "packages/ui-client/tests/governance-f05-hook.test.ts": "700bccea83ede4c22890541027d450e4fc60978d5d2b733fa31d627754afcf3d",
+        "packages/ui-client/tests/governance-f05.test.ts": "e253aa0a98bbee2207f06fe345e9d44964ac8082b46497c469fdea10f90357aa"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f05`/`f05-hook` 文件世代",
+        "全矩阵未穷尽"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F05-006",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F05-DST-06",
+        "ID-DRAFT-GEN"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/ui-client/tests/governance-f05-hook.test.ts",
+        "packages/ui-client/tests/governance-f05.test.ts"
+      ],
+      "commits": {
+        "packages/ui-client/tests/governance-f05-hook.test.ts": null,
+        "packages/ui-client/tests/governance-f05.test.ts": null
+      },
+      "content_sha256": {
+        "packages/ui-client/tests/governance-f05-hook.test.ts": "700bccea83ede4c22890541027d450e4fc60978d5d2b733fa31d627754afcf3d",
+        "packages/ui-client/tests/governance-f05.test.ts": "e253aa0a98bbee2207f06fe345e9d44964ac8082b46497c469fdea10f90357aa"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f05`/`f05-hook` 空草稿",
+        "全矩阵未穷尽"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F05-007",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F05-DST-07",
+        "ID-SWITCH-UPLOAD"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/ui-client/tests/governance-f05-hook.test.ts",
+        "packages/ui-client/tests/governance-f05.test.ts"
+      ],
+      "commits": {
+        "packages/ui-client/tests/governance-f05-hook.test.ts": null,
+        "packages/ui-client/tests/governance-f05.test.ts": null
+      },
+      "content_sha256": {
+        "packages/ui-client/tests/governance-f05-hook.test.ts": "700bccea83ede4c22890541027d450e4fc60978d5d2b733fa31d627754afcf3d",
+        "packages/ui-client/tests/governance-f05.test.ts": "e253aa0a98bbee2207f06fe345e9d44964ac8082b46497c469fdea10f90357aa"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f05-hook` StrictMode",
+        "jsdom；缺 WebKit"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F05-008",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F05-DST-08"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/ui-client/tests/governance-round14-b.test.ts",
+        "packages/ui-client/tests/governance-f05-hook.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts",
+        "packages/ui-client/tests/governance-f05.test.ts"
+      ],
+      "commits": {
+        "packages/ui-client/tests/governance-round14-b.test.ts": null,
+        "packages/ui-client/tests/governance-f05-hook.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null,
+        "packages/ui-client/tests/governance-f05.test.ts": null
+      },
+      "content_sha256": {
+        "packages/ui-client/tests/governance-round14-b.test.ts": "0b670cc25db87536744f9d3dbaebaa378978aae756464aee1b1d7fd960d02f62",
+        "packages/ui-client/tests/governance-f05-hook.test.ts": "700bccea83ede4c22890541027d450e4fc60978d5d2b733fa31d627754afcf3d",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866",
+        "packages/ui-client/tests/governance-f05.test.ts": "e253aa0a98bbee2207f06fe345e9d44964ac8082b46497c469fdea10f90357aa"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round14-b`/`f05-hook` busy"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F05-009",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F05-DST-09",
+        "CON-TWO-CREATE"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/ui-client/tests/governance-f05-hook.test.ts",
+        "packages/ui-client/tests/governance-f05.test.ts"
+      ],
+      "commits": {
+        "packages/ui-client/tests/governance-f05-hook.test.ts": null,
+        "packages/ui-client/tests/governance-f05.test.ts": null
+      },
+      "content_sha256": {
+        "packages/ui-client/tests/governance-f05-hook.test.ts": "700bccea83ede4c22890541027d450e4fc60978d5d2b733fa31d627754afcf3d",
+        "packages/ui-client/tests/governance-f05.test.ts": "e253aa0a98bbee2207f06fe345e9d44964ac8082b46497c469fdea10f90357aa"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f05-hook` 新建 uploading"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F05-010",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F05-DST-10"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/ui-client/tests/governance-f05-hook.test.ts",
+        "packages/ui-client/tests/governance-f05.test.ts"
+      ],
+      "commits": {
+        "packages/ui-client/tests/governance-f05-hook.test.ts": null,
+        "packages/ui-client/tests/governance-f05.test.ts": null
+      },
+      "content_sha256": {
+        "packages/ui-client/tests/governance-f05-hook.test.ts": "700bccea83ede4c22890541027d450e4fc60978d5d2b733fa31d627754afcf3d",
+        "packages/ui-client/tests/governance-f05.test.ts": "e253aa0a98bbee2207f06fe345e9d44964ac8082b46497c469fdea10f90357aa"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f05-hook` 迟到粘贴"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F06-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F06-SEC-01",
+        "SEC-DEFAULT-CUSTOM"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round1` F06 自定义不撤销",
+        "Darwin skip 规则"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F06-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F06-SEC-02",
+        "SEC-DEFAULT-CUSTOM"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-batch1.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-batch1.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-batch1.test.ts": "d464f8b83be99da1031f37e8bf53e2a88775024294685d4014ccdf6ff4b0f8d6",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round1`/`batch1` darwin 拒读",
+        "Darwin skip 规则"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F06-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F06-SEC-03"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/workspace/run-code.test.ts",
+        "packages/agent-service/tests/service/governance-rework.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/workspace/run-code.test.ts": "201b1e77e7e4af9e01eaa96d99dcc512829eeda7",
+        "packages/agent-service/tests/service/governance-rework.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/workspace/run-code.test.ts": "67206ecfc42f03a9ed7445b985b8eb83ced7935633338f2f5d0e144f0476037e",
+        "packages/agent-service/tests/service/governance-rework.test.ts": "b31df891ca122a6f174c8c5be1b1a1d9e22f8e4f5359c3f87f81328a0aa69fe6"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`rework` R07；`run-code` 读配置拒"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F07-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F07-RES-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/storage/resume.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/storage/resume.test.ts": "66d8f798c187bd7d1dc2260ca1bc12070b71c394",
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/storage/resume.test.ts": "dc0f4b948a9088eac021d40ef967b71f7861f709a54bfdd0166900e43f38040b",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round1` F07 子角色；`resume` 悬空 tool_use"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F07-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F07-RES-03"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round4.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round4.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round4.test.ts": "3f440380703aa1a0e7f888d545638b95e339be9253a939e589f80ec702d18b37"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round4` F07/F10"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F07-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F07-RES-04"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round6.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round6.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round6.test.ts": "bc941e0bfd4e5f2b4dee6e8e7ca81201d0d1fdb53e19df669be99ca55e9865c3"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round6` F07/F10"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F08-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F08-TXN-01",
+        "PER-DB-EVENT"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round1.test.ts",
+        "packages/agent-service/tests/service/ct-f08-005.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": null,
+        "packages/agent-service/tests/service/ct-f08-005.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866",
+        "packages/agent-service/tests/service/ct-f08-005.test.ts": "5603032e0e11a8cb06cde49de323acfbeb7ec863c591d9eb984d5dbe8b340260"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round1` F08",
+        "四转换有 CT-F08-005；F09 全路径未齐"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F08-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F08-TXN-02",
+        "PER-DB-EVENT"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round4.test.ts",
+        "packages/agent-service/tests/service/governance-round6.test.ts",
+        "packages/agent-service/tests/service/ct-f08-005.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round4.test.ts": null,
+        "packages/agent-service/tests/service/governance-round6.test.ts": null,
+        "packages/agent-service/tests/service/ct-f08-005.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round4.test.ts": "3f440380703aa1a0e7f888d545638b95e339be9253a939e589f80ec702d18b37",
+        "packages/agent-service/tests/service/governance-round6.test.ts": "bc941e0bfd4e5f2b4dee6e8e7ca81201d0d1fdb53e19df669be99ca55e9865c3",
+        "packages/agent-service/tests/service/ct-f08-005.test.ts": "5603032e0e11a8cb06cde49de323acfbeb7ec863c591d9eb984d5dbe8b340260"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round4`/`round6` complete 失败",
+        "四转换有 CT-F08-005；F09 全路径未齐"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F08-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F08-TXN-03",
+        "PER-DB-EVENT"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-rework.test.ts",
+        "packages/agent-service/tests/service/ct-f08-005.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-rework.test.ts": null,
+        "packages/agent-service/tests/service/ct-f08-005.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-rework.test.ts": "b31df891ca122a6f174c8c5be1b1a1d9e22f8e4f5359c3f87f81328a0aa69fe6",
+        "packages/agent-service/tests/service/ct-f08-005.test.ts": "5603032e0e11a8cb06cde49de323acfbeb7ec863c591d9eb984d5dbe8b340260"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`rework` R05 子 complete",
+        "四转换有 CT-F08-005；F09 全路径未齐"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F08-004",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F08-TXN-06"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/subagent/governance-round14-c.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/subagent/governance-round14-c.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/subagent/governance-round14-c.test.ts": "320085c6469187b56cf135800ab59f69cd87c5dbe93107147106d28cf0ca09db",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round14-c` G14-11"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F09-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F09-DUR-01",
+        "PER-DB-EVENT"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-rework.test.ts",
+        "packages/agent-service/tests/service/governance-round4.test.ts",
+        "packages/agent-service/tests/service/ct-f08-005.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-rework.test.ts": null,
+        "packages/agent-service/tests/service/governance-round4.test.ts": null,
+        "packages/agent-service/tests/service/ct-f08-005.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-rework.test.ts": "b31df891ca122a6f174c8c5be1b1a1d9e22f8e4f5359c3f87f81328a0aa69fe6",
+        "packages/agent-service/tests/service/governance-round4.test.ts": "3f440380703aa1a0e7f888d545638b95e339be9253a939e589f80ec702d18b37",
+        "packages/agent-service/tests/service/ct-f08-005.test.ts": "5603032e0e11a8cb06cde49de323acfbeb7ec863c591d9eb984d5dbe8b340260"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round4`/`rework` R05",
+        "四转换有 CT-F08-005；F09 全路径未齐"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F09-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F09-DUR-02",
+        "PER-DB-EVENT"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round1.test.ts",
+        "packages/agent-service/tests/service/ct-f08-005.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": null,
+        "packages/agent-service/tests/service/ct-f08-005.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866",
+        "packages/agent-service/tests/service/ct-f08-005.test.ts": "5603032e0e11a8cb06cde49de323acfbeb7ec863c591d9eb984d5dbe8b340260"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round1` F09",
+        "四转换有 CT-F08-005；F09 全路径未齐"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F09-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F09-DUR-03",
+        "PER-DB-EVENT"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round14-a.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts",
+        "packages/agent-service/tests/service/ct-f08-005.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round14-a.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null,
+        "packages/agent-service/tests/service/ct-f08-005.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round14-a.test.ts": "037242c44395f034fb0d87a259a436217d5e7743530ad2e1c9394f61524c051b",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866",
+        "packages/agent-service/tests/service/ct-f08-005.test.ts": "5603032e0e11a8cb06cde49de323acfbeb7ec863c591d9eb984d5dbe8b340260"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round14-a/d` finishTurn",
+        "四转换有 CT-F08-005；F09 全路径未齐"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F09-004",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F09-DUR-04"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round14-a.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round14-a.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round14-a.test.ts": "037242c44395f034fb0d87a259a436217d5e7743530ad2e1c9394f61524c051b",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round14-a/d` context_usage"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F09-005",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F09-DUR-05"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round14-a.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round14-a.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round14-a.test.ts": "037242c44395f034fb0d87a259a436217d5e7743530ad2e1c9394f61524c051b",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round14-a` G14-01/A09"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F09-006",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F09-DUR-06",
+        "PER-JSONL"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-rework.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-rework.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-rework.test.ts": "b31df891ca122a6f174c8c5be1b1a1d9e22f8e4f5359c3f87f81328a0aa69fe6"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`rework` R12"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F09-008",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F09-DUR-08"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round1` F09 间接"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F10-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F10-ID-01",
+        "ID-PROVIDER-VS-HOST"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round1` F10 未知工具"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F10-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F10-ID-02"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round1.test.ts",
+        "packages/agent-service/tests/service/governance-round2.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": null,
+        "packages/agent-service/tests/service/governance-round2.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866",
+        "packages/agent-service/tests/service/governance-round2.test.ts": "81c9a47ff8ceda9a31670c16f1d9905a566ad9be83594854ea8e41a0b1f9d3ac"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round1`/`round2` 模型取消"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F10-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F10-ID-03",
+        "ID-AUX-CALL"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-paths.test.ts",
+        "packages/agent-service/tests/service/governance-round2.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-paths.test.ts": null,
+        "packages/agent-service/tests/service/governance-round2.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-paths.test.ts": "d8b3f62cd256e15194b03b269b94497e3413a7003282f02a560742e29230188a",
+        "packages/agent-service/tests/service/governance-round2.test.ts": "81c9a47ff8ceda9a31670c16f1d9905a566ad9be83594854ea8e41a0b1f9d3ac"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round2` 标题；`v2r-paths` TitleHub"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F10-004",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F10-ID-04",
+        "ID-AUX-CALL"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-paths.test.ts",
+        "packages/agent-service/tests/service/governance-round2.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-paths.test.ts": null,
+        "packages/agent-service/tests/service/governance-round2.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-paths.test.ts": "d8b3f62cd256e15194b03b269b94497e3413a7003282f02a560742e29230188a",
+        "packages/agent-service/tests/service/governance-round2.test.ts": "81c9a47ff8ceda9a31670c16f1d9905a566ad9be83594854ea8e41a0b1f9d3ac"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round2` 修图；`v2r-paths` mermaid"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F10-005",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F10-ID-05",
+        "ID-AUX-CALL"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-paths.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-paths.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-paths.test.ts": "d8b3f62cd256e15194b03b269b94497e3413a7003282f02a560742e29230188a"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`v2r-paths` vision"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F10-006",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F10-ID-06",
+        "ID-MAIN-CHILD-OP"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-paths.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-paths.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-paths.test.ts": "d8b3f62cd256e15194b03b269b94497e3413a7003282f02a560742e29230188a"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`v2r-paths` ChildRunner"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F10-007",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F07-RES-05",
+        "F10-ID-07",
+        "ID-PROVIDER-VS-HOST"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round14-d.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts",
+        "packages/agent-service/tests/service/governance-round4.test.ts",
+        "packages/agent-service/tests/service/governance-round6.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round14-d.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null,
+        "packages/agent-service/tests/service/governance-round4.test.ts": null,
+        "packages/agent-service/tests/service/governance-round6.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round14-d.test.ts": "55f489ad741351126d532f3696bdcdb3293e960aeb0cc5c346a4766c22bb8eb8",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866",
+        "packages/agent-service/tests/service/governance-round4.test.ts": "3f440380703aa1a0e7f888d545638b95e339be9253a939e589f80ec702d18b37",
+        "packages/agent-service/tests/service/governance-round6.test.ts": "bc941e0bfd4e5f2b4dee6e8e7ca81201d0d1fdb53e19df669be99ca55e9865c3"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round14-d` 再 sweep",
+        "`round6`/`round4` resultStatus"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F10-008",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F10-ID-08"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/subagent/governance-round14-c.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/subagent/governance-round14-c.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/subagent/governance-round14-c.test.ts": "320085c6469187b56cf135800ab59f69cd87c5dbe93107147106d28cf0ca09db",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round14-c` G14-12"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F10-009",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F03-DRN-08",
+        "F10-ID-09",
+        "LC-PARENT-LIVE-CHILD"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f10-idle-seal.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f10-idle-seal.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f10-idle-seal.test.ts": "9b0ad75167602f8383ebd03675b3ccafac09cd0593037d76ca905b99a12f97c9"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f10-idle-seal` live 兄弟",
+        "`f10-idle-seal`"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F10-010",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F10-ID-10"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round14-a.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts",
+        "packages/agent-service/tests/service/governance-round4.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round14-a.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null,
+        "packages/agent-service/tests/service/governance-round4.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round14-a.test.ts": "037242c44395f034fb0d87a259a436217d5e7743530ad2e1c9394f61524c051b",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866",
+        "packages/agent-service/tests/service/governance-round4.test.ts": "3f440380703aa1a0e7f888d545638b95e339be9253a939e589f80ec702d18b37"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round4` sweep；`round14-a/d` 归档"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F10-011",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F10-ID-11"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-rework.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-rework.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-rework.test.ts": "b31df891ca122a6f174c8c5be1b1a1d9e22f8e4f5359c3f87f81328a0aa69fe6"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`rework` R13"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F11-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F11-BOT-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round1` 端口占用"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F11-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F11-BOT-02"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round1` 监听失败"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F11-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F11-BOT-03"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round14-a.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round14-a.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round14-a.test.ts": "037242c44395f034fb0d87a259a436217d5e7743530ad2e1c9394f61524c051b",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round14-a/d` portfile"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F12-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F12-VW-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/ui-client/tests/governance-projection.test.ts",
+        "packages/ui-client/tests/governance-round14-b.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/ui-client/tests/governance-projection.test.ts": null,
+        "packages/ui-client/tests/governance-round14-b.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/ui-client/tests/governance-projection.test.ts": "d9a929ae76730e8000caf54e1a3636f9cbc162d220e8f26336f213b5f0665688",
+        "packages/ui-client/tests/governance-round14-b.test.ts": "0b670cc25db87536744f9d3dbaebaa378978aae756464aee1b1d7fd960d02f62",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`projection`/`round14-b`"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F12-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F12-VW-02"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/ui-client/tests/governance-projection.test.ts"
+      ],
+      "commits": {
+        "packages/ui-client/tests/governance-projection.test.ts": null
+      },
+      "content_sha256": {
+        "packages/ui-client/tests/governance-projection.test.ts": "d9a929ae76730e8000caf54e1a3636f9cbc162d220e8f26336f213b5f0665688"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`projection` F12 重读"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F12-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F12-VW-03"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/ui-client/tests/governance-projection.test.ts"
+      ],
+      "commits": {
+        "packages/ui-client/tests/governance-projection.test.ts": null
+      },
+      "content_sha256": {
+        "packages/ui-client/tests/governance-projection.test.ts": "d9a929ae76730e8000caf54e1a3636f9cbc162d220e8f26336f213b5f0665688"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`projection` 旧文件重读"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F12-004",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F12-VW-04"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/ui-client/tests/governance-round14-b.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/ui-client/tests/governance-round14-b.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/ui-client/tests/governance-round14-b.test.ts": "0b670cc25db87536744f9d3dbaebaa378978aae756464aee1b1d7fd960d02f62",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round14-b` F12 close"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F12-005",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F12-VW-05"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/ui-client/tests/governance-projection.test.ts",
+        "packages/ui-client/tests/governance-round14-b.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/ui-client/tests/governance-projection.test.ts": null,
+        "packages/ui-client/tests/governance-round14-b.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/ui-client/tests/governance-projection.test.ts": "d9a929ae76730e8000caf54e1a3636f9cbc162d220e8f26336f213b5f0665688",
+        "packages/ui-client/tests/governance-round14-b.test.ts": "0b670cc25db87536744f9d3dbaebaa378978aae756464aee1b1d7fd960d02f62",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`projection` R14；`round14-b` G14-08"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F13-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F13-REQ-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round1` F13"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F13-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F13-REQ-02"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round1` 非法 requestId"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F13-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F13-REQ-03"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-rework.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-rework.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-rework.test.ts": "b31df891ca122a6f174c8c5be1b1a1d9e22f8e4f5359c3f87f81328a0aa69fe6"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`rework` R09"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F13-004",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F13-REQ-04"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-rework.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-rework.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-rework.test.ts": "b31df891ca122a6f174c8c5be1b1a1d9e22f8e4f5359c3f87f81328a0aa69fe6"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`rework` R09 未连接"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F13-005",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F13-REQ-05",
+        "CON-REQID"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/ui-client/tests/governance-requestid.test.ts",
+        "packages/agent-service/tests/service/governance-batch3.test.ts"
+      ],
+      "commits": {
+        "packages/ui-client/tests/governance-requestid.test.ts": null,
+        "packages/agent-service/tests/service/governance-batch3.test.ts": null
+      },
+      "content_sha256": {
+        "packages/ui-client/tests/governance-requestid.test.ts": "9ec351fd3356c6085a8f496368146e9349cb4cdd7b3dfed99bdaab94d623e328",
+        "packages/agent-service/tests/service/governance-batch3.test.ts": "a3e251d686c440d51f2c5082e74fed56532db5ed5e32a8f9c082d50e60c2be5e"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`batch3`；ui `governance-requestid`"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F13-006",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F13-REQ-06",
+        "ID-STALE-CONN"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/client/governance-round14-conn.test.ts",
+        "packages/agent-service/tests/subagent/governance-round14-c.test.ts",
+        "packages/agent-service/tests/service/governance-round14-d.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/client/governance-round14-conn.test.ts": null,
+        "packages/agent-service/tests/subagent/governance-round14-c.test.ts": null,
+        "packages/agent-service/tests/service/governance-round14-d.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/client/governance-round14-conn.test.ts": "ed733f979dfeffe4428ad4b17299a629e04ff9080e08f0e43be70739892b1502",
+        "packages/agent-service/tests/subagent/governance-round14-c.test.ts": "320085c6469187b56cf135800ab59f69cd87c5dbe93107147106d28cf0ca09db",
+        "packages/agent-service/tests/service/governance-round14-d.test.ts": "55f489ad741351126d532f3696bdcdb3293e960aeb0cc5c346a4766c22bb8eb8",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round14-d`；`round14-conn`"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F14-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F14-ORI-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round15.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round15.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round15.test.ts": "774a53235e758c4486918fcec21c3c7d46179236b1560f4c533cdadffcea0bcb",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round15` F14 本机/空"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F14-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F14-ORI-02",
+        "SEC-ORIGIN-TOKEN"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round15.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round15.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round15.test.ts": "774a53235e758c4486918fcec21c3c7d46179236b1560f4c533cdadffcea0bcb",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round15` HTTP"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F14-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F14-ORI-03",
+        "SEC-ORIGIN-TOKEN"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round15.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round15.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round15.test.ts": "774a53235e758c4486918fcec21c3c7d46179236b1560f4c533cdadffcea0bcb",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round15` WS"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F14-004",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F14-ORI-04"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round15.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round15.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round15.test.ts": "774a53235e758c4486918fcec21c3c7d46179236b1560f4c533cdadffcea0bcb"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "空 Origin 允许 + 既有 token 测试"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F15-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F15-INT-02"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-round15.test.ts",
+        "packages/agent-service/tests/service/governance-round1.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-round15.test.ts": null,
+        "packages/agent-service/tests/service/governance-round1.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-round15.test.ts": "774a53235e758c4486918fcec21c3c7d46179236b1560f4c533cdadffcea0bcb",
+        "packages/agent-service/tests/service/governance-round1.test.ts": "afe239cc883e780456ee81b9c41e60b25181a2e5c55fdc23df5a6e86bc227866"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`round15` F15"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F16-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F16-HAN-02",
+        "DEL-INTENT-UNKNOWN"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f16.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f16.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f16.test.ts": "7c14269b2574435446bc82d612f533d77dbcc6c1abd23ee98070cca22a3ace94"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f16` 未知活 PID",
+        "非真实未知实例"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F16-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F16-HAN-03"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f16.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f16.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f16.test.ts": "7c14269b2574435446bc82d612f533d77dbcc6c1abd23ee98070cca22a3ace94"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f16` already / V2R-10 healthy"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F16-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F16-HAN-04"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f16.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f16.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f16.test.ts": "7c14269b2574435446bc82d612f533d77dbcc6c1abd23ee98070cca22a3ace94"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f16` bootstrap"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F16-004",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F16-HAN-05"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f16.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f16.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f16.test.ts": "7c14269b2574435446bc82d612f533d77dbcc6c1abd23ee98070cca22a3ace94"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f16` unhealthy / 设置态"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F16-005",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F16-HAN-06",
+        "DEL-OWNED-DRAIN"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f16.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f16.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f16.test.ts": "7c14269b2574435446bc82d612f533d77dbcc6c1abd23ee98070cca22a3ace94"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f16` V2R-01 SIGTERM",
+        "待原生"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F16-006",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F16-HAN-07",
+        "DEL-LAUNCHD-FAIL"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f16.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f16.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f16.test.ts": "7c14269b2574435446bc82d612f533d77dbcc6c1abd23ee98070cca22a3ace94"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f16` V2R-10 bootout",
+        "原生重开 uncovered"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F16-007",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F15-INT-03",
+        "F16-HAN-08"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/launchd.test.ts",
+        "packages/agent-service/tests/service/governance-f16.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/launchd.test.ts": "d66497bd73aad1eefbd009cac357f3b85d9d1023",
+        "packages/agent-service/tests/service/governance-f16.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/launchd.test.ts": "d3642406f9c9f505ad1041f9c4f9bf7ed7e6a590d59c327eadc8a2a16fd7cfcd",
+        "packages/agent-service/tests/service/governance-f16.test.ts": "7c14269b2574435446bc82d612f533d77dbcc6c1abd23ee98070cca22a3ace94"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f16`/`launchd` shouldRepair",
+        "`f16` 入口 SIGTERM"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F17-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F17-REQ-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts": "4cb8b422558431ea8c6d0023b7a3639e1af7f9685c7e7851d83a029e6f05e393"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f17-f21` F17 adapter"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F17-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F17-REQ-02"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts": "4cb8b422558431ea8c6d0023b7a3639e1af7f9685c7e7851d83a029e6f05e393"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f17-f21` 改 settings"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F17-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F17-REQ-03"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts": "4cb8b422558431ea8c6d0023b7a3639e1af7f9685c7e7851d83a029e6f05e393"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f17-f21` not_collected"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F17-004",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F10-ID-12",
+        "F17-REQ-04",
+        "PER-ATTEMPT"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-collection.test.ts",
+        "packages/agent-service/tests/service/ct-f17-006.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-collection.test.ts": null,
+        "packages/agent-service/tests/service/ct-f17-006.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-collection.test.ts": "64ccc5f88dbb18786b9c355f7d519c91d93490f007701f41c0423a952227da99",
+        "packages/agent-service/tests/service/ct-f17-006.test.ts": "a8ad058c387f5a69cc7b211825a52e2997467f9071934a9e279a96a41843bb21"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`v2r-collection` V2R-04",
+        "F17-REQ-06 已有 CT；503 与中断仍分测"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F17-005",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F17-REQ-05"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-paths.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-paths.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-paths.test.ts": "d8b3f62cd256e15194b03b269b94497e3413a7003282f02a560742e29230188a"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`v2r-paths`"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F18-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F18-CTX-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-collection.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-collection.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-collection.test.ts": "64ccc5f88dbb18786b9c355f7d519c91d93490f007701f41c0423a952227da99"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`v2r-collection` V2R-05"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F19-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F19-TOL-01",
+        "F19-TOL-06"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts": "4cb8b422558431ea8c6d0023b7a3639e1af7f9685c7e7851d83a029e6f05e393"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f17-f21` F19 write_file",
+        "write_file 旧正文"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F19-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F19-TOL-02"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-collection.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-collection.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-collection.test.ts": "64ccc5f88dbb18786b9c355f7d519c91d93490f007701f41c0423a952227da99"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`v2r-collection` V2R-06"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F19-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F19-TOL-03"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-collection.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-collection.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-collection.test.ts": "64ccc5f88dbb18786b9c355f7d519c91d93490f007701f41c0423a952227da99"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`v2r-collection` V2R-12"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F20-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F20-STO-01",
+        "F23-PKG-05",
+        "PER-BLOB-EXPORT"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-integrity.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-integrity.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-integrity.test.ts": "ef24397683195dfc091a66f393d675ab32c66906b579e9693bef65e764210a2f"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`v2r-integrity` V2R-02",
+        "见 F20-STO-01"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F20-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F20-STO-02",
+        "SEC-DIAG-REDACT"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-integrity.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-integrity.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-integrity.test.ts": "ef24397683195dfc091a66f393d675ab32c66906b579e9693bef65e764210a2f"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`v2r-integrity` V2R-03"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F20-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F20-STO-03"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-integrity.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-integrity.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-integrity.test.ts": "ef24397683195dfc091a66f393d675ab32c66906b579e9693bef65e764210a2f"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`v2r-integrity`/`collection` V2R-04/11"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F20-004",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F20-STO-04"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-integrity.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-integrity.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-integrity.test.ts": "ef24397683195dfc091a66f393d675ab32c66906b579e9693bef65e764210a2f"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "V2R-11"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F20-005",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F20-STO-05"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-integrity.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-integrity.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-integrity.test.ts": "ef24397683195dfc091a66f393d675ab32c66906b579e9693bef65e764210a2f"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`v2r-integrity` profile"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F21-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F21-QRY-02"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts": "4cb8b422558431ea8c6d0023b7a3639e1af7f9685c7e7851d83a029e6f05e393"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f17-f21` F21 鉴权"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F21-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F21-QRY-03"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts": "4cb8b422558431ea8c6d0023b7a3639e1af7f9685c7e7851d83a029e6f05e393"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f17-f21` export missing"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F22-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F22-BAD-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts": "c2b749fee975f386c04738fadc552482825f4c694bacdff98775cf6a495a68d4"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f22-f24` F22"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F22-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F21-QRY-05",
+        "F22-BAD-03"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/ui-client/tests/governance-f22.test.ts"
+      ],
+      "commits": {
+        "packages/ui-client/tests/governance-f22.test.ts": null
+      },
+      "content_sha256": {
+        "packages/ui-client/tests/governance-f22.test.ts": "213e29a89520fd7b250df5a8484596f5e63215ba666f3ee1581c49f3fb04826c"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "ui F22 正文不进 reducer",
+        "ui F22 reducer"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F23-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F21-QRY-06",
+        "F23-PKG-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts": "c2b749fee975f386c04738fadc552482825f4c694bacdff98775cf6a495a68d4"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "见 F23",
+        "`f22-f24` F23"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "CT-F23-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F23-PKG-03"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts": "c2b749fee975f386c04738fadc552482825f4c694bacdff98775cf6a495a68d4"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "export destDir 间接"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "IT-F04-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F04-IDM-04",
+        "LC-CANCEL-RESUME"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/subagent/t6-resume.test.ts",
+        "packages/agent-service/tests/storage/resume.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/subagent/t6-resume.test.ts": "2139968733e5105f96990a4386397e5d619d88e8",
+        "packages/agent-service/tests/storage/resume.test.ts": "66d8f798c187bd7d1dc2260ca1bc12070b71c394"
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/subagent/t6-resume.test.ts": "38976a2c0f99a114545a8127ceeaddf381ff15479fb92ee93d572d4f8353bf1e",
+        "packages/agent-service/tests/storage/resume.test.ts": "dc0f4b948a9088eac021d40ef967b71f7861f709a54bfdd0166900e43f38040b"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`t6-resume` done 续跑新完成",
+        "crash 未真杀进程"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "IT-F06-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F06-SEC-04"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/workspace/run-code.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/workspace/run-code.test.ts": "201b1e77e7e4af9e01eaa96d99dcc512829eeda7"
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/workspace/run-code.test.ts": "67206ecfc42f03a9ed7445b985b8eb83ced7935633338f2f5d0e144f0476037e"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`run-code` 读写工作区"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "IT-F07-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F07-RES-02",
+        "ID-MAIN-CHILD-OP"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/storage/resume.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/storage/resume.test.ts": "66d8f798c187bd7d1dc2260ca1bc12070b71c394"
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/storage/resume.test.ts": "dc0f4b948a9088eac021d40ef967b71f7861f709a54bfdd0166900e43f38040b"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`resume.test` resume×spawn"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "IT-F07-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F07-RES-07"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/storage/resume.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/storage/resume.test.ts": "66d8f798c187bd7d1dc2260ca1bc12070b71c394"
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/storage/resume.test.ts": "dc0f4b948a9088eac021d40ef967b71f7861f709a54bfdd0166900e43f38040b"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`resume` 主线程隔离"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "IT-F08-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F08-TXN-04",
+        "PER-DB-EVENT"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-batch2.test.ts",
+        "packages/agent-service/tests/service/ct-f08-005.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-batch2.test.ts": null,
+        "packages/agent-service/tests/service/ct-f08-005.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-batch2.test.ts": "49f9687a4f8ab9b0df1bea6c2fd5b40c080d9da0042b7e4de37c53b5a17dc0aa",
+        "packages/agent-service/tests/service/ct-f08-005.test.ts": "5603032e0e11a8cb06cde49de323acfbeb7ec863c591d9eb984d5dbe8b340260"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`batch2` beginTurn",
+        "四转换有 CT-F08-005；F09 全路径未齐"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "IT-F08-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F08-TXN-05",
+        "PER-DB-EVENT"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-batch2.test.ts",
+        "packages/agent-service/tests/service/ct-f08-005.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-batch2.test.ts": null,
+        "packages/agent-service/tests/service/ct-f08-005.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-batch2.test.ts": "49f9687a4f8ab9b0df1bea6c2fd5b40c080d9da0042b7e4de37c53b5a17dc0aa",
+        "packages/agent-service/tests/service/ct-f08-005.test.ts": "5603032e0e11a8cb06cde49de323acfbeb7ec863c591d9eb984d5dbe8b340260"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`batch2` updateTaskStatus",
+        "四转换有 CT-F08-005；F09 全路径未齐"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "IT-F08-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "PER-MIGRATE"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-batch2.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-batch2.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-batch2.test.ts": "49f9687a4f8ab9b0df1bea6c2fd5b40c080d9da0042b7e4de37c53b5a17dc0aa"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`governance-batch2`「未来 schema 拒绝打开;v10 半成品可重启」；非全迁移矩阵"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "IT-F11-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F11-BOT-04"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-batch2.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-batch2.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-batch2.test.ts": "49f9687a4f8ab9b0df1bea6c2fd5b40c080d9da0042b7e4de37c53b5a17dc0aa"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`batch2` 准备失败"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "IT-F15-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F15-INT-01",
+        "DEL-FIRST-BOOT"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/launchd.test.ts",
+        "packages/agent-service/tests/service/governance-batch3.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/launchd.test.ts": "d66497bd73aad1eefbd009cac357f3b85d9d1023",
+        "packages/agent-service/tests/service/governance-batch3.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/launchd.test.ts": "d3642406f9c9f505ad1041f9c4f9bf7ed7e6a590d59c327eadc8a2a16fd7cfcd",
+        "packages/agent-service/tests/service/governance-batch3.test.ts": "a3e251d686c440d51f2c5082e74fed56532db5ed5e32a8f9c082d50e60c2be5e"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`batch3`/`launchd` readBackgroundIntent",
+        "非真机首装"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "IT-F19-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F19-TOL-04"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/ct-f19-004.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/ct-f19-004.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/ct-f19-004.test.ts": "bcbcbb3679d6cb3c80ccbbcdb5b1394119ee3b53ca16bcae673cf7f4e780e721"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`ct-f19-004` 退出码/脚本进 exec_records"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "RP-F22-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F22-BAD-06"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts": "83b689fd287759cf555722cf1d847ccb88f7b5887bc613fff817df2cc224fd85"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`v2r-replay` V2R-13"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "RP-F23-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F23-PKG-02"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts": "83b689fd287759cf555722cf1d847ccb88f7b5887bc613fff817df2cc224fd85"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`v2r-replay` V2R-09"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "RP-F24-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F24-RPL-02"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts": "c2b749fee975f386c04738fadc552482825f4c694bacdff98775cf6a495a68d4"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f22-f24` replay"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "RP-F24-002",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F24-RPL-03"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts": "c2b749fee975f386c04738fadc552482825f4c694bacdff98775cf6a495a68d4"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f22-f24` 缺 response"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "RP-F24-003",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F24-RPL-04"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts": "83b689fd287759cf555722cf1d847ccb88f7b5887bc613fff817df2cc224fd85"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`v2r-replay` V2R-08"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "RP-F24-004",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F24-RPL-05"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts": "83b689fd287759cf555722cf1d847ccb88f7b5887bc613fff817df2cc224fd85"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`v2r-replay` V2R-07"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "RP-F24-005",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F24-RPL-06",
+        "ID-TURN-MULTI-OP"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts": "83b689fd287759cf555722cf1d847ccb88f7b5887bc613fff817df2cc224fd85"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`v2r-replay` V2R-17",
+        "有公开回归；未绑候选"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "RP-F24-006",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F24-RPL-07",
+        "SEC-REPLAY-ROOT"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts": "83b689fd287759cf555722cf1d847ccb88f7b5887bc613fff817df2cc224fd85"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`v2r-replay` V2R-15"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "RP-F24-007",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F24-RPL-08"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-v2r-replay.test.ts": "83b689fd287759cf555722cf1d847ccb88f7b5887bc613fff817df2cc224fd85"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`v2r-replay` V2R-16"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "RP-F24-008",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F24-RPL-09"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts": "c2b749fee975f386c04738fadc552482825f4c694bacdff98775cf6a495a68d4"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f22-f24` 闭环"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "UT-F16-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F16-HAN-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f16.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f16.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f16.test.ts": "7c14269b2574435446bc82d612f533d77dbcc6c1abd23ee98070cca22a3ace94"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f16` parseLaunchctlPrint"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "UT-F20-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F20-STO-07"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/ct-f20-006.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/ct-f20-006.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/ct-f20-006.test.ts": "dad632257b69372fc543f1199d4ab707ccff2277ea679eccbc08c9aeff30dac2"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`ct-f20-006` blob 上限；UI 间接"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "UT-F21-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F21-QRY-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f17-f21.test.ts": "4cb8b422558431ea8c6d0023b7a3639e1af7f9685c7e7851d83a029e6f05e393"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f17-f21` decode"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "UT-F22-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F22-BAD-02"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/ui-client/tests/governance-f22.test.ts"
+      ],
+      "commits": {
+        "packages/ui-client/tests/governance-f22.test.ts": null
+      },
+      "content_sha256": {
+        "packages/ui-client/tests/governance-f22.test.ts": "213e29a89520fd7b250df5a8484596f5e63215ba666f3ee1581c49f3fb04826c"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "ui `governance-f22`"
+      ],
+      "id_in_source": false
+    },
+    {
+      "test_id": "UT-F24-001",
+      "kind": "historical-unbound",
+      "candidate_id": "unbound",
+      "row_ids": [
+        "F24-RPL-01"
+      ],
+      "matrix_statuses": [
+        "partial"
+      ],
+      "files": [
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts"
+      ],
+      "commits": {
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts": null
+      },
+      "content_sha256": {
+        "packages/agent-service/tests/service/governance-f22-f24.test.ts": "c2b749fee975f386c04738fadc552482825f4c694bacdff98775cf6a495a68d4"
+      },
+      "evidence_docs": [
+        "doc/testing-matrix.md"
+      ],
+      "evidence_text": [
+        "`f22-f24` 四种能力"
+      ],
+      "id_in_source": false
+    }
+  ]
+}

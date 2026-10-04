@@ -1,7 +1,8 @@
 /**
  * [INPUT]: localStorage lumen:appearance.v1
  * [OUTPUT]: loadAppearance / saveAppearance / normalizeAppearance
- * [POS]: appearance 持久化;不进 agent-service settings
+ * [POS]: appearance 本地偏好持久化，与服务端模型和运行设置分离
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
 import { coerceSkinId } from './registry.ts'

@@ -1,0 +1,15 @@
+/*
+ * [INPUT]: 原字体、颜色与焦点 token；箭头动效由 icons、卷帘动效由 styles.css 持有
+ * [OUTPUT]: 新增详情开合按钮的无壳布局
+ * [POS]: 只限定 curtain-disclosure 命名空间，不覆盖正文或旧卷帘容器
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ */
+.curtain-disclosure { min-width: 0; }
+.curtain-disclosure-trigger {
+  display: flex; align-items: baseline; gap: 6px; max-width: 100%;
+  padding: 0; border: 0; background: none; color: inherit; font: inherit;
+  text-align: left; cursor: pointer;
+}
+.curtain-disclosure-trigger > svg { flex: none; align-self: center; }
+.curtain-disclosure-label { min-width: 0; }
+.curtain-disclosure-trigger:focus-visible { outline: 2px solid var(--ember); outline-offset: 3px; border-radius: var(--radius-sm); }

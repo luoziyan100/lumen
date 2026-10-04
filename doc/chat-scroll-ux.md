@@ -1,7 +1,7 @@
 # 对话列滚动体验（产品规格）
 
 状态: **现行** · 2026-08-31  
-实现: `packages/ui-client/src/scroll/useStickToBottom.ts`  
+实现: `packages/ui-client/src/mastra/views/conversation/stick.ts`<br>
 对照: OpenWork `scroll-controller` / opensquilla `autoScroll`（思想，非依赖）
 
 > 人怎么「看」一场研究对话 → 滚动只服务意图。技术手段可换，下列验收不可破。
@@ -55,6 +55,8 @@
 | 回缩不追 | 高度变矮只改基线，不硬滚 |
 | **增高按帧追** | sticky 下 ResizeObserver 发现增高 → 同一帧一个 rAF → 再测再 `scrollTop=scrollHeight`。禁止经验静默窗(`followSettleMs`) |
 | **contentKey 不负责 sticky follow** | `contentKey` 只说明 React 数据变了;几何真源是 RO。contentKey 仅刷新 manual 锚点 |
+| **manual 语义锚** | 视口顶线处 msgId + blockPath(`root`/`fold`/`md:N`) + offsetTop;先查正文块再查消息根(文档序混查会假命中祖先) |
+| **生成期合成降级** | `running` → `.app.is-ui-busy`:暂停 liquid/BorderBeam 区无限动画,收 backdrop;可逆 |
 | RO 重绑不拽底 | 观察者重绑不得 `applySticky(true)+force follow` 打断 manual |
 | overflow-anchor | **恒 `none`**（`.messages` CSS）；禁止随 sticky 拨成 `auto`（高度回弹时浏览器会拽视口） |
 | 钉态不重绘消息列 | `pinned` 走 hook 外部 store；轮次轨可见态 IO 留在 rail；sticky / 滚动不得让 Markdown 重解析 |
@@ -93,7 +95,7 @@
 | `scroll-clamp-shrink` | 回缩夹紧 max scrollTop | 回缩不追 |
 | `content-resize` | 高度变化(原 content-resize-H2?) | RO 真源 |
 | `height-collapse` | 一次大塌缩 | 进 sticky 护栏 |
-| `stabilize-H5` / `restore-msg-anchor` | manual 锚定 | 消息顶锚点 |
+| `stabilize-H5` / `restore-msg-anchor` | manual 锚定 | msgId#blockPath 语义锚 |
 | `sticky→` 反复 1↔0 | sticky 抖动 | 进出钉 |
 
 ### V1 结案（2026-08-11 用户日志）
@@ -112,4 +114,5 @@
 | 2026-08-11 | V1 结案：进 sticky 用户意图 + 塌缩护栏 + 应用内 HUD |
 | 2026-08-13 | V2：离钉只认上滑/大 gap；anchor 恒 none；钉态不重绘消息列 |
 | 2026-08-13 | Sources 可收起；手势窗增高只改基线；轮次轨 IO 不抬 App |
-| 2026-08-31 | 像素提交:身份连续、过程卡开合解耦、Mermaid 箱外一次提交、sticky 按帧跟随;统一 trace HUD |
+| 2026-09-04 | Phase 4: manual 语义锚(msgId+blockPath);running 时 `.is-ui-busy` 合成降级 |
+| 2026-09-23 | 现行实现改到 conversation/stick.ts：上滑离钉，程序 scrollTo 不恢复跟随 |

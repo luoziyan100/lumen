@@ -1,15 +1,13 @@
 /**
- * [INPUT]: 对话列诊断事件(滚动/身份/过程卡/Mermaid)
+ * [INPUT]: Markdown、Mermaid 与 widget 呈现过程中的标量诊断事件
  * [OUTPUT]: scrollDebugEnabled / scrollDebugLog / 导出与清空 —— 只读观测,默认关闭
- * [POS]: 统一时间轴;useStickToBottom / ChatTranscript / ProcessRow / MermaidBlock / useAgent 共用同一缓冲
+ * [POS]: 保留阅读组件共享的有界时间轴，不参与 Mastra 对话状态归约
  *
- * 桌面 App 无浏览器控制台 —— 用应用内 HUD(ScrollDebugHud):
- *   快捷键 ⌃⌥⇧S 开关 → 清空本轮 → 复现跳动 → 「复制日志」粘贴到聊天
- * 开发者备选:
+ * 开发环境启用:
  *   localStorage.setItem('lumen:scrollDebug', '1') / removeItem
  *   URL ?scrollDebug=1
  * 关闭时不启动 rAF 时钟、不保留正文副本。
- * [PROTOCOL]: 变更时更新此头部与 doc/chat-scroll-ux.md §6
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
 export type ChatTraceTrigger =

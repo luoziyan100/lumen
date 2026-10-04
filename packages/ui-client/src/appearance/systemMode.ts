@@ -2,6 +2,7 @@
  * [INPUT]: window.matchMedia prefers-color-scheme
  * [OUTPUT]: resolveSystemScheme / subscribeSystemScheme
  * [POS]: appearance;mode=system 时折叠意图（宿主 color-scheme 仍固定 dark）
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
 export function resolveSystemScheme(): 'dark' | 'light' {

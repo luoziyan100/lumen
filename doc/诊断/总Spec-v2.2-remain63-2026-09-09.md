@@ -1,0 +1,1477 @@
+# 总Spec v2.2 remain63 2026-09-09
+
+[INPUT]: briefs/active/governance-loop/执行.md v2.2；台账 testing-matrix / manifest / defects；生产 useWorkspace
+[OUTPUT]: F12-VW-02 / F12-VW-03 公开回归 CT-F12-007 / CT-F12-008
+[POS]: 治理 Loop remain63 实现推进说明，不是验收裁决
+[PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+
+状态: READY_FOR_REVIEW。实现候选 `governance-impl-remain63-2026-09-09`。测试体系候选 `test-system-v1-gov-remain63-2026-09-09`。本文件是执行者内部推进说明，不是验收裁决。不得自行宣布 MAIN_PASS，不得自行宣布 TEST_SYSTEM_PASS。`test-system-v1-gov-remain62-2026-09-09` 已作废。
+
+implementation_candidate_id: governance-impl-remain63-2026-09-09
+test_system_candidate_id: test-system-v1-gov-remain63-2026-09-09
+base_id: dirty worktree + 作废 test-system-v1-gov-remain62-2026-09-09
+
+## 裁决边界
+
+- TEST_SYSTEM_PASS: pending original review
+- F01-F24: not accepted by this document
+- MAIN_PASS: prohibited
+
+## 目标行
+
+| 行 | 最终 status | 证据 |
+|---|---|---|
+| F12-VW-02 | covered | CT-F12-007：真实 `useWorkspace` / `mountUseWorkspace`（`holdRead`）。同文件先成功打开有正文，再连续 open 两次；先 finish 第二次为失败，当前 open 有 loadError 且正文不得清成空谎；再 finish 第一次为迟到旧成功，不得覆盖最新失败态 / 不得刷成旧成功正文。不是复述 CT-F12-002 纯函数 / projection binding。不升 VW-04..06 |
+| F12-VW-03 | covered | CT-F12-008：真实 `useWorkspace` / `mountUseWorkspace`（`holdRead`）。open A 后 `reloadOpen` 后台重读；用户改 open B；finish A 重读不得把当前刷回 A；随后 finish B 显示 B。另钉 B 已打开后迟到 A 重读不得淘汰，以及再 open 旧文件 vs 用户已切到新文件。不是复述 CT-F12-003 源码扫描 / 纯函数 binding。不升 VW-04..06 |
+
+## 实现要点
+
+- 先写 CT-F12-007 / CT-F12-008。走已有 `mountUseWorkspace` harness（`holdRead`），不 `readFile` 源码，不只改旧 binding。
+- 同文件重读失败态与旧文件后台重读不得淘汰已够，本批未改业务 src。
+- 不升 F13-REQ-07、DEC-01、OWN-10、CON-*、F22-BAD-02/03/05、PER-BLOB-EXPORT、F24-RPL-09..11、ID-TURN-MULTI-OP、SEC-REPLAY-ROOT。不升 CON-TWO-CREATE、F05-DST-11、ID-DRAFT-GEN、ID-SWITCH-UPLOAD、F12-VW-04..06。未 launchd:install 生产、未杀 PID 71847、未 closed V2R、未动停放环境行。未修 CT-F16-012 / AT-F16-001。未改 UI/Rust 业务 src。
+
+## 建议通过点
+
+同文件连续 open 两次，先 finish 第二次失败：当前 open 有失败态，正文不得清成空谎；再 finish 第一次迟到旧成功，不得覆盖最新失败。open A 后后台 reload / 再 open 旧文件，用户改 open B；finish A 不得淘汰 B；随后 finish B 显示 B。B 已打开后迟到 A 重读仍不得变回 A。
+
+## 建议打回点
+
+- 只改 CT-F12-002 / projection 纯函数表或 binding 就标 VW-02 covered。
+- 只改 CT-F12-003 binding 或源码扫描就标 VW-03 covered。
+- 不走真实 useWorkspace / mountUseWorkspace（holdRead）。
+- 新失败没有状态，或正文被清成空谎。
+- 迟到旧成功覆盖最新失败态。
+- 旧文件后台重读把当前 open 淘汰回 A。
+- 默认升 DEC-01 / REQ-07 / OWN-10 / CON-* / DST-11 / ID-DRAFT-GEN / ID-SWITCH-UPLOAD / CON-DUAL-SUBMIT / F12-VW-04..06。
+- 把 V2R 标 closed。
+- 动生产 label / PID 71847。
+
+人话状态：正在第 governance-impl-remain63-2026-09-09；已完成 F12-VW-02 / F12-VW-03；F05-DST-10 / F12-VW-01 保持 covered 不重磨；不升 F13-REQ-07 / F01-DEC-01 与 F20 整簇；CON-REQID / ID-STALE-CONN / CON-TRIPLE-RECLAIM 不升；不升 F22-BAD-02/03/05 / PER-BLOB-EXPORT / F24-RPL-09..11 / ID-TURN-MULTI-OP / SEC-REPLAY-ROOT；不升 CON-DUAL-SUBMIT / ID-SWITCH-UPLOAD / CON-TWO-CREATE / F05-DST-11 / ID-DRAFT-GEN / F12-VW-04..06；V2R-13 保持 partial-fix；LC-INTENT-PERSIST 仍 uncovered。
+这次为什么停：冻结等待主模型验收。
+下一步：主模型验收；通过则继续未停放合同。
+是否需要用户：不需要。
+
+verify：本批新测 CT-F12-007 / CT-F12-008 + CT-F12-006 已绿。ui-client 全量 361 pass / 3 skip。未动生产 label / PID 71847。未改业务 src。
+
+## 绑定条目
+
+### AT-F16-001
+status: partial
+behavior_id: F16-HAN-09
+combo_id: DEL-SETTINGS-NATIVE
+level: L4
+environment: launchd
+evidence: packages/agent-service/tests/service/at-f16-f15-native.test.ts
+note: 隔离 label 真装已过;原生设置页开启仍 uncovered。禁止动 PID 71847。
+### AT-F16-003
+status: uncovered
+behavior_id: F16-HAN-11
+combo_id: DEL-OWNED-DRAIN
+level: L4
+environment: launchd
+evidence: packages/agent-service/tests/service/at-f16-f15-native.test.ts
+skip_reason: environment — 真实 sidecar 排空会碰本机服务;禁止 PID 71847
+### AT-F15-001
+status: uncovered
+behavior_id: F15-INT-04
+combo_id: LC-INTENT-PERSIST
+level: L4
+environment: isolated-home
+evidence: packages/agent-service/tests/service/at-f16-f15-native.test.ts
+skip_reason: environment — 未设 LUMEN_AT_ISOLATED_HOME=1
+### AT-F20-001
+status: covered
+behavior_id: F20-STO-06
+combo_id: SEC-SANDBOX-EVIDENCE
+level: L4
+environment: temp-root
+evidence: packages/agent-service/tests/service/at-f20-001.test.ts;sandbox-exec READ_BLOCKED/WRITE_BLOCKED;blob mismatch
+### CT-F02-013
+status: covered
+behavior_id: F02-OWN-05
+combo_id: CON-LOCK-SAME-INODE
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f02-013.test.ts;abandon/release/finish/publish/reclaim 跨进程 inode
+note: F02-OWN-05 本批由 CT-F02-019 钉 createService 完成路径升 covered;本 combo 仍由 CT-F02-013 钉死。不升 CON-LOCK-SAME-INODE 额外入口
+### CT-F18-002
+status: covered
+behavior_id: F18-CTX-02,F18-CTX-03
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f18-002.test.ts;fold+vision+summary+filter+omit+truncate
+note: CTX-02/03 本候选均 covered;非 accepted
+### CT-F17-006
+status: covered
+behavior_id: F17-REQ-06
+combo_id: PER-ATTEMPT
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f17-006.test.ts;PARTIAL_SSE_777 + stream:true + cancel
+### CT-F08-005
+status: covered
+behavior_id: F08-TXN-07
+combo_id: PER-DB-EVENT
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f08-005.test.ts;register/start/complete/prepareResume 注入回滚
+### CT-F10-012
+status: covered
+behavior_id: F10-ID-13,F10-ID-14
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f10-012.test.ts;beginTurn 回滚;WS spawn+list_exec_records;未知类型 failed
+### AT-F05-001
+status: uncovered
+behavior_id: F05-DST-11
+combo_id: ID-SWITCH-UPLOAD
+level: L4
+environment: real-webkit
+evidence: packages/ui-client/tests/at-webkit-env.test.ts
+skip_reason: environment — 未设 LUMEN_AT_WEBKIT=1
+### AT-F12-001
+status: uncovered
+behavior_id: F12-VW-06
+combo_id: —
+level: L4
+environment: real-webkit
+evidence: packages/ui-client/tests/at-webkit-env.test.ts
+skip_reason: environment — 未设 LUMEN_AT_WEBKIT=1
+### AT-F24-001
+status: uncovered
+behavior_id: F24-RPL-11,F22-BAD-05
+combo_id: —
+level: L4
+environment: real-webkit
+evidence: packages/ui-client/tests/at-webkit-env.test.ts
+skip_reason: environment — 未设 LUMEN_AT_WEBKIT=1
+### CT-F19-004
+status: covered
+behavior_id: F19-TOL-04,F19-TOL-05
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f19-004.test.ts;exit 7/SIGTERM/timeout 1s/脚本原文进 exec_records
+note: F19-TOL-04/05 本候选均 covered;非 accepted
+### CT-F20-006
+status: covered
+behavior_id: F20-STO-08,F20-STO-07
+combo_id: PER-ORPHAN
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f20-006.test.ts;超限 truncated;孤立 blob 清理;流式/查询/导出/内存四条 EXEC_LIMITS
+note: STO-07/08 本候选均 covered;四条上限运行时强制+大正文;非多小时会话;非 accepted
+### CT-F13-007
+status: partial
+behavior_id: F13-REQ-07
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f13-007.test.ts;全 type 非法形状+WS error requestId;list 超时
+note: 全 type 非法形状+WS error 已钉;超时 list 见本条,get_settings/list_projects 见 CT-F13-008,submit/continue 见 CT-F13-009,createProject/listSkills 见 CT-F13-010;其余 type 仍未挂超时(BATCH-GAP-01)
+### CT-F01-009
+status: covered
+behavior_id: F01-SIDE-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f01-009.test.ts;CLIENT_TYPES WS 非法载荷不写任务
+note: WS 全 CLIENT_TYPES 非法载荷不写任务;HTTP 写入口见 CT-F01-010
+### RP-F24-009
+status: covered
+behavior_id: F24-RPL-10
+combo_id: —
+level: L5
+environment: temp-root
+evidence: packages/agent-service/tests/service/rp-f24-009.test.ts;liveModel 0 调用;live_eval≠recorded_replay;assertion=passed
+### AT-F16-004
+status: partial
+behavior_id: F16-HAN-12
+combo_id: DEL-BUILD-HASH
+level: L4
+environment: installed-app
+evidence: packages/agent-service/tests/service/at-f16-004.test.ts;本机 /Applications/Lumen.app 与仓库 bundle hash 一致
+note: 当次构建已装;App sha256=57ee40da87444186cbf4ef8a7db819370048bbd73455c8165a42ec72a876ea27;服务未同候选重装,不得外推其他机器
+### CT-F18-003
+status: covered
+behavior_id: F18-CTX-04
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f18-003.test.ts;tools/maxSteps/fold 预算从 loop 采集
+note: 快照已采集;长会话数值验证仍属 F20-STO-07
+### CT-F07-006
+status: covered
+behavior_id: F07-RES-06,F18-CTX-05
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f07-006.test.ts;四类 resultSource 同任务可查
+### CT-F20-007
+status: covered
+behavior_id: F20-STO-09
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f20-007.test.ts;EXEC_RETENTION;过期孤儿删;引用/未过期留;失败不假装
+### CT-F21-004
+status: covered
+behavior_id: F21-QRY-04
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f21-004.test.ts;list/read/export 期间 chat/run 为 0
+### CT-F17-007
+status: covered
+behavior_id: F17-REQ-07
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f17-007.test.ts;versionPrecision=unknown;configExact=false
+### CT-F17-008
+status: covered
+behavior_id: F17-REQ-08
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f17-008.test.ts;before imageId/placeholder vs afterRequest
+### CT-F22-004
+status: covered
+behavior_id: F22-BAD-04
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f22-004.test.ts;三类 kind 持久可 list;evidenceGap;不改 task_events
+### CT-F23-003
+status: covered
+behavior_id: F23-PKG-03
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f23-003.test.ts;独立 destDir 读清单;无 lumenHome 源文件
+### CT-F23-004
+status: covered
+behavior_id: F23-PKG-04
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f23-004.test.ts;fetch/upload=0;产物只在 destDir
+### CT-F03-006
+status: covered
+behavior_id: F03-DRN-06
+combo_id: LC-REPEAT-CLOSE
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f03-006.test.ts;close/监听失败/组装失败放锁
+### CT-F04-005
+status: covered
+behavior_id: F04-IDM-05
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f04-005.test.ts;两轮 turn/generation;同轮不双写
+### CT-F06-005
+status: covered
+behavior_id: F06-SEC-05
+combo_id: SEC-SYMLINK-WRITE
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f06-005.test.ts;write_file+sandbox-exec 软链写拒
+### UT-F06-006
+status: covered
+behavior_id: F06-SEC-06
+combo_id: —
+level: L0
+environment: temp-root
+evidence: packages/agent-service/tests/service/ut-f06-006.test.ts;sandbox-exec;架构点名 Seatbelt
+### CT-F09-007
+status: covered
+behavior_id: F09-DUR-07
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f09-007.test.ts;appendEvent 失败不入库 runtime_failure;waitFor 显式失败
+### CT-F11-006
+status: covered
+behavior_id: F11-BOT-06
+combo_id: LC-REPEAT-CLOSE
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f11-006.test.ts;坏 DB/组装失败及时拒绝
+### CT-F14-005
+status: covered
+behavior_id: F14-ORI-05
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f14-005.test.ts;外站 upload 403 + WS submit 4403;无新文件/任务
+### CT-F19-006
+status: covered
+behavior_id: F19-TOL-06
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f19-006.test.ts;覆盖后旧 file_version 仍旧正文;诊断声明未跟踪网络/任意文件
+### CT-F20-008
+status: covered
+behavior_id: F20-STO-02
+combo_id: SEC-DIAG-REDACT
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f20-008.test.ts;对象 Authorization/apiKey/token/query;[redacted];originalComplete=false
+### CT-F21-005
+status: covered
+behavior_id: F21-QRY-05
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f21-005.test.ts;read_exec_record complete/missing/failed;坏 blob+权限
+### RP-F24-010
+status: covered
+behavior_id: F24-RPL-09
+combo_id: —
+level: L5
+environment: temp-root
+evidence: packages/agent-service/tests/service/rp-f24-010.test.ts;get_bad_case lastVerification use/status/gaps;problem+version
+### CT-F01-010
+status: covered
+behavior_id: F01-SIDE-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f01-010.test.ts;HTTP GET /pdf + POST /upload 无/错 token/外站 Origin 不写;未知路径 404;合法 upload 仍可用
+note: 现生产 HTTP 写入口只有 POST /upload;GET /pdf 只读
+### CT-F17-009
+status: covered
+behavior_id: F17-REQ-04
+combo_id: PER-ATTEMPT
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f17-009.test.ts;503 后 SSE 中断;attempt 1/2;PARTIAL_SSE_RETRY_331;错误语义
+note: 流式中断与 503 同路径;非 accepted
+### CT-F02-014
+status: covered
+behavior_id: F02-OWN-11
+combo_id: —
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f02-014.test.ts;hold-instance-lock × unlink-same-holder;inode/PID 不变;第三者 denied
+note: 真实 FS 竞态;安全占位不按路径删;非 accepted
+### CT-F01-011
+status: covered
+behavior_id: F01-PRE-01
+combo_id: —
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f01-011.test.ts;非 Upgrade 残握手 + GET /evil-not-root 后合法 list
+note: decoder 前传输错误;非法 UTF-8 仍归 F01-DEC-02;非 accepted
+### CT-F13-008
+status: covered
+behavior_id: F13-REQ-03,F13-REQ-07
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f13-008.test.ts;get_settings/list_projects 400ms 超时与断线带回 requestId;旧 socket 不得占新 id
+note: F13-REQ-07 仍 partial:已钉 get_settings/list_projects;submit/continue 见 CT-F13-009;createProject/listSkills 见 CT-F13-010;其余异步 type 未挂超时。禁止标 covered。
+### CT-F21-006
+status: covered
+behavior_id: F21-QRY-01
+combo_id: —
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f21-006.test.ts;真实 WS list/read/export_exec_pack 同 requestId;非法缺字段/错 type 不写 blob 不改任务;随后 list 仍结算
+note: 升 static+decode 到真实 WS;非 accepted
+### CT-F24-011
+status: covered
+behavior_id: F24-RPL-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f24-011.test.ts;历史查看不 spawn turn;continue 进循环;replay≠continue 且 liveModel=0;live_eval 调 liveModel 且 use 可分
+note: 四种能力真实服务路径分开;非 accepted
+### CT-F01-012
+status: partial
+behavior_id: F01-DEC-01
+combo_id: —
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f01-012.test.ts;null/数组/缺 type/坏 JSON 后无 upload 无新 task;随后 list 可用
+note: rename_project / archive_project / install_skill / update_bad_case 见 CT-F01-017；仍缺 uninstall_skill / activate_skill / archive_task / rename_task / pin_task 及诊断回放写入口等其余写入口全矩阵。禁止标 covered。
+### CT-F06-007
+status: covered
+behavior_id: F06-SEC-01
+combo_id: SEC-DEFAULT-CUSTOM
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f06-007.test.ts;默认根与自定义 lumenHome 同时进策略;Darwin sandbox-exec 读任一根 READ_BLOCKED
+note: Darwin 真跑读拒;非 accepted。SEC-DEFAULT-CUSTOM 本批随 CT-F06-008 升 covered。
+### CT-F20-009
+status: covered
+behavior_id: F20-STO-05
+combo_id: —
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f20-009.test.ts;profile 含 evidence realpath 与 write deny;Darwin sandbox-exec WRITE_BLOCKED
+note: 点名 STO-05 两条;不因 AT-F20-001 外推;非 accepted
+### CT-F01-013
+status: partial
+behavior_id: F01-DEC-01
+combo_id: —
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f01-013.test.ts;未知 type + 非字符串/重复 requestId 后无 upload 无新 task;随后 list 可用
+note: rename_project / archive_project / install_skill / update_bad_case 见 CT-F01-017；仍缺 uninstall_skill / activate_skill / archive_task / rename_task / pin_task 及诊断回放写入口等其余写入口全矩阵。禁止标 covered。
+### CT-F06-008
+status: covered
+behavior_id: F06-SEC-02
+combo_id: SEC-DEFAULT-CUSTOM
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f06-008.test.ts;默认根与自定义根各有 .env;Darwin sandbox-exec 读两份 READ_BLOCKED 且不得读出正文
+note: 本行自己的 test_id;Darwin 真跑才 covered;非 Darwin skip 保持 partial;非 accepted
+### CT-F13-009
+status: partial
+behavior_id: F13-REQ-07
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f13-009.test.ts;submit/continue 400ms 超时带回同一 requestId;墙钟≤3s
+note: F13-REQ-07 仍 partial:已钉 list / get_settings / list_projects / submit / continue / create_project / list_skills;其余异步 type 未挂超时。禁止标 covered。
+### CT-F01-014
+status: partial
+behavior_id: F01-DEC-01
+combo_id: —
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f01-014.test.ts;截断/半帧(合法 UTF-8、非完整 JSON)后无 upload 无新 task;随后 list 可用
+note: rename_project / archive_project / install_skill / update_bad_case 见 CT-F01-017；仍缺 uninstall_skill / activate_skill / archive_task / rename_task / pin_task 及诊断回放写入口等其余写入口全矩阵。禁止标 covered。
+### CT-F06-009
+status: covered
+behavior_id: F06-SEC-03
+combo_id: —
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f06-009.test.ts;自定义 lumenHome 写 agent-service.json;策略含给定路径与 realpath;Darwin sandbox-exec READ_BLOCKED 且不得读出正文
+note: 本行自己的 test_id;Darwin 真跑才 covered;非 Darwin skip 保持 partial;非 accepted
+### CT-F16-008
+status: covered
+behavior_id: F16-HAN-01
+combo_id: —
+level: L1
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f16-008.test.ts;parseLaunchctlPrint 分 running/崩溃/缺失;本地 HTTP 可连但 print 缺失时 ownedByJob=false、不得已开启常驻
+note: 端口可连 ≠ 托管;未碰生产 label / PID 71847 / 原生设置页;非 accepted
+### CT-F01-015
+status: partial
+behavior_id: F01-DEC-01
+combo_id: —
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f01-015.test.ts;非法 update_settings / export_exec_pack 后 settings 不改、无新 exec blob/task/upload;随后 list 可用
+note: rename_project / archive_project / install_skill / update_bad_case 见 CT-F01-017；仍缺 uninstall_skill / activate_skill / archive_task / rename_task / pin_task 及诊断回放写入口等其余写入口全矩阵。禁止标 covered。
+### CT-F06-010
+status: covered
+behavior_id: F06-SEC-04
+combo_id: —
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f06-010.test.ts;同一 Seatbelt profile 工作区写成功、合法 skills 可读;凭证读/写仍拒;不得整树 deny 数据根;Darwin sandbox-exec 真跑
+note: 本行自己的 test_id;Darwin 真跑写成功+凭证仍拒才 covered;非 Darwin skip 保持 partial;非 accepted
+### CT-F16-009
+status: covered
+behavior_id: F16-HAN-02
+combo_id: DEL-INTENT-UNKNOWN
+level: L1
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f16-009.test.ts;活 PID=process.pid+本地 TCP 可连;print 缺失或 PID 不对时 classifyLiveOwner=unknown、decideInstallAction=conflict;不得 bootstrap/already
+note: 真实活 PID+可连端口;未碰生产 label / PID 71847 / 不 bootout / 不 bootstrap 生产;intent 落盘交叉见 CT-F16-014。非 accepted
+### CT-F01-016
+status: partial
+behavior_id: F01-DEC-01
+combo_id: —
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f01-016.test.ts;非法 set_model / create_project / mark_bad_case 后 settings 不改、无新 task/项目/bad_case;随后 list 与 list_projects 可用
+note: rename_project / archive_project / install_skill / update_bad_case 见 CT-F01-017；仍缺 uninstall_skill / activate_skill / archive_task / rename_task / pin_task 及诊断回放写入口等其余写入口全矩阵。禁止标 covered。
+### CT-F16-010
+status: covered
+behavior_id: F16-HAN-03
+combo_id: —
+level: L1
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f16-010.test.ts;活 PID=process.pid+本地 TCP 可连;print 匹配 PID 且 lastExit=1 时 jobLooksHealthy=true、decideInstallAction=already;不得 bootstrap/conflict
+note: 真实活 PID+可连端口+匹配 job;lastExit=1 不得否决 running;未碰生产 label / PID 71847 / 不 install / 不 bootout。非 accepted
+### CT-F16-011
+status: covered
+behavior_id: F16-HAN-04
+combo_id: —
+level: L1
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f16-011.test.ts;live=null 或端口不可连且无确认 PID + job 缺失 → bootstrap;未知活 PID+可连端口必须 conflict,不得 bootstrap
+note: 只测判定,未真执行 bootstrap / launchd:install;未碰生产 label / PID 71847。非 accepted
+### CT-F01-017
+status: partial
+behavior_id: F01-DEC-01
+combo_id: —
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f01-017.test.ts;非法 rename_project / archive_project / install_skill / update_bad_case 后 settings 不改、无新 task/项目/skill/bad_case;随后 list 与 list_projects / list_skills 可用
+note: 本批新钉 rename_project / archive_project / install_skill / update_bad_case 非法写入;仍缺 uninstall_skill / activate_skill / archive_task / rename_task / pin_task 及诊断回放写入口等其余写入口全矩阵。禁止标 covered。
+### CT-F16-012
+status: covered
+behavior_id: F16-HAN-08
+combo_id: —
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f16-012.test.ts;隔离 temp home 拉真实 service.ts 入口 SIGTERM 走 handle.close;锁与 portfile 释放;重复信号不并发关;installSignalHandlers 80ms 超时非 0
+note: 真实入口+可注入短超时;未碰生产 label / PID 71847 / 不 launchd:install / 不 bootout。非 accepted
+### CT-F13-010
+status: partial
+behavior_id: F13-REQ-07
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f13-010.test.ts;createProject/listSkills 400ms 超时带回同一 requestId;墙钟≤3s
+note: F13-REQ-07 仍 partial:已钉 list / get_settings / list_projects / submit / continue / create_project / list_skills;其余异步 type 未挂超时。禁止标 covered。
+### CT-F16-013
+status: covered
+behavior_id: F16-HAN-07
+combo_id: DEL-LAUNCHD-FAIL
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f16-013.test.ts;隔离 HOME+假 launchctl 走真实 installLaunchAgent;wait 超时 bootout 测试 label;冲突 bootout 且不 kickstart;意图仍为开
+note: 走真实 launchd.ts 失败/冲突路径;未碰生产 label / PID 71847 / 不 launchd:install。combo 仍缺原生重开。非 accepted
+### CT-F03-008
+status: covered
+behavior_id: F03-DRN-07
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f03-008.test.ts;createService 跑过一轮后 handle.close;旧 runtime submit/continue 失败;listener 不再收到该任务新 event;appendEvent 成功次数不增
+note: 真实 createService+EventHub.close;非整约 accepted
+### CT-F03-009
+status: covered
+behavior_id: F03-DRN-05
+combo_id: LC-CLOSE-REOPEN
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f03-009.test.ts;createService A start+hanging submit+close;第二实例必须 start;旧任务不得 running;A 不得再 submit/continue;B 可写短任务 waitFor
+note: 真实第二实例 start;不是只复述 R04。非整约 accepted
+### CT-F03-010
+status: covered
+behavior_id: F03-DRN-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f03-010.test.ts;后台 child 进入模型后 close 须等退出;返回前 acquireInstanceLock 失败;再开必须 start;child 不得仍 running
+note: 真实第二实例 start;不是只扫 round1。非整约 accepted
+### CT-F03-011
+status: covered
+behavior_id: F03-DRN-02
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f03-011.test.ts;createService 父任务 spawn 后台 child 后仍 running;runtime.cancel(parentId) 非 close;等到父不 running 且 child 退出;cancel 后仍可 submit 短任务 waitFor;再开必须 start
+note: 真实 runtime.cancel 而非 handle.close;不是只复述 round4。非整约 accepted
+### CT-F03-012
+status: covered
+behavior_id: F03-DRN-04
+combo_id: LC-SHUTDOWN-MODEL
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f03-012.test.ts;abort-deaf 模型 handle.close({ timeout:400 }) 必须失败;失败后 acquireInstanceLock 与第二 createService 抛 InstanceLockError;无 unhandledRejection
+note: 超时失败不得放锁;不是只扫 G14-10 字符串。非整约 accepted
+### CT-F03-013
+status: covered
+behavior_id: F03-DRN-03
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f03-013.test.ts;createService 父 spawn 后台 child 后 waitFor 父 done;child 仍 running/live;handle.close 须等 child 退出;返回前 acquireInstanceLock 失败;再开必须 start
+note: 真实父已 done 才 close;不是 coordinator 单测,也不是父还 running 的 DRN-01。非整约 accepted
+### CT-F03-014
+status: covered
+behavior_id: F03-DRN-08
+combo_id: LC-PARENT-LIVE-CHILD
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f03-014.test.ts;父 done 后 hang child 仍 running;quick 兄弟已结束;sweep 与再 spawn 不得误封 live child;不测 close/drain
+note: 独立断言父 done≠child 结束;combo 随 CT-F10-018 升 covered。非整约 accepted
+### CT-F15-002
+status: covered
+behavior_id: F15-INT-01
+combo_id: DEL-FIRST-BOOT
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f15-002.test.ts;隔离 HOME+假 launchctl；无意图文件时真实 launchAgentStatus.intentEnabled===true 且 shouldAutoInstall===true；writeBackgroundIntent(false) 后不可装；plist 不因此创建
+note: 走真实 launchAgentStatus 读隔离文件；不手传 boolean；未碰生产 label / PID 71847 / 不 launchd:install。非整约 accepted
+### CT-F15-003
+status: covered
+behavior_id: F15-INT-02
+combo_id: —
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f15-003.test.ts;隔离 HOME+假 plist+真实 uninstallLaunchAgent；意图关、plist 不在、shouldAutoInstall/shouldRepair 为假；uninstall 后无 bootstrap/kickstart
+note: 走真实 uninstall+status；不复述纯函数；未碰生产 label / PID 71847 / 不 launchd:install。非整约 accepted
+### CT-F15-004
+status: covered
+behavior_id: F15-INT-03
+combo_id: —
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f15-004.test.ts;隔离 HOME+假 launchctl；writeBackgroundIntent(true)+无 plist/无 portfile+print 缺失 → 真实 launchAgentStatus 填 shouldRepair===true；未知活 PID+可连端口 → portfileAlive 且不修；意图 false 即使 job 缺失也不修；不得 bootstrap/bootout/杀 PID
+note: 走真实 status 填 shouldRepair；不手传 boolean；未碰生产 label / PID 71847 / 不 launchd:install。非整约 accepted
+### CT-F16-014
+status: covered
+behavior_id: F16-HAN-02
+combo_id: DEL-INTENT-UNKNOWN
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f16-014.test.ts;隔离 HOME+假 launchctl；意图 true/false 与未知活 PID 交叉：classifyLiveOwner=unknown、decideInstallAction=conflict；不得调用 installLaunchAgent；读回意图不变；不得 bootstrap/bootout/杀 PID
+note: 意图落盘交叉；不调用 installLaunchAgent；不复述 CT-F16-009；未碰生产 label / PID 71847。非整约 accepted
+### CT-F09-009
+status: covered
+behavior_id: F09-DUR-08
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f09-009.test.ts;真实 createService 收尾 finishTurn 失败；waitFor 失败；isRunning=false；可再 submit 短任务 waitFor 完成
+note: 收尾失败摘 live 且无泄漏句柄；不是只扫 finally。非整约 accepted
+### CT-F04-006
+status: covered
+behavior_id: F04-IDM-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f04-006.test.ts;真实 createService spawn 后同轮二次 complete；subagent_completed=1；reminder≤1
+note: 真实服务路径同轮重试；不是新轮冒充同轮。非整约 accepted
+### CT-F04-007
+status: covered
+behavior_id: F04-IDM-02
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f04-007.test.ts;真实 createService spawn 后 continueTask resume；新 subagent_completed 是另一事件/另一 generation；历史 id/payload/turn 不改写
+note: 真实服务路径新轮完成；不是同轮重试冒充新轮。非整约 accepted
+### CT-F04-008
+status: covered
+behavior_id: F04-IDM-03
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f04-008.test.ts;真实 createService 新轮 running 后旧 generation complete 丢弃；历史完成不被替换；不得写出当前轮完成
+note: 真实服务路径迟到 complete；不是只扫源码。非整约 accepted
+### CT-F04-009
+status: covered
+behavior_id: F04-IDM-04
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f04-009.test.ts;真实 createService continueTask resume 后新轮另有 subagent_completed 与 subagent_completion_reminder；不得只留历史 reminder
+note: 真实服务路径新轮完成+通知；不是只复述 CT-F04-007。非整约 accepted
+### CT-F09-010
+status: covered
+behavior_id: F09-DUR-02
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f09-010.test.ts;真实 createService 收尾 finishTurn 失败；waitFor reject；持久 status 不得写成 done；监控见 runtime_failure
+note: 失败不得装成功终态；不是只复述 CT-F09-009 的 isRunning。非整约 accepted
+### CT-F09-011
+status: covered
+behavior_id: F09-DUR-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f09-011.test.ts;真实 createService 库级 status 失败回滚同事务 turn_end；持久 status 不得写成 done
+note: 库级 trigger 打在 finishTurn 事务内 status 更新；不是 JS 包装抛错，也不是只复述 CT-F09-007/010。非整约 accepted
+### CT-F09-012
+status: covered
+behavior_id: F09-DUR-03
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f09-012.test.ts;真实 WS submit 后库级 finishTurn 失败；inbox 有 durable runtime_failure；持久 status 不得伪造 failed
+note: 真实 WebSocket 客户端看见 runtime_failure；不是只改 binding 或内存 onRuntimeFailure。非整约 accepted
+### CT-F09-013
+status: covered
+behavior_id: F09-DUR-04
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f09-013.test.ts;真实 createService+WS;库级 context_usage 失败;phase===context_usage;durable=false;终态仍 done;失败事件不落库
+note: 库级 trigger 打在 context_usage 插入;不是 finishTurn/status 事务,也不是只改 binding 把 G14-03 吹 covered。非整约 accepted
+### CT-F09-014
+status: covered
+behavior_id: F09-DUR-05
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f09-014.test.ts;真实 EventHub+TaskStore+SQLite 同步抛与 Promise.reject;createService 续跑仍隔离;终态不改;phase=event_listener
+note: 两个 test() 分别钉 sync throw 与 Promise.reject;不是只扫 round14-a 标题。非整约 accepted
+### CT-F09-015
+status: covered
+behavior_id: F09-DUR-06
+combo_id: PER-JSONL
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f09-015.test.ts;真实 createService;第一轮写出 jsonl 后把该文件换成目录;后续 appendFileSync 失败;终态仍 done;live 仍见 model_step;phase=session_projection;durable=false
+note: 文件级投影失败;不是 JS wrap finishTurn,也不是复述 CT-F09-013 的 context_usage。非整约 accepted
+### CT-F08-006
+status: covered
+behavior_id: F08-TXN-01
+combo_id: PER-DB-EVENT
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f08-006.test.ts;真实 createService+SQLite;库级 trigger 打在父任务 status→running;失败后仍 queued;isRunning=false;解除后同一任务可完成
+note: 钉父任务 queued→running,不是 CT-F08-005 子代理 markRunning。PER-DB-EVENT 本批随 F08-TXN-04/05 升 covered。非整约 accepted
+### CT-F08-007
+status: covered
+behavior_id: F08-TXN-02
+combo_id: PER-DB-EVENT
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f08-007.test.ts;真实 createService+spawn_subagent;child running+live 后库级 status→done 失败仍 running、live、active_turn;process 无未处理拒绝;解除后同一 child 可 complete
+note: 钉真实 spawn 后 complete 失败保留 live,不是 CT-F08-005 coordinator 单测,也不是 F09-DUR-08 摘 live。PER-DB-EVENT 本批随 F08-TXN-04/05 升 covered。非整约 accepted
+### CT-F08-008
+status: covered
+behavior_id: F08-TXN-03
+combo_id: PER-DB-EVENT
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f08-008.test.ts;真实 createService+spawn_subagent;库级 trigger 专打 subagent_completed;失败后不得 done 而无完成事件;解除后恰好补一条
+note: 钉事件失败与状态同回滚+重试补一条,不是只改 binding 把 005/007 吹成 008。PER-DB-EVENT 本批随 F08-TXN-04/05 升 covered。非整约 accepted
+### CT-F08-009
+status: covered
+behavior_id: F08-TXN-04
+combo_id: PER-DB-EVENT
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f08-009.test.ts;真实 createService+SQLite;库级 trigger 专打 turn_start 插入;失败后 getActiveTurnId=null;无 turn_start;status 仍 queued;isRunning=false;解除后同一任务可 beginTurn
+note: 钉 turn_start 插入失败回滚 active_turn,不是 CT-F08-006 的 status→running,也不是只扫 batch2 标题。非整约 accepted
+### CT-F08-010
+status: covered
+behavior_id: F08-TXN-05
+combo_id: PER-DB-EVENT
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f08-010.test.ts;真实 TaskStore+createService+SQLite;库级 trigger 专打 status_change 插入;失败后不得留下 running 而无事件;解除后同一次 update 主表与事件一致
+note: 钉 status_change 失败与主表同回滚,不是只改 binding 把 batch2 吹 covered,也不是复述 CT-F08-006。非整约 accepted
+### CT-F08-011
+status: covered
+behavior_id: F08-TXN-06
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f08-011.test.ts;真实 createService+spawn_subagent;同轮两次生产 rehydrateReminders 不追加;consumeReminder 后不追加;continueTask+resume_from 新轮换 key;历史 reminder payload 不变
+note: 钉真实服务 reminder 同轮幂等/消费后不追加/新轮换 key,不是只改 G14-11 binding,也不是复述 CT-F04-009。非整约 accepted
+### CT-F07-007
+status: covered
+behavior_id: F07-RES-05
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f07-007.test.ts;真实 createService;注入悬空 tool_call 后连续两次 sweepInterrupted;unknown 只一条;第二次不得再追加
+note: 钉真实服务再 sweep 不双写 unknown,不是只扫 round14-d 标题。不把 F10-ID-07 标 covered。非整约 accepted
+### CT-F07-008
+status: covered
+behavior_id: F07-RES-02
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f07-008.test.ts;真实 createService+spawn_subagent；child 事件 agent_role!==main；rebuildThread/continueTask 主线程无 worker write_file；不得混入 child model_step
+note: 钉真实 spawn_subagent 后重建主线程无 worker 内部步骤，不是只改 resume.test binding。不把 ID-MAIN-CHILD-OP 标 covered。非整约 accepted
+### CT-F07-009
+status: covered
+behavior_id: F07-RES-03
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f07-009.test.ts;真实 createService；同 providerCallId 两条 operation 只封未配对；生产 sweepInterrupted；再 sweep 不追加
+note: 钉生产 sweep 按 operationId 封口，不是只改 round4 binding 或直接调 sealUnknownToolResults。不把 F10-ID-07 标 covered。非整约 accepted
+### CT-F07-010
+status: covered
+behavior_id: F07-RES-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f07-010.test.ts;真实 createService；父任务跑完后写入 child 角色悬空 tool_call；生产 sweepInterrupted 封口仍是原 child agent_role，不得改成 main；payload 保留 operationId/subagent_id，resultStatus=unknown
+note: 钉生产 sweep 封口保留 child 角色，不是只改 round1 binding 或直接调 sealUnknown。不把 F07-RES-07 标 covered。非整约 accepted
+### CT-F07-011
+status: covered
+behavior_id: F07-RES-04
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f07-011.test.ts;真实 createService 全程；库级 trigger 打在 tool_result 插入；waitFor 失败且 isRunning=false；同一 service continueTask 续跑完成；rebuildThread.forModel 每个 tool_use 有配对；最后一条不得是孤立 tool_result；再 sweep 不追加
+note: 钉同一 createService 续跑配对完整，不是只改 round6 binding，也不是复述 009。非整约 accepted
+### CT-F07-012
+status: covered
+behavior_id: F07-RES-07
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f07-012.test.ts;真实 createService+spawn_subagent；child write_file/model_step 的 operationId 落库且 agent_role!==main；父账 main 的 tool_call/tool_result 不得使用 child operationId；listExecRecords 里 child write 不得变成无子身份的父主循环 operation；rebuildThread/continueTask 后仍不得改写成 main
+note: 钉父账不吞子 operation，不是复述 008 线程过滤，也不是只改 IT-F07-002 binding。不把 F10-ID-07 标 covered。非整约 accepted
+### CT-F10-013
+status: covered
+behavior_id: F10-ID-06
+combo_id: ID-MAIN-CHILD-OP
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f10-013.test.ts;真实 createService+spawn_subagent；listExecRecords 子循环 context/tool 挂父 task；parentOperationId 指向父 spawn/父 model，不得空、不得改成 child 自己的 operationId、不得抹掉；子 op 不改写成 main
+note: 钉真实 spawn 子循环 parentOperation 保留，不是只改 v2r-paths / CT-F10-006 binding。不把 F10-ID-07 标 covered。非整约 accepted
+### CT-F10-014
+status: covered
+behavior_id: F10-ID-01
+combo_id: ID-PROVIDER-VS-HOST
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f10-014.test.ts;真实 createService；脚本未知工具 providerCallId=prov-f10-014；落库 tool_call 的 providerCallId 等于模型 id，operationId 非空且 ≠ providerCallId；对应 tool_result 同 operationId 且 resultStatus=failed；model_step 在调用前已有宿主 operationId
+note: 钉真实 createService 未知工具宿主 operation ≠ providerCallId，不是只改 round1 binding，也不是复述 013 parentOperation。非整约 accepted
+### CT-F10-015
+status: covered
+behavior_id: F10-ID-07
+combo_id: ID-PROVIDER-VS-HOST
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f10-015.test.ts;真实 createService 生产工具；read_file 不存在 / edit_file old_string 不存在 / write_file ../escape.md / run_code process.exit(2) 落库 resultStatus=failed 不得 ok；先写入正文含 error 的文件再 read_file 该文件仍 ok
+note: 钉生产工具已知失败含 run_code 非零，不是只改 round6 binding，也不是 sweep unknown 冒充已知失败。非整约 accepted
+### CT-F10-016
+status: covered
+behavior_id: F10-ID-02
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f10-016.test.ts;真实 createService；脚本模型第一次 chat 挂起；任务 running 后生产 runtime.cancel(taskId)；落库 error/model_step/取消结果带非空宿主 operationId；resultStatus 为 cancelled 或 unknown，不得 ok/failed；waitFor 后 isRunning===false
+note: 钉真实 createService 生产 cancel 后仍有宿主 operationId 且结果 cancelled/unknown，不是只改 round1 binding，也不是直接 runAgent+AbortController。非整约 accepted
+### CT-F10-017
+status: covered
+behavior_id: F10-ID-08
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f10-017.test.ts;真实 createService+生产 spawn_subagent；未知类型 ghost-f10-017 落库 tool_result resultStatus=failed 不得 ok/cancelled；另一 submit spawn 真实 searcher 且 child 挂起后生产 runtime.cancel(parentId)；child 不再 running；落库 spawn tool_result/spawn 事件 resultStatus=cancelled 不得 failed/ok
+note: 钉真实 createService 生产 spawn 未知类型 failed、中止 cancelled，不是只改 round14-c binding，也不是直接 new ChildRunner。非整约 accepted
+### CT-F10-018
+status: covered
+behavior_id: F10-ID-09
+combo_id: LC-PARENT-LIVE-CHILD
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f10-018.test.ts;真实 createService+生产 spawn 两 child；live 兄弟不误封；末子 complete 后同进程 unknown、不经 sweep、不跑工具；再 sweep 不双写
+note: 钉真实 createService 末子 complete 同进程封 unknown，不是只改 idle-seal binding，也不是复述 CT-F03-014。非整约 accepted
+### CT-F10-019
+status: covered
+behavior_id: F10-ID-10
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f10-019.test.ts;真实 createService；生产 archiveTask 后注入悬空 tool_call；生产 sweep 一条 unknown；再 sweep 不重复
+note: 钉归档父任务生产 sweep，不是只改 round14-d binding，也不是复述 007。非整约 accepted
+### CT-F10-020
+status: covered
+behavior_id: F10-ID-03
+combo_id: ID-AUX-CALL
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f10-020.test.ts;真实 createService；标题 chat 前已有非空 operationId；失败同 op / purpose=title_backfill / resultStatus=failed 可对上原 taskId；晚到回填不覆盖已有标题
+note: 钉真实 createService 标题回填身份，不是只改 round2 binding，也不是直接 new AgentRuntime。非整约 accepted
+### CT-F10-021
+status: covered
+behavior_id: F10-ID-04
+combo_id: ID-AUX-CALL
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f10-021.test.ts;真实 createService；service.runtime.repairMermaidSource 成功/失败各一条；purpose=mermaid_repair；operationId 非空且 ≠ 主循环 chat
+note: 钉真实 createService 修图成功/失败身份与主循环分开。取消见 CT-F10-024。非整约 accepted
+### CT-F10-022
+status: covered
+behavior_id: F10-ID-05
+combo_id: ID-AUX-CALL
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f10-022.test.ts;真实 createService；脚本调生产 look_at_image；listExecRecords purpose=vision；operationId 非空且 ≠ 主循环 chat；成功/失败各一条可定位，失败 resultStatus 不得 ok
+note: 钉真实 createService 生产 look_at_image 写 vision record，不是只改 v2r-paths binding，也不是直接 new AgentRuntime。非整约 accepted
+### CT-F10-023
+status: covered
+behavior_id: F10-ID-11
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f10-023.test.ts;真实 createService；write_file 后库级 trigger 让 tool_result 写失败；同一 service continueTask 恢复只补 unknown，共用 operationId；目标文件不得被恢复轮重写
+note: 钉同一 createService 写工具中断恢复不重跑写入，不是只改 R13 binding，也不是复述 015/011。非整约 accepted
+### CT-F10-024
+status: covered
+behavior_id: F10-ID-04
+combo_id: ID-AUX-CALL
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f10-024.test.ts;真实 createService；service.runtime.repairMermaidSource 返回 { done, cancel }；模型 chat 挂起后生产 cancel；同一 operationId；purpose=mermaid_repair；resultStatus=cancelled，不得 ok/failed；op ≠ 主循环 chat
+note: 钉真实 createService 修图生产 cancel 仍属原操作，不是只改 021 binding，也不是只扫源码。非整约 accepted
+### CT-F10-025
+status: covered
+behavior_id: F10-ID-12
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f10-025.test.ts;真实 createService；生产 OpenAI stream 503 后成功；listExecRecords 同 operationId 的 attempt 1 与 2；流式中断保留 PARTIAL_SSE 原文且不丢 attempt
+note: 钉真实 createService 生产主循环重试与流式中断，不是只改 V2R-04 binding，也不是复述 015。非整约 accepted
+### CT-F17-010
+status: covered
+behavior_id: F17-REQ-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f17-010.test.ts;真实 createService 生产主循环;listExecRecords/readExecRecord;model_request JSON 含 tools;无 apiKey/Authorization/sk-secret;同任务 model_response;畸形 SSE 仍留原文
+note: 钉真实 createService 生产流 request JSON 含 tools 且解析失败留原文，不是只改 f17-f21 binding，也不是复述 CT-F10-015。非整约 accepted
+### CT-F17-011
+status: covered
+behavior_id: F17-REQ-05
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f17-011.test.ts;同一 createService;title_backfill/mermaid_repair/vision/子循环 exec_records;失败 resultStatus 不得 ok 且挂原 taskId
+note: 钉同一 createService 四条生产路径落 exec_records，不是只改 v2r-paths binding，也不是直接 new AgentRuntime。非整约 accepted
+### CT-F17-012
+status: covered
+behavior_id: F17-REQ-02
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f17-012.test.ts;真实 createService 生产主循环;update_settings 改模型/系统提示;readExecRecord 同一 record 正文逐字节不变;不按事后配置重建
+note: 钉真实 createService 改 settings 后历史正文不变，不是只改 f17-f21 binding，也不是复述 CT-F17-010。非整约 accepted
+### CT-F17-013
+status: covered
+behavior_id: F17-REQ-03
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f17-013.test.ts;真实 createService;update_settings 关采集再跑再开;listExecRecords 历史 not_collected;不补造正文
+note: 钉真实 createService 生产采集开关，不是只改 f17-f21 binding，也不是插库假装或把 010 畸形 SSE 当 not_collected。非整约 accepted
+### CT-F02-015
+status: covered
+behavior_id: F02-OWN-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f02-015.test.ts;两份真实 createService+start;第二进程 try-create-service 写入前 denied;lock/portfile/sqlite inode 不变;close 后再开成功
+note: 钉两份真实 createService 不得双写，不是只改 batch2 binding，也不是直接 new 锁对象。非整约 accepted
+### CT-F02-016
+status: covered
+behavior_id: F02-OWN-02
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f02-016.test.ts;损坏/死 pid 经 createService.start 回收;hold-instance-lock 活持有者时 try-create-service denied;旧观察不得删新锁
+note: 钉死 pid 可回收与活持有者不得被抢，取得权走 createService/start。不把 F02-OWN-03 / CON-TRIPLE-RECLAIM 标 covered。非整约 accepted
+### CT-F02-017
+status: covered
+behavior_id: F02-OWN-03
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f02-017.test.ts;三进程 A 过期观察死锁后 B 经 createService.start 取得;A 随后回收不得删 B 的 inode/pid;publish-pause-finish 后 pause-then-reclaim 交叉不得删已发布锁
+note: 钉回收不得删他人新锁与发布/回收交错，取得权走 createService/start。禁止只改 round1/round4 binding。不把 CON-TRIPLE-RECLAIM 标 covered。非整约 accepted
+### CT-F02-018
+status: covered
+behavior_id: F02-OWN-04
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f02-018.test.ts;活 createService.start 已写 lock+portfile+SQLite;pause-then-reclaim 与 try-acquire 不得抢;SIGKILL 该子进程后新 start 才能取得
+note: 钉写入后与 SIGKILL 对照，不是只改 round4 binding，也不是复述 016 的活着时 denied。非整约 accepted
+### CT-F02-019
+status: covered
+behavior_id: F02-OWN-05
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f02-019.test.ts;真实 createService 完成路径换 inode 失败且不接管;第三者 pid/inode 仍在;无 portfile
+note: 钉真实 createService 完成路径换 inode，不是只改 013 binding，也不是直接 new 锁对象。不升 CON-LOCK-SAME-INODE。非整约 accepted
+### CT-F02-020
+status: covered
+behavior_id: F02-OWN-06
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f02-020.test.ts;真实 createService close 释放与 acquire 放弃换 inode 后第三者留下;本实例不得删、不得接管
+note: 钉真实 createService 关闭/放弃入口，不是只改 013 binding，也不是复述 019 的 finish。不升 CON-LOCK-SAME-INODE。非整约 accepted
+### CT-F02-021
+status: covered
+behavior_id: F02-OWN-07
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f02-021.test.ts;真实 createService 遇根外软链失败;完成路径换成软链失败且不接管;根外字节不变;无 portfile;本进程 PID 不写外文件
+note: 钉真实 createService 工厂取得权，不是只改 007/round10/12 binding，也不是直接调锁纯函数。不升 SEC-SYMLINK-WRITE / OWN-09..12。非整约 accepted
+### CT-F02-022
+status: covered
+behavior_id: F02-OWN-08
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f02-022.test.ts;真实 createService 遇根外硬链失败;根外原文不变;本进程 PID 不得落上该 inode;无 portfile
+note: 钉真实 createService 工厂取得权，不是只改 008/round13 binding，也不是复述 021 软链。不升 OWN-09..12。非整约 accepted
+### CT-F02-023
+status: covered
+behavior_id: F02-OWN-09,F11-BOT-05
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f02-023.test.ts;失败者 createService 仍活;路径不得留其 PID;第二份 createService.start 取得根并写 portfile/SQLite
+note: 钉真实 createService 工厂取得权与跨进程第二人 start，不是只改 013/round11/12 binding，也不是只调锁纯函数。不升 CON-LOCK-SWAP / OWN-10 / OWN-11 / BOT-01..04。非整约 accepted
+### CT-F02-024
+status: covered
+behavior_id: F02-OWN-12
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f02-024.test.ts;同进程发布后立即打不开;createService 失败;路径不留本进程 PID;进程仍活;同进程第二次 start 取得并写出
+note: 钉同进程 createService，不是 023 跨进程第二人，也不是 013 回收不得删活锁。不升 CON-LOCK-SWAP / OWN-10 / OWN-11。非整约 accepted
+### CT-F11-007
+status: covered
+behavior_id: F11-BOT-01,F11-BOT-02
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f11-007.test.ts;先占端口;createService.start 有限时间拒绝并放根;第二人 try-create-service 写出 portfile/SQLite 并能 hello;与运行中连接错误分开
+note: 钉真实 createService.start 端口占用失败,不是只改 round1 / ct-f03-006 binding,也不是只调 startServer。随 007 诚实升 BOT-02。不升 BOT-04。非整约 accepted
+### CT-F11-008
+status: covered
+behavior_id: F11-BOT-03
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f11-008.test.ts;fail-portfile-rename 失败者仍活、listen_released、锁已放;第二人 try-create-service 写出 portfile/SQLite 并能 hello
+note: 新文件新 ID,不是只改 G14-04 binding。不是复述 007 端口占用,也不是 BOT-05 / 023 锁打开失败。不升 BOT-04。非整约 accepted
+### CT-F18-004
+status: covered
+behavior_id: F18-CTX-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f18-004.test.ts;createService.start+submit 写出 kind=context 挂任务/轮次/operation;ALS 外生产 recordContext 抛错且不写成功 context
+note: 钉真实 createService 主循环 context，不是只改 V2R-05 / CT-F18-001 binding，也不是只调 runAgent。不升 CTX-02..05。非整约 accepted
+### CT-F11-009
+status: covered
+behavior_id: F11-BOT-04
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f11-009.test.ts;createService.start;turn_start 触发器;waitFor 拒绝;isRunning false;回滚 queued;再 submit 完成;关后第二实例 start+submit
+note: 钉真实 createService 准备失败释放 running，不是只改 batch2 binding，也不是复述 BOT-01/03 listen/portfile。非整约 accepted
+### CT-F19-007
+status: covered
+behavior_id: F19-TOL-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f19-007.test.ts;createService.start+submit/continue 写前 existed=false;两次 after;覆盖后旧 file_version 仍第一版;磁盘第二版;shared 写拒 after=missing
+note: 钉真实 createService 主循环 write_file 版本，不是只改 f17-f21 / CT-F19-001 binding，也不是复述 CT-F19-006。失败子句钉 shared 写拒 after=missing。不升 F19-TOL-03。非整约 accepted
+### CT-F19-008
+status: covered
+behavior_id: F19-TOL-02
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f19-008.test.ts;createService.start+submit 写/读超长;模型看见 persist 预览;证据仍有原文尾巴;预览不得标 complete 原文
+note: 钉真实 createService 主循环 persist 预览，不是只改 V2R-06 / CT-F19-002 binding，也不是只调 withResultPersist/runAgent。非整约 accepted
+### CT-F19-009
+status: covered
+behavior_id: F19-TOL-03
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f19-009.test.ts;createService.start+submit;生产 edit_file 改不存在文件;after contentStatus=missing;existed=false;不得 complete;不得空串冒充 after 正文;磁盘 ENOENT
+note: 钉真实 createService 主循环 edit_file after 缺失，不是只改 V2R-12 binding，不是复述 CT-F19-007 shared 写拒。非整约 accepted
+### CT-F20-010
+status: covered
+behavior_id: F20-STO-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f20-010.test.ts;createService.start+submit 写出 contentSha256;改 blob 后 listExecRecords/readExecRecord/exportExecPack 不得 complete/present;hash_mismatch/mismatch/failed
+note: 钉真实 createService 主循环写出 sha 后改 blob，不是只改 V2R-02 binding，不是手插 ExecStore。非整约 accepted
+### CT-F20-011
+status: covered
+behavior_id: F20-STO-03
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f20-011.test.ts;createService.start+submit;生产 OpenAI stream 503 无正文;listExecRecords/readExecRecord 至少一条 contentStatus=failed 仍有可读正文与 contentSha256;hash 对得上;不得 complete
+note: 钉真实 createService 主循环采集失败仍落正文+hash，不是只改 V2R-04 / CT-F20-003 binding，不是手插 ExecStore，不是复述 CT-F20-010 改 blob mismatch。非整约 accepted
+### CT-F20-012
+status: covered
+behavior_id: F20-STO-04
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f20-012.test.ts;createService.start 后再让 exec-evidence 不可写;主循环新 record 不得 complete;须 failed/writeError/collection_gap;listTasks 终态仍 done
+note: 钉真实 createService start 后内容目录不可写，不是只改 V2R-11 / CT-F20-004 binding，不是手插空库。非整约 accepted
+### CT-F13-011
+status: covered
+behavior_id: F13-REQ-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f13-011.test.ts;createService.start+WS submit/create_project/update_settings 字段在但类型错仍回同一 requestId;无新 task/project/settings/upload;随后 list 带回自己的 id
+note: 形状非法仍带回同一合法 requestId + 无副作用;不是 decode 单测;不是 007 缺字段循环;不是只改 CT-F13-001/round1 binding。非整约 accepted
+### CT-F13-012
+status: covered
+behavior_id: F13-REQ-02
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f13-012.test.ts;createService.start+WS 对象/空串/数字 requestId 的 error 不带伪造 id;随后合法 list 带回自己的 id
+note: 非法 requestId 不伪造关联;不是 decode 单测;不是只改 CT-F13-002/round1 binding。非整约 accepted
+### CT-F13-013
+status: covered
+behavior_id: F13-REQ-04
+combo_id: —
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f13-013.test.ts;createService.start 活服务后未 connect 的 LumenClient list/listProjects 有限时间拒绝未连接/无 socket;connect 后同一 client list 成功
+note: 不是 R09 死端口 9;不是只改 CT-F13-004 binding。非整约 accepted
+### CT-F13-014
+status: covered
+behavior_id: F13-REQ-05
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f13-014.test.ts;createService.start+LumenClient.connect+create_project;两项目各一条 task;并发 list 各归 requestId 且不串项目;随后再 list 仍不串
+note: 不是 batch3 手组 startServer;不是只改 CT-F13-005 binding;不升 CON-REQID。非整约 accepted
+### CT-F13-015
+status: covered
+behavior_id: F13-REQ-06
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f13-015.test.ts;createService.start+LumenClient 真服务;connect 后 list 挂起再 connect 换代;旧 socket 注入迟到 error/ok/tasks(requestId=新 list)不得结算;真服务新 socket 合法 tasks 才结算;新旧 requestId 不同
+note: 不是 round14-d/round14-conn 假服;不是只改 CT-F13-006 binding;不升 REQ-07 / ID-STALE-CONN / CON-REQID。非整约 accepted
+### CT-F14-006
+status: covered
+behavior_id: F14-ORI-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f14-006.test.ts;createService.start HTTP 空 Origin 与 127.0.0.1/localhost 不得 403;evil.example 必须 403;CORS 不得是 *;WS 本机 Origin 收 hello,外站 4403
+note: 不是 isAllowedOrigin 纯函数表;不是只改 CT-F14-001/round15 binding;不升 ORI-02/03/04 / SEC-ORIGIN-TOKEN。非整约 accepted
+### CT-F14-007
+status: covered
+behavior_id: F14-ORI-02
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f14-007.test.ts;createService.start POST /upload 外站+正确 token 403；CORS 非 *（外站 null）；无新 upload/task；本机同一 token POST /upload 不得 403 且回显 Origin 非 *
+note: 不是 005（无本机回显）也不是 006 的 GET /pdf；不是只改 CT-F14-002/round15 binding；不升 ORI-04 / SEC-ORIGIN-TOKEN。非整约 accepted
+### CT-F14-008
+status: covered
+behavior_id: F14-ORI-03
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f14-008.test.ts;createService.start 外站+正确 token 4403；不得 hello；open 后立刻 submit 无新 task；本机 hello 后合法 list 可结算
+note: 不是 006（不测 submit/无副作用）也不是 005（无本机握手对照）；不是只改 CT-F14-003/round15 binding；不升 ORI-04 / SEC-ORIGIN-TOKEN。非整约 accepted
+### CT-F01-018
+status: covered
+behavior_id: F01-AUTH-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f01-018.test.ts;createService.start 默认非空 token；POST /upload 错/无 token 401 且数据根无新 upload；WS 错/无 token 4401 不得 hello 无新 task；正确 token 空 Origin POST /upload 不得 401
+note: 不是只改 CT-F01-004/batch1 binding；不把 ORI-04 错 token 子句当 AUTH-01 升格；不升 AUTH-02 / HTTP-01 / CONN-01 / DEC-02 / SEC-ORIGIN-TOKEN。非整约 accepted
+### CT-F14-009
+status: covered
+behavior_id: F14-ORI-04
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f14-009.test.ts;createService.start 无 Origin HTTP GET/POST /upload 正确 token 不得 403；错/无 token 401 不是 403 Origin；WS 无 Origin 正确 token hello；错/无 token 4401 不得 hello；错 token upload/submit 无新文件/task
+note: 不是复述 006/007 外站 Origin；不是只改 CT-F14-004 binding；不升 SEC-ORIGIN-TOKEN / AUTH-02。非整约 accepted
+### CT-F01-019
+status: covered
+behavior_id: F01-AUTH-02
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f01-019.test.ts;createService({ token: '' }).start；生成 token 非空；无/空 token WS 4401 不得 hello；POST /upload 无/空 token 401 且数据根无新 upload；生成后的 token 空 Origin POST /upload 不得 401
+note: 不是复述 CT-F01-018；不是只改 CT-F01-005/batch1 binding；不升 HTTP-01 / DEC-02 / SEC-ORIGIN-TOKEN。非整约 accepted
+### CT-F01-020
+status: covered
+behavior_id: F01-CONN-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f01-020.test.ts;createService.start 同连接吞 hello→非法帧 null→rename 空 title 失败→list 同 requestId tasks；第二根新连接 list 成功；进程仍是本测 pid 且 handle 可 close
+note: 不是只改 CT-F01-006/batch1 binding；不升 DEC-01 / DEC-02。非整约 accepted
+### CT-F01-021
+status: covered
+behavior_id: F01-HTTP-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f01-021.test.ts;createService.start 默认非空 token；先正确 token 空 Origin POST /upload 写出最小 PDF；GET /pdf 错/无 token 401 且体无 %PDF/已上传字节；错 token POST /upload 401 且写出后快照无新 upload；对照同 path 正确 token GET /pdf 200 含 PDF 字节
+note: 不是复述 CT-F01-018/019；不是只改 CT-F01-007/batch1 binding；不升 F21-QRY-02 / DEC-01 / SEC-ORIGIN-TOKEN。非整约 accepted
+### CT-F01-022
+status: covered
+behavior_id: F01-DEC-02
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f01-022.test.ts;createService.start 真实 WS；第一连接 open 后非法 UTF-8 文本帧必须 close/失败；第二根新连接 hello+合法 list 成功；process.pid !== 71847 且 handle 可 close
+note: 不是只改 CT-F01-002/governance-rework binding；不把非法 JSON/null 当 DEC-02；不升 DEC-01。非整约 accepted
+### CT-F21-007
+status: covered
+behavior_id: F21-QRY-02
+combo_id: —
+level: L2
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f21-007.test.ts;createService.start 真实 WS；先正确 token 落 exec 证据且 list 非空；快照 exec 树/行数/空 destDir；错/无 token list/read/export 均 4401 不得 hello、不写 destDir；之后树与行数不变 destDir 仍空；对照正确 token list 仍成功
+note: 不是复述 CT-F01-018/021；不是只改 CT-F21-001 / f17-f21 binding。非整约 accepted
+### CT-F21-008
+status: covered
+behavior_id: F21-QRY-03
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f21-008.test.ts;createService 真实 write_file 落 hash；destA 列出 operation 且对应文件不 missing；unlink blob 后 destB 同 operation 标 missing 且可离开工作区打开 manifest；destA 不被第二次改写
+note: 不是复述 CT-F20-010；不升 F23-PKG-05 / PER-BLOB-EXPORT / F21-QRY-06。非整约 accepted
+### CT-F21-009
+status: covered
+behavior_id: F21-QRY-06
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f21-009.test.ts;createService 真实 WS export_exec_pack 到独立 dest；close 后删 home，只读 dest 打开 manifest 并列出 operation/文件；dest 无 settings.json/.env/agent-service.json/lumen.sqlite/token/apiKey
+note: 不是复述 CT-F23-003 / CT-F21-008；不升 F23-PKG-01 / F23-PKG-03。非整约 accepted
+### CT-F23-005
+status: covered
+behavior_id: F23-PKG-05
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f23-005.test.ts;createService 真实 write_file 落 hash；export_exec_pack 后用清单 sha256 定位 dest 副本，原 hash 等于清单；改写 dest 后 hash ≠ 清单；不改 home 源 blob
+note: 不是复述 CT-F20-010 / CT-F21-008；不升 PER-BLOB-EXPORT / F23-PKG-01。非整约 accepted
+### CT-F22-005
+status: covered
+behavior_id: F22-BAD-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f22-005.test.ts;createService 真实 WS mark_bad_case→list_bad_cases；close 后再 start 仍同 id/actual；update_bad_case 后 task_events 逐字节不变且 list 看到更新
+note: 不是只改 f22-f24 store 直测 binding；不升 BAD-02/03/05/06。非整约 accepted
+### CT-F23-006
+status: covered
+behavior_id: F23-PKG-01
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f23-006.test.ts;createService 真实 WS write_file→mark_bad_case→export_diagnostic 独立 dest；dest 定位反馈/配置/事件/exec 证据；全文无 apiKey 密钥、无 sk-secret- 原值
+note: 不是复述 CT-F21-009 / CT-F23-003；不升 F23-PKG-02。非整约 accepted
+### CT-F23-007
+status: covered
+behavior_id: F23-PKG-02
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f23-007.test.ts;createService 真实 WS 纯 reply→mark_bad_case→export_diagnostic 独立 dest；dest 可开；completeAudit===false；gaps 含 redacted/not_collected（absent/missing 一类）
+note: 不是复述 CT-F23-006 / V2R-09 直插；不升 PKG-03/04/05。非整约 accepted
+### CT-F24-012
+status: covered
+behavior_id: F24-RPL-02
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f24-012.test.ts;createService 真实 WS write_file→mark_bad_case→replay_recorded 独立 dataRoot；use=recorded_replay 且 done；ScriptedModel 剩余次数不被吃；home/dataRoot 无回放新 notes
+note: 不是复述 RP-F24-001 / f22-f24 直调；不升 RPL-03。非整约 accepted
+### CT-F24-013
+status: covered
+behavior_id: F24-RPL-03
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f24-013.test.ts;createService 真实 WS 纯 reply→mark_bad_case→同 home SQLite 删 model_response→replay_recorded 独立 dataRoot；error 或 status=failed；不得 done/live_eval；ScriptedModel 剩余次数不被吃
+note: 不是复述 CT-F24-012 / f22-f24 直调；不升 RPL-04。非整约 accepted
+### CT-F24-014
+status: covered
+behavior_id: F24-RPL-04
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f24-014.test.ts;createService 真实 WS write_file→mark_bad_case→unlink tool blob→replay_recorded；失败不得 done/ok；get_bad_case lastVerification 不得记成功；ScriptedModel 剩余次数不被吃
+note: 不是复述 CT-F21-008 / CT-F20-010 / V2R-08 直调；不升 RPL-05。非整约 accepted
+### CT-F24-015
+status: covered
+behavior_id: F24-RPL-05
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f24-015.test.ts;createService 真实 WS 第一轮纯 reply TURN_ONE → continue 第二轮 TURN_TWO → mark_bad_case 绑第二轮真实 turnId+operationId → replay_recorded 独立 dataRoot；done；reply 含 TURN_TWO、不得含 TURN_ONE；get_bad_case lastVerification 落到该 badCaseId
+note: 不是复述 V2R-07 直插 / RP-F24-004 binding；不升 RPL-06。非整约 accepted
+### CT-F24-016
+status: covered
+behavior_id: F24-RPL-06
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f24-016.test.ts;createService 真实 WS 选定 reply SELECTED_OP → mark_bad_case 绑该 operation → 同 turn ExecStore 插兄弟 SIBLING_OP → replay_recorded；reply 含 SELECTED、不得含 SIBLING
+note: 不是复述 V2R-17 全直插 / RP-F24-005 binding；不升 ID-TURN-MULTI-OP / RPL-07。非整约 accepted
+### CT-F24-017
+status: covered
+behavior_id: F24-RPL-07
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f24-017.test.ts;createService 真实 WS 纯 reply → mark_bad_case → replay_recorded dataRoot=home 或 home 子目录必须 error 不得 done，home 无回放产物；独立 dest 可 done
+note: 不是复述 V2R-15 纯函数 / RP-F24-006 binding；不升 SEC-REPLAY-ROOT。非整约 accepted
+### CT-F24-018
+status: covered
+behavior_id: F24-RPL-08
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f24-018.test.ts;createService 真实 WS 纯 reply REPLY_CT_F24_018 → mark_bad_case expected 故意对不上 MUST_NOT_MATCH_DOI_CT_F24_018 → 独立 dest replay_recorded 不得 done；get_bad_case lastVerification 不得 done/passed，assertion=failed
+note: 不是复述 V2R-16 直调 / RP-F24-007 binding；不升 RPL-09/10。非整约 accepted
+### CT-F22-006
+status: covered
+behavior_id: F22-BAD-06
+combo_id: —
+level: L3
+environment: temp-root
+evidence: packages/agent-service/tests/service/ct-f22-006.test.ts;createService 真实 WS 第一轮纯 reply → continue 第二轮 → mark_bad_case(turnId=unknown, 第一轮 operationId) 落到第一轮 turn，不得第二轮 / unknown / 最后一条 turn_start；对照第二轮 operationId+unknown 落到第二轮；get_bad_case / list_bad_cases 一致
+note: 不是复述 RP-F22-001 / V2R-13 直调 binding；不升 BAD-02/03/05。非整约 accepted
+### CT-F05-012
+status: covered
+behavior_id: F05-DST-01
+combo_id: —
+level: L1
+environment: temp-root
+evidence: packages/ui-client/tests/ct-f05-012.test.ts;真实 useComposerDraft/mountComposerDraft：A 点 submit 冻结 dest 后切到 B 改输入，发出命令 dest 仍是 A 的 projectId/taskId，文本仍是 A 的
+note: 不是复述 CT-F05-001 源码扫描 / G14-07 binding；建议 ID CT-F05-010 已是 DST-10 historical-unbound。不升 DST-02..11。非整约 accepted
+### CT-F05-013
+status: covered
+behavior_id: F05-DST-02
+combo_id: —
+level: L1
+environment: temp-root
+evidence: packages/ui-client/tests/ct-f05-013.test.ts;真实 useComposerDraft/mountComposerDraft + useWorkspace/mountUseWorkspace：A 开始上传后切到 B，B 列表先回，A 完成后 B 资产不得出现 A 的文件；A upload dest 仍是 A；不得把视图拽回 A
+note: 不是复述 CT-F05-002 / governance-f05 binding；不升 DST-04..11、ID-SWITCH-UPLOAD、F12-VW-*。非整约 accepted
+### CT-F05-014
+status: covered
+behavior_id: F05-DST-03
+combo_id: —
+level: L1
+environment: temp-root
+evidence: packages/ui-client/tests/ct-f05-014.test.ts;真实 useComposerDraft/mountComposerDraft：同一 tick 两次 onSubmit（Promise.resolve 前都发出）只发一条，dest/文本是第一次；切 B 后再双 submit 不得带 A 文件
+note: 不是复述 CT-F05-003 / G14 / round14-d binding；不升 CON-DUAL-SUBMIT、DST-04..11。非整约 accepted
+### CT-F05-015
+status: covered
+behavior_id: F05-DST-04
+combo_id: —
+level: L1
+environment: temp-root
+evidence: packages/ui-client/tests/ct-f05-015.test.ts;真实 useComposerDraft/mountComposerDraft：submit 已发出、upload hold 住后改字再改回原文，finish 后当前输入仍是改回后的原文；已送出的 A 离开 pending；host.sent 只有一条且文本是 submit 当时冻结的原文。另钉上传等待期间改成别的字留下；迟到粘贴不得写回已消费桶
+note: 不是复述 CT-F05-004 / f05-hook binding；不升 DST-05..11、ID-DRAFT-GEN、F12-VW-*。非整约 accepted
+### CT-F05-016
+status: covered
+behavior_id: F05-DST-05
+combo_id: —
+level: L1
+environment: temp-root
+evidence: packages/ui-client/tests/ct-f05-016.test.ts;真实 useComposerDraft/mountComposerDraft：A 在桶里 → submit（hold upload）→ 撤掉 A → 再加入同一文件或同名新 File。finish 后 pending 留下重新加入的文件；host.sent[0].uploads 只带 submit 当时的 A，不得变成空，也不得把后来再加入并进已发出命令
+note: 不是复述 CT-F05-005 / f05-hook binding；不升 DST-06..11、ID-DRAFT-GEN。非整约 accepted
+### CT-F05-017
+status: covered
+behavior_id: F05-DST-06
+combo_id: —
+level: L1
+environment: temp-root
+evidence: packages/ui-client/tests/ct-f05-017.test.ts;真实 useComposerDraft/mountComposerDraft：同项目 taskId=null，draftGen=0 写稿 A（带文件）后切到 draftGen=1（空），再切回 0 仍见稿 A。gen=0 submit（hold createTask + upload）后切到 gen=1 写稿 B；finish 旧建档（createTask 返回 task-from-a + upload finish）后当前 gen=1 仍是稿 B，不得被 A 夺回；busy 落下；发出命令 dest 是 A 的新建 task，不是当前空草稿。再切回 gen=0 不得把稿 B 带回去；切回 gen=1 仍是稿 B
+note: 不是复述 CT-F05-006 / f05-hook / governance-f05 binding；不升 DST-07..11、ID-DRAFT-GEN、CON-TWO-CREATE。非整约 accepted
+### CT-F05-018
+status: covered
+behavior_id: F05-DST-07
+combo_id: —
+level: L1
+environment: temp-root
+evidence: packages/ui-client/tests/ct-f05-018.test.ts;真实 useComposerDraft/mountComposerDraft({ strictMode: true })：A 带文件 submit（hold upload）后切 B；B 的 pending 不得有 A 文件。finish A 后 B 再 submit：B 那条不得带 A 的 uploads；A 那条 dest 仍是 A
+note: 不是复述 CT-F05-007 / f05-hook binding；不升 ID-SWITCH-UPLOAD、DST-08..11。非整约 accepted
+### CT-F05-019
+status: covered
+behavior_id: F05-DST-08
+combo_id: —
+level: L1
+environment: temp-root
+evidence: packages/ui-client/tests/ct-f05-019.test.ts;真实 useComposerDraft/mountComposerDraft：成功路径 hold upload → submit → uploading=true → finish 成功 → uploading=false，再 submit 发出第二条。失败路径 allowToast: true hold upload → submit → upload.fail → uploading=false、sent 仍 0；清 pending 后再 submit 必须能发出
+note: 不是复述 CT-F05-008 / G14-07 binding；不升 DST-09..11。非整约 accepted
+### CT-F05-020
+status: covered
+behavior_id: F05-DST-09
+combo_id: —
+level: L1
+environment: temp-root
+evidence: packages/ui-client/tests/ct-f05-020.test.ts;真实 useComposerDraft/mountComposerDraft：taskId=null + 文件 + hold upload + createTask 返回新 id；finish 后 dest.taskId 是新建 id，uploading=false。切到别的会话再切回新建会话，uploading 仍 false，能再发一条。另钉两个空草稿新建上传并发，后完成的 A 不得在当前 B/新任务留下幽灵 busy
+note: 不是复述 CT-F05-009 / f05-hook binding；不升 CON-TWO-CREATE、DST-10/11。非整约 accepted
+### CT-F05-021
+status: covered
+behavior_id: F05-DST-10
+combo_id: —
+level: L1
+environment: temp-root
+evidence: packages/ui-client/tests/ct-f05-021.test.ts;真实 useComposerDraft/mountComposerDraft({ holdPaste: true })：先 paste 进队列（attachments 仍空）→ submit（hold upload）→ finish 后桶已空；再 deliver 迟到粘贴，attachments/pending 仍空，不得写回已消费快照。另钉 submit 后切到另一会话再 deliver，当前桶仍不得被写回
+note: 不是复述 CT-F05-015 交叉 / f05-hook binding；CT-F05-010 已是 historical-unbound。不升 DST-11、ID-DRAFT-GEN。非整约 accepted
+### CT-F12-006
+status: covered
+behavior_id: F12-VW-01
+combo_id: —
+level: L1
+environment: temp-root
+evidence: packages/ui-client/tests/ct-f12-006.test.ts;真实 useWorkspace/mountUseWorkspace（holdRead）：open A（hold read）后 open B；finish 旧 A 的 read，当前 open 不得变成 A 的迟到正文；随后 finish B 并显示 B。另钉 close 后再 open 另一文件，旧 A 仍不得覆盖
+note: 不是复述 CT-F12-001 源码扫描 / round14-b G14-08 / F12 close binding。不升 VW-04..06。非整约 accepted
+### CT-F12-007
+status: covered
+behavior_id: F12-VW-02
+combo_id: —
+level: L1
+environment: temp-root
+evidence: packages/ui-client/tests/ct-f12-007.test.ts;真实 useWorkspace/mountUseWorkspace（holdRead）：同文件先成功打开有正文，再连续 open 两次；先 finish 第二次为失败，当前 open 有 loadError 且正文不得清成空谎；再 finish 第一次为迟到旧成功，不得覆盖最新失败态 / 不得刷成旧成功正文
+note: 不是复述 CT-F12-002 纯函数 / projection binding。不升 VW-04..06。非整约 accepted
+### CT-F12-008
+status: covered
+behavior_id: F12-VW-03
+combo_id: —
+level: L1
+environment: temp-root
+evidence: packages/ui-client/tests/ct-f12-008.test.ts;真实 useWorkspace/mountUseWorkspace（holdRead）：open A 后 reloadOpen 后台重读，用户改 open B；finish A 重读不得把当前刷回 A；随后 finish B 显示 B。另钉 B 已打开后迟到 A 重读不得淘汰，以及再 open 旧文件 vs 用户已切到新文件
+note: 不是复述 CT-F12-003 源码扫描 / 纯函数 binding。不升 VW-04..06。非整约 accepted
+人话状态：正在第 governance-impl-remain63-2026-09-09；已完成 F12-VW-02 / F12-VW-03；F05-DST-10 / F12-VW-01 保持 covered 不重磨；不升 F13-REQ-07 / F01-DEC-01 与 F20 整簇；CON-REQID / ID-STALE-CONN / CON-TRIPLE-RECLAIM 不升；不升 F22-BAD-02/03/05 / PER-BLOB-EXPORT / F24-RPL-09..11 / ID-TURN-MULTI-OP / SEC-REPLAY-ROOT；不升 CON-DUAL-SUBMIT / ID-SWITCH-UPLOAD / CON-TWO-CREATE / F05-DST-11 / ID-DRAFT-GEN / F12-VW-04..06；V2R-13 保持 partial-fix；LC-INTENT-PERSIST 仍 uncovered。
+这次为什么停：冻结等待主模型验收。
+下一步：主模型验收；通过则继续未停放合同。
+是否需要用户：不需要。
+## 计入文件
+aggregate 算法：SHA-256(按相对路径字典序拼接 relpath + NUL + bytes)。排除两份 remain63 报告与业务 src/。台账报告计入必须含 doc/testing-historical-ids.json 和 doc/测试体系-总合同-2026-09-08.md。不含本报告。算法段只写名为 报告自身哈希 的二级标题。
+
+| 相对路径 | sha256 |
+|---|---|
+| `doc/CLAUDE.md` | `4791e9fd9fedfb2e10b29952f3966602898670cc6cd58a3a438ad9fce950ecb3` |
+| `doc/testing-defects.md` | `00e386b721154e1a7e7fe7d3dfe4e3ae44f9df3e5642f76bdcd63f04f8814426` |
+| `doc/testing-historical-ids.json` | `1e34c213f91c8bca7df536ce1a8723bb3f48f3351d642e25e0421728e49b0c54` |
+| `doc/testing-manifest.json` | `e16ff1eddc113c7089139d4bc391931862184b4bc01fe2e090fd0dfeb697255b` |
+| `doc/testing-matrix.md` | `58e3387f807ca9952d239c2acb1a694fcca310e3ac4bc65283f0af494c10a496` |
+| `doc/测试体系-总合同-2026-09-08.md` | `4207b8bc49b0b7dbb39982fb5efa884eb3c72b1021d0ba33a852747d8f1b7406` |
+| `doc/诊断/CLAUDE.md` | `da033330d62621a8bffdb2d466e25213bf8c20342ca96fbf362df8f1cf9738c5` |
+| `packages/ui-client/tests/CLAUDE.md` | `735f065509b82d2195967bece38e78b4d7e8f36bd676e9fbf393a3bc32a57ff4` |
+| `packages/ui-client/tests/ct-f12-007.test.ts` | `9b4454e0a2a89bf29e70bd3513a270750d7d4d00a51197ab3a9da7e8838fe126` |
+| `packages/ui-client/tests/ct-f12-008.test.ts` | `4164d5d24ba2e66b5b21168279c47f0332b703f8a17113860c1365339ae55c45` |
+| `packages/ui-client/tests/helpers/CLAUDE.md` | `5da740699c88ecbcdc8c95c47a0114ba4e014f26c5ec04a51a889a4e515328cb` |
+| `packages/ui-client/tests/helpers/workspaceHookHost.ts` | `6b8c8d49cdcfd99631b91849a801a9768e60d345ae2ad0e72b7074ab16123504` |
+aggregate = `10507587791d289d85e77ca38ca09e71570094957d26f592b6b1b15a9deb5491`
+
+自身 hash = 第一个名为 报告自身哈希 的二级标题之前的全部 UTF-8 字节（含标题前空行，不要 rstrip）。不含本报告。
+
+## 报告自身哈希
+不含本报告
+自身 hash: `ca5950e855c4e296148e787f1f7257f629cfa1d2432d1cc4e0010bf793a15ecb`

@@ -6,12 +6,13 @@
  *        流式时 Markdown deferMath,避免半截公式高度抖动牵动贴底
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
+import { memo } from 'react'
 import { Markdown } from '../Markdown'
 import { WidgetFrame } from './WidgetFrame'
 import { parseShowWidgets } from './parseShowWidget'
 import { truncateOpenScript } from './sanitize'
 
-export function AssistantContent({
+export const AssistantContent = memo(function AssistantContent({
   content,
   isStreaming,
   onSendMessage,
@@ -59,4 +60,4 @@ export function AssistantContent({
       })}
     </div>
   )
-}
+})

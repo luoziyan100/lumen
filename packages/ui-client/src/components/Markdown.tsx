@@ -3,11 +3,12 @@
  * [OUTPUT]: Markdown —— GFM/数学/代码高亮 + ```mermaid 流程图;deferMath 流式暂缓 KaTeX
  * [POS]: .md 阅读器与 AssistantContent 的文本段;show-widget 不经此组件;
  *        终稿在 ReactMarkdown 前走 normalizeMathDelimiters(\( \)/\[ \]→$/$$);流式不归一、不跑 KaTeX。
+ *        禁全局 React 树缓存(会把 onRepairMermaid 闭包串会话);历史不重 parse 靠 item 引用 + memo。
  *        onRepairMermaid 只由对话终稿注入,阅读器不修图。
  *        流式 mermaid 保持源码 pre;定稿后 MermaidBlock 箱外测量,主流一次提交 final SVG。
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import { Children, isValidElement, useMemo, type ComponentProps, type ReactNode } from 'react'
+import { Children, isValidElement, memo, useMemo, type ComponentProps, type ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -38,7 +39,7 @@ function codeText(children: ReactNode): string {
   return String(children ?? '').replace(/\n$/, '')
 }
 
-export function Markdown({
+export const Markdown = memo(function Markdown({
   children,
   deferMath = false,
   onRepairMermaid,
@@ -98,4 +99,4 @@ export function Markdown({
       </ReactMarkdown>
     </div>
   )
-}
+})

@@ -1,0 +1,4 @@
+/* [INPUT]: 原thought/proc/curtain-fold样式；[OUTPUT]: 错误摘要强调。
+ * [POS]: 思考与过程沿messages-content共享间距，不再重复补距。
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md */
+.mw-process-error { color: var(--ember); font-size: var(--t-caption); }

@@ -1,0 +1,60 @@
+/* [INPUT]: 原主题 tokens；[OUTPUT]: 无遮罩紧凑创建卡；[POS]: CreateProjectModal 独立样式。
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md */
+.create-proj-card {
+  position: fixed; z-index: var(--z-popover);
+  top: 18vh; left: 50%; transform: translateX(-50%);
+  width: min(420px, calc(100vw - 32px));
+  padding: var(--s-5);
+  display: flex; flex-direction: column; gap: var(--s-4);
+  border: 1px solid var(--sand-deep); border-radius: var(--radius-xl);
+  background: var(--card);
+  box-shadow: var(--shadow-3);
+  backdrop-filter: blur(22px) saturate(1.25);
+  -webkit-backdrop-filter: blur(22px) saturate(1.25);
+}
+.create-proj-head { display: flex; align-items: center; gap: var(--s-3); }
+.create-proj-title { flex: 1; margin: 0; font-size: var(--t-title); font-weight: var(--w-medium); color: var(--ink); }
+.create-proj-x {
+  flex: none; width: 32px; height: 32px; border: none; border-radius: var(--radius-md);
+  background: none; color: var(--ink-mute); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.create-proj-x:hover { background: var(--sand); color: var(--ink); }
+.create-proj-form { display: flex; flex-direction: column; gap: var(--s-4); }
+.create-proj-field { display: flex; flex-direction: column; gap: 6px; }
+.create-proj-label { color: var(--ink-mute); font-size: var(--t-caption); font-weight: var(--w-medium); }
+.create-proj-name-wrap {
+  display: flex; align-items: center; gap: var(--s-2);
+  height: 40px; padding: 0 12px;
+  border: 1px solid var(--sand-deep); border-radius: var(--radius-md);
+  background: var(--paper); color: var(--ink-mute);
+}
+.create-proj-name-wrap:focus-within { border-color: var(--ember); color: var(--ink); }
+.create-proj-name {
+  flex: 1; min-width: 0; border: none; background: none; color: var(--ink);
+  font: inherit; font-size: var(--t-body-sm); outline: none;
+}
+.create-proj-folder {
+  display: flex; align-items: flex-start; gap: var(--s-3);
+  min-height: 72px; padding: var(--s-4);
+  border: 1px dashed var(--sand-deep); border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--sand) 45%, transparent);
+  color: var(--ink-soft); font: inherit; font-size: var(--t-body-sm);
+  text-align: left; cursor: pointer;
+}
+.create-proj-folder:hover { border-color: var(--ember); background: var(--sand); }
+.create-proj-folder span { word-break: break-all; line-height: 1.45; }
+.create-proj-path {
+  height: 36px; padding: 0 10px;
+  border: 1px solid var(--sand-deep); border-radius: var(--radius-md);
+  background: var(--paper); color: var(--ink); font: inherit; font-size: var(--t-body-sm);
+}
+.create-proj-path:focus { outline: none; border-color: var(--ember); }
+.create-proj-clear {
+  align-self: flex-start; border: none; background: none; padding: 0;
+  color: var(--ink-mute); font: inherit; font-size: var(--t-caption); cursor: pointer;
+}
+.create-proj-clear:hover { color: var(--ink-soft); }
+.create-proj-actions { display: flex; justify-content: flex-end; gap: var(--s-2); }
+.create-proj-error { margin: 0; color: var(--danger, #b42318); font-size: var(--t-caption); overflow-wrap: anywhere; }
+.create-proj-card button:disabled { cursor: default; opacity: .5; }

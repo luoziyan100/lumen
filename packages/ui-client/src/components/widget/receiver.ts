@@ -2,7 +2,7 @@
  * [INPUT]: sanitize.ts 的 CDN_WHITELIST;宿主注入的 CSS 变量块
  * [OUTPUT]: buildReceiverSrcdoc —— receiver HTML(供 emit 成 public/ 同源页;勿再当 srcdoc);
  *           WIDGET_DIAG 走查打点(csp/error/finalize/appended);
- *           finalize 吃 src(CDN + lumenwidget:);内联 textContent 仅 dev 兜底
+ *           finalize 吃 src(CDN + lumenwidget:);同内容幂等且拒绝旧世代异步脚本
  * [POS]: widget/ 沙箱壳 —— CSP + 高度同步 + 链接拦截 + __widgetSendMessage;
  *       主题变量见 themeVars.ts;THEME.fillHeight 切岛内滚动(阅读器)vs hidden(对话跟高)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
@@ -43,7 +43,7 @@ export function buildReceiverSrcdoc(styleBlock: string, isDark: boolean): string
 
   const receiverScript = `(function(){
 var root=document.getElementById('__root');
-var _t=null,_first=true,_lastH=0,_fill=false;
+var _t=null,_first=true,_lastH=0,_fill=false,_finalizeGeneration=0,_lastFinalHtml=null;
 function _diag(kind,extra){
   var o={type:'${WIDGET_DIAG}',kind:String(kind||'')};
   if(extra){for(var k in extra)o[k]=extra[k];}
@@ -77,7 +77,15 @@ function setFillScroll(on){
 
 function applyHtml(html){root.innerHTML=html;_h();}
 
-function finalizeHtml(html){
+function finalizeHtml(html,generation){
+  html=String(html||'');
+  var seq=typeof generation==='number'&&isFinite(generation)?generation:_finalizeGeneration+1;
+  if(seq<_finalizeGeneration||html===_lastFinalHtml){
+    _diag('finalize-skip',{reason:seq<_finalizeGeneration?'stale':'duplicate'});
+    return;
+  }
+  _finalizeGeneration=seq;
+  _lastFinalHtml=html;
   var tmp=document.createElement('div');
   tmp.innerHTML=html;
   var ss=tmp.querySelectorAll('script');
@@ -97,6 +105,7 @@ function finalizeHtml(html){
   _diag('finalize',{found:scripts.length,cdn:cdnScripts.length,inline:inlineScripts.length});
   /* 内联应由宿主 hoist 成 lumenwidget: src;此处 textContent 仅 dev 兜底 */
   function _appendInline(){
+    if(seq!==_finalizeGeneration)return;
     for(var k=0;k<inlineScripts.length;k++){
       var s=document.createElement('script');
       s.textContent=inlineScripts[k].text;
@@ -129,7 +138,7 @@ window.addEventListener('message',function(e){
   if(!e.data)return;
   switch(e.data.type){
     case '${WIDGET_UPDATE}': applyHtml(e.data.html); break;
-    case '${WIDGET_FINALIZE}': finalizeHtml(e.data.html); setTimeout(_h,150); break;
+    case '${WIDGET_FINALIZE}': finalizeHtml(e.data.html,e.data.generation); setTimeout(_h,150); break;
     case '${WIDGET_THEME}':
       var r=document.documentElement,v=e.data.vars;
       if(v)for(var k in v)r.style.setProperty(k,v[k]);

@@ -4,11 +4,16 @@
  */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { register } from 'node:module'
+import { JSDOM } from 'jsdom'
 import { extractWidgetCodePartial, parseShowWidgets } from '../src/components/widget/parseShowWidget.ts'
 import { sanitizeForIframe, sanitizeForStreaming, truncateOpenScript } from '../src/components/widget/sanitize.ts'
 import { hoistInlineScripts, widgetScriptUrl } from '../src/components/widget/hoistScripts.ts'
 import { readFileSync } from 'node:fs'
 import { nextWidgetHeight } from '../src/components/widget/height.ts'
+
+register('./helpers/tsx-loader.mjs', import.meta.url)
+const { buildReceiverSrcdoc, WIDGET_FINALIZE } = await import('../src/components/widget/receiver.ts')
 
 describe('parseShowWidgets', () => {
   it('纯文本原样一段', () => {
@@ -88,6 +93,28 @@ describe('receiver 走查仪表', () => {
     assert.match(src, /securitypolicyviolation/)
     assert.match(src, /_diag\('finalize'/)
     assert.match(src, /lumenwidget:/)
+  })
+
+  it('同内容终态只初始化一次，单事件只触发一次', async () => {
+    const html = '<button id="b">go</button><script>window.__runs=(window.__runs||0)+1;document.addEventListener("click",function(){window.__clicks=(window.__clicks||0)+1})</script>'
+    const srcdoc = buildReceiverSrcdoc('', false)
+    const dom = new JSDOM(srcdoc, {
+      runScripts: 'dangerously',
+      pretendToBeVisual: true,
+      beforeParse(window) {
+        window.ResizeObserver = class { observe() {} disconnect() {} } as unknown as typeof window.ResizeObserver
+      },
+    })
+    try {
+      dom.window.postMessage({ type: WIDGET_FINALIZE, html, generation: 1 }, '*')
+      dom.window.postMessage({ type: WIDGET_FINALIZE, html, generation: 1 }, '*')
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+      assert.equal((dom.window as typeof dom.window & { __runs?: number }).__runs, 1)
+      dom.window.document.getElementById('b')?.dispatchEvent(new dom.window.Event('click', { bubbles: true }))
+      assert.equal((dom.window as typeof dom.window & { __clicks?: number }).__clicks, 1)
+    } finally {
+      dom.window.close()
+    }
   })
 })
 

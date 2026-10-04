@@ -1,3 +1,5 @@
+> 历史架构：旧自研内核已于2026-09-19退役。当前运行合同见 [Mastra架构](mastra/architecture.md)。本文件保留设计演变，不作为新实现入口。
+
 # Lumen 架构
 
 > 本文描述当前实现。系统由两个包组成:`agent-service`(无头 Node 服务)与 `ui-client`(React 薄客户端,运行于浏览器或 Tauri 原生壳),二者以 WebSocket + JSON 通信。
@@ -19,7 +21,7 @@
 │  agents/     系统提示词与 worker 角色         │
 │  tools/      研究工具 + 环境工具              │
 │  adapters/   模型适配:Anthropic / OpenAI 兼容 │
-│  storage/    SQLite 事件溯源·设置·用量计量    │
+│  storage/    SQLite 事件溯源·设置·用量·执行证据 │
 │  workspace/  项目工作区(真实文件系统)       │
 └───────────────┬──────────────────────────────┘
                 │ HTTPS
@@ -29,6 +31,8 @@
 ## 内核(core/)
 
 一条铁律贯穿全部设计:**agent 是一条只增不减的消息线程上的循环;每个 tool_call 的结果必须回灌同一条线程**——模型每一轮都看见自己行为的后果,任何动作都不会"凭空消失"。
+
+**空行动(2026-09-14)** 是铁律的同一刀,不是适配器特例。模型一轮结束时若既无可见正文也无 `tool_call`,这仍是一次已完成的行为:必须 `append` 进同一条线程(思考通道一并留下,供 reasoning 模型回灌),不得在 adapter 里抛掉后让回合蒸发。循环至多再喂一条 `system_observation` 观测("你没有完成"),让模型看见自己的空轮;连续两轮仍空才 `error`。解析必须收齐已知通道(`content` 字符串或 parts、`refusal`、`reasoning` / `reasoning_content` / `reasoning_details`),把"看不懂的线格式"从"真的没回"里拆开。UI 不得在 `model_step` 上臆造空回复——终局只认循环的 `error` / `reply`。
 
 - **`thread.ts` · Thread** — 状态载体。`append` 是唯一写入口;`forModel()` 产出给模型的视图:超长的老 `tool_result` 内容折叠为占位符,但保留该消息的存在(工具确实执行过),最近 N 条豁免。生产默认:单条超 8000 字符折叠、豁免最近 6 条。
 - **`loop.ts` · runAgent** — 唯一的循环。模型走一步 → 顺序执行其 tool_calls → 结果逐条回灌线程 → 下一轮把最新线程喂回模型。模型不再调用工具即为回复,状态 `done`;超步数/超时 `exhausted`;取消 `aborted`;模型层错误 `error`。工具抛错不打断循环——错误文本作为 tool_result 回灌,模型自行恢复。
@@ -87,9 +91,11 @@ Skill ≠ Memory。Skill 是可**启动**的研究工作流;Memory 是长期事�
 
 ### 进程生命周期(本机)
 
-- **生产路径(推荐)**:用户级 LaunchAgent `com.lumen.agent-service`(`KeepAlive` + `RunAtLoad`)托管 Node `service.ts`;登录即起,崩溃/睡眠后由 launchd 拉回。安装:`npm run launchd:install -w packages/agent-service` 或桌面 App 首次启动/设置「后台服务」。
-- **开发兜底**:未装 Agent 时 Tauri 壳可临时 spawn sidecar;Cmd+Q 只杀壳自有 Child,不杀 LaunchAgent。
+- **生产路径(推荐)**:用户级 LaunchAgent `com.lumen.agent-service`(`KeepAlive` + `RunAtLoad`)托管 Node `service.ts`;登录即起,崩溃/睡眠后由 launchd 拉回。安装:`npm run launchd:install -w packages/agent-service` 或桌面 App 首次启动/设置「后台服务」。卸载写 `~/.lumen/background-intent.json` `enabled:false`,壳不得因「无 plist」再自动装。
+- **开发兜底**:未装 Agent 且意图允许时 Tauri 壳可临时 spawn sidecar;Cmd+Q 只杀壳自有 Child,不杀 LaunchAgent。
 - `supervisor.ts` — Node 侧无头验证「子进程 → portfile → 可连 → 停」;与壳探测契约同构。
+- **数据目录锁**:`createService` 在 openDatabase / sweep 前抢 `instance.lock`(先写 PID 再原子 link;空锁宽限期不得抢);第二实例不得先改库。`close` 先停听、排空执行、关库再放锁。
+- **默认鉴权**:token 永不为空(显式 → 复用 portfile → 随机);空串不当关闭校验。Seatbelt 默认 deny `~/.lumen/.env`。
 
 ## 存储(storage/)
 
@@ -100,7 +106,8 @@ Skill ≠ Memory。Skill 是可**启动**的研究工作流;Memory 是长期事�
 - `settings.ts` — 模型 profiles(provider / baseUrl / model / apiKey),界面内增改切换
 - `budget.ts` — 基于事件的用量计量(token usage 随 model_step 入库)
 - `session-file.ts` — 每会话 append-only JSONL trace,便于人工检查
-- `evidence-index.ts` — 工作区产物之上的结构化索引(去重 / 范围查询)
+- `evidence-index.ts` — 工作区产物之上的结构化索引(去重 / 范围查询);**不是**执行证据
+- `exec-records` / `exec-evidence/` — 完整执行证据(F17-F21):最终模型请求/响应、forModel 快照、工具结果与文件版本。内容文件在 `{lumenHome}/exec-evidence/<sha256前2位>/<sha256>`,先写文件再提交 DB;单 blob 2MB;凭证不入库;查询 `list_exec_records` / `read_exec_record`,导出 `export_exec_pack`。不另建任务状态机。采集前旧事件标 `not_collected`
 
 ## 协议(protocol/)
 
@@ -114,12 +121,13 @@ WebSocket + JSON:
 | 资产 | `list_assets` · `read_asset`(shared + 当前会话;`scope` 标注) |
 | Skills | `list_skills` · `install_skill` · `uninstall_skill` · `activate_skill`(显式激活=run_skill 同构回灌) |
 | 设置 | `get_settings` · `update_settings` |
+| 执行证据 | `list_exec_records` · `read_exec_record` · `export_exec_pack`(本地清单+内容+缺失标记,无凭证) |
 
-UI 状态是事件流的纯函数:对 durable 子集重放必然得到同一界面;live 会话额外叠加 ephemeral 增量,由随后的 `model_step` 定稿替换 streaming 泡。消息类型真源是 `protocol/messages.ts`;ui-client type-only 直连,Node `client/agent-client.ts` 同包直连。握手 `hello.protocolVersion`(与 portfile 同源,`protocol/version.ts`);旧字段缺失视为 0,不匹配只提示重启。
+UI 状态是事件流的纯函数:对 durable 子集重放必然得到同一界面;live 会话额外叠加 ephemeral 增量,由随后的 `model_step` 定稿替换 streaming 泡。消息类型真源是 `protocol/messages.ts`;ui-client type-only 直连,Node `client/agent-client.ts` 同包直连。握手 `hello.protocolVersion`(与 portfile 同源,`protocol/version.ts`);旧字段缺失视为 0,不匹配只提示重启。入站先 `decodeClientMessage`(完整形状,非法请求不得写业务);传输层坏帧只关连接;命令可带 `requestId`,对应响应(含异步错误)回传同一 id(hello/event/task_updated 不带);客户端按 id 结算,等待哨兵与业务值不相交,旧连接 close 不得拒绝新请求。`useAgent.running` 跟 `status_change`(running↔终态);send 只在目的会话仍是当前视图时投影;Stop 不乐观清 running。工具事件带 `operationId`/`parentOperationId`;sweep 给悬空调用落结果未知。
 
 ## 模型接入(adapters/)
 
-- `claude.ts` / `openai.ts`:有 `ChatHandlers` 时走 SSE 真流式(coalesce 后回调),否则整包(录制-重放零改语义)
+- `claude.ts` / `openai.ts`:有 `ChatHandlers` 时走 SSE 真流式(coalesce 后回调),否则整包(录制-重放零改语义);可选 `onProviderExchange` 在格式转换后报最终 JSON(无 key)
 - `retry.ts` 统一重试;`record-replay.ts` 录制/回放网络字节——验收测试的请求构造、响应解析与循环全走真实路径
 - 内核经由 ModelPort 使用模型,对提供商无感知;切换模型 = 换 profile,不动代码
 
@@ -137,7 +145,7 @@ UI 状态是事件流的纯函数:对 durable 子集重放必然得到同一界�
 
 **共享的是资料,不是聊天。** 会话 cwd 仍是 `sessions/<taskId>/`;工具经 `shared/` 前缀只读访问共享区。`list_assets` 合并 shared + 当前会话并标注 `scope`。展示面按目录声明,原料进 `cache/` 不上墙。
 
-**上传策略(admission ≠ representation,对齐 OpenSquilla):** UI 不按扩展名拒收;服务端 `saveUpload` 按表示归位——`pdf`→`papers/`、文本与源码→`docs/`、图→`images/`、其余→`uploads/`(opaque:落盘给工具读,不假定 inline 进模型)。体积上限见 `maxUploadBytes`(默认 25MB)。表示按模型能力声明分流:档案 `vision`(auto/on/off)命中则像素进主模型,未声明则去图插桩走 `look_at_image`。
+**上传策略(admission ≠ representation,对齐 OpenSquilla):** UI 不按扩展名拒收;服务端 `saveUpload` 按表示归位——`pdf`→`papers/`、文本与源码→`docs/`、图→`images/`、其余→`uploads/`(opaque:落盘给工具读,不假定 inline 进模型)。体积上限见 `maxUploadBytes`(默认 25MB)。**图的表示优先像素相**:粘贴、回形针、拖入凡能 inline 的都进 `images[]`(与历史粘贴同一条路);超 5MB 才落盘。表示按模型能力声明分流:档案 `vision`(auto/on/off)命中则像素进主模型,未声明则去图插桩走 `look_at_image`(`image_id=img-N` 或工作区 `path`)。`gpt-6*` 与 `gpt-5*` 同属视觉家族。
 
 ## 服务与外壳
 
@@ -148,7 +156,7 @@ UI 状态是事件流的纯函数:对 durable 子集重放必然得到同一界�
 
 ## ui-client
 
-React + Vite。三栏工作台:会话列表 / 对话(全幅消息流,输入卡片悬浮其上)/ 工作区+阅读器(分栏可拖宽,工作区随产物自动展开)。`useAgent` 订阅事件,`chat/reduce.ts` 把事件流纯函数投影成界面状态;上传文件先在输入区暂存,发送时才进入工作区(宽准入,见上「上传策略」)。
+React + Vite。三栏工作台:会话列表 / 对话(全幅消息流,输入卡片悬浮其上)/ 工作区+阅读器(分栏可拖宽,工作区随产物自动展开)。`useAgent` 订阅事件,`chat/reduce.ts` 把事件流纯函数投影成界面状态;非图文件先在输入区暂存,发送时才进入工作区;图走 `images[]` 像素相(宽准入,见上「上传策略」)。
 
 **对话可视化(网页沙箱):** assistant 文本中的 ` ```show-widget ` 围栏由 ui-client 解析,在 `sandbox="allow-scripts"`(无 same-origin)的 receiver iframe 内渲染 HTML/SVG/JS;CSP 限制 CDN 白名单且 `connect-src 'none'`。过程与验收见 `briefs/archive/web-sandbox-widget.md`。内联脚本由宿主 hoist 成 `lumenwidget://` src(父 CSP `script-src 'self'` 不加 unsafe-inline)。这与 `run_code` 的进程沙箱(Seatbelt)是不同隔离面。
 

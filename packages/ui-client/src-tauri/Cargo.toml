@@ -12,6 +12,8 @@ tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 rfd = "0.15"
+base64 = "0.22"
+reqwest = { version = "0.13.4", default-features = false, features = ["json"] }
 
 [[bin]]
 # tauri:dev 直接跑此二进制——macOS Dock 气泡用进程文件名;勿再用 lumen-ui(会显示成 Lumen UI)
