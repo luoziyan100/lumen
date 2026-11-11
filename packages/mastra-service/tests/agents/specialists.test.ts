@@ -16,6 +16,9 @@ import { LocalFilesystem } from '@mastra/core/workspace'
 import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
 import { createSpecialists } from '../../src/agents/specialists.ts'
+import { researchHttp } from '../../src/research/http.ts'
+import { createWebTools } from '../../src/research/web.ts'
+import { createPdfTool } from '../../src/research/pdf.ts'
 import { createModelGateway, modelId } from '../../src/model.ts'
 import { fixtureProvider, textReply, toolReply } from '../provider-fixture.ts'
 
@@ -170,5 +173,52 @@ test('专家过滤和输出截断回报原生原因，不把空结果或片段�
       if (reason === 'length') assert.match(text, /未完成片段：INCOMPLETE_FRAGMENT/)
     }
     assert.equal(childCalls, 2)
+  } finally { await mastra.shutdown(); await specialists.close(); await storage.close(); await filesystem.destroy(); await rm(root, { recursive: true, force: true }) }
+})
+
+test('只读专家的工具 schema 不暴露 save_as，可写专家保留；委派提示不再靠文字补丁', { timeout: 20000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), 'lumen-readonly-schema-'))
+  const filesystem = new LocalFilesystem({ basePath: join(root, 'task'), contained: true })
+  await filesystem.init()
+  const seen = new Map<string, { params: Record<string, string[]>, descriptions: string[], prompt: string }>()
+  const fixture = fixtureProvider(request => {
+    if (request.tools?.some(tool => tool.function.name === 'agent-reader')) {
+      const results = request.messages.filter(message => message.role === 'tool')
+      if (!results.length) return toolReply('agent-reader', { prompt: '读取材料' }, 'delegate-reader')
+      if (results.length === 1) return toolReply('agent-searcher', { prompt: '检索材料' }, 'delegate-searcher')
+      return textReply('完成')
+    }
+    const role = JSON.stringify(request.messages).includes('检索材料') ? 'searcher' : 'reader'
+    const tools = (request.tools ?? []) as Array<{ function: { name: string; description?: string; parameters: { properties?: Record<string, unknown> } } }>
+    const prompt = request.messages.filter(m => m.role === 'user').map(m => JSON.stringify(m.content)).join('\n')
+    seen.set(role, { prompt,
+      params: Object.fromEntries(tools.filter(t => ['fetch_url', 'extract_pdf', 'extract_docx'].includes(t.function.name)).map(t => [t.function.name, Object.keys(t.function.parameters.properties ?? {})])),
+      descriptions: tools.filter(t => ['fetch_url', 'extract_pdf', 'extract_docx'].includes(t.function.name)).map(t => t.function.description ?? '') })
+    return textReply(`${role} 已完成`)
+  })
+  const settings = { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixture.fetch }
+  const http = researchHttp(fixture.fetch)
+  const storage = new LibSQLStore({ id: 'readonly-schema', url: `file:${join(root, 'memory.sqlite')}` })
+  const memory = new Memory({ storage, options: { semanticRecall: false, workingMemory: { enabled: false } } })
+  const specialists = createSpecialists({ model: modelId(settings), memory, tools: { ...createWebTools(http), extract_pdf: createPdfTool(http) },
+    resolveTaskFilesystem: () => filesystem, modelSettings: () => ({ vision: 'off' }) })
+  const parent = new Agent({ id: 'parent', name: 'Parent', instructions: '委派', model: modelId(settings), memory,
+    agents: specialists.agents, defaultOptions: { delegation: specialists.delegation }, backgroundTasks: specialists.backgroundTasks })
+  const mastra = new Mastra({ agents: { parent, ...specialists.agents }, storage, gateways: { lumen: createModelGateway(settings) } })
+  try {
+    const requestContext = new RequestContext(); requestContext.set('controller', { resourceId: 'p:task' })
+    const stream = await parent.stream('委派', { memory: { thread: 'p:task', resource: 'p:task' }, requestContext, maxSteps: 4 })
+    assert.match((await stream.getFullOutput()).text, /完成/)
+    const reader = seen.get('reader'), searcher = seen.get('searcher')
+    assert.ok(reader && searcher)
+    assert.deepEqual(Object.keys(reader.params).sort(), ['extract_docx', 'extract_pdf', 'fetch_url'])
+    for (const [name, params] of Object.entries(reader.params)) {
+      assert.ok(!params.includes('save_as'), `reader ${name} 仍暴露 save_as`)
+      assert.ok(params.includes('offset') && params.includes('limit'), `reader ${name} 丢失分段参数`)
+    }
+    for (const description of reader.descriptions) assert.doesNotMatch(description, /save_as/)
+    assert.deepEqual(Object.keys(searcher.params).sort(), ['extract_docx', 'extract_pdf', 'fetch_url'])
+    for (const [name, params] of Object.entries(searcher.params)) assert.ok(params.includes('save_as'), `searcher ${name} 缺少 save_as`)
+    assert.doesNotMatch(reader.prompt, /不得设置 save_as/)
   } finally { await mastra.shutdown(); await specialists.close(); await storage.close(); await filesystem.destroy(); await rm(root, { recursive: true, force: true }) }
 })

@@ -11,6 +11,7 @@ agents/
 ├── workspaces.ts
 ├── sources.ts
 ├── context.ts
+├── readonly.ts
 ├── catalog/
 ├── guards/
 ├── usage/
@@ -23,6 +24,7 @@ agents/
 - `specialists.ts`：从静态角色快照创建原生 Agent；公开工具名沿角色名，内部 ID 按项目及定义区分，委派校验父项目，只传明确任务及 contextFromRefs 证据，隔离父对话与工具轨迹；模型与上下文窗口按父 Session 的启动模型解析；末步强制无工具总结；空总结、过滤和截断附原生终止原因并明确标为未完成，不能当作证据；DOCX/图像/执行始终解析到自身 Workspace。
 - `workspaces.ts`：以受信父任务、原生 runId/toolCallId 派生稳定子目录；同角色并发委派仍相互独立。
 - `sources.ts`：可写专家只读父任务材料和复制原件；文件写入仍只能落自身 Workspace。
+- `readonly.ts`：只读专家的 fetch_url/extract_pdf/extract_docx 去掉 save_as 参数与说明，schema 只暴露实际能力，执行复用原工具。
 - `context.ts`：按当前 Session 模型窗口的 80% 配置原生输入 TokenLimiter，缺省窗口 128k；连续保留近期消息，vision=off 同时隐藏视觉工具与图像请求处理器。
 - `catalog/`：读取旧格式 Markdown 自定义角色、分层覆盖和启停配置；只加载白名单能力，不引入插件运行时。
 - `guards/`：主运行步骤/活动时间约束、原生空行动纠正和本会话完整历史回读；不恢复旧循环或事件账。

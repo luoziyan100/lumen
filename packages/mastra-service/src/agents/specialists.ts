@@ -13,6 +13,7 @@ import { createExecutionTools } from '../execution/tools.ts'
 import type { ExecutionEnvironment } from '../execution/process.ts'
 import { SPECIALIST_ROLES, type SpecialistId, type SpecialistRole } from './roles.ts'
 import { createSpecialistWorkspaces, specialistDirectory, type TaskFilesystemResolver } from './workspaces.ts'
+import { readOnlyTools } from './readonly.ts'
 import { createTaskSourceTools } from './sources.ts'
 import { createIngestionTools, createImageToolResultProcessor } from '../ingestion/index.ts'
 import { createInputProcessors, modelTools, type ContextSettings } from './context.ts'
@@ -67,9 +68,10 @@ export function createSpecialists(options: SpecialistOptions) {
     }
     Object.assign(tools, select(createIngestionTools(ingestionWorkspace)))
     const images = role.tools.includes('look_at_image') ? createImageToolResultProcessor(ingestionWorkspace) : undefined
+    const exposed = role.writable ? tools : readOnlyTools(tools)
     agents[role.id] = new Agent({ id, name: role.name, description: `${role.description} 委派 prompt 必须包含本次目标、必要材料路径和约束；其他专家证据通过 contextFromRefs 显式传入，不继承父对话。用户通过专家继续入口指定原专家后，必须委派相同角色，不能新建冒充继续；历史工具只是过去事实，禁止自动重放副作用。`, model: options.model, memory: options.memory,
       instructions: `${role.instructions}\n你只向主研究者回报；用户决策、最终任务清单、共享记忆与技能安装由主研究者负责。不委派下一层专家。最后一步会关闭工具，请总结已经读取的证据及尚未解决的缺口，不能把工具执行本身当作任务完成。`,
-      tools: ({ requestContext }) => modelTools(options.modelSettings?.(requestContext), tools),
+      tools: ({ requestContext }) => modelTools(options.modelSettings?.(requestContext), exposed),
       defaultOptions: { maxSteps: role.maxSteps }, backgroundTasks: { disabled: true },
       inputProcessors: ({ requestContext }) => [...(options.specialistHistory ? [options.specialistHistory.capture] : []), ...createInputProcessors(options.modelSettings?.(requestContext), images), specialistConclusion, ...(options.familyBudget ? [options.familyBudget.inputProcessor] : [])],
       outputProcessors: [...(options.familyBudget ? [options.familyBudget.outputProcessor] : []), ...(options.childUsage ? [options.childUsage.outputProcessor] : []), createEmptyActionProcessor()], maxProcessorRetries: 1,
@@ -93,7 +95,7 @@ export function createSpecialists(options: SpecialistOptions) {
       options.childUsage?.bind(context)
       const scope = role.writable
         ? `你的读写工作区是独立目录。主任务材料使用 list_task_files/read_task_file/copy_task_file。产物在父任务的 ${directory}/；完成时只报告实际写入的文件，禁止修改父任务原件或其他专家产物。`
-        : '你的工作区是主任务材料的只读视图。优先读取已有提取文本；extract_pdf 不得设置 save_as。返回证据与建议，不修改文件。'
+        : '你的工作区是主任务材料的只读视图。优先读取已有提取文本；返回证据与建议，不修改文件。'
       const maxSteps = Math.min(context.params.maxSteps ?? role.maxSteps, role.maxSteps)
       context.requestContext.set(SPECIALIST_MAX_STEPS, maxSteps)
       return { modifiedPrompt: `${context.prompt}\n\n${scope}`, modifiedMaxSteps: maxSteps }

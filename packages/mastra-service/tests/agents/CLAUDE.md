@@ -1,7 +1,7 @@
 # agents/
 > L2 | 父级: ../CLAUDE.md
 
-- `specialists.test.ts`：同一父运行同时委派相同角色，独立 RequestContext/写目录不互覆盖，父材料只读且结果回灌；最后一步无工具总结实际证据并返回父模型，隔离父历史仍保留 contextFromRefs；过滤及截断如实回报且不自动重试。
+- `specialists.test.ts`：同一父运行同时委派相同角色，独立 RequestContext/写目录不互覆盖，父材料只读且结果回灌；最后一步无工具总结实际证据并返回父模型，隔离父历史仍保留 contextFromRefs；过滤及截断如实回报且不自动重试；只读专家实际请求中的工具 schema 不含 save_as，可写专家保留。
 - `context.test.ts`：真实 Memory 长历史经原生 TokenLimiter 裁剪当次模型输入，保留近期工具配对及完整输出，原历史仍落盘。
 - `approval.test.ts`：正式应用的专家委派及箱内代码默认无批准步骤，实际读取技能/父任务资源且只能写自身独立目录，不用自动批准事件掩盖权限回归。
 - `tasks.test.ts`：原生 task_* 的展示与 threadState 在关闭重开后仍一致，task_check 核对已完成状态。
