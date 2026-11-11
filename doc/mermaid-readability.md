@@ -1,6 +1,6 @@
 # Mermaid 可读性（停拉伸 · 官方 ELK · persona 安全子集）
 
-状态: **现行（决策+履约）** · 2026-08-31  
+状态: **现行（前端决策+履约）；persona 安全子集部分迁移；Phase B 冻结项随旧服务退役** · 2026-08-31（2026-11-10 按 Mastra 代码核对，见「现状核对」）  
 分支语境: `experiment/glass-ui`  
 决策编号: **R1′**（可读性本轮；语法管线仍是 `doc/mermaid-pipeline.md` 的 S4′）
 
@@ -17,7 +17,7 @@
 | 状态 | 现行（决策已与 owner 对齐；实现按本文合同履约） |
 | 日期 | 2026-08-16 |
 | 作者意图 | 对话窗里要一张**能读的流程图**（层次清楚、线正交、放大/缩放已有），并且**高概率真的能渲染**。本轮只动三件事：停 SVG 拉伸、官方 mermaid ELK、persona 安全子集。 |
-| 所有者 | Lumen UI + agent-service（双包） |
+| 所有者 | Lumen UI；persona 段现位于 `packages/mastra-service/src/agents/persona.ts` |
 | 与 S4′ 关系 | **正交叠加**：S4′ 管「出图/失败诚实」；R1′ 管「画出来之后好不好读」。不得用本文推翻 Phase A/B。 |
 
 ### 修订记录
@@ -27,6 +27,13 @@
 | 2026-08-16 | 初版：锁定停拉伸 + 官方 ELK + persona 安全子集；否决 beautiful-mermaid / IR·S5 / R8+ | 会话决策落盘并履约 |
 | 2026-08-31 | 叠加：最终几何一次进入主流(箱外 tighten);不停拉伸/ELK/Phase A/B 合同 | 跳动修复 |
 | 2026-08-31 | 宿主展示改为固有宽 + 内层真横滚;缓存 SVG 不再写卡片 `max-width:100%`;lightbox 单独 fit;persona 长链优先 TD | 数学/宽图 brief |
+| 2026-11-10 | Mastra 迁移后代码核对：新增「现状核对」；旧 agent-service 锚点标为退役 | 文档对齐 |
+
+### 现状核对（2026-11-10）
+
+- **仍履约**：停拉伸、固有宽横滚、官方 ELK 及失败回退 dagre、箱外一次提交（`packages/ui-client/src/mermaid/`、`components/MermaidBlock.tsx`，`tests/mermaid-layout.test.ts` 等）。
+- **部分迁移**：persona 只保留「标签简短加双引号、长链用 TD、解释写在围栏外」；LR 适用范围、约 15 节点、分支标签、先闭合再写边、end 自检未迁入，AT5 对应测试随旧服务删除。
+- **已退役**：F4 Phase B `repair_mermaid`（服务端已删，前端 `onRepair` 未接线）；F6「对模型报错在 agent-service」当前无实现。其余冻结项仍有效。
 
 ---
 
@@ -36,7 +43,7 @@
 
 | 现象 | 现场 / 痕迹 | 机制（本轮要动的层） |
 |------|-------------|----------------------|
-| **记忆层图扁** | 记忆层 / 架构类 `flowchart TB`（含 Phase B 夹具语义：`packages/agent-service/scripts/inject-mermaid-phase-b-fixture.ts` 的 `subgraph mem [记忆层]`；真实研究会话里同类 TB 图）在对话栏被拉成扁条，节点间距被横向撑开 | `tightenSvgInk` 在收紧 viewBox 后写了 `svg.style.width = '100%'`。卡片栏很宽 → 固有宽被丢弃 → TB 图被横向拉伸。CSS `.mermaid-svg svg` 已是 `max-width:100%; margin:auto`，JS 把 width 盖成 100% 抵消了「量完再装盒」 |
+| **记忆层图扁** | 记忆层 / 架构类 `flowchart TB`（含 Phase B 夹具语义：已退役的 `packages/agent-service/scripts/inject-mermaid-phase-b-fixture.ts` 的 `subgraph mem [记忆层]`；真实研究会话里同类 TB 图）在对话栏被拉成扁条，节点间距被横向撑开 | `tightenSvgInk` 在收紧 viewBox 后写了 `svg.style.width = '100%'`。卡片栏很宽 → 固有宽被丢弃 → TB 图被横向拉伸。CSS `.mermaid-svg svg` 已是 `max-width:100%; margin:auto`，JS 把 width 盖成 100% 抵消了「量完再装盒」 |
 | **中文中词折行** | 节点标签写成论述句（「短 ID + 长标签」合同在邀请这么写）；中文在 `htmlLabels` 下按宽度硬折，词中断开 | **生成合同**问题，不是再加一条 Phase A 规则能根治。本轮改 persona：标签=短标题，解释在围栏外 |
 | **线乱** | 多节点 flowchart 边走 dagre 曲线，交叉、斜穿、不像层次图 | mermaid 11 默认 flowchart 渲染器仍是 dagre；正交折线是 **ELK layered** 的能力。官方已把 ELK 拆到 `@mermaid-js/layout-elk`，不注册则 `defaultRenderer:'elk'` 无效 |
 
@@ -141,9 +148,9 @@
 | `packages/ui-client/src/components/MermaidBlock.tsx` | 箱外 tighten 后一次提交；initialize 接 ELK；头部 POS 指向本文 |
 | `packages/ui-client/tests/mermaid-layout.test.ts` | AT1 固有尺寸政策；AT2 initialize 含 elk |
 | `packages/ui-client/src/styles.css` | `.mermaid-scroll` 为滚动端口；`.mermaid-svg` 用 `max-content` + `min-width:100%` 居中小图；`> svg { max-width:none }`。`.mermaid-block { overflow:hidden }` **默认保留**（不禁用内层滚动）。lightbox `.mermaid-lightbox-stage svg` 单独 fit |
-| `packages/agent-service/src/agents/persona.ts` | 安全子集 + 长链优先 TD；LR 仅短链/并列；保留引号/闭合/end 自检 |
+| ~~`packages/agent-service/src/agents/persona.ts`~~（已退役；现 `packages/mastra-service/src/agents/persona.ts`，部分迁移） | 安全子集 + 长链优先 TD；LR 仅短链/并列；保留引号/闭合/end 自检 |
 | `packages/ui-client/CLAUDE.md`、`components/CLAUDE.md`、`agents/CLAUDE.md` | 成员职责回写 ELK / 固有宽横滚 / 安全子集 |
-| `packages/agent-service/tests/agents/persona-mermaid.test.ts` | AT5：persona 含长链 TD、不含「短 ID + 长标签」 |
+| ~~`packages/agent-service/tests/agents/persona-mermaid.test.ts`~~（已退役，无替代测试） | AT5：persona 含长链 TD、不含「短 ID + 长标签」 |
 
 ### 不改
 

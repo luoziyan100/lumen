@@ -1,6 +1,6 @@
 # Mermaid 渲染管线（校验 · 清洗 · 修复 · 降级）
 
-状态: **现行（Phase A/B 已落地；Phase C 待阈值；可读性本轮见 `mermaid-readability.md`）** · 2026-08-16  
+状态: **渲染决策参考：前端 Phase A 现行；Phase B 已随旧服务退役；persona 镜像部分迁移**（2026-08-16 决策；2026-11-10 按 Mastra 代码核对，见 §1.5）  
 分支语境: `experiment/glass-ui`（与 glass 主题、MermaidBlock 同栈）  
 决策编号: **S4′**（HDD 选型 + 外部调研交叉验证）
 
@@ -14,7 +14,7 @@
 
 | 字段 | 值 |
 |------|-----|
-| 所有者 | Lumen UI + agent-service（双包） |
+| 所有者 | Lumen UI（Phase A/可读性）；原 agent-service 侧的 persona 与 Phase B 见 §1.5 |
 | 决策日期 | 2026-08-11 |
 | 触发案例 | Session `task-5bacbbc0-b95c-445b-b21a-562ebdc3543f`：架构 flowchart 第 23 行 `sandbox/{sessionId}` 触发 `DIAMOND_START` parse error |
 | 方法 | HDD 事前规划选型（S0–S6）+ 独立调研交叉（GenAIScript / Cursor / Claude / Codex / maid 等） |
@@ -34,6 +34,7 @@
 | 2026-08-16 | 可读性本轮（R1′）交叉引用：`doc/mermaid-readability.md`；§5 R1–R7 冻结；§5.3 短标签 | 会话决策 |
 | 2026-08-31 | 最终几何一次进入主流:箱外 measurement host 完成 tighten 后一次替换源码;Phase A/B、ELK、复制原文、失败源码冻结 | 跳动修复 |
 | 2026-08-31 | 缓存 final SVG 不再携带卡片 max-width;宿主改为固有宽 + 内层真横滚;§5.3 长链优先 TD | 数学/宽图 brief |
+| 2026-11-10 | Mastra 迁移后代码核对：新增 §1.5；§10 锚点改到 `src/mermaid/` 并标出退役项；决策正文保留为历史 | 文档对齐 |
 
 ---
 
@@ -74,6 +75,15 @@
 | 回传模型 | **Phase B 已接**：失败卡「尝试修复」→ `repair_mermaid` sidecar。仍不进主研究循环、不改 `task_events`。`model_retry` 只处理 API 运输层 |
 | Structured Outputs | adapter **未接** `response_format: json_schema` |
 | 出图通道 | 正文 ` ```mermaid ` 围栏；**不**走 tool_calls |
+
+### 1.5 2026-11-10 代码事实（Mastra 迁移后；本节优先于 §1.4 与 §10 的旧状态）
+
+| 环节 | 现状 | 证据 |
+|------|------|------|
+| 语法闸 + 同源 parse/render + 失败源码 | **仍在运行**：R1–R7、kind 门控、箱外测量后一次提交 | `packages/ui-client/src/mermaid/`、`components/MermaidBlock.tsx`；`tests/mermaid-syntax/sanitize/layout*.test.ts` |
+| Persona（§5.3 镜像） | **部分迁移**：只保留「标签简短加双引号、长链用 TD、解释写在围栏外」；end 自检、先闭合再写边、sequence 语法、约 15 节点、分支标签未迁入；无对应测试 | `packages/mastra-service/src/agents/persona.ts` |
+| Phase B `repair_mermaid` | **已退役**：服务端随 2026-09-19 迁移删除；`MermaidBlock`/`Markdown` 仍保留可选 `onRepair` 入口，但 `mastra/views/Conversation.tsx` 未传入，界面不显示「尝试修复」 | 同上组件；服务端无该路由 |
+| 不变式 9「对模型报错进 agent-service」 | 对模型半句当前**无实现**；对人半句仍由前端承担 | — |
 
 ---
 
@@ -460,16 +470,16 @@ validateMermaid(source: string, mermaidApi) →
 
 | 能力 | 路径 | 状态 |
 |------|------|------|
-| 语法 repair | `packages/ui-client/src/mermaidSyntax.ts` | **Phase A 已落地** |
-| 颜色 sanitize | `packages/ui-client/src/mermaidSanitize.ts` | 已有（仅颜色） |
+| 语法 repair | `packages/ui-client/src/mermaid/mermaidSyntax.ts` | **Phase A 已落地** |
+| 颜色 sanitize | `packages/ui-client/src/mermaid/mermaidSanitize.ts` | 已有（仅颜色） |
 | 渲染块 | `packages/ui-client/src/components/MermaidBlock.tsx` | **Phase A 管线已接**；可读性见 `mermaidLayout.ts` |
-| 布局/停拉伸 | `packages/ui-client/src/mermaidLayout.ts` | **R1′ 已落地**（ELK + 禁 100% 宽） |
+| 布局/停拉伸 | `packages/ui-client/src/mermaid/mermaidLayout.ts` | **R1′ 已落地**（ELK + 禁 100% 宽） |
 | Markdown 入口 | `packages/ui-client/src/components/Markdown.tsx` | 已有 |
 | 语法单测 | `packages/ui-client/tests/mermaid-syntax.test.ts` | **已落地** |
 | 颜色单测 | `packages/ui-client/tests/mermaid-sanitize.test.ts` | 已有 |
-| Persona | `packages/agent-service/src/agents/persona.ts` | **Phase A 规则已补**；R1′ 安全子集已写入 |
-| Repair 协议 | `packages/agent-service/src/protocol/messages.ts` 等 | **Phase B 已落地**(`repair_mermaid` → `ok.source`) |
-| Repair 核 | `packages/agent-service/src/runtime/mermaid-repair.ts` | **已落地** |
+| Persona | `packages/mastra-service/src/agents/persona.ts` | **部分迁移**（见 §1.5）；原 `packages/agent-service/src/agents/persona.ts` 已退役 |
+| Repair 协议 | ~~`packages/agent-service/src/protocol/messages.ts`~~ | **已退役**（2026-09-19，无 Mastra 对应实现） |
+| Repair 核 | ~~`packages/agent-service/src/runtime/mermaid-repair.ts`~~ | **已退役**；前端 `onRepair` 入口未接线 |
 
 ---
 

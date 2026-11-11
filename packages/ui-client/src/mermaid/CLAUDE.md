@@ -3,7 +3,7 @@
 > L2 | 父级: packages/ui-client/CLAUDE.md
 > [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 
-流程图渲染前闸。对人报错在语法闸;Phase B 回灌走 `repair_mermaid`。
+流程图渲染前闸。对人报错在语法闸;Phase B `repair_mermaid` 服务端已随旧 agent-service 退役，`MermaidBlock` 的可选 `onRepair` 入口当前未接线。
 
 ## 成员
 

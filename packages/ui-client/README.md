@@ -1,37 +1,35 @@
 # @lumen/ui-client
 
-Lumen 的 UI 客户端。**外壳是薄的**：它不承载 agent，只连接无头 agent-service（localhost WebSocket）渲染 LUI。
+Lumen 的研究工作台客户端：React 19 + Vite 浏览器入口，外加 Tauri 2 桌面薄壳。它不运行 agent，只通过官方 HTTP/SSE 接口连接本机的 `@lumen/mastra-service`；消息、运行状态和子任务都来自服务端的原生接口。
 
-## 现状（诚实标注）
+职责边界、目录地图和开发纪律以 [`CLAUDE.md`](CLAUDE.md) 为准，本文只说明怎么跑起来。
 
-- ✅ **可作为浏览器 Web 客户端运行并验证**：`npm install && npm run dev`，先起 agent-service，UI 即可 submit 并看事件流。这一层（React LUI + WS 客户端 + 协议）是真实、可跑的。
-- ✅ **进程生命周期已无头验证**：`agent-service/src/supervisor.ts` + `supervisor.test.ts` 证明了"service 作为独立子进程启动 → 写 portfile → 客户端连接 → 停止"。这是"关窗口 agent 照跑"的内核。
-- 🟡 **Tauri 原生外壳已脚手架（`src-tauri/`）但未本机编译验证**（无 Rust/Tauri 工具链）。其 `main.rs` 的 sidecar 生命周期逻辑镜像已测通的 `supervisor.ts`；需 `npm i && npm run tauri:dev` 在装好工具链的机器上跑通。打包（bundle node + service）是后续。
+## 浏览器开发
 
-## 跑起来（Web 客户端模式）
+在仓库根目录执行：
 
 ```bash
-# 终端 1：起无头 agent-service（见 packages/agent-service）
-ANTHROPIC_API_KEY=sk-... node --experimental-strip-types ../agent-service/src/service.ts
-# 它会打印 ws 端口，并写 ~/.lumen/agent-service.json
-
-# 终端 2：起 UI（把端口塞进 window.__LUMEN_WS__，或改 App.tsx 默认值）
-npm install && npm run dev
+npm install
+npm run dev   # 同时启动服务与 Vite；数据根默认 ~/.lumen-mastra-dev，浏览器打开 http://localhost:5180
 ```
 
-## Tauri 原生外壳的落地契约（M7 剩余）
+`LUMEN_MASTRA_HOME=/绝对路径` 可以换成别的隔离数据根。开发模式不会碰正式数据根 `~/.lumen-mastra`。
 
-1. `src-tauri/` Rust main 启动时：以 **sidecar** 方式拉起 `agent-service`（`node --experimental-strip-types service.ts` 或打包后的二进制），并监督/重启。
-2. service 把端口写进 `~/.lumen/agent-service.json`；Rust 读它，通过注入 `window.__LUMEN_WS__` 或命令告诉前端。
-3. **关闭窗口 ≠ 退出**：窗口关到 tray/dock，sidecar 继续跑 → 后台自治成立。完全退出 app 时再杀 sidecar。
-4. 文件对话框（导入 PDF）、PDF 渲染（pdf.js v4）留在外壳侧。
+## 验证
 
-## 结构
-
+```bash
+npm run typecheck -w @lumen/ui-client
+npm test -w @lumen/ui-client        # 含真实 HTTP/SSE 客户端回归
+npm run check:theme -w @lumen/ui-client
+npm run build -w @lumen/ui-client
 ```
-src/
-  agent-client.ts   # 浏览器 WS 客户端 + 协议类型（正式版从 @lumen/shared 导入）
-  useAgent.ts       # React hook：事件流 → LUI 消息
-  App.tsx           # 主屏 = 聊天（user/assistant/error 气泡 + 输入框）
-  styles.css        # 占位，待接 Lumen_Design_System CSS 变量
+
+Node 回归不能证明 WebKit 中的交互正确；桌面改动交付前须构建、重装并打开 `/Applications/Lumen.app`，流程见仓库根 `AGENTS.md` 的交付闭环。
+
+## 桌面应用
+
+```bash
+npm run tauri:build -w packages/ui-client
 ```
+
+桌面壳默认从 `~/.lumen-mastra/mastra-service.json` 发现正式服务（由 launchd 的 `com.lumen.mastra` 常驻），不负责拉起服务。服务安装与重启见 `packages/mastra-service/scripts/CLAUDE.md`。
