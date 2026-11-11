@@ -14,6 +14,7 @@ mastra/
 成员清单
 - `modules.md`：全项目模块处置表，区分已落地能力、剩余交互与待完成实机验收，防止缩减整项目范围。
 - `architecture.md`：定义 Mastra 与 Lumen 的职责边界、数据真源、会话身份和淘汰范围；实施过程归 `briefs/archive/mastra/plan.md`。
+- `adapters.md`：锁定版框架的已复现缺陷、Lumen 窄适配与已核实非问题项；升级 Mastra 时逐条复核。
 - `CLAUDE.md`：维护本目录与现行架构、实施工作线之间的导航关系。
 
 开发规范：只描述现役实现与明确限制；历史自研内核文档标为历史，不混用当前执行合同。
