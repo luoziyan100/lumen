@@ -12,4 +12,4 @@
 }
 .curtain-disclosure-trigger > svg { flex: none; align-self: center; }
 .curtain-disclosure-label { min-width: 0; }
-.curtain-disclosure-trigger:focus-visible { outline: 2px solid var(--ember); outline-offset: 3px; border-radius: var(--radius-sm); }
+.curtain-disclosure-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--radius-sm); }

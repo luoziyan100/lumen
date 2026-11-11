@@ -33,7 +33,7 @@ function assertHostTheme(scheme: 'dark' | 'light', tokens: Record<string, string
   assert.equal(host.dataset.appearance, scheme)
   assert.equal(host.style.colorScheme, scheme)
   assert.equal(host.style.getPropertyValue('--canvas'), tokens['--canvas'])
-  assert.equal(host.style.getPropertyValue('--ink'), tokens['--ink'])
+  assert.equal(host.style.getPropertyValue('--text'), tokens['--text'])
 }
 
 test('系统变化切换实际明暗基线，选择浅色纸面后重挂载恢复颜色与材质', async () => {

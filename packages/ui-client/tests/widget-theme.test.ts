@@ -47,7 +47,7 @@ describe('widget theme under light/dark chrome', () => {
     withComputedStyle(() => ({
       colorScheme: 'dark',
       getPropertyValue: (name: string) => {
-        if (name === '--ink') return '#E8EAEE'
+        if (name === '--text') return '#E8EAEE'
         if (name === '--font-sans') return 'TestSans'
         return ''
       },
@@ -63,7 +63,7 @@ describe('widget theme under light/dark chrome', () => {
     const tokens: Record<string, string> = {
       '--paper-solid': 'rgba(255, 255, 255, 0.90)', '--card': 'rgba(255, 255, 255, 0.50)', '--paper-deep': 'rgba(224, 232, 242, 0.52)',
       '--surface-elevated': '#FFFFFF', '--surface-base': '#F5F8FC', '--surface-recessed': '#E0E8F1',
-      '--ink': '#18212D', '--ink-soft': '#334155', '--ink-mute': '#536272',
+      '--text': '#18212D', '--text-soft': '#334155', '--text-muted': '#536272',
     }
     withComputedStyle(() => ({ colorScheme: 'light', getPropertyValue: (name: string) => tokens[name] ?? '' } as unknown as CSSStyleDeclaration), () => {
       assert.equal(hostChromeIsDark({} as HTMLElement), false)

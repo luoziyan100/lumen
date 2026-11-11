@@ -25,7 +25,7 @@ describe('readMermaidPalette', () => {
     for (const value of Object.values(light).filter(v => typeof v === 'string' && v.startsWith('#'))) {
       assert.match(value as string, /^#[0-9a-f]{6}$/)
     }
-    // --moss-tint rgba(42,108,83,0.09) 叠在 #F5F8FC 上:接近底色而非深绿
+    // --success-bg rgba(42,108,83,0.09) 叠在 #F5F8FC 上:接近底色而非深绿
     assert.notEqual(light.okFill, light.ok)
     assert.ok(parseInt(light.okFill.slice(1, 3), 16) > 200, light.okFill)
   })

@@ -26,17 +26,17 @@ export const DEFAULT_APPEARANCE: AppearanceState = {
   blurPx: 0,
 }
 
-/** 皮肤可 patch 的原语键（不含别名 --success / --code-keyword 等） */
+/** 皮肤可 patch 的原语键（不含别名 --code-keyword 等） */
 export const APPEARANCE_TOKEN_WHITELIST = [
   // 玻璃壳
   '--canvas',
   '--paper',
   '--paper-solid',
   '--paper-deep',
-  '--vellum',
+  '--fill-subtle',
   '--card',
-  '--sand',
-  '--sand-deep',
+  '--border',
+  '--border-strong',
   '--scrim',
   // 实色伴生（Kumo Solid）
   '--surface-canvas',
@@ -48,19 +48,19 @@ export const APPEARANCE_TOKEN_WHITELIST = [
   '--surface-fill-hover',
   '--surface-interact',
   // 墨
-  '--ink',
-  '--ink-soft',
-  '--ink-mute',
-  '--ink-faint',
-  '--ink-on-accent',
+  '--text',
+  '--text-soft',
+  '--text-muted',
+  '--text-faint',
+  '--text-on-accent',
   // 强调原语
-  '--ember',
-  '--ember-soft',
-  '--ember-tint',
-  '--moss',
-  '--moss-tint',
-  '--indigo',
-  '--indigo-tint',
+  '--accent',
+  '--accent-hover',
+  '--accent-tint',
+  '--success',
+  '--success-bg',
+  '--info',
+  '--info-tint',
   // 语义原语
   '--warning',
   '--warning-bg',
@@ -96,11 +96,9 @@ export const APPEARANCE_TOKEN_SET = new Set<string>(APPEARANCE_TOKEN_WHITELIST)
 
 /** CSS 别名：禁皮肤 patch；baseline 保留 var(--原语) */
 export const TOKEN_ALIASES: Record<string, string> = {
-  '--success': 'var(--moss)',
-  '--success-bg': 'var(--moss-tint)',
-  '--code-keyword': 'var(--ember)',
+  '--code-keyword': 'var(--accent)',
   '--code-number': 'var(--warning)',
-  '--code-title': 'var(--indigo)',
+  '--code-title': 'var(--info)',
   // R5：画布伴生跟随 canvas
   '--surface-canvas': 'var(--canvas)',
 }

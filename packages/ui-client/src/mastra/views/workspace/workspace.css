@@ -6,6 +6,6 @@
 .mw-workspace-heading .icon-btn { flex: none; }
 .mw-workspace-rail .ws-item { width: 100%; }
 
-.mw-workspace-usage { font-size: var(--t-caption); color: var(--ink-soft); }
+.mw-workspace-usage { font-size: var(--t-caption); color: var(--text-soft); }
 .mw-workspace-usage > .curtain-disclosure-trigger { cursor: pointer; }
 .mw-workspace-usage .mw-progress { padding: 0; }

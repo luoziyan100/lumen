@@ -79,7 +79,7 @@ export function collectThemeVars(el: HTMLElement | null): Record<string, string>
     }
   })()
 
-  // 内容岛与壳层解耦:只要宿主是暗底,就不镜像 --ink/--paper
+  // 内容岛与壳层解耦:只要宿主是暗底,就不镜像 --text/--paper
   if (!el || hostChromeIsDark(el)) {
     return { ...LIGHT_DOC_VARS, ...fonts }
   }
@@ -90,12 +90,12 @@ export function collectThemeVars(el: HTMLElement | null): Record<string, string>
     '--color-background-primary': pick('--surface-elevated', '#fffeff'),
     '--color-background-secondary': pick('--surface-base', '#ffffff'),
     '--color-background-tertiary': pick('--surface-recessed', '#f4f2ec'),
-    '--color-text-primary': pick('--ink', '#211f1c'),
-    '--color-text-secondary': pick('--ink-soft', 'rgba(33,31,28,0.82)'),
-    '--color-text-tertiary': pick('--ink-mute', 'rgba(33,31,28,0.56)'),
-    '--color-border-tertiary': pick('--sand-deep', 'rgba(66,56,42,0.17)'),
-    '--color-border-secondary': pick('--sand-deep', 'rgba(66,56,42,0.17)'),
-    '--color-border-primary': pick('--ink-faint', 'rgba(33,31,28,0.34)'),
+    '--color-text-primary': pick('--text', '#211f1c'),
+    '--color-text-secondary': pick('--text-soft', 'rgba(33,31,28,0.82)'),
+    '--color-text-tertiary': pick('--text-muted', 'rgba(33,31,28,0.56)'),
+    '--color-border-tertiary': pick('--border-strong', 'rgba(66,56,42,0.17)'),
+    '--color-border-secondary': pick('--border-strong', 'rgba(66,56,42,0.17)'),
+    '--color-border-primary': pick('--text-faint', 'rgba(33,31,28,0.34)'),
     ...fonts,
   }
 }

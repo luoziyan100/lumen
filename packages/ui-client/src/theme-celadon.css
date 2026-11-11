@@ -12,7 +12,7 @@
     --color-kumo-base:     var(--surface-base);
     --color-kumo-elevated: var(--surface-elevated);
     --color-kumo-recessed: var(--surface-recessed);
-    --color-kumo-contrast: var(--ink);
+    --color-kumo-contrast: var(--text);
     --color-kumo-control:  var(--surface-control);
 
     /* ---- 填充 Solid ---- */
@@ -22,13 +22,13 @@
     --color-kumo-interact:   var(--surface-interact);
 
     /* ---- 线与焦点 Tint ---- */
-    --color-kumo-hairline: var(--sand);
-    --color-kumo-line:     var(--sand-deep);
+    --color-kumo-hairline: var(--border);
+    --color-kumo-line:     var(--border-strong);
     --color-kumo-focus:    var(--focus-ring);
 
     /* ---- 品牌 Solid ---- */
-    --color-kumo-brand:       var(--ember);
-    --color-kumo-brand-hover: var(--ember-soft);
+    --color-kumo-brand:       var(--accent);
+    --color-kumo-brand-hover: var(--accent-hover);
 
     /* ---- 语义 ---- */
     --color-kumo-danger:       var(--danger);
@@ -37,48 +37,48 @@
     --color-kumo-warning-tint: var(--warning-bg);
     --color-kumo-success:      var(--success);
     --color-kumo-success-tint: var(--success-bg);
-    --color-kumo-info:         var(--indigo);
-    --color-kumo-info-tint:    var(--indigo-tint);
+    --color-kumo-info:         var(--info);
+    --color-kumo-info-tint:    var(--info-tint);
 
     /* ---- 遮罩与阴影 Tint ---- */
     --color-kumo-overlay:     var(--scrim);
     --color-kumo-shadow-drop: var(--scrim);
     --color-kumo-shadow-edge: var(--scrim);
     --color-kumo-tip-shadow:  var(--scrim);
-    --color-kumo-tip-stroke:  var(--sand-deep);
+    --color-kumo-tip-stroke:  var(--border-strong);
 
     /* ---- 横幅 ---- */
-    --color-kumo-banner-info:    var(--indigo-tint);
+    --color-kumo-banner-info:    var(--info-tint);
     --color-kumo-banner-warning: var(--warning-bg);
 
     /* ---- 徽章：语义 Tint 随宿主明暗变化 ---- */
-    --color-kumo-badge-blue:     var(--indigo-tint);
-    --color-kumo-badge-green:    var(--moss-tint);
+    --color-kumo-badge-blue:     var(--info-tint);
+    --color-kumo-badge-green:    var(--success-bg);
     --color-kumo-badge-red:      var(--danger-bg);
     --color-kumo-badge-orange:   var(--warning-bg);
-    --color-kumo-badge-purple:   var(--ember-tint);
-    --color-kumo-badge-teal:     var(--moss-tint);
+    --color-kumo-badge-purple:   var(--accent-tint);
+    --color-kumo-badge-teal:     var(--success-bg);
     --color-kumo-badge-neutral:  var(--surface-fill);
-    --color-kumo-badge-inverted: var(--ink);
+    --color-kumo-badge-inverted: var(--text);
 
     /* ---- 文字 Ink ---- */
-    --text-color-kumo-default:     var(--ink);
-    --text-color-kumo-strong:      var(--ink);
-    --text-color-kumo-subtle:      var(--ink-mute);
-    --text-color-kumo-placeholder: var(--ink-faint);
-    --text-color-kumo-inactive:    var(--ink-faint);
-    --text-color-kumo-inverse:     var(--ink-on-accent);
-    --text-color-kumo-brand:       var(--ember-soft);
-    --text-color-kumo-link:        var(--indigo);
-    --text-color-kumo-info:        var(--indigo);
-    --text-color-kumo-success:     var(--moss);
+    --text-color-kumo-default:     var(--text);
+    --text-color-kumo-strong:      var(--text);
+    --text-color-kumo-subtle:      var(--text-muted);
+    --text-color-kumo-placeholder: var(--text-faint);
+    --text-color-kumo-inactive:    var(--text-faint);
+    --text-color-kumo-inverse:     var(--text-on-accent);
+    --text-color-kumo-brand:       var(--accent-hover);
+    --text-color-kumo-link:        var(--info);
+    --text-color-kumo-info:        var(--info);
+    --text-color-kumo-success:     var(--success);
     --text-color-kumo-warning:     var(--warning);
     --text-color-kumo-danger:      var(--danger);
 
     --text-color-kumo-badge-inverted:       var(--surface-canvas);
-    --text-color-kumo-badge-neutral-subtle: var(--ink-mute);
+    --text-color-kumo-badge-neutral-subtle: var(--text-muted);
     --text-color-kumo-badge-orange-subtle:  var(--warning);
-    --text-color-kumo-badge-teal-subtle:    var(--moss);
+    --text-color-kumo-badge-teal-subtle:    var(--success);
   }
 }
 

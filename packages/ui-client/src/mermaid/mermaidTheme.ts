@@ -65,7 +65,7 @@ export function readMermaidPalette(token: (name: string) => string): MermaidPale
   const canvas = hex(canvasRgba)
   const dark = luminance(canvasRgba) < 0.4
   const pick = (name: string, fallback: string) => opaque(read(name), canvasRgba, fallback)
-  const ink = pick('--ink', dark ? '#e8eaee' : '#18212d')
+  const ink = pick('--text', dark ? '#e8eaee' : '#18212d')
   return {
     dark,
     fontFamily: read('--font-sans') || 'sans-serif',
@@ -73,12 +73,12 @@ export function readMermaidPalette(token: (name: string) => string): MermaidPale
     node: pick('--surface-elevated', canvas),
     cluster: pick('--surface-recessed', canvas),
     ink,
-    inkMute: pick('--ink-mute', ink),
-    border: pick('--ink-faint', ink),
-    accent: pick('--ember', ink),
-    accentFill: pick('--ember-tint', canvas),
-    ok: pick('--moss', ink),
-    okFill: pick('--moss-tint', canvas),
+    inkMute: pick('--text-muted', ink),
+    border: pick('--text-faint', ink),
+    accent: pick('--accent', ink),
+    accentFill: pick('--accent-tint', canvas),
+    ok: pick('--success', ink),
+    okFill: pick('--success-bg', canvas),
     warn: pick('--warning', ink),
     warnFill: pick('--warning-bg', canvas),
     danger: pick('--danger', ink),

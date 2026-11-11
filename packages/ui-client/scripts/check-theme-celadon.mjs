@@ -57,7 +57,7 @@ const solidSlotList = new Set([
 const glassForbidden = new Set([
   '--paper',
   '--card',
-  '--vellum',
+  '--fill-subtle',
   '--paper-deep',
   '--paper-solid',
 ])

@@ -75,7 +75,7 @@
 | 外观持久化 | 无 | — | V2 |
 | Widget | **暗壳**返回固定 `LIGHT_DOC_VARS`，**不**镜像宿主 token；仅浅壳镜像 | `themeVars.ts` L82–100 | V2 |
 
-**关键推论（V2）**：仅 patch Lumen `--canvas/--ember` **不会**改变 Kumo Button/Dialog 颜色（F1）。仅改 `.app::before` **不会**去掉 composer/glass/liquid 上的青瓷光（F2）。
+**关键推论（V2）**：仅 patch Lumen `--canvas/--accent` **不会**改变 Kumo Button/Dialog 颜色（F1）。仅改 `.app::before` **不会**去掉 composer/glass/liquid 上的青瓷光（F2）。
 
 ---
 
@@ -129,7 +129,7 @@ Preference UI → AppearanceState → resolveTheme() → applyTheme() → CSS va
 | **D12 · R1（2026-10-05 修订）** | 宿主 color-scheme 与实际 token 基线一致；apply 同步桌面窗口明暗。内容岛可读性通过独立实色表面保证，不再靠强制暗壳 |
 | **D13 · R3** | Token **原语 vs 别名**写死：皮肤只 patch 原语；别名仅 CSS `var(--原语)`，**不进**皮肤白名单（§6.2.1） |
 | **D14 · R2** | 浅色预设必须包含浅 canvas、深 ink、浅 Kumo 实色及轻阴影；material 区分 glass/paper，禁止仅换色相而继续套深黑底 |
-| **D15 · R4** | **玻璃 / 实色分槽**：Lumen 玻璃 token（半透明）只服务 Lumen 壳层；Kumo 需要实色填充的键映射到 **实色伴生 token**（§5.4.1），禁止 `kumo-fill → var(--vellum)` 这类透明度泄漏。default 实色伴生 **等于当前 Kumo 字面量**，保障 AT9 |
+| **D15 · R4** | **玻璃 / 实色分槽**：Lumen 玻璃 token（半透明）只服务 Lumen 壳层；Kumo 需要实色填充的键映射到 **实色伴生 token**（§5.4.1），禁止 `kumo-fill → var(--fill-subtle)` 这类透明度泄漏。default 实色伴生 **等于当前 Kumo 字面量**，保障 AT9 |
 
 ### 5.2 模块布局
 
@@ -180,8 +180,8 @@ PreferencePane → useAppearance → store → resolveTheme(state, system)
 | 槽类型 | 定义 | 规则 |
 |--------|------|------|
 | **Solid 槽** | Kumo 控件底/填充，视觉上应接近不透明（按钮、菜单项、elevated 面） | **禁止** 引用 alpha&lt;0.9 的玻璃 token；必须引用 **实色伴生 token** 或字面量 allowlist |
-| **Tint 槽** | 允许半透明的线、焦点、遮罩、品牌 tint | 可引用 `--sand` / `--focus-ring` / `--scrim` / `--ember-tint` 等 |
-| **Ink 槽** | 文字色 | 引用 `--ink*`（实色或高不透明）；不得引用 vellum |
+| **Tint 槽** | 允许半透明的线、焦点、遮罩、品牌 tint | 可引用 `--border` / `--focus-ring` / `--scrim` / `--accent-tint` 等 |
+| **Ink 槽** | 文字色 | 引用 `--text*`（实色或高不透明）；不得引用 vellum |
 
 **实色伴生 token（Phase A 写入 `tokens.css` 基线）**
 与当前 `theme-celadon.css` **字面量对齐**，保证 default 零观感漂移：
@@ -193,7 +193,7 @@ PreferencePane → useAppearance → store → resolveTheme(state, system)
 | `--surface-elevated` | `#1E212A` | `--card` peer |
 | `--surface-recessed` | `#101218` | `--paper-deep` peer |
 | `--surface-control` | `#1A1D26` | `--paper` peer |
-| `--surface-fill` | `#252833` | **不要**用 `--vellum`（9% 白） |
+| `--surface-fill` | `#252833` | **不要**用 `--fill-subtle`（9% 白） |
 | `--surface-fill-hover` | `#2E323E` | fill hover |
 | `--surface-interact` | `#2A2F3C` | interact |
 
@@ -224,24 +224,24 @@ PreferencePane → useAppearance → store → resolveTheme(state, system)
 | `--color-kumo-fill` | `var(--surface-fill)` | Solid · **禁止 vellum** |
 | `--color-kumo-fill-hover` | `var(--surface-fill-hover)` | Solid |
 | `--color-kumo-interact` | `var(--surface-interact)` | Solid |
-| `--color-kumo-contrast` | `var(--ink)` | Ink |
-| `--color-kumo-hairline` / `line` | `var(--sand)` / `var(--sand-deep)` | Tint |
+| `--color-kumo-contrast` | `var(--text)` | Ink |
+| `--color-kumo-hairline` / `line` | `var(--border)` / `var(--border-strong)` | Tint |
 | `--color-kumo-focus` | `var(--focus-ring)` | Tint |
-| `--color-kumo-brand` | `var(--ember)` | Solid（ember 为实色 hex） |
-| `--color-kumo-brand-hover` | `var(--ember-soft)` | Solid |
+| `--color-kumo-brand` | `var(--accent)` | Solid（ember 为实色 hex） |
+| `--color-kumo-brand-hover` | `var(--accent-hover)` | Solid |
 | `--color-kumo-danger` | `var(--danger)` | Solid |
 | `--color-kumo-warning` | `var(--warning)` | Solid |
 | `--color-kumo-success` | `var(--success)` | Solid · **R6：`--success` 是别名**（见下） |
-| `--color-kumo-info` | `var(--indigo)` | Solid |
+| `--color-kumo-info` | `var(--info)` | Solid |
 | `--color-kumo-overlay` | `var(--scrim)` | Tint |
-| `--text-color-kumo-default` | `var(--ink)` | Ink |
-| `--text-color-kumo-subtle` | `var(--ink-mute)` | Ink |
-| `--text-color-kumo-brand` | `var(--ember-soft)` | Ink |
+| `--text-color-kumo-default` | `var(--text)` | Ink |
+| `--text-color-kumo-subtle` | `var(--text-muted)` | Ink |
+| `--text-color-kumo-brand` | `var(--accent-hover)` | Ink |
 | badge 等多色 | literalAllowlist 字面量 | — |
 
 **R6 · 桥可引别名 ≠ 皮肤可 patch**
 
-- 桥写 `--color-kumo-success: var(--success)` **合法**：运行时 `success → moss` 级联，换肤 patch `--moss` 即可跟色。
+- 桥写 `--color-kumo-success: var(--success)` **合法**：运行时 `success → moss` 级联，换肤 patch `--success` 即可跟色。
 - `--success` **仍不在**皮肤白名单（§6.2.1）。皮肤写 `tokens["--success"]` → resolve **丢弃**。
 - 文档读者勿因桥表示例出现 `--success` 而将其当作可调原语。
 
@@ -253,7 +253,7 @@ PreferencePane → useAppearance → store → resolveTheme(state, system)
 |------|------|
 | 名齐全 | 覆盖 Kumo 颜色合同变量（字号 exempt 照旧） |
 | 引用或字面量 | 值匹配 `var(--…)` **或** 落在 `literalAllowlist` |
-| solidSlotList | Solid 槽 Kumo 键 **禁止** 引用玻璃半透明族：`--paper`/`--card`/`--vellum`/`--paper-deep`/`--paper-solid` |
+| solidSlotList | Solid 槽 Kumo 键 **禁止** 引用玻璃半透明族：`--paper`/`--card`/`--fill-subtle`/`--paper-deep`/`--paper-solid` |
 | **R7 · 白名单完备** | 皮肤 `AppearanceTokenName` 白名单 **必须包含全部** `--surface-*` 伴生键（与 solid 源一致）；缺键 = check 失败。Phase C `tokens.json` 校验 **复用同一白名单常量**（单源，禁止两套列表漂移） |
 
 **不采纳 F1-(b)**。
@@ -327,10 +327,10 @@ export interface SkinDefinition {
 
 | 组 | 键 |
 |----|-----|
-| 表面（玻璃 · Lumen 壳） | `--canvas`, `--paper`, `--paper-solid`, `--paper-deep`, `--vellum`, `--card`, `--sand`, `--sand-deep`, `--scrim` |
+| 表面（玻璃 · Lumen 壳） | `--canvas`, `--paper`, `--paper-solid`, `--paper-deep`, `--fill-subtle`, `--card`, `--border`, `--border-strong`, `--scrim` |
 | 表面（实色伴生 · Kumo Solid 槽 · R4） | `--surface-canvas`, `--surface-base`, `--surface-elevated`, `--surface-recessed`, `--surface-control`, `--surface-fill`, `--surface-fill-hover`, `--surface-interact` |
-| 墨 | `--ink`, `--ink-soft`, `--ink-mute`, `--ink-faint`, `--ink-on-accent` |
-| 强调原语 | `--ember`, `--ember-soft`, `--ember-tint`, `--moss`, `--moss-tint`, `--indigo`, `--indigo-tint` |
+| 墨 | `--text`, `--text-soft`, `--text-muted`, `--text-faint`, `--text-on-accent` |
+| 强调原语 | `--accent`, `--accent-hover`, `--accent-tint`, `--success`, `--success-bg`, `--info`, `--info-tint` |
 | 语义原语（字面量） | `--warning`, `--warning-bg`, `--danger`, `--danger-bg`, `--danger-line`, `--focus-ring` |
 | 光边/氛围 | `--beam-a`, `--beam-b`, `--beam-c`, `--aurora-a`, `--aurora-b`, `--aurora-c` |
 | 材质/阴影 | `--material-blur`, `--material-saturation`, `--material-highlight`, `--material-edge`, `--shadow-1/2/3`, `--skin-overlay-rgb` |
@@ -346,11 +346,11 @@ export interface SkinDefinition {
 
 | 别名（禁入白名单） | 基线定义 | 跟随原语 |
 |--------------------|----------|----------|
-| `--success` | `var(--moss)` | `--moss` |
-| `--success-bg` | `var(--moss-tint)` | `--moss-tint` |
-| `--code-keyword` | `var(--ember)` | `--ember` |
+| `--success` | `var(--success)` | `--success` |
+| `--success-bg` | `var(--success-bg)` | `--success-bg` |
+| `--code-keyword` | `var(--accent)` | `--accent` |
 | `--code-number` | `var(--warning)` | `--warning` |
-| `--code-title` | `var(--indigo)` | `--indigo` |
+| `--code-title` | `var(--info)` | `--info` |
 
 **实现纪律**
 
@@ -451,10 +451,10 @@ hostChromeIsDark 仍优先读取真实 color-scheme，缺失时依据 canvas 亮
 |----|------|
 | AT1 | 设置有「偏好」 |
 | AT2a | 切换皮肤后 **Lumen token 驱动区**（侧栏/气泡/强调）≤1 帧变化 |
-| AT2b | 切换皮肤后：设置页 **Kumo 主按钮** computed 背景与 `--ember` 同色相族；**Dialog/菜单面**与 `--surface-elevated`（非 `--card`）一致；采样 `backgroundColor` 的 **alpha ≥ 0.9**（R4，防透明泄漏） |
+| AT2b | 切换皮肤后：设置页 **Kumo 主按钮** computed 背景与 `--accent` 同色相族；**Dialog/菜单面**与 `--surface-elevated`（非 `--card`）一致；采样 `backgroundColor` 的 **alpha ≥ 0.9**（R4，防透明泄漏） |
 | AT2c | 背景图：token 即时；**图片可在 load 后**显示（不得要求 webp 同步 1 帧） |
 | AT3 | 重启保持 state |
-| AT4 | resolve 单测：非法 skinId → default；白名单过滤；**别名键被丢弃**；baseline 中 `--success` 仍为 `var(--moss)` |
+| AT4 | resolve 单测：非法 skinId → default；白名单过滤；**别名键被丢弃**；baseline 中 `--success` 仍为 `var(--success)` |
 | AT5 | `components/` 下无业务 `skinId===`（允许 appearance/、PreferencePane） |
 | AT6 | 不调用模型 `updateSettings` |
 | AT7 | 默认 overlay 下正文可读；暖皮肤下 beam/aurora 非残留青绿（目视） |
@@ -596,7 +596,7 @@ apply 写 color-scheme:light
 
 ### 15.2 别名不是「递归爆炸」
 
-CSS `var(--success)` → `var(--moss)` 是**有意一层别名**，不是 apply 循环 setProperty。
+CSS `var(--success)` → `var(--success)` 是**有意一层别名**，不是 apply 循环 setProperty。
 风险仅在于：**白名单若允许 patch `--success` 为字面量**，会切断与 moss 的同步。故别名禁入白名单。
 
 ---
@@ -604,7 +604,7 @@ CSS `var(--success)` → `var(--moss)` 是**有意一层别名**，不是 apply 
 ## 16. 四轮审计响应（R4 · 透明度）
 
 审计方：外部 AI；结论：R1–R3 已闭环，可进实现评审；**新风险 R4**。
-本仓复核：Lumen `--paper/--card/--vellum` 为半透明 rgba；Kumo 对应槽今日为**实色 hex**（V2）→ 1:1 `var()` **会改 default 控件不透明度**，与 AT9 冲突。
+本仓复核：Lumen `--paper/--card/--fill-subtle` 为半透明 rgba；Kumo 对应槽今日为**实色 hex**（V2）→ 1:1 `var()` **会改 default 控件不透明度**，与 AT9 冲突。
 
 | ID | 摘要 | **决议** |
 |----|------|----------|
@@ -621,8 +621,8 @@ CSS `var(--success)` → `var(--moss)` 是**有意一层别名**，不是 apply 
 |------|----------|
 | 聊天区玻璃氛围 | `--card` / `--paper` / aurora / beam |
 | Kumo 按钮/菜单实色面 | **成对** `--surface-elevated` / `--surface-fill` / … |
-| 品牌色 | `--ember`（桥到 kumo-brand，实色） |
-| 成功语义色 | **`--moss`**（勿 patch `--success`；桥经 success 别名跟随） |
+| 品牌色 | `--accent`（桥到 kumo-brand，实色） |
+| 成功语义色 | **`--success`**（勿 patch `--success`；桥经 success 别名跟随） |
 | 画布 | **`--canvas`**（R5：surface-canvas 跟随或成对同步） |
 
 当前内置皮肤：浅色 `glacier-glass` 冰川液体玻璃、`warm-paper` 暖白纸面、`sea-salt` 海盐浅青玻璃；暗色 `default` 青瓷默认、`cosmic-latte` 宇宙拿铁、`mist-forest` 雾林深境、`clear-sky` 晴穹蓝构、`clay-warm` 陶土叠影、`ink-plum` 墨紫夜航、`deep-tide` 玄青海潮、`wine-dusk` 酒红暮光。设置点选即时应用并写入本机偏好；前期全 dark 限制已由 §6 的真实明暗合同取代。
@@ -650,7 +650,7 @@ CSS `var(--success)` → `var(--moss)` 是**有意一层别名**，不是 apply 
 
 | 反模式 | 后果 |
 |--------|------|
-| 只 patch `--ember` 不改 Kumo 桥 | 半套皮肤（F1） |
+| 只 patch `--accent` 不改 Kumo 桥 | 半套皮肤（F1） |
 | 只变量化 `.app::before` | 输入岛仍青瓷光（F2） |
 | 皮肤白名单含 `--color-kumo-*` | 双真源、绕过桥 |
 | 去掉 `data-theme=celadon` | Kumo 映射整块失效 |
@@ -658,7 +658,7 @@ CSS `var(--success)` → `var(--moss)` 是**有意一层别名**，不是 apply 
 | **`documentElement.colorScheme='light'`（A）** | **砸 widget 岛（R1）** |
 | **皮肤 patch `--success` 字面量** | **切断 moss 别名（R3）** |
 | **预置 light 角标 + dark 基线** | **空头 UI（R2）** |
-| **`kumo-fill: var(--vellum)` 等玻璃→实色槽** | **控件变透、AT9 挂（R4）** |
+| **`kumo-fill: var(--fill-subtle)` 等玻璃→实色槽** | **控件变透、AT9 挂（R4）** |
 | **只改 `--canvas` 不改/不同步 surface-canvas** | **壳底与 Kumo 画布漂移（R5）** |
 | **误以为桥里的 `--success` 可皮肤 patch** | **静默丢弃或双义（R6）** |
 

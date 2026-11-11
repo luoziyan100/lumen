@@ -58,14 +58,14 @@ describe('默认「清透」', () => {
 describe('filterWhitelist', () => {
   it('丢弃别名与未知键', () => {
     const f = filterWhitelist({
-      '--ember': '#fff',
-      '--success': '#000',
+      '--accent': '#fff',
+      '--code-keyword': '#000',
       '--color-kumo-brand': '#111',
       '--surface-canvas': '#222',
       '--material-blur': '26px',
     })
-    assert.equal(f['--ember'], '#fff')
-    assert.equal(f['--success'], undefined)
+    assert.equal(f['--accent'], '#fff')
+    assert.equal(f['--code-keyword'], undefined)
     assert.equal(f['--color-kumo-brand'], undefined)
     assert.equal(f['--surface-canvas'], undefined)
     assert.equal(f['--material-blur'], '26px')
@@ -82,8 +82,7 @@ describe('resolveTheme', () => {
   it('别名保持 var() 级联', () => {
     for (const mode of ['dark', 'light'] as const) {
       const r = resolveTheme({ ...DEFAULT_APPEARANCE, skinId: 'mist-forest', mode }, 'dark')
-      assert.equal(r.tokens['--success'], 'var(--moss)')
-      assert.equal(r.tokens['--code-keyword'], 'var(--ember)')
+      assert.equal(r.tokens['--code-keyword'], 'var(--accent)')
       assert.equal(r.tokens['--surface-canvas'], 'var(--canvas)')
     }
   })
@@ -93,12 +92,12 @@ describe('resolveTheme', () => {
       const r = resolveTheme({ ...DEFAULT_APPEARANCE, skinId: 'default', mode }, system)
       assert.equal(r.colorScheme, mode)
       assert.equal(r.appearanceIntent, mode)
-      for (const token of ['--canvas', '--ink', '--surface-base', '--surface-elevated', '--surface-control']) assert.equal(r.tokens[token], baseline[token], `${mode} ${token}`)
+      for (const token of ['--canvas', '--text', '--surface-base', '--surface-elevated', '--surface-control']) assert.equal(r.tokens[token], baseline[token], `${mode} ${token}`)
     }
     assert.equal(LIGHT_BASELINE['--canvas'], '#E8EEF4')
-    assert.equal(LIGHT_BASELINE['--ink'], '#18212D')
+    assert.equal(LIGHT_BASELINE['--text'], '#18212D')
     assert.notEqual(LIGHT_BASELINE['--canvas'], DARK_BASELINE['--canvas'])
-    assert.notEqual(LIGHT_BASELINE['--ink'], DARK_BASELINE['--ink'])
+    assert.notEqual(LIGHT_BASELINE['--text'], DARK_BASELINE['--text'])
   })
 
   it('系统模式将媒体查询应用到实际颜色基线', () => {
@@ -106,7 +105,7 @@ describe('resolveTheme', () => {
       const r = resolveTheme({ ...DEFAULT_APPEARANCE, skinId: 'default', mode: 'system' }, system)
       assert.equal(r.colorScheme, system)
       assert.equal(r.tokens['--canvas'], baseline['--canvas'])
-      assert.equal(r.tokens['--ink'], baseline['--ink'])
+      assert.equal(r.tokens['--text'], baseline['--text'])
     }
   })
 
@@ -118,12 +117,12 @@ describe('resolveTheme', () => {
       const r = resolveTheme({ ...DEFAULT_APPEARANCE, skinId: id, mode: 'light' }, 'dark')
       assert.equal(r.colorScheme, 'light', id)
       assert.notEqual(r.tokens['--canvas'], DARK_BASELINE['--canvas'], id)
-      assert.notEqual(r.tokens['--ink'], DARK_BASELINE['--ink'], id)
+      assert.notEqual(r.tokens['--text'], DARK_BASELINE['--text'], id)
     }
     const mist = resolveTheme({ ...DEFAULT_APPEARANCE, skinId: 'mist-forest', mode: 'light' }, 'light')
     assert.equal(mist.tokens['--canvas'], LIGHT_BASELINE['--canvas'])
-    assert.equal(mist.tokens['--ink'], LIGHT_BASELINE['--ink'])
-    assert.equal(mist.tokens['--ember'], LIGHT_BASELINE['--ember'])
+    assert.equal(mist.tokens['--text'], LIGHT_BASELINE['--text'])
+    assert.equal(mist.tokens['--accent'], LIGHT_BASELINE['--accent'])
   })
 
   it('浅色皮肤切深色时使用备用强调色与暗色基线', () => {
@@ -131,9 +130,9 @@ describe('resolveTheme', () => {
     const dark = resolveTheme({ ...DEFAULT_APPEARANCE, skinId: 'glacier-glass', mode: 'dark' }, 'light')
     assert.equal(dark.colorScheme, 'dark')
     assert.equal(dark.tokens['--canvas'], DARK_BASELINE['--canvas'])
-    assert.equal(dark.tokens['--ink'], DARK_BASELINE['--ink'])
-    assert.equal(dark.tokens['--ember'], '#9EBFE5')
-    assert.notEqual(dark.tokens['--ember'], light.tokens['--ember'])
+    assert.equal(dark.tokens['--text'], DARK_BASELINE['--text'])
+    assert.equal(dark.tokens['--accent'], '#9EBFE5')
+    assert.notEqual(dark.tokens['--accent'], light.tokens['--accent'])
     assert.equal(dark.material, 'glass')
   })
 
@@ -168,9 +167,9 @@ describe('resolveTheme', () => {
     const d = resolveTheme({ ...DEFAULT_APPEARANCE, skinId: 'default', mode: 'dark' }, 'dark')
     const m = resolveTheme({ ...DEFAULT_APPEARANCE, skinId: 'mist-forest', mode: 'dark' }, 'dark')
     const c = resolveTheme({ ...DEFAULT_APPEARANCE, skinId: 'clay-warm', mode: 'dark' }, 'dark')
-    assert.notEqual(m.tokens['--ember'], d.tokens['--ember'])
-    assert.notEqual(c.tokens['--ember'], d.tokens['--ember'])
-    assert.notEqual(c.tokens['--ember'], m.tokens['--ember'])
+    assert.notEqual(m.tokens['--accent'], d.tokens['--accent'])
+    assert.notEqual(c.tokens['--accent'], d.tokens['--accent'])
+    assert.notEqual(c.tokens['--accent'], m.tokens['--accent'])
   })
 
   it('整窗皮肤：玻璃壳 paper/card 与 default 不同（侧栏会跟）', () => {
@@ -188,8 +187,8 @@ describe('resolveTheme', () => {
     assert.equal(r.skinId, 'cosmic-latte')
     assert.match(r.tokens['--card'] ?? '', /255,\s*255,\s*255/)
     assert.match(r.tokens['--paper'] ?? '', /255,\s*255,\s*255/)
-    assert.equal(r.tokens['--indigo'], '#3b82f6')
-    assert.notEqual(r.tokens['--ember']?.toLowerCase(), '#f59e0b')
+    assert.equal(r.tokens['--info'], '#3b82f6')
+    assert.notEqual(r.tokens['--accent']?.toLowerCase(), '#f59e0b')
     // canvas 抬到冷雾灰蓝，不再是 #0B0C10 死黑
     assert.notEqual((r.tokens['--canvas'] ?? '').toLowerCase(), '#0b0c10')
     assert.notEqual((r.tokens['--canvas'] ?? '').toLowerCase(), '#0c1018')
@@ -204,8 +203,9 @@ describe('normalizeAppearance', () => {
 })
 
 describe('TOKEN_ALIASES', () => {
-  it('含 success 与 surface-canvas', () => {
-    assert.equal(TOKEN_ALIASES['--success'], 'var(--moss)')
+  it('含 code-keyword 与 surface-canvas；success 已是可 patch 原语', () => {
+    assert.equal(TOKEN_ALIASES['--code-keyword'], 'var(--accent)')
+    assert.equal(TOKEN_ALIASES['--success'], undefined)
     assert.equal(TOKEN_ALIASES['--surface-canvas'], 'var(--canvas)')
   })
 })
