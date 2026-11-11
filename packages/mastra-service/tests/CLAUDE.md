@@ -5,11 +5,12 @@ P0 预注册：工具结果必须进入下一轮模型请求；两个会话不�
 
 - `application.test.ts`：真实循环的文件写入/回灌、会话隔离、存储重开、路径安全、只读子代与取消中关闭验证。
 - `workspace.test.ts`：项目资料跨任务可见、项目记忆进入模型、复制到任务后修改不影响原件，以及跨项目/软链拒绝；模型请求不带 Unicode 正则 pattern，本地仍接受中文记忆名并拒绝越界路径。
-- `provider-fixture.ts`：在 HTTP 边界提供确定性 OpenAI 线格式，用于框架机制实验；不是实录 fixture。
+- `provider-fixture.ts`：在 HTTP 边界提供确定性 OpenAI 线格式（单轮可返回多个工具调用），用于框架机制实验；不是实录 fixture。
 
 - `http.test.ts`：官方客户端经真实本机 HTTP/SSE 完成执行和持久消息补取；超限附件返回 413、残缺附件包返回 400，两者均不落盘且保留先前成功材料。
 
 - `background.test.ts`：原生后台子代理的单子取消与父运行独立性。
+- `tool-pairing.test.ts`：并行后台委派后持久历史与下一轮实际请求的 toolCallId 唯一且配对；裸 Mastra 通过，完整应用复现重复 id 与子专家 workspace 元数据进入父线程（todo，待定位）。
 
 - `collaboration.test.ts`：产品 HTTP 控制双会话后台子代，核对子任务归属与独立取消。
 
