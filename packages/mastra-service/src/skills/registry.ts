@@ -75,9 +75,13 @@ export function createSkillRegistry(options: SkillRegistryOptions) {
   }
   const find = async (input: string): Promise<SkillPackage> => {
     const name = normalizeSkillName(input)
-    const skill = (await list()).find(skill => skill.name === name)
-    if (!skill) throw new Error(`未知 skill: ${name}`)
-    return skill
+    const all = await list()
+    const skill = all.find(skill => skill.name === name)
+    if (skill) return skill
+    // -------- 模型曾把 agent-reader 等专家当技能调用；报错直接指向正确入口与可用名单 --------
+    const available = all.filter(item => !item.disableModelInvocation).map(item => item.name)
+    const delegation = /^agent-/.test(name) ? `${name} 是专家委派工具，不是技能；请直接调用 ${name} 工具。` : ''
+    throw new Error(`未知 skill: ${name}。${delegation}${available.length ? `可用技能：${available.join('、')}` : '当前没有可用技能'}`)
   }
   const installRoot = (scope: InstallScope): string => {
     if (scope !== 'user' && scope !== 'project') throw new Error('安装范围仅支持 user 或 project')

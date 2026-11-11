@@ -21,7 +21,7 @@ P0 预注册：工具结果必须进入下一轮模型请求；两个会话不�
 - `legacy-diagnostics.test.ts`：真实临时 legacy-v1 SQLite/WAL/SHM 与 exec-evidence 浏览；验证 source task 映射、只读源库、SHA256/缺失状态及当前凭证脱敏。
 
 - `skills-upload.test.ts`：完整目录经产品HTTP安装、脚本执行位/二进制资源保留、非法覆盖保护，以及原生文件位置的任务/路径授权。
-- `skills.test.ts`：真实临时目录的发现优先级、显式激活、资源读取、安装覆盖与路径边界，并验证原生工具结果回灌。
+- `skills.test.ts`：真实临时目录的发现优先级、显式激活、资源读取、安装覆盖与路径边界，未知技能报错给出可用名单并把 agent-* 指向专家委派，并验证原生工具结果回灌。
 - `native-routes.test.ts`：真实 HTTP/SDK 验证固定任务身份，拒绝 resource 重绑定、scope 旁路和跨任务读取；纯历史读取不创建 Session、不改 thread 排序与消息。
 - `lifecycle/`：真实子进程 SIGKILL 与 LibSQL 重开，验证遗留子任务结算及消息保留。
 - `migration/`：合成旧 WAL 数据根的一次性导入演练，验证消息/材料/原始来源保留、幂等和源目录不变。

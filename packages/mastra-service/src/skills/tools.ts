@@ -14,12 +14,12 @@ export type SkillRegistryResolver = (context: ToolExecutionContext | undefined) 
 export function createSkillTools(resolveRegistry: SkillRegistryResolver) {
   return {
     list_skills: createTool({
-      id: 'list_skills', description: '列出当前项目可运行的技能工作流。技能安装后目录立即刷新。',
+      id: 'list_skills', description: '列出当前项目可运行的技能工作流。技能安装后目录立即刷新。专家（agent-*）是独立的委派工具，不在技能列表中。',
       inputSchema: z.object({}),
       execute: async (_, context) => ({ skills: (await (await resolveRegistry(context)).list()).filter(skill => !skill.disableModelInvocation) }),
     }),
     run_skill: createTool({
-      id: 'run_skill', description: '显式启动技能，返回工作流正文并替换参数；按照正文执行。该工具本身不执行包内脚本。',
+      id: 'run_skill', description: '显式启动 list_skills 中的技能，返回工作流正文并替换参数；按照正文执行。该工具本身不执行包内脚本。委派专家请直接调用 agent-* 工具，不要传给 run_skill。',
       inputSchema: z.object({ name: z.string().min(1).max(128), args: z.string().max(20_000).optional() }),
       execute: async ({ name, args }, context) => (await resolveRegistry(context)).activate(name, args),
     }),

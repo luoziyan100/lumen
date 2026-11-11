@@ -56,6 +56,9 @@ test('实时发现按 source/project/user 覆盖；禁用模型目录的技能�
     await rm(join(env.roots.sourceSkillsDir, 'compare'), { recursive: true })
     assert.match((await env.registry.activate('compare')).content, /project evidence/)
     await assert.rejects(env.registry.activate('missing'), /未知/)
+    await assert.rejects(env.registry.activate('missing'), /可用技能：compare/)
+    await assert.rejects(env.registry.activate('missing'), (error: Error) => !error.message.includes('manual-only'))
+    await assert.rejects(env.registry.activate('agent-reader'), /agent-reader 是专家委派工具，不是技能；请直接调用 agent-reader 工具/)
   } finally { await env.close() }
 })
 
