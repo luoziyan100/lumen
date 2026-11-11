@@ -35,6 +35,8 @@ export interface DeploymentStatus {
   dataRoot: string
   installed: boolean
   state: 'absent' | 'starting' | 'ready' | 'unhealthy' | 'conflict'
+  /** 已装 plist 是本部署的旧版本，install 会原地升级 */
+  outdated?: boolean
   pid?: number
   reason?: string
 }

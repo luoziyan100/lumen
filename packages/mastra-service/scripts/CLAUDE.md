@@ -7,6 +7,6 @@
 
 本机部署：`node --experimental-strip-types packages/mastra-service/scripts/launchd-cli.ts install --node /绝对路径/node --project-root /绝对路径/lumen --data-root /绝对路径/新根`。Node 可通过 `node -p process.execPath` 确认；安装时验证主版本 24，并在 plist 中固定真实路径。默认新正式 label `com.lumen.mastra`；隔离验证须显式 `--label com.lumen.mastra.preview`，从不复用旧 label。`status` / `uninstall` 需要同样路径参数；卸载只删除匹配的 plist，保留数据与日志。
 
-plist 及发现文件以 0600 原子发布，日志目录 0700、日志文件 0600。安装等待 job PID、discovery PID 和 Bearer 健康响应一致才报告 ready。已有健康服务默认幂等；部署代码更新后加 `--restart`。同 label 不同配置、未知活进程、损坏或不安全元数据均拒绝接管，错误不打印 token。
+plist 及发现文件以 0600 原子发布，日志目录 0700、日志文件 0600。安装等待 job PID、discovery PID 和 Bearer 健康响应一致才报告 ready。已有健康服务默认幂等；部署代码更新后加 `--restart`；plist 为本部署旧版时 install 自动原地升级。研究 key 放 `<数据根>/.env`(0600，`TAVILY_API_KEY=` / `OPENALEX_API_KEY=`)，不进 plist 与命令行。同 label 不同配置、未知活进程、损坏或不安全元数据均拒绝接管，错误不打印 token。
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

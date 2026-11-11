@@ -8,7 +8,7 @@ import { execFile } from 'node:child_process'
 import { lstat, mkdir, unlink } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
-import { deploymentConfig, renderPlist } from './config.ts'
+import { deploymentConfig, renderPlist, renderPreviousPlists } from './config.ts'
 import { readDiscovery, type Discovery } from './discovery.ts'
 import { privateDirectory, preparePrivateLog, readPrivateFile, writePrivateFile } from './files.ts'
 import { acquireServiceLock, processAlive } from './lock.ts'
@@ -64,16 +64,18 @@ export async function createLaunchdDeployment(options: DeploymentOptions, depend
   const run = dependencies.run ?? executeCommand
   const fetcher = dependencies.fetch ?? fetch
   const expected = renderPlist(config)
+  const previous = renderPreviousPlists(config)
   const timeoutMs = dependencies.timeoutMs ?? 60_000
   const pollMs = dependencies.pollMs ?? 200
   const job = async () => parseJob(await run(LAUNCHCTL, ['print', config.target]))
 
   async function status(): Promise<DeploymentStatus> {
-    const base = { label: config.label, plistPath: config.plistPath, dataRoot: config.dataRoot, installed: false }
+    const base: Omit<DeploymentStatus, 'state'> = { label: config.label, plistPath: config.plistPath, dataRoot: config.dataRoot, installed: false }
     try {
       const plist = await readPrivateFile(config.plistPath)
       base.installed = plist !== null
-      if (plist !== null && plist !== expected) return { ...base, state: 'conflict', reason: 'Existing plist belongs to another deployment configuration' }
+      if (plist !== null && plist !== expected && !previous.includes(plist)) return { ...base, state: 'conflict', reason: 'Existing plist belongs to another deployment configuration' }
+      if (plist !== null && plist !== expected) base.outdated = true
       const current = await job()
       if (current.state !== 'absent' && (current.path !== config.plistPath || current.program !== config.nodePath)) return { ...base, state: 'conflict', reason: 'Loaded job ownership does not match the explicit configuration' }
       const discovery = await readDiscovery(config.dataRoot)
@@ -120,7 +122,7 @@ export async function createLaunchdDeployment(options: DeploymentOptions, depend
   async function install(options: { restart?: boolean } = {}) {
     const current = await status()
     if (current.state === 'conflict') throw new DeploymentError(current.reason!)
-    if (current.state === 'ready' && !options.restart) return current
+    if (current.state === 'ready' && !options.restart && !current.outdated) return current
     await prepare(config, run)
     if (current.state !== 'absent') await stop(current)
     const exclusive = acquireServiceLock(config.dataRoot)
@@ -135,7 +137,7 @@ export async function createLaunchdDeployment(options: DeploymentOptions, depend
     if (current.state === 'conflict') throw new DeploymentError(current.reason!)
     if (current.state !== 'absent') await stop(current)
     const plist = await readPrivateFile(config.plistPath)
-    if (plist !== null && plist !== expected) throw new DeploymentError('Plist ownership changed during uninstall')
+    if (plist !== null && plist !== expected && !previous.includes(plist)) throw new DeploymentError('Plist ownership changed during uninstall')
     if (plist !== null) await unlink(config.plistPath)
     return await status()
   }

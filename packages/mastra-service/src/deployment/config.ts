@@ -1,7 +1,8 @@
 /**
  * [INPUT]: 显式绝对 Node/工程/数据根与可选 launchd label
- * [OUTPUT]: deploymentConfig、renderPlist、DEFAULT_LABEL
- * [POS]: 部署配置的单一来源；plist 不继承 shell PATH、旧数据目录或模型凭证
+ * [OUTPUT]: deploymentConfig、renderPlist、renderPreviousPlists、secretsPath、DEFAULT_LABEL
+ * [POS]: 部署配置的单一来源；plist 不继承 shell PATH、旧数据目录，也不写入任何凭证——
+ *        研究 key 由 Node --env-file-if-exists 从数据根 0600 的 .env 读取，文件缺失时照常启动
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { lstat, realpath } from 'node:fs/promises'
@@ -43,8 +44,21 @@ function xml(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&apos;')
 }
 
+/** 研究凭证文件(TAVILY_API_KEY / OPENALEX_API_KEY)，只放数据根，不进 plist */
+export function secretsPath(config: DeploymentConfig): string {
+  return join(config.dataRoot, '.env')
+}
+
 export function renderPlist(config: DeploymentConfig): string {
-  const args = [config.nodePath, '--experimental-strip-types', config.entryPath, '--data-root', config.dataRoot]
+  return plistWith(config, [config.nodePath, '--experimental-strip-types', `--env-file-if-exists=${secretsPath(config)}`, config.entryPath, '--data-root', config.dataRoot])
+}
+
+/** 本部署历史版本生成的 plist：同一所有权，install 时原地升级而不视为冲突 */
+export function renderPreviousPlists(config: DeploymentConfig): string[] {
+  return [plistWith(config, [config.nodePath, '--experimental-strip-types', config.entryPath, '--data-root', config.dataRoot])]
+}
+
+function plistWith(config: DeploymentConfig, args: string[]): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>

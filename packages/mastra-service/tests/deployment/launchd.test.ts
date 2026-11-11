@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 合成 launchctl 调度、真实 Node 24 子进程和本机认证 HTTP
- * [OUTPUT]: 私有部署安装/重启/卸载、崩溃恢复和所有权冲突行为证明
+ * [OUTPUT]: 私有部署安装/重启/卸载、崩溃恢复、旧版 plist 原地升级、凭证不进 plist 与所有权冲突行为证明
  * [POS]: 只替换系统注册边界；不注册真实 LaunchAgent，不读取正式 Lumen 根
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
-import { deploymentConfig, renderPlist } from '../../src/deployment/config.ts'
+import { deploymentConfig, renderPlist, renderPreviousPlists, secretsPath } from '../../src/deployment/config.ts'
 import { createLaunchdDeployment, parseJob } from '../../src/deployment/launchd.ts'
 import { readDiscovery } from '../../src/deployment/discovery.ts'
 import { processAlive } from '../../src/deployment/lock.ts'
@@ -117,5 +117,29 @@ test('foreign plist, unknown launchctl output and wrong Node version fail closed
     assert.equal(parseJob({ code: 0, stdout: 'unexpected output', stderr: '' }).state, 'unknown')
     assert.throws(() => parseJob({ code: 5, stdout: '', stderr: 'permission denied' }), /Unable to inspect/)
     await assert.rejects(() => deploymentConfig({ ...context.options, nodePath: 'node' }), /absolute/)
+  } finally { await context.close() }
+})
+
+test('旧版 plist 视为同一部署并在 install 时原地升级；凭证只经数据根 .env，不进 plist', async () => {
+  const context = await setup()
+  try {
+    const { config, fixture, deployment } = context
+    await deployment.install()
+    const [legacy] = renderPreviousPlists(config)
+    await writeFile(config.plistPath, legacy!, { mode: 0o600 })
+    const outdated = await deployment.status()
+    assert.equal(outdated.state, 'ready')
+    assert.equal(outdated.outdated, true)
+    const before = fixture.calls.filter(call => call[0] === 'bootstrap').length
+    const upgraded = await deployment.install()
+    assert.equal(upgraded.state, 'ready')
+    assert.equal(upgraded.outdated, undefined)
+    assert.equal(fixture.calls.filter(call => call[0] === 'bootstrap').length, before + 1, '旧版需要重新引导以载入新参数')
+    const plist = await readFile(config.plistPath, 'utf8')
+    assert.equal(plist, renderPlist(config))
+    assert.ok(plist.includes(`--env-file-if-exists=${secretsPath(config).replaceAll('&', '&amp;')}`))
+    assert.doesNotMatch(plist, /TAVILY|OPENALEX|API_KEY/)
+    await writeFile(config.plistPath, legacy!, { mode: 0o600 })
+    assert.equal((await deployment.uninstall()).state, 'absent', '旧版同样可卸载')
   } finally { await context.close() }
 })
