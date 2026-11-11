@@ -43,7 +43,7 @@ tests/
 - `mastra-navigation.test.ts`：真实 HTTP 跨项目分页与侧栏折叠持久化、四条预览/全局置顶/最近二十条导航、右键菜单目标、CommandPalette 选择与手动未读不会被已发自动确认覆盖的真实HTTP顺序。
 - `helpers/`：只为真实组件测试加载 TSX，不替换客户端、组件或服务。
 
-模型失败回归：`mastra-feed.test.ts` 通过真实 HTTP/SSE 触发 provider 400，验证错误跨 `agent_end` 补取、连接失败与恢复持续可见，同一会话下一轮开始后才清除。
+模型失败回归：`mastra-feed.test.ts` 通过真实 HTTP/SSE 触发 provider 400 与非标准 403 错误体（显示 reason/状态码/错误码而非状态文字），验证错误跨 `agent_end` 补取、连接失败与恢复持续可见，同一会话下一轮开始后才清除。
 
 2026-09-19：旧 WS、ChatItem、旧 React hook/组件测试与未接线的旧 WebKit 占位入口随源码退役，原文件已做字节级备份。历史 F 合同矩阵仅作设计历史，不自动转移覆盖或验收结论到 Mastra。
 

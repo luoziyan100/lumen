@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 现存会话身份、官方 Controller SSE、持久消息、原生 displayState 与专家用量派生值
- * [OUTPUT]: SessionFeed 与 messageRole/messageText；原生消息展示（message_start 初始消息 + message_update 按 id 增量）、补取和取消订阅，运行错误保留到下一轮开始，连接错误随恢复清除；消息合并在顺序稳定时走追加路径
+ * [OUTPUT]: SessionFeed 与 messageRole/messageText/errorText；原生消息展示（message_start 初始消息 + message_update 按 id 增量）、补取和取消订阅，运行错误保留到下一轮开始，连接错误随恢复清除；消息合并在顺序稳定时走追加路径
  * [POS]: 原生数据的展示缓存，只恢复已存在身份；不创建研究或重新实现执行状态机；旧端点重连有界，耗尽通知宿主重新发现
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -84,6 +84,19 @@ function updateMessage(view: SessionView, id: string, update: MessageUpdate): Se
   return { ...view, messages }
 }
 
+// --- 服务商非标准错误体（如 {code,message}）时 SDK message 只剩状态文字；框架已解析的 reason/状态码/错误码才是用户能处理的原因 ---
+export function errorText(error: unknown): string {
+  if (typeof error === 'string') return error
+  const value = record(error) ?? {}
+  const message = typeof value.message === 'string' ? value.message : ''
+  const reason = typeof value.reason === 'string' && value.reason.trim() ? value.reason.trim() : ''
+  const codes = Array.isArray(value.codes) ? value.codes.filter((code): code is string => typeof code === 'string' && !!code) : []
+  const status = typeof value.statusCode === 'number' ? `HTTP ${value.statusCode}` : ''
+  const detail = [status, ...codes].join(' · ')
+  const text = reason || message || '运行失败'
+  return detail && !text.includes(detail) ? `${text}（${detail}）` : text
+}
+
 function applyEvent(view: SessionView, event: AgentControllerEvent): SessionView {
   if (!isKnownAgentControllerEvent(event)) return view
   if (event.type === 'display_state_changed') return withDisplay(view, event.displayState)
@@ -91,7 +104,7 @@ function applyEvent(view: SessionView, event: AgentControllerEvent): SessionView
   if (event.type === 'message_update') return updateMessage(view, event.id, event.event)
   if (event.type === 'model_changed') return { ...view, model: event.modelId }
   if (event.type === 'agent_start') return { ...view, error: null }
-  if (event.type === 'error') return { ...view, error: typeof event.error === 'string' ? event.error : event.error.message }
+  if (event.type === 'error') return { ...view, error: errorText(event.error) }
   return view
 }
 

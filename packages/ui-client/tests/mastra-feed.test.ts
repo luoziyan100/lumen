@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 真实 Mastra/LibSQL/Hono 与官方 SDK，经本机 HTTP/SSE；仅模型网络可控
- * [OUTPUT]: SessionFeed 现存会话恢复、message_update 按 id 增量、隔离/并发刷新/断线/分页，以及主子用量在真实 SSE 与 Progress 中的证据；运行错误跨终态补取保留，连接恢复独立清错
+ * [OUTPUT]: SessionFeed 现存会话恢复、服务商错误原因、message_update 按 id 增量、隔离/并发刷新/断线/分页，以及主子用量在真实 SSE 与 Progress 中的证据；运行错误跨终态补取保留，连接恢复独立清错
  * [POS]: 新客户端恢复契约；网络延迟与断开作用于真实响应，不伪造框架事件
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -18,7 +18,7 @@ import type { MastraDBMessage } from '@mastra/client-js'
 import { createHttpService } from '../../mastra-service/src/server.ts'
 import { fixtureProvider, textReply, toolReply } from '../../mastra-service/tests/provider-fixture.ts'
 import { LumenApi } from '../src/mastra/data/client.ts'
-import { SessionFeed, mergeMessages, messageRole, messageText } from '../src/mastra/data/feed.ts'
+import { SessionFeed, errorText, mergeMessages, messageRole, messageText } from '../src/mastra/data/feed.ts'
 
 function gate() {
   let resolve!: () => void
@@ -429,4 +429,17 @@ test('CT-MASTRA-FEED-010: 模型错误跨终态补取和连接恢复保留，下
     provider.push('这次正常回复'); provider.finish()
     await until(() => transcript(feed).includes('这次正常回复') && !feed.getSnapshot().display?.isRunning, '下一轮没有正常结束')
   } finally { provider.finish(); await env.close() }
+})
+
+test('CT-MASTRA-FEED-012: 服务商非标准错误体经真实 SSE 显示框架解析的原因、状态码与错误码，不只剩状态文字', { timeout: 25000 }, async () => {
+  const env = await environment(async () => new Response(JSON.stringify({ code: 'GROUP_DELETED', message: 'API Key 所属分组已删除' }), { status: 403, statusText: 'Forbidden', headers: { 'Content-Type': 'application/json' } }))
+  try {
+    const feed = await env.feed('provider-reason'); await feed.start()
+    await feed.send('请求被服务商拒绝')
+    await until(() => !!feed.getSnapshot().error && !feed.getSnapshot().display?.isRunning, '未收到真实服务商拒绝')
+    assert.equal(feed.getSnapshot().error, 'API Key 所属分组已删除（HTTP 403 · GROUP_DELETED）')
+  } finally { await env.close() }
+  assert.equal(errorText('纯文本错误'), '纯文本错误')
+  assert.equal(errorText({ message: 'Forbidden' }), 'Forbidden')
+  assert.equal(errorText({}), '运行失败')
 })

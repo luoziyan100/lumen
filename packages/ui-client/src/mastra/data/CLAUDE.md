@@ -7,7 +7,7 @@
 - `feed.ts`：只恢复目录中存在的会话，旧数据根的本地选择不能隐式创建线程；按固定身份订阅原生消息，message_start 合入初始消息、message_update 按 id 应用文本/推理/部件增量，currentMessage 合入正文，刷新期间缓存 SSE，按页恢复完整历史并在 agent_end 补取持久消息；连接世代丢弃旧订阅与迟到响应；旧端点 SSE 最多重试两次，耗尽通知宿主重新发现。messageRole/messageText 读取原生 user signal 与 text 两种正文形态，不改写消息存储结构；已读确认只使用完整补取后的最新持久消息 ID；单条顺序增量走替换/追加快路径，乱序历史才重建排序。
 - `useSession.ts`：React 外部订阅桥，切任务时释放前一连接和迟到响应；服务失联时触发重新发现，恢复或卸载取消计时器。
 
-错误边界：`feed.ts` 的 `error` 记录原生运行错误，终态补取和成功重连不能抹掉，只有下一轮 `agent_start` 清除；`connectionError` 记录连接/快照失败，恢复成功后清除。两者独立，连接故障不得覆盖运行失败的原因。
+错误边界：`feed.ts` 的 `error` 记录原生运行错误（errorText 优先框架解析的服务商 reason，并附 HTTP 状态与错误码），终态补取和成功重连不能抹掉，只有下一轮 `agent_start` 清除；`connectionError` 记录连接/快照失败，恢复成功后清除。两者独立，连接故障不得覆盖运行失败的原因。
 - `connection.ts`：服务重启后刷新原生私有发现文件；浏览器开发模式重新加载入口，不触发旧服务。恢复按 1 秒起步、30 秒封顶、最多 8 次退避，可取消；入口未就绪时沿用同一恢复策略。keepLiveConnection 在已经持有地址和令牌时丢弃随后的发现失败，成功的新发现仍替换连接。
 
 用量边界：`client.ts` 在原生 DisplayState 之外携带 `childTokenUsage`；`feed.ts` 合入已有 children 轮询返回的派生值，原生 SSE 不覆盖它。该值只用于展示，执行状态仍完全来自 Mastra。
