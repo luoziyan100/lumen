@@ -1,68 +1,66 @@
 /**
- * [INPUT]: Phosphor 图形与 React ref；doc/ui-design.md §3.1 的轮廓、尺寸和操作语义
- * [OUTPUT]: 固定 regular/currentColor 的操作、文件类别与 Kumo 菜单图标，ICON_SM/MD/LG
+ * [INPUT]: iconGlyphs 自绘几何与 React ref；doc/ui-design.md §3.1 的纯线条、尺寸、动效和操作语义
+ * [OUTPUT]: currentColor 纯线条的操作、文件类别与 Kumo 菜单图标(兼容 Phosphor Icon 类型)，ICON_SM/MD/LG
  * [POS]: 业务图标唯一入口；同一包装约束 JSX 与菜单引用，文件类别映射不含格式文字徽标
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { forwardRef } from 'react'
-import {
-  Archive, ArrowClockwise, ArrowDown, ArrowSquareOut, ArrowUp, ArrowsOut, BookOpen, Brain, Briefcase,
-  CalendarBlank, CaretDown, CaretLeft, CaretRight, CaretUp, ChatCircle, Check, Code, Copy, DotsThree,
-  File, FileArchive, FileAudio, FileCode, FileImage, FileText, FileVideo, FolderOpen, Folders, FolderSimple,
-  Gear, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, Minus, Palette, Paperclip, PencilSimple,
-  Play, Plus, Presentation, Question, Scroll, SidebarSimple, Square, Stack, Table, Trash, User, Wrench, X,
-  type Icon, type IconProps,
-} from '@phosphor-icons/react'
+import type { Icon, IconProps } from '@phosphor-icons/react'
+import { GLYPHS, type GlyphName } from './iconGlyphs'
 
 // ---- 16 行内 / 18 文件与按钮 / 20 主导航 ----
 export const ICON_SM = 16
 export const ICON_MD = 18
 export const ICON_LG = 20
 
-function makeIcon(Glyph: Icon, defaultSize = ICON_MD): Icon {
-  return forwardRef<SVGSVGElement, IconProps>(({ size = defaultSize, className = '', ...props }, ref) => (
-    <Glyph {...props} ref={ref} size={size} weight="regular" color="currentColor"
-      className={`lumen-icon ${className}`.trim()} aria-hidden="true" focusable="false" />
-  ))
+/** Kumo 菜单按 Phosphor 的 Icon 类型收组件；这里接受同一组 props，只取尺寸、样式与镜像。 */
+function makeIcon(name: GlyphName, defaultSize = ICON_MD): Icon {
+  return forwardRef<SVGSVGElement, IconProps>(({ size = defaultSize, className = '', mirrored, style, weight: _w, color: _c, alt: _a, children: _ch, ...props }, ref) => (
+    <svg {...props} ref={ref} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}
+      strokeLinecap="round" strokeLinejoin="round" className={`lumen-icon li li-${name} ${className}`.trim()}
+      style={mirrored ? { ...style, transform: `${style?.transform ?? ''} scaleX(-1)`.trim() } : style} aria-hidden="true" focusable="false">
+      {GLYPHS[name]}
+    </svg>
+  )) as Icon
 }
 
 // ---- 操作：相同语义在各区域使用同一个轮廓 ----
-export const PanelIcon = makeIcon(SidebarSimple, ICON_LG)
-export const SearchIcon = makeIcon(MagnifyingGlass, ICON_LG)
-export const AccountIcon = makeIcon(User, ICON_LG)
-export const ChatIcon = makeIcon(ChatCircle, ICON_LG)
-export const NewProjectIcon = makeIcon(Plus, ICON_LG)
-export const FoldersIcon = makeIcon(Folders)
-export const PlusIcon = makeIcon(Plus)
-export const MinusIcon = makeIcon(Minus)
-export const SendIcon = makeIcon(ArrowUp)
-export const StopIcon = makeIcon(Square)
-export const MoreIcon = makeIcon(DotsThree)
-export const GearIcon = makeIcon(Gear)
-export const BackIcon = makeIcon(CaretLeft)
-export const CloseIcon = makeIcon(X)
-export const FileTextIcon = makeIcon(FileText)
-export const ArrowDownIcon = makeIcon(ArrowDown)
-export const PlayIcon = makeIcon(Play, ICON_SM)
-export const TrashIcon = makeIcon(Trash, ICON_SM)
-export const CopyIcon = makeIcon(Copy, ICON_SM)
-export const OpenOutIcon = makeIcon(ArrowSquareOut, ICON_SM)
-export const ArchiveIcon = makeIcon(Archive)
-export const CheckIcon = makeIcon(Check, ICON_SM)
-export const ChevronDownIcon = makeIcon(CaretDown, ICON_SM)
-export const ChevronUpIcon = makeIcon(CaretUp, ICON_SM)
-export const ExpandIcon = makeIcon(ArrowsOut, ICON_SM)
-export const ZoomInIcon = makeIcon(MagnifyingGlassPlus, ICON_SM)
-export const ZoomOutIcon = makeIcon(MagnifyingGlassMinus, ICON_SM)
-export const ManageSkillsIcon = makeIcon(Briefcase, ICON_SM)
+export const PanelIcon = makeIcon('panel', ICON_LG)
+export const SearchIcon = makeIcon('search', ICON_LG)
+export const AccountIcon = makeIcon('user', ICON_LG)
+export const ChatIcon = makeIcon('chat', ICON_LG)
+export const NewProjectIcon = makeIcon('plus', ICON_LG)
+export const FoldersIcon = makeIcon('folders')
+export const PlusIcon = makeIcon('plus')
+export const MinusIcon = makeIcon('minus')
+export const SendIcon = makeIcon('send')
+export const StopIcon = makeIcon('stop')
+export const MoreIcon = makeIcon('more')
+export const GearIcon = makeIcon('gear')
+export const BackIcon = makeIcon('caretLeft')
+export const CloseIcon = makeIcon('close')
+export const FileTextIcon = makeIcon('fileText')
+export const ArrowDownIcon = makeIcon('arrowDown')
+export const PlayIcon = makeIcon('play', ICON_SM)
+export const TrashIcon = makeIcon('trash', ICON_SM)
+export const CopyIcon = makeIcon('copy', ICON_SM)
+export const OpenOutIcon = makeIcon('openOut', ICON_SM)
+export const ArchiveIcon = makeIcon('archive')
+export const CheckIcon = makeIcon('check', ICON_SM)
+export const ChevronDownIcon = makeIcon('caretDown', ICON_SM)
+export const ChevronUpIcon = makeIcon('caretUp', ICON_SM)
+export const ExpandIcon = makeIcon('expand', ICON_SM)
+export const ZoomInIcon = makeIcon('zoomIn', ICON_SM)
+export const ZoomOutIcon = makeIcon('zoomOut', ICON_SM)
+export const ManageSkillsIcon = makeIcon('briefcase', ICON_SM)
 
 /** 右面板与左侧栏使用同一轮廓镜像，保持两侧导航对称。 */
 export function RailIcon({ size = ICON_LG }: { size?: number }) {
   return <PanelIcon size={size} mirrored />
 }
 
-const ClosedFolderIcon = makeIcon(FolderSimple)
-const OpenFolderIcon = makeIcon(FolderOpen)
+const ClosedFolderIcon = makeIcon('folder')
+const OpenFolderIcon = makeIcon('folderOpen')
 
 /** 目录开合共用图标家族，保留同一槽位内的交叉淡入。 */
 export function FolderIcon({ size = ICON_MD, open = false }: { size?: number; open?: boolean }) {
@@ -77,7 +75,7 @@ export function SectionChevronIcon({ open }: { open?: boolean }) {
   return <ChevronDownIcon style={{ transform: open ? undefined : 'rotate(-90deg)', transition: 'transform var(--dur-collapse-in) var(--ease-spring)' }} />
 }
 
-const RightChevronIcon = makeIcon(CaretRight, ICON_SM)
+const RightChevronIcon = makeIcon('caretRight', ICON_SM)
 
 /** 树与详情左侧：展开向下，收起向右。 */
 export function ChevronIcon({ open }: { open?: boolean }) {
@@ -85,15 +83,15 @@ export function ChevronIcon({ open }: { open?: boolean }) {
 }
 
 // ---- 文件：轮廓表达类别；具体格式由文件名与阅读器标签表达 ----
-const DocumentGlyph = makeIcon(FileText)
-const CodeGlyph = makeIcon(FileCode)
-const ImageGlyph = makeIcon(FileImage)
-const ArchiveFileGlyph = makeIcon(FileArchive)
-const TableGlyph = makeIcon(Table)
-const PresentationGlyph = makeIcon(Presentation)
-const AudioGlyph = makeIcon(FileAudio)
-const VideoGlyph = makeIcon(FileVideo)
-export const FileGlyph = makeIcon(File)
+const DocumentGlyph = makeIcon('fileText')
+const CodeGlyph = makeIcon('fileCode')
+const ImageGlyph = makeIcon('fileImage')
+const ArchiveFileGlyph = makeIcon('fileArchive')
+const TableGlyph = makeIcon('table')
+const PresentationGlyph = makeIcon('presentation')
+const AudioGlyph = makeIcon('fileAudio')
+const VideoGlyph = makeIcon('fileVideo')
+export const FileGlyph = makeIcon('file')
 const FILE_GLYPHS: Record<string, Icon> = {
   pdf: DocumentGlyph, md: DocumentGlyph, txt: DocumentGlyph, tex: DocumentGlyph, epub: DocumentGlyph,
   doc: DocumentGlyph, docx: DocumentGlyph, rtf: DocumentGlyph,
@@ -114,23 +112,23 @@ export function FileTypeIcon({ name, size = ICON_MD }: { name: string; size?: nu
 }
 
 // ---- 菜单：保留 Kumo 的 Icon ref 合同，同样固定轮廓和颜色 ----
-export const PaperclipGlyph = makeIcon(Paperclip, ICON_SM)
-export const BriefcaseGlyph = makeIcon(Briefcase, ICON_SM)
-export const GearGlyph = makeIcon(Gear, ICON_SM)
-export const SkillGlyph = makeIcon(Scroll, ICON_SM)
-export const ArchiveGlyph = makeIcon(Archive, ICON_SM)
-export const PencilGlyph = makeIcon(PencilSimple, ICON_SM)
-export const RefreshGlyph = makeIcon(ArrowClockwise, ICON_SM)
-export const FolderGlyph = makeIcon(FolderSimple, ICON_SM)
-export const BrainGlyph = makeIcon(Brain, ICON_SM)
-const BookGlyph = makeIcon(BookOpen, ICON_SM)
-const CalendarGlyph = makeIcon(CalendarBlank, ICON_SM)
-const PaletteGlyph = makeIcon(Palette, ICON_SM)
-const StackGlyph = makeIcon(Stack, ICON_SM)
-const WrenchGlyph = makeIcon(Wrench, ICON_SM)
-const QuestionGlyph = makeIcon(Question, ICON_SM)
-const SearchGlyph = makeIcon(MagnifyingGlass, ICON_SM)
-const ScriptGlyph = makeIcon(Code, ICON_SM)
+export const PaperclipGlyph = makeIcon('paperclip', ICON_SM)
+export const BriefcaseGlyph = makeIcon('briefcase', ICON_SM)
+export const GearGlyph = makeIcon('gear', ICON_SM)
+export const SkillGlyph = makeIcon('scroll', ICON_SM)
+export const ArchiveGlyph = makeIcon('archive', ICON_SM)
+export const PencilGlyph = makeIcon('pencil', ICON_SM)
+export const RefreshGlyph = makeIcon('refresh', ICON_SM)
+export const FolderGlyph = makeIcon('folder', ICON_SM)
+export const BrainGlyph = makeIcon('brain', ICON_SM)
+const BookGlyph = makeIcon('book', ICON_SM)
+const CalendarGlyph = makeIcon('calendar', ICON_SM)
+const PaletteGlyph = makeIcon('palette', ICON_SM)
+const StackGlyph = makeIcon('stack', ICON_SM)
+const WrenchGlyph = makeIcon('wrench', ICON_SM)
+const QuestionGlyph = makeIcon('question', ICON_SM)
+const SearchGlyph = makeIcon('search', ICON_SM)
+const ScriptGlyph = makeIcon('code', ICON_SM)
 
 const SKILL_GLYPHS: readonly [RegExp, Icon][] = [
   [/paper|read|pdf|doc|journal|arxiv/, BookGlyph],

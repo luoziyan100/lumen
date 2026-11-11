@@ -1560,7 +1560,84 @@ html[data-skin="cosmic-latte"] .thought {
   justify-content: center;
 }
 /* 图标尺寸由统一入口决定；按钮只负责命中区与对齐。 */
-.lumen-icon { display: inline-block; flex-shrink: 0; vertical-align: middle; }
+.lumen-icon { display: inline-block; flex-shrink: 0; vertical-align: middle; overflow: visible; }
+
+/* ---- 图标动效(doc/ui-design.md §3.1)：两帧，悬停做物件动作，不改颜色 ----
+ * 位移单位是 24 网格的用户单位。由外层可交互元素触发；禁用控件不动。 */
+.li .solid { fill: currentColor; stroke: none; }
+.li [class*="m-"] {
+  transform-box: fill-box; transform-origin: center;
+  transition: transform var(--dur-base) var(--ease-out), opacity var(--dur-base) var(--ease-out);
+}
+.li .m-sheet, .li .m-typing, .li .m-day { opacity: 0; }
+.li-folder .m-sheet { transform: translateY(1.5px); }
+.li .m-flap { transform-origin: bottom center; }
+.li .m-lid, .li .m-pageR { transform-origin: left bottom; }
+.li .m-pageL { transform-origin: right bottom; }
+.li .m-write { transform-origin: left bottom; }
+.li .m-row1, .li .m-row2, .li .m-col { transform-origin: left center; }
+.li-fileText .m-row2, .li-scroll .m-row2 { transform: scaleX(.85); }
+.li .m-spin, .li .m-gear { transform-box: view-box; transform-origin: 12px 12px; }
+
+:is(button, a[href], [role="menuitem"], [role="option"], [role="tab"], summary):not(:disabled, [aria-disabled="true"]):is(:hover, :focus-visible, [data-highlighted]) .li {
+  & .m-divider { transform: translateX(1.5px); }
+  & .m-lens { transform: rotate(-10deg) scale(1.06); }
+  & .m-head { transform: translateY(-1px); }
+  & .m-bubble { transform: rotate(-4deg); }
+  & .m-typing { opacity: 1; }
+  & .m-turn { transform: rotate(90deg); }
+  & .m-squeeze { transform: scaleX(.75); }
+  & .m-tick { transform: translateY(-.75px) scale(1.08); }
+  & .m-rise { transform: translateY(-2.5px); }
+  & .m-sink { transform: translateY(2px); }
+  & .m-left { transform: translateX(-2px); }
+  & .m-right { transform: translateX(2px); }
+  & .m-press { transform: scale(.86); }
+  & .m-dot1 { transform: translateY(-2px); }
+  & .m-dot2 { transform: translateY(-2px); transition-delay: 40ms; }
+  & .m-dot3 { transform: translateY(-2px); transition-delay: 80ms; }
+  & .m-gear { transform: rotate(45deg); }
+  & .m-play { transform: translateX(1px) scale(1.08); }
+  & .m-lid { transform: translate(-.5px, -1.6px) rotate(-14deg); }
+  &.li-archive .m-lid { transform: translateY(-1.5px); }
+  & .m-rollTop { transform: translateY(-1px); }
+  & .m-rollBottom { transform: translateY(1px); }
+  & .m-fore { transform: translate(-1.2px, -1.2px); }
+  & .m-out { transform: translate(1.5px, -1.5px); }
+  & .m-in { transform: translate(-1.5px, 1.5px); }
+  & .m-lift { transform: translateY(-1px); }
+  & .m-handle { transform: translateY(-1px); }
+  & .m-write { transform: rotate(-10deg); }
+  & .m-spin { transform: rotate(120deg); }
+  & .m-clip { transform: rotate(-10deg); }
+  & .m-sheet { opacity: 1; transform: translateY(-1.5px); }
+  & .m-flap { transform: skewX(-14deg) scaleY(.86); }
+  & .m-backFolder { transform: translate(-.75px, -.75px); }
+  & .m-frontFolder { transform: translate(.75px, .75px); }
+  & .m-page { transform: translateY(-1px); }
+  & .m-row1 { transform: scaleX(.7); }
+  & .m-row2 { transform: scaleX(1); }
+  & .m-col { transform: translateX(2px); }
+  & .m-codeL { transform: translateX(-1.2px); }
+  & .m-codeR { transform: translateX(1.2px); }
+  & .m-sun { transform: translateY(-1.2px); }
+  & .m-zip { transform: translateY(1px); }
+  & .m-note { transform: rotate(-10deg); }
+  & .m-chart { transform: translateY(-1.2px); }
+  & .m-lobeL { transform: translateX(-.6px); }
+  & .m-lobeR { transform: translateX(.6px); }
+  & .m-pageL { transform: rotate(-5deg); }
+  & .m-pageR { transform: rotate(5deg); }
+  & .m-rings { transform: translateY(-1px); }
+  & .m-day { opacity: 1; }
+  & .m-layer1 { transform: translateY(-1.6px); }
+  & .m-layer2 { transform: translateY(-.8px); }
+  & .m-wrench { transform: rotate(-18deg); }
+  & .m-ask { transform: rotate(-10deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .li [class*="m-"] { transition: none; }
+}
 /* 发送/停止:液态玻璃圆钮 */
 .composer-btn {
   display: inline-flex; align-items: center; justify-content: center;

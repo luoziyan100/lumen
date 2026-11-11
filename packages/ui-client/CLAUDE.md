@@ -27,7 +27,7 @@ tests/                      # 原生 HTTP/SSE 客户端与保留渲染算法回�
 
 - `mastra/data/` 消费服务接口；工作区文件和历史都从服务读取，不拼装旧目录或重放旧 WS 事件。
 - `components/` 保留与运行时无关的阅读能力；HTML 走隔离 widget iframe，Markdown 外链走统一确认出口。
-- `components/icons.tsx` 统一业务图标为 Phosphor regular/currentColor，16/18/20三档覆盖行内、按钮和主导航；管理三点与折叠箭头分工，文件类别用轮廓表达，禁止手绘/字符和 CSS 尺寸例外。
+- `components/icons.tsx` + `iconGlyphs.tsx` 是业务图标唯一入口：自绘纯线条、currentColor、悬停做物件动作(doc/ui-design.md §3.1)，16/18/20三档覆盖行内、按钮和主导航；管理三点与折叠箭头分工，文件类别用轮廓表达，禁止字符和 CSS 尺寸例外。
 - `main.tsx` / `vite.config.ts` / `src-tauri/src/mastra.rs` 负责发现服务。冷启动失败展示错误并进行有界退避发现；工作台已经打开后，短暂探测失败保留当前连接，不卸载界面。成功换端口/令牌时替换连接并补取历史，不启动另一个运行时。
 - `package.json` 声明浏览器与桌面命令；`tsconfig.json` 检查现役源码；`vite.config.ts` 提供本机开发发现；`index.html` 是网页宿主。
 - 服务发现默认读取 `~/.lumen-mastra`，参数或 `LUMEN_MASTRA_HOME` 保留隔离预览；旧入口和 WS 回退已删除。

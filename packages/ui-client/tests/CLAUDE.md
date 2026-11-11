@@ -12,6 +12,7 @@ tests/
 ├── markdown-*.test.ts       # 正文与数学
 ├── mermaid-*.test.ts        # 图表算法与宿主
 ├── widget-*.test.ts         # 网页沙箱输入与主题
+├── icons.test.ts            # 自绘图标结构合同
 ├── appearance-resolve.test.ts
 ├── source-cite.test.ts / scroll-debug.test.ts
 └── fixtures/               # 合成阅读材料
@@ -27,6 +28,7 @@ tests/
 - `connection-hold.test.ts`：已连接后的发现失败保留连接，冷启动失败和成功的新令牌仍替换。
 - `mastra-appearance.test.ts`：真实设置窗口与外观宿主验证系统变化切换实际明暗基线，纸面/玻璃皮肤的颜色与材质经本机保存恢复；设置仅有模型、研究偏好和外观三个分类，服务返回预算也不产生编辑入口；研究忙碌时分类可切换、配置写入仍受限、浅色换肤不提交服务；另覆盖卸载订阅、模型ID逐行增减不提交、保存保留活动模型/凭证、删除只发送删除请求。
 - `appearance-resolve.test.ts`：真实明暗与系统模式基线、浅色皮肤/玻璃纸面材质、跨明暗补丁隔离、原语白名单及别名级联。
+- `icons.test.ts`：全部导出图标、文件类别与技能图标的24网格、currentColor 描边、无填充、几何不出画布，几何均有入口、尺寸档与镜像生效。
 - `markdown-cache.test.ts`：禁止跨会话共享携带回调的 Markdown React 树缓存。
 - `markdown-math.test.ts`：数学定界符归一与真实 KaTeX SSR，代码区阻止跨区配对。
 - `mermaid-layout.test.ts`：固有尺寸政策与真实 Mermaid ELK 配置。
