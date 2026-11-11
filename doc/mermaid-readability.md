@@ -1,6 +1,6 @@
 # Mermaid 可读性（停拉伸 · 官方 ELK · persona 安全子集）
 
-状态: **现行（前端决策+履约）；persona 安全子集部分迁移；Phase B 冻结项随旧服务退役** · 2026-08-31（2026-11-10 按 Mastra 代码核对，见「现状核对」）  
+状态: **历史决策**（2026-08-31；停拉伸/ELK/横滚仍由 `doc/mermaid.md` 继承，persona 安全子集已补齐；2026-11-10 起以 `doc/mermaid.md` 为执行合同）  
 分支语境: `experiment/glass-ui`  
 决策编号: **R1′**（可读性本轮；语法管线仍是 `doc/mermaid-pipeline.md` 的 S4′）
 

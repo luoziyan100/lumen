@@ -1,6 +1,6 @@
 # Mermaid 渲染管线（校验 · 清洗 · 修复 · 降级）
 
-状态: **渲染决策参考：前端 Phase A 现行；Phase B 已随旧服务退役；persona 镜像部分迁移**（2026-08-16 决策；2026-11-10 按 Mastra 代码核对，见 §1.5）  
+状态: **历史决策**（2026-08-16；2026-11-10 起执行合同见 `doc/mermaid.md`：Phase B 改为会话内修正消息、颜色改为主题 token、persona 规则已补齐。下文 §1.5 为重做前的核对快照）  
 分支语境: `experiment/glass-ui`（与 glass 主题、MermaidBlock 同栈）  
 决策编号: **S4′**（HDD 选型 + 外部调研交叉验证）
 

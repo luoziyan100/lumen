@@ -1,10 +1,10 @@
 /**
  * [INPUT]: mermaidSyntax Phase A 规则
  * [OUTPUT]: kind 门控 / 引号修复 / R7 补 ] / sequence·class 不误伤 / 错误摘要
- * [POS]: doc/mermaid-pipeline.md AT-A1/A6/A7 + R7 Omarchy 漏括号
+ * [POS]: doc/mermaid.md 出图层 R1–R7(原 pipeline AT-A1/A6/A7) + R7 Omarchy 漏括号
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
-import { describe, it, beforeEach } from 'node:test'
+import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   detectDiagramKind,
@@ -12,12 +12,11 @@ import {
   summarizeParseError,
   prepareMermaid,
   prepareAndValidate,
-  mermaidMetrics,
 } from '../src/mermaid/mermaidSyntax.ts'
+import { readMermaidPalette } from '../src/mermaid/mermaidTheme.ts'
+import { LIGHT_BASELINE } from '../src/appearance/resolve.ts'
 
-beforeEach(() => {
-  mermaidMetrics.reset()
-})
+const palette = readMermaidPalette(name => LIGHT_BASELINE[name] ?? '')
 
 describe('detectDiagramKind', () => {
   it('flowchart / graph', () => {
@@ -147,14 +146,13 @@ describe('summarizeParseError', () => {
 })
 
 describe('prepareAndValidate', () => {
-  it('parse 成功计 metrics', async () => {
-    const r = await prepareAndValidate('flowchart TB\n  A-->B\n', async () => {})
+  it('parse 成功返回改写稿', async () => {
+    const r = await prepareAndValidate('flowchart TB\n  A-->B\n', palette, async () => {})
     assert.equal(r.ok, true)
-    assert.equal(mermaidMetrics.parse_ok, 1)
   })
 
   it('parse 失败给短 error + detail', async () => {
-    const r = await prepareAndValidate('flowchart TB\n  A[{\n', async () => {
+    const r = await prepareAndValidate('flowchart TB\n  A[{\n', palette, async () => {
       throw new Error("Parse error on line 2: got 'DIAMOND_START'")
     })
     assert.equal(r.ok, false)
@@ -162,20 +160,19 @@ describe('prepareAndValidate', () => {
       assert.match(r.error, /第 2 行|未加引号/)
       assert.ok(r.detail.includes('DIAMOND'))
     }
-    assert.equal(mermaidMetrics.parse_fail, 1)
   })
 })
 
 describe('prepareMermaid 组合颜色闸', () => {
   it('语法与颜色串联不抛', () => {
-    const { source, kind } = prepareMermaid('flowchart TB\n  A[入口] --> B[出口]\n')
+    const { source, kind } = prepareMermaid('flowchart TB\n  A[入口] --> B[出口]\n', palette)
     assert.equal(kind, 'flowchart')
     assert.ok(source.includes('flowchart'))
   })
 
   it('L98 极宽 LR 不改方向、不改节点', async () => {
     const { WIDE_LR_FIXTURE } = await import('./fixtures/l98-rendering.ts')
-    const { source, kind, actions } = prepareMermaid(WIDE_LR_FIXTURE)
+    const { source, kind, actions } = prepareMermaid(WIDE_LR_FIXTURE, palette)
     assert.equal(kind, 'flowchart')
     assert.match(source, /flowchart LR/)
     assert.doesNotMatch(source, /flowchart TD/)

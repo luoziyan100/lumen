@@ -2,7 +2,7 @@
  * [INPUT]: mermaidLayout.normalizeSvgIntrinsicSize; mermaidZoom.viewBoxFromBBox
  * [OUTPUT]: 测量宿主 + 墨迹收紧 + 宽度分桶缓存键 —— 主流只接收已 tighten 的 final SVG
  * [POS]: MermaidBlock 的箱外测量层;host 挂 document.body,禁止进入 .messages-content
- * [PROTOCOL]: 变更时更新此头部与 doc/mermaid-pipeline.md / doc/chat-scroll-ux.md
+ * [PROTOCOL]: 变更时更新此头部与 doc/mermaid.md / doc/chat-scroll-ux.md
  */
 
 import { normalizeSvgIntrinsicSize } from './mermaidLayout.ts'

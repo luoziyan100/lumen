@@ -14,7 +14,7 @@
 - `parseShowWidget.ts` — 围栏分段解析与 partial JSON 提取
 - `height.ts` — `nextWidgetHeight`:流式 ratchet、终态可收缩
 - `WidgetFrame.tsx` — iframe.src=`/widget-receiver.html`(禁 srcdoc);finalize 走 hoistInlineScripts;同代同内容只推送一次并携带世代 token;阅读器 `fillHeight`;WIDGET_DIAG 常挂 `data-widget-diag`,可见条默认隐藏(走查开 `localStorage lumen:widgetDiag=1`)
-- `AssistantContent.tsx` — 文本 Markdown(含 mermaid)+ widget 交错;流式 `deferMath`;气泡入口;终稿可带 mermaid Phase B 修复;memo 包一层
+- `AssistantContent.tsx` — 文本 Markdown(含 mermaid)+ widget 交错;流式 `deferMath`;气泡入口;终稿把失败图的修正请求经 onSendMessage 发回会话;memo 包一层
 - `../HtmlViewer.tsx` — 工作区 HTML 预览入口(`fillHeight`)
 
 测试:`tests/widget-parse.test.ts`(解析 + sanitize + HT-c + hoist + receiver 仪表 + 终态幂等);`tests/widget-theme.test.ts`(暗壳主题对比度 + fillHeight 滚动契约)。

@@ -1,12 +1,12 @@
 /**
  * [INPUT]: mermaid 源码字符串
- * [OUTPUT]: detectDiagramKind / repairMermaidSyntax / summarizeParseError / prepareMermaid /
- *           mermaidMetrics —— 确定性语法闸（doc/mermaid-pipeline.md S4′ Phase A）
- * [POS]: MermaidBlock 渲染前、颜色 sanitize 之前或与之组合；按图类型门控规则（flowchart 含 R7 补 ]）
- * [PROTOCOL]: 变更时更新此头部与 doc/mermaid-pipeline.md §5
+ * [OUTPUT]: detectDiagramKind / repairMermaidSyntax / summarizeParseError / prepareMermaid / prepareAndValidate
+ *           —— 确定性语法闸（R1–R7，见 doc/mermaid.md）
+ * [POS]: MermaidBlock 渲染前；语法修补后交 mermaidTheme 做宿主颜色裁决；按图类型门控规则（flowchart 含 R7 补 ]）
+ * [PROTOCOL]: 变更时更新此头部与 doc/mermaid.md
  */
 
-import { sanitizeMermaidSource } from './mermaidSanitize.ts'
+import { applyHostColors, type MermaidPalette } from './mermaidTheme.ts'
 
 export type DiagramKind =
   | 'flowchart'
@@ -29,38 +29,6 @@ export interface PrepareMermaidResult {
   source: string
   kind: DiagramKind
   actions: string[]
-}
-
-/** 本地观测（非远程遥测）；dev 可看 console.debug */
-export const mermaidMetrics = {
-  parse_ok: 0,
-  parse_fail: 0,
-  rule_then_parse_ok: 0,
-  llm_repair_attempt: 0,
-  llm_repair_ok: 0,
-  rule_hits: {} as Record<string, number>,
-  bump(key: string, n = 1): void {
-    if (
-      key === 'parse_ok' || key === 'parse_fail' || key === 'rule_then_parse_ok'
-      || key === 'llm_repair_attempt' || key === 'llm_repair_ok'
-    ) {
-      this[key] += n
-    } else {
-      this.rule_hits[key] = (this.rule_hits[key] ?? 0) + n
-    }
-    const nodeEnv = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
-    if (nodeEnv?.LUMEN_MERMAID_DEBUG === '1') {
-      console.debug('[mermaid-metrics]', key, n, { ...this.rule_hits, parse_ok: this.parse_ok, parse_fail: this.parse_fail })
-    }
-  },
-  reset(): void {
-    this.parse_ok = 0
-    this.parse_fail = 0
-    this.rule_then_parse_ok = 0
-    this.llm_repair_attempt = 0
-    this.llm_repair_ok = 0
-    this.rule_hits = {}
-  },
 }
 
 const FLOWCHART_KINDS = new Set<DiagramKind>(['flowchart'])
@@ -244,7 +212,6 @@ export function repairMermaidSyntax(source: string): SyntaxRepairResult {
   text = q.source
   if (q.hit) {
     actions.push('smart-quotes')
-    mermaidMetrics.bump('R1')
   }
 
   if (FLOWCHART_KINDS.has(kind)) {
@@ -252,19 +219,16 @@ export function repairMermaidSyntax(source: string): SyntaxRepairResult {
     text = quoted.source
     if (quoted.actions.length) {
       actions.push(...quoted.actions)
-      mermaidMetrics.bump('R2/R3', quoted.actions.length)
     }
     const closed = closeQuotedRectBeforeEdge(text)
     text = closed.source
     if (closed.hit) {
       actions.push('close-rect')
-      mermaidMetrics.bump('R7')
     }
     const arrows = fixFlowchartArrows(text)
     text = arrows.source
     if (arrows.hit) {
       actions.push('arrow-fix')
-      mermaidMetrics.bump('R5')
     }
   }
 
@@ -307,9 +271,9 @@ export function summarizeParseError(error: unknown): string {
   return hint
 }
 
-export function prepareMermaid(raw: string): PrepareMermaidResult {
+export function prepareMermaid(raw: string, palette: MermaidPalette): PrepareMermaidResult {
   const syntax = repairMermaidSyntax(raw)
-  const color = sanitizeMermaidSource(syntax.source)
+  const color = applyHostColors(syntax.source, palette)
   return {
     source: color.source,
     kind: syntax.kind,
@@ -340,16 +304,15 @@ export type ValidateFail = {
  */
 export async function prepareAndValidate(
   raw: string,
+  palette: MermaidPalette,
   parse: (src: string) => void | Promise<void>,
 ): Promise<ValidateOk | ValidateFail> {
-  const prepared = prepareMermaid(raw)
+  const prepared = prepareMermaid(raw, palette)
   const hadRules = prepared.actions.some((a) =>
     a === 'smart-quotes' || a === 'quote-label' || a === 'arrow-fix' || a === 'close-rect' || a.startsWith('quote-label'),
   )
   try {
     await parse(prepared.source)
-    mermaidMetrics.bump('parse_ok')
-    if (hadRules) mermaidMetrics.bump('rule_then_parse_ok')
     return {
       ok: true,
       source: prepared.source,
@@ -358,7 +321,6 @@ export async function prepareAndValidate(
       ruleHelped: hadRules,
     }
   } catch (e) {
-    mermaidMetrics.bump('parse_fail')
     const detail = e instanceof Error ? e.message : String(e)
     return {
       ok: false,
