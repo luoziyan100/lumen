@@ -148,8 +148,9 @@ test('重连快照保留真实审批与问答挂起，并按官方 wire 形状�
     await pending
     type Snapshot = { displayState: Extract<AgentControllerWireEvent, { type: 'display_state_changed' }>['displayState'] }
     const approval = await request<Snapshot>('/snapshot?projectId=default&taskId=snapshot')
-    assert.equal(approval.displayState.pendingApproval?.toolName, 'write_file')
-    session.respondToToolApproval({ toolCallId: approval.displayState.pendingApproval!.toolCallId, decision: 'approve' })
+    const [parked] = Object.values(approval.displayState.pendingApprovals)
+    assert.equal(parked?.toolName, 'write_file')
+    session.respondToToolApproval({ toolCallId: parked!.toolCallId, decision: 'approve' })
     await running
     const suspended = await request<Snapshot>('/snapshot?projectId=default&taskId=snapshot')
     const prompt = Object.values(suspended.displayState.pendingSuspensions)[0]

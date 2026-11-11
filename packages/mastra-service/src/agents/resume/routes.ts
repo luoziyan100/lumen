@@ -43,7 +43,7 @@ export function specialistRoutes(options: {
       const { projectId, taskId, specialistId, prompt } = parsed.data, parent = `${projectId}:${taskId}`
       const session = await options.session(projectId, taskId)
       const state = session.displayState.get()
-      if (state.isRunning || state.pendingApproval || state.pendingSuspensions.size) return c.json({ error: '请先完成或停止当前研究，再继续专家' }, 409)
+      if (state.isRunning || state.pendingApprovals.size || state.pendingSuspensions.size) return c.json({ error: '请先完成或停止当前研究，再继续专家' }, 409)
       let previous
       const nonce = randomUUID()
       try { previous = await options.history.prepare(parent, specialistId, nonce) }
@@ -57,7 +57,7 @@ export function specialistRoutes(options: {
       try { awaitingApproval = await Promise.race([running.then(() => false), approval]) } finally { unsubscribe() }
       const record = (await options.history.list(parent)).find(item => item.id === specialistId)!
       const after = session.displayState.get()
-      if (awaitingApproval || after.pendingApproval || after.pendingSuspensions.size) return c.json({ continued: record.continuations > previous.continuations, pendingApproval: true, record }, 202)
+      if (awaitingApproval || after.pendingApprovals.size || after.pendingSuspensions.size) return c.json({ continued: record.continuations > previous.continuations, pendingApproval: true, record }, 202)
       if (record.continuations <= previous.continuations) return c.json({ error: '模型没有执行指定专家的继续请求；未将新专家冒充继续，请查看本轮反馈', continued: false, record }, 409)
       return c.json({ continued: true, record })
     })

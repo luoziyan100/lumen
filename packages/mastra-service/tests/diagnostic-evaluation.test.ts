@@ -59,7 +59,7 @@ async function setup(outcome: 'success' | 'failed' | 'cancelled' = 'success') {
   http.onError((error, c) => c.json({ error: error.message }, error instanceof DiagnosticsError ? error.status : 500))
   return { root, resourceId, storage, memory, diagnostics, fixture, item, http, secrets,
     toolCalls: () => toolCalls, setLive(settings: ModelSettings | null) { live = settings },
-    async close() { await controller.deleteSession({ resourceId }); await controller.destroy(); await mastra.shutdown(); await diagnostics.close(); await storage.close(); await rm(root, { recursive: true, force: true }) } }
+    async close() { await controller.deleteSession({ sessionId: resourceId }); await controller.destroy(); await mastra.shutdown(); await diagnostics.close(); await storage.close(); await rm(root, { recursive: true, force: true }) } }
 }
 
 test('真实 Controller 录制经独立 Mastra Agent 回放，模型/真实工具/文件/正式消息均不再执行', { timeout: 90000 }, async () => {

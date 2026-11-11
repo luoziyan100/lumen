@@ -66,7 +66,7 @@ test('显式继续复用原专家上下文及目录，重启后仍可继续；�
     assert.equal(waiting.status, 202, await waiting.clone().text()); assert.equal(childCalls, 2)
     const duplicate = await post({ projectId: 'p', taskId: 'task', specialistId: continuedId, prompt: '重复提交' })
     assert.equal(duplicate.status, 409)
-    const approval = session.displayState.get().pendingApproval; assert.ok(approval)
+    const [approval] = session.displayState.get().pendingApprovals.values(); assert.ok(approval)
     let ended!: () => void
     const end = new Promise<void>(resolve => { ended = resolve })
     const unsubscribe = session.subscribe(event => { if (event.type === 'agent_end') ended() })

@@ -5,7 +5,7 @@
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { createHash, randomUUID } from 'node:crypto'
-import type { DelegationStartContext, DelegationCompleteContext, MessageFilterContext, MastraDBMessage } from '@mastra/core/agent'
+import { MessageList, type DelegationStartContext, type DelegationCompleteContext, type MessageFilterContext, type MastraDBMessage } from '@mastra/core/agent'
 import type { InputProcessor } from '@mastra/core/processors'
 import type { MastraMemory } from '@mastra/core/memory'
 import type { MastraStorage } from '@mastra/core/storage'
@@ -91,7 +91,7 @@ export function createSpecialistHistory(storage: Pick<MastraStorage, 'getStore'>
       })
       return args.messageList
     } } satisfies InputProcessor,
-    async messages(context: MessageFilterContext): Promise<MastraDBMessage[]> {
+    async messages(context: MessageFilterContext): Promise<MessageFilterContext['messages']> {
       const scope = active.get(invocation(context))
       if (!scope) throw new Error('专家委派未登记')
       const record = await transaction(scope.parent, state => structuredClone(state.items[scope.id]!), false)
@@ -105,7 +105,8 @@ export function createSpecialistHistory(storage: Pick<MastraStorage, 'getStore'>
           if (!result.hasMore) break
         }
       }
-      return messages.map(({ threadId: _thread, resourceId: _resource, ...message }) => message)
+      // 1.80+ 委派 context 只接收模型消息；用原生 MessageList 转换，保留工具调用与结果配对。
+      return new MessageList().add(messages.map(({ threadId: _thread, resourceId: _resource, ...message }) => message), 'memory').get.all.aiV5.model()
     },
     async complete(context: DelegationCompleteContext) {
       const scope = active.get(invocation(context))

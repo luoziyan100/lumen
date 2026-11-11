@@ -118,7 +118,11 @@ test('用户明确取消的问题持久化为 canceled，重启不会复活提�
     session = await app.session('p', 'ask')
     assert.equal(await restoreSuspendedQuestions({ session, agent: app.mastra.getAgent('research') }), 0)
     assert.equal(session.displayState.get().pendingSuspensions.size, 0)
-    assert.deepEqual(await session.thread.listMessages({ threadId: 'p:ask' }), history)
+    // 1.82 起原生停止把挂起调用结算为 output-denied，消息集合不变且调用配对
+    const after = await session.thread.listMessages({ threadId: 'p:ask' })
+    assert.deepEqual(after.map(message => message.id), history.map(message => message.id))
+    const states = after.flatMap(message => message.content.parts.flatMap(part => part.type === 'tool-invocation' ? [part.toolInvocation.state] : []))
+    assert.deepEqual(states, ['output-denied'])
     assert.equal(fixture.requests.length, priorRequests)
   } finally { await app.close(); await rm(dataRoot, { recursive: true, force: true }) }
 })

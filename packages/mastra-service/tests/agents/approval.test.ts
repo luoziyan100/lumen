@@ -50,7 +50,7 @@ test('通用专家自动委派并在独立沙箱执行，技能资源只读且�
     })
     await session.sendMessage({ content: '委派专家计算' })
     assert.equal(approvals.length, 0, JSON.stringify(approvals))
-    assert.equal(session.displayState.get().pendingApproval, null)
+    assert.equal(session.displayState.get().pendingApprovals.size, 0)
     const directories = await readdir(join(task, 'workers'))
     assert.equal(directories.length, 1)
     assert.equal(await readFile(join(task, 'workers', directories[0]!, 'result.txt'), 'utf8'), 'SANDBOX_EXECUTION')

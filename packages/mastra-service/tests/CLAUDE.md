@@ -11,7 +11,7 @@ P0 预注册：工具结果必须进入下一轮模型请求；两个会话不�
 
 - `background.test.ts`：原生后台子代理的单子取消与父运行独立性。
 - `permissions.test.ts`：完整应用主 Agent 实际请求中的每个工具都有权限类别或单独放行，防止漏登记触发人工审批。
-- `tool-pairing.test.ts`：并行后台委派后持久历史与下一轮实际请求的 toolCallId 唯一且配对；裸 Agent 通过，原生 AgentController 1.67.0 重复保存委派调用、重复 id 进入下一轮请求（todo，框架缺陷）；子专家 workspace 元数据进入父线程（todo，待查）。
+- `tool-pairing.test.ts`：并行后台委派后持久历史与下一轮实际请求的 toolCallId 唯一且配对；裸 Agent、纯原生 Controller 与完整应用均验证（1.67.0 重复 id 缺陷已随 1.82.0 关闭）；子专家 workspace 元数据进入父线程为 todo 子用例（台账 F2）。
 
 - `collaboration.test.ts`：产品 HTTP 控制双会话后台子代，核对子任务归属与独立取消。
 

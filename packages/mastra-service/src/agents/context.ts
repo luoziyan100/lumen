@@ -10,15 +10,23 @@ import type { ModelSettings } from '../model.ts'
 
 export type ContextSettings = Pick<ModelSettings, 'contextWindow' | 'vision'>
 
+const OVERSIZED = '当前系统指令或最近一条消息超过模型可用上下文；请缩短输入或增大模型窗口后重新发送。已保存的历史保持不变。'
+
+/** 不可重试的 TripWire 换成可读的产品错误；1.82 起标准裁剪发生在 processLLMRequest，旧路径仍走 processInputStep。 */
+async function explainOverflow<T>(run: () => Promise<T>): Promise<T> {
+  try { return await run() }
+  catch (error) {
+    if (error instanceof TripWire && error.options.retry !== true) throw new Error(OVERSIZED, { cause: error })
+    throw error
+  }
+}
+
 class ControllerTokenLimiter extends TokenLimiterProcessor {
-  override async processInputStep(args: Parameters<TokenLimiterProcessor['processInputStep']>[0]) {
-    try { return await super.processInputStep(args) }
-    catch (error) {
-      if (error instanceof TripWire && error.options.retry !== true) {
-        throw new Error('当前系统指令或最近一条消息超过模型可用上下文；请缩短输入或增大模型窗口后重新发送。已保存的历史保持不变。', { cause: error })
-      }
-      throw error
-    }
+  override processInputStep(args: Parameters<TokenLimiterProcessor['processInputStep']>[0]) {
+    return explainOverflow(() => super.processInputStep(args))
+  }
+  override processLLMRequest(args: Parameters<TokenLimiterProcessor['processLLMRequest']>[0]) {
+    return explainOverflow(() => super.processLLMRequest(args))
   }
 }
 

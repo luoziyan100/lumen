@@ -157,7 +157,7 @@ test('原生 DOCX 和图像工具进入当前模型；真实 SDK 请求携带 im
     await session.sendMessage({ content: '再说说刚才的图片' })
     assert.ok(changedImageSeen, '历史图片变化后必须明确撤回像素，不能重放旧内容')
   } finally {
-    if (session) await controller.deleteSession({ resourceId: session.identity.getResourceId() })
+    if (session) await controller.deleteSession({ sessionId: session.identity.getResourceId() })
     await controller.destroy(); await mastra.shutdown(); await storage.close(); await env.close()
   }
 })

@@ -115,7 +115,7 @@ test('真实 Mastra trace 关联受信会话、导出无凭证、标注不串会
     const reopened = createDiagnostics(options)
     try { assert.equal((await reopened.getBadCase('project:a', item.id)).note, '补充观察') } finally { reopened.close() }
   } finally {
-    for (const session of sessions) await controller.deleteSession({ resourceId: session.identity.getResourceId() })
+    for (const session of sessions) await controller.deleteSession({ sessionId: session.identity.getResourceId() })
     await controller.destroy(); await mastra.shutdown(); diagnostics.close(); await storage.close(); await rm(root, { recursive: true, force: true })
   }
 })

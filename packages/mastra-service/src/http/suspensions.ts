@@ -29,7 +29,7 @@ async function resumeQuestion(context: QuestionContext, input: z.infer<typeof an
     const unsubscribe = context.session.subscribe(event => {
       if (event.type === 'tool_end' && event.toolCallId === input.toolCallId) accepted = true
     })
-    try { await context.session.resumeToolCall({ ...input, resolveOnToolEnd: true }) }
+    try { await context.session.resumeToolCall({ resumeData: input.resumeData, address: pending, resolveOnToolEnd: true }) }
     catch { throw new QuestionConflict(UNAVAILABLE) }
     finally { unsubscribe() }
     if (!accepted) throw new QuestionConflict(UNAVAILABLE)

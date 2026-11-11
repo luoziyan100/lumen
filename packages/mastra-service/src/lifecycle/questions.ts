@@ -21,6 +21,8 @@ export async function suspendedQuestionRuns({ session, agent }: QuestionContext)
 export async function restoreSuspendedQuestions(context: QuestionContext): Promise<number> {
   const candidates = (await suspendedQuestionRuns(context)).flatMap(run => run.toolCalls.map(call => ({ run, call })))
     .filter(({ call }) => call.toolName === 'ask_user' && !call.requiresApproval && call.toolCallId)
+  const threadId = context.session.thread.getId(), resourceId = context.session.identity.getResourceId()
+  if (!threadId) return 0
   let restored = 0
   for (const { run, call } of candidates) {
     const payload = call.suspendPayload
@@ -28,8 +30,8 @@ export async function restoreSuspendedQuestions(context: QuestionContext): Promi
     if (candidates.filter(candidate => candidate.call.toolCallId === call.toolCallId).length !== 1) continue
     const toolCallId = call.toolCallId!
     if (context.session.suspensions.has({ toolCallId })) continue
-    context.session.suspensions.register({ toolCallId, runId: run.runId, toolName: 'ask_user' })
-    context.session.emit({ type: 'tool_suspended', toolCallId, toolName: 'ask_user', args: payload, suspendPayload: payload })
+    context.session.suspensions.register({ toolCallId, runId: run.runId, toolName: 'ask_user', threadId, resourceId })
+    context.session.emit({ type: 'tool_suspended', toolCallId, toolName: 'ask_user', args: payload, suspendPayload: payload, resourceId, runId: run.runId })
     restored++
   }
   return restored

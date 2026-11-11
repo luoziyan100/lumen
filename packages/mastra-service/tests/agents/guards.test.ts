@@ -56,7 +56,7 @@ test('原生 Controller 遇到空答复反馈一次后继续，连续为空明�
   let calls = 0
   const recovered = await harness(request => {
     if (++calls === 1) return textReply('')
-    assert.match(JSON.stringify(request.messages), /Processor Feedback/)
+    assert.match(JSON.stringify(request.messages), /<system-reminder>上一轮没有可见正文/)
     return textReply('纠正后的可见答复')
   })
   try {

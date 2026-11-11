@@ -20,7 +20,7 @@ AgentController → 主 Agent → 原生工具 / 专家 Agent
 
 Mastra 持有模型循环、工具回灌、SSE、暂停/恢复、后台调度和线程历史。Lumen 持有论文检索/阅读算法、模型档案、项目目录、材料权限、角色配置、文件产物与界面。领域算法不依赖旧包。
 
-版本锁：core `1.67.0`、memory `1.30.0`、libsql `1.23.0`、hono 适配器 `1.7.9`、client-js `1.46.0`、observability `1.17.8`。模型使用当前框架兼容的 AI SDK v2/v3 provider 接口；不把不兼容的新主版本混入运行。
+版本锁：core `1.82.0`、memory `1.41.0`、libsql `1.29.0`、hono 适配器 `1.7.24`、client-js `1.59.0`、observability `1.23.1`（2026-11-10 自 1.67.0 升级，行为变化与适配复核见 `adapters.md`）。模型使用当前框架兼容的 AI SDK v2/v3 provider 接口；不把不兼容的新主版本混入运行。
 
 ## 项目、文件与会话
 

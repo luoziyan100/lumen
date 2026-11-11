@@ -13,6 +13,13 @@ const object = (value: unknown): Record<string, unknown> => value && typeof valu
 const toolCall = z.object({ toolCallId: z.string().min(1), toolName: z.string().min(1), args: z.record(z.string(), z.unknown()) })
 const stepOutput = z.object({ text: z.string(), toolCalls: z.array(toolCall) })
 const altered = (value: unknown) => /\[(?:REDACTED|OMITTED)\]/.test(JSON.stringify(value) ?? '')
+// --- 1.82 起审批暂停的 model_step 以空对象结束，与旧版 null 同义：无完整步骤输出 ---
+const stepRecorded = (span: DiagnosticSpan) => span.output != null && !(typeof span.output === 'object' && !Array.isArray(span.output) && !Object.keys(span.output).length)
+// --- 恢复关系：旧版指向暂停的 model_generation，1.82 指向其所属 agent_run ---
+function resumes(item: DiagnosticSpan, generation: DiagnosticSpan | undefined) {
+  const from = object(item.metadata).resumedFromSpanId
+  return !!generation && typeof from === 'string' && (from === generation.spanId || from === generation.parentSpanId)
+}
 function outputTruncated(span: DiagnosticSpan) {
   const flag = object(object(span.metadata).lumenDiagnostics).outputTruncated
   return typeof flag === 'boolean' ? flag : span.truncated
@@ -51,7 +58,7 @@ export function evaluationPrompt(trace: DiagnosticTrace): string {
 
 // --- 审批暂停时原生 model_step 未结束；仅凭同一推理下完整 chunk 与明确恢复关系还原 ---
 function recordedStep(span: DiagnosticSpan, trace: DiagnosticTrace): RecordedStep {
-  if (span.output != null) {
+  if (stepRecorded(span)) {
     if (!span.endedAt || span.error || outputTruncated(span) || altered(span.output)) throw new EvidenceUnavailable('model_step_incomplete')
     const parsed = stepOutput.safeParse(span.output)
     if (!parsed.success) throw new EvidenceUnavailable('model_step_output_unavailable')
@@ -59,8 +66,9 @@ function recordedStep(span: DiagnosticSpan, trace: DiagnosticTrace): RecordedSte
   }
   const parent = trace.spans.find(item => item.spanId === span.parentSpanId)
   if (span.error || span.truncated || parent?.type !== 'model_generation' || object(parent.attributes).finishReason !== 'suspended'
-    || !trace.spans.some(item => object(item.metadata).resumedFromSpanId === parent.spanId)) throw new EvidenceUnavailable('model_step_incomplete')
-  const inferences = new Set(trace.spans.filter(item => item.type === 'model_inference' && item.parentSpanId === span.spanId).map(item => item.spanId))
+    || !trace.spans.some(item => resumes(item, parent))) throw new EvidenceUnavailable('model_step_incomplete')
+  // --- chunk 旧版挂在 model_inference 下，1.82 直接挂在 model_step 下 ---
+  const inferences = new Set([span.spanId, ...trace.spans.filter(item => item.type === 'model_inference' && item.parentSpanId === span.spanId).map(item => item.spanId)])
   const chunks = trace.spans.filter(item => item.type === 'model_chunk' && inferences.has(item.parentSpanId ?? '')
     && ['tool-call', 'text'].includes(String(object(item.attributes).chunkType))).sort((a, b) => Number(object(a.attributes).sequenceNumber) - Number(object(b.attributes).sequenceNumber))
   const step: RecordedStep = { text: '', toolCalls: [] }
@@ -98,7 +106,8 @@ export function recordedEvidence(trace: DiagnosticTrace): RecordedEvidence {
   const steps: RecordedStep[] = [], tools: RecordedTool[] = [], seen = new Set<string>()
   for (const span of sourceSteps) {
     const step = recordedStep(span, trace)
-    if (span.output == null && sourceSteps.some(restored => object(restored.metadata).resumedFromSpanId === span.parentSpanId
+    const generation = trace.spans.find(item => item.spanId === span.parentSpanId)
+    if (!stepRecorded(span) && sourceSteps.some(restored => restored !== span && resumes(restored, generation)
       && isDeepStrictEqual(stepOutput.safeParse(restored.output).data, step))) continue
     steps.push(step)
     for (const call of step.toolCalls) {

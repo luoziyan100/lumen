@@ -221,12 +221,12 @@ export async function createApplication(options: ApplicationOptions) {
 
   function sessionIsBusy(session: Awaited<ReturnType<typeof controller.createSession>>) {
     const state = session.displayState.get()
-    return state.isRunning || !!state.pendingApproval || state.pendingSuspensions.size > 0 || session.run.getRunId() !== null
+    return state.isRunning || state.pendingApprovals.size > 0 || state.pendingSuspensions.size > 0 || session.run.getRunId() !== null
   }
 
   async function applyModelToSession(session: Awaited<ReturnType<typeof controller.createSession>>) {
     if (!selectedModel || sessionIsBusy(session) || session.model.get() === selectedModel) return
-    await session.model.switch({ modelId: selectedModel })
+    await session.model.switch(selectedModel)
     sessionModelIds.set(session.identity.getResourceId(), selectedModel)
   }
 
@@ -263,7 +263,7 @@ export async function createApplication(options: ApplicationOptions) {
       if (tasks) session.displayState.restoreTasks(tasks)
       const persistedModel = await session.thread.getSetting({ key: 'modeModelId_research' })
       const usablePersistedModel = typeof persistedModel === 'string' && !!models.settings(persistedModel)
-      if (selectedModel && !usablePersistedModel) await session.model.switch({ modelId: selectedModel })
+      if (selectedModel && !usablePersistedModel) await session.model.switch(selectedModel)
       sessionModelIds.set(resourceId, session.model.get())
       const rules = session.permissions.getRules()
       for (const category of ['read', 'edit', 'execute'] as const) if (!rules.categories[category]) await session.permissions.setForCategory({ category, policy: 'allow' })
@@ -309,7 +309,7 @@ export async function createApplication(options: ApplicationOptions) {
   async function shutdown() {
     const pending = await Promise.allSettled(sessions.values())
     const active = pending.flatMap(result => result.status === 'fulfilled' ? [result.value] : [])
-    for (const session of active) session.abort()
+    for (const session of active) session.abort({ localOnly: true, keepParked: true })
     await cancelChildren()
     await Promise.all(active.map(async session => {
       const signal = AbortSignal.timeout(10000)
@@ -325,7 +325,7 @@ export async function createApplication(options: ApplicationOptions) {
     for (const resourceId of sessions.keys()) await familyBudget.finish(resourceId)
     budget.close()
     await diagnostics.flush()
-    for (const resourceId of sessions.keys()) await controller.deleteSession({ resourceId })
+    for (const resourceId of sessions.keys()) await controller.deleteSession({ sessionId: resourceId })
     await controller.destroy()
     await mastra.shutdown({ drainTimeout: 10000 })
     await specialistProjects.close()
@@ -342,7 +342,7 @@ export async function createApplication(options: ApplicationOptions) {
       const states = new Map<string, { running: boolean; waiting: boolean }>()
       for (const [resourceId, pending] of sessions) {
         const state = (await pending).displayState.get()
-        states.set(resourceId, { running: state.isRunning, waiting: !!state.pendingApproval || state.pendingSuspensions.size > 0 })
+        states.set(resourceId, { running: state.isRunning, waiting: state.pendingApprovals.size > 0 || state.pendingSuspensions.size > 0 })
       }
       const children = await mastra.backgroundTaskManager?.listTasks({ status: ['pending', 'running', 'suspended'], perPage: 10000 })
       for (const child of children?.tasks ?? []) {
@@ -358,7 +358,7 @@ export async function createApplication(options: ApplicationOptions) {
       for (const pending of sessions.values()) {
         const session = await pending
         const state = session.displayState.get()
-        if (state.isRunning || state.pendingApproval || state.pendingSuspensions.size) return true
+        if (state.isRunning || state.pendingApprovals.size || state.pendingSuspensions.size) return true
       }
       const children = await mastra.backgroundTaskManager?.listTasks({ status: ['pending', 'running', 'suspended'], perPage: 1 })
       if (children?.tasks.length) return true

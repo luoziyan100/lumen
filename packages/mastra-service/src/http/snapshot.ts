@@ -13,6 +13,7 @@ export function displaySnapshot(state: Readonly<AgentControllerDisplayState>, ch
     childTokenUsage,
     activeTools: Object.fromEntries(snapshot.activeTools),
     toolInputBuffers: Object.fromEntries(snapshot.toolInputBuffers),
+    pendingApprovals: Object.fromEntries(snapshot.pendingApprovals),
     pendingSuspensions: Object.fromEntries(snapshot.pendingSuspensions),
     activeSubagents: Object.fromEntries(snapshot.activeSubagents),
     modifiedFiles: Object.fromEntries(snapshot.modifiedFiles),

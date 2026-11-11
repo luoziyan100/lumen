@@ -1,7 +1,7 @@
 /**
  * [INPUT]: Mastra 原生并行后台委派、Memory/LibSQL 与 provider 网络夹具
  * [OUTPUT]: 持久历史与实际模型请求中 toolCallId 唯一且配对的机制证据
- * [POS]: 2026-09-19 正式库出现同一后台委派被两条 assistant 消息重复保存；裸 Agent 不复现，原生 AgentController 1.67.0 即复现（todo），不另建配对层
+ * [POS]: 2026-09-19 正式库出现同一后台委派被两条 assistant 消息重复保存；裸 Agent 不复现，原生 AgentController 1.67.0 即复现，1.82.0 已修复（适配台账 F1），不另建配对层
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import test from 'node:test'
@@ -99,8 +99,8 @@ test('并行后台委派后，持久历史与下一轮请求的 toolCallId 唯�
   } finally { await mastra.shutdown(); await storage.close(); await rm(root, { recursive: true, force: true }) }
 })
 
-// 已知缺陷（2026-11-10 复现）：根因在原生 AgentController（见下一用例），完整应用中重复 id 进入下一轮请求；子专家 workspace 元数据写入父线程另属 Lumen 问题。修复后移除 todo。
-test('完整应用：并行后台委派 reader/verifier 读取工作区后，父历史与下一轮请求配对唯一', { timeout: 40000, todo: '原生 AgentController 重复保存后台委派调用；workspace 元数据进入父线程待查' }, async () => {
+// 1.67.0 复现重复 id 进入下一轮请求，根因在原生 AgentController（见下一用例），1.82.0 已修复；子专家 workspace 元数据写入父线程单列 todo（适配台账 F2）。
+test('完整应用：并行后台委派 reader/verifier 读取工作区后，父历史与下一轮请求配对唯一', { timeout: 40000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'lumen-pairing-app-'))
   let delegated = false
   const finished = new Set<string>()
@@ -154,12 +154,13 @@ test('完整应用：并行后台委派 reader/verifier 读取工作区后，父
     assert.ok(parentRequests.length > 0)
     const violations = parentRequests.flatMap(pairingViolations)
 
-    assert.deepEqual({ duplicated, violations, foreign }, { duplicated: [], violations: [], foreign: 0 })
+    assert.deepEqual({ duplicated, violations }, { duplicated: [], violations: [] })
+    await t.test('子专家 workspace 元数据不进入父线程', { todo: '适配台账 F2：1.82.0 仍复现' }, () => { assert.equal(foreign, 0) })
   } finally { await application.close(); await rm(root, { recursive: true, force: true }) }
 })
 
-// 二分结论（2026-11-10）：processor 全关、裸 Agent + Lumen 专家均不复现；纯原生 Controller + 普通 Agent 即复现。升级 Mastra 后此用例通过即可移除 todo。
-test('原生 AgentController：并行后台委派后同一调用不应被第二条 assistant 消息重复保存', { timeout: 30000, todo: '@mastra/core 1.67.0 AgentController 缺陷' }, async () => {
+// 二分结论（2026-11-10）：processor 全关、裸 Agent + Lumen 专家均不复现；纯原生 Controller + 普通 Agent 在 1.67.0 复现，1.82.0 通过，保留为升级回归。
+test('原生 AgentController：并行后台委派后同一调用不应被第二条 assistant 消息重复保存', { timeout: 30000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), 'lumen-pairing-controller-'))
   let delegated = false
   const finished = new Set<string>()
