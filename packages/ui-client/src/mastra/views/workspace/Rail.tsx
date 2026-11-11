@@ -1,10 +1,10 @@
 /**
  * [INPUT]: 产物目录、原生tasks/usage快照、Progress用量呈现、共享CurtainFold/Disclosure、工作区动作与统一 Phosphor 图标
- * [OUTPUT]: WorkspaceRail：原进度卡、共享/本会话分组、卷帘折叠和工作目录管理入口，累计用量收在右轨
+ * [OUTPUT]: WorkspaceRail：原进度卡、共享/本会话分组、卷帘折叠和工作目录管理入口，专家协作目录与累计用量收在右轨
  * [POS]: 仅呈现任务真实状态；更多菜单负责管理、方向箭头负责折叠，阅读器打开时由Files替换，不绑定执行协议
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
-import { useState, type CSSProperties } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
 import { SectionChevronIcon, FileTypeIcon, FoldersIcon, PlusIcon, MoreIcon, CheckIcon, RefreshGlyph, FileGlyph, FolderGlyph, BrainGlyph, ICON_SM, ICON_MD } from '../../../components/icons'
 import { CurtainFold } from '../../../components/disclosure/CurtainFold'
@@ -13,7 +13,7 @@ import { useResizable } from '../chrome/useResizable'
 import { Progress } from '../conversation/Progress'
 import type { FileScope } from '../../data/client'
 import type { WorkspaceAsset, WorkspaceState } from './useWorkspace'
-export function WorkspaceRail({ workspace, onOpen, onBrowse, onUpload, uploading = false }: { workspace: WorkspaceState; onOpen: (asset: WorkspaceAsset) => void; onBrowse: (scope: FileScope) => void; onUpload: () => void; uploading?: boolean }) {
+export function WorkspaceRail({ workspace, onOpen, onBrowse, onUpload, uploading = false, specialists }: { workspace: WorkspaceState; onOpen: (asset: WorkspaceAsset) => void; onBrowse: (scope: FileScope) => void; onUpload: () => void; uploading?: boolean; specialists?: ReactNode }) {
   const [open, setOpen] = useState(true)
   const { width, handleProps } = useResizable({ edge: 'left', min: 260, max: 540, fallback: 300, storageKey: 'lumen:railWidth.v4' })
   const tasks = workspace.display?.tasks ?? []
@@ -23,6 +23,7 @@ export function WorkspaceRail({ workspace, onOpen, onBrowse, onUpload, uploading
     <section className="rail-card glass-beam"><div className="mw-workspace-heading"><button className="rail-h rail-toggle" onClick={() => setOpen(value => !value)} aria-expanded={open}><FoldersIcon size={ICON_MD} /><span>工作目录</span><span className="rail-count">{workspace.assets.length}</span><SectionChevronIcon open={open} /></button><DropdownMenu><DropdownMenu.Trigger render={<button className="icon-btn nav-icon-btn" aria-label="工作目录管理" />}><MoreIcon size={ICON_MD} /></DropdownMenu.Trigger><DropdownMenu.Content><DropdownMenu.Item icon={RefreshGlyph} onClick={workspace.refresh}>刷新</DropdownMenu.Item><DropdownMenu.Item icon={FileGlyph} onClick={() => onBrowse('task')}>浏览全部文件</DropdownMenu.Item><DropdownMenu.Item icon={FolderGlyph} onClick={() => onBrowse('source')}>外部资料目录</DropdownMenu.Item><DropdownMenu.Item icon={BrainGlyph} onClick={() => onBrowse('memory')}>项目记忆</DropdownMenu.Item></DropdownMenu.Content></DropdownMenu></div>
       <CurtainFold open={open}><div className="rail-dir-body">{(['shared', 'task'] as const).map(scope => { const files = workspace.assets.filter(file => file.scope === scope); return <div className="rail-group" key={scope}><div className="rail-group-head">{scope === 'shared' ? '共享区' : '本会话'}<span className="rail-group-n">{files.length}</span>{scope === 'shared' && <button className="rail-upload-shared" aria-label={uploading ? "正在上传到共享区" : "上传到共享区"} disabled={uploading} onClick={onUpload}><PlusIcon size={ICON_SM} /></button>}</div>{files.map(file => <button className="ws-item" title={file.path} key={file.path} onClick={() => onOpen(file)}><span className="ws-file-icon"><FileTypeIcon name={file.name} size={ICON_MD} /></span><span className="ws-name">{file.name}</span></button>)}</div> })}{workspace.loading && <p role="status">正在读取工作目录…</p>}{workspace.error && <p className="mw-error" role="alert">{workspace.error}</p>}</div></CurtainFold>
     </section>
+    {specialists}
     {((workspace.display?.tokenUsage?.totalTokens ?? 0) + (workspace.display?.childTokenUsage?.totalTokens ?? 0) > 0) && <Disclosure className="rail-card mw-workspace-usage" summary="研究用量"><Progress display={workspace.display} showTasks={false} /></Disclosure>}
   </aside>
 }

@@ -12,7 +12,7 @@ import type { LumenApi, Identity } from '../../data/client'
 
 interface Entry { id: string; role: string; title: string; directory: string; continuations: number; canContinue: boolean; status: 'running' | 'completed' | 'incomplete' | 'failed' | 'interrupted' }
 const status = { running: '研究中', completed: '已完成', incomplete: '未完成', failed: '失败', interrupted: '已中断' }
-export function Specialists({ api, identity, idle, onActivity }: { api: LumenApi; identity: Identity; idle: boolean; onActivity: () => void }) {
+export function Specialists({ api, identity, idle, onActivity, className = 'mw-process' }: { api: LumenApi; identity: Identity; idle: boolean; onActivity: () => void; className?: string }) {
   const [entries, setEntries] = useState<Entry[]>([]), [selected, setSelected] = useState<string | null>(null)
   const [prompt, setPrompt] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState('')
   const generation = useRef(0), submitting = useRef(false)
@@ -22,7 +22,7 @@ export function Specialists({ api, identity, idle, onActivity }: { api: LumenApi
     const refresh = () => {
       if (generation.current !== current || pending) return
       pending = true
-      void api.request<{ specialists: Entry[] }>(`/lumen/specialists?${api.query(identity)}`).then(result => { if (generation.current === current) setEntries(result.specialists) }).catch(() => {}).finally(() => { pending = false })
+      void api.request<{ specialists: Entry[] }>(`/lumen/specialists?${api.query(identity)}`).then(result => { if (generation.current === current) setEntries(Array.isArray(result?.specialists) ? result.specialists : []) }).catch(() => {}).finally(() => { pending = false })
     }
     refresh(); const timer = window.setInterval(refresh, 3000)
     return () => { generation.current++; clearInterval(timer) }
@@ -38,7 +38,7 @@ export function Specialists({ api, identity, idle, onActivity }: { api: LumenApi
     finally { if (current === generation.current) { submitting.current = false; setBusy(false) } }
   }
   if (!entries.length) return null
-  return <Disclosure className="mw-process mw-specialists" summary={<>专家协作 · {entries.length} 位</>}>
+  return <Disclosure className={`${className} mw-specialists`} summary={<>专家协作 · {entries.length} 位</>}>
     {entries.map(entry => <section key={entry.id}><div className="mw-specialist-head"><strong>{entry.role}</strong><span>{status[entry.status]}</span><Button variant="ghost" disabled={!entry.canContinue || !idle || busy} onClick={() => { setSelected(entry.id); setPrompt('') }}>继续研究</Button></div><p>{entry.title}</p><small>{entry.continuations > 0 ? `已继续 ${entry.continuations} 次 · ` : ''}{entry.directory}</small>
       {selected === entry.id && <form onSubmit={event => { event.preventDefault(); void resume() }}><Textarea aria-label="专家继续要求" placeholder="补充这位专家接下来需要核对的问题…" value={prompt} onChange={event => setPrompt(event.target.value)} /><Button type="submit" disabled={!prompt.trim() || busy || !idle}>{busy ? '正在提交…' : '提交继续要求'}</Button><Button variant="ghost" type="button" disabled={busy} onClick={() => setSelected(null)}>取消</Button></form>}
     </section>)}

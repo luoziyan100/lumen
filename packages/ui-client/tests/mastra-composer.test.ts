@@ -354,12 +354,13 @@ test('专家轮询在前次响应未结束时不重叠，完成后继续取得�
   } finally { release.resolve(); polling.restore(); await env.close() }
 })
 
-test('Conversation 子任务轮询在途时串行，完成状态恢复发送入口', { timeout: 20000 }, async () => {
+test('Conversation 子任务轮询在途时串行；进行中挂输入坞上方，完成后移除并恢复发送入口', { timeout: 20000 }, async () => {
   const env = await environment('children-serial'), polling = capturePolls(2000), started = gate(), release = gate()
   const scrollTo = Object.getOwnPropertyDescriptor(dom.window.HTMLElement.prototype, 'scrollTo')
   Object.defineProperty(dom.window.HTMLElement.prototype, 'scrollTo', { configurable: true, value(this: HTMLElement, options: ScrollToOptions) { this.scrollTop = Number(options.top ?? 0) } })
   let held = false, calls = 0
   env.network.before = async request => {
+    if (new URL(request.url).pathname === '/lumen/specialists') return Response.json({ specialists: [{ id: 's', role: 'reader', title: '读论文', directory: 'workers/reader-1', continuations: 0, canContinue: true, status: 'completed' }] })
     if (new URL(request.url).pathname !== '/lumen/children') return
     if (!held) return Response.json({ tasks: [] })
     const call = ++calls
@@ -373,9 +374,12 @@ test('Conversation 子任务轮询在途时串行，完成状态恢复发送入�
     await act(async () => { polling.tick(); polling.tick(); await delay(30) })
     assert.equal(calls, 1, '前次请求未返回时发出了重叠子任务轮询')
     release.resolve(); await until(() => env.element.querySelector('.mw-children')?.textContent?.includes(C.childStatus.running) ?? false, '运行子任务未显示')
+    assert.equal(env.element.querySelector('.mw-transcript .mw-children'), null, '进行中的专家任务挂输入坞上方，不在对话流底部')
     assert.ok([...env.element.querySelectorAll('button')].some(button => button.textContent === C.stopChild), '运行子任务未提供停止入口')
     await act(async () => polling.tick())
-    await until(() => env.element.querySelector('.mw-children')?.textContent?.includes(C.childStatus.completed) ?? false, '最新完成状态未显示')
+    await until(() => env.element.querySelector('.mw-children') === null, '完成后的专家任务仍占据输入坞上方')
+    assert.ok(!env.element.querySelector('.mw-transcript')?.textContent?.includes(C.children), '专家任务不得渲染在对话流里')
+    assert.equal(env.element.querySelector('.mw-specialists'), null, '专家目录在右轨，不再挂在对话最新消息之下')
     assert.equal(calls, 2)
     assert.equal(env.element.querySelector('.composer-btn-stop'), null)
     assert.ok(env.element.querySelector('.composer-btn-send'), '完成后发送入口未恢复')

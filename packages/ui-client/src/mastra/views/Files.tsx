@@ -1,9 +1,10 @@
 /**
  * [INPUT]: 带显式 scope 的文件与资料绑定 API、原生目录选择、既有 Markdown/PDF/HTML 沙箱查看器（PDF 直接消费认证 Blob）
- * [OUTPUT]: Files：原双卡工作区、完整文件/外部资料/记忆导航、只读资料绑定、相对引用与 PDF 页码阅读、复制源码/系统打开和宽度拖拽
+ * [OUTPUT]: Files：原双卡工作区(右轨含专家协作目录)、完整文件/外部资料/记忆导航、只读资料绑定、相对引用与 PDF 页码阅读、复制源码/系统打开和宽度拖拽
  * [POS]: 列表和正文按身份/范围/路径绑定响应；绑定草稿独立保护迟到加载，上传限定 shared；成功阅读仅在导航变化时通知当前稿绑定，刷新不重复通知；运行时仅轮询打开正文，先用 ETag 判断版本再读取变化内容，上传整批锁定且首次失败停止
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+import { Specialists } from './conversation/Specialists'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { BackIcon, CheckIcon, CloseIcon, CopyIcon, FileTypeIcon, FolderIcon, OpenOutIcon } from '../../components/icons'
@@ -92,7 +93,11 @@ function Reader({ document, page }: { document: Document; page?: number }) {
   return render[document.kind]()
 }
 
-export function Files({ api, identity, revision, target, onClose, workspace: suppliedWorkspace, onOpenDocument }: { api: LumenApi; identity: Identity; revision: number; target?: FileTarget | null; onClose?: () => void; workspace?: WorkspaceState; onOpenDocument?: (target: FileTarget) => void }) {
+/** 专家继续只在父会话空闲时开放；与 Conversation 的停止条件同源(运行、待审批/待回答、排队) */
+function specialistsIdle(display: WorkspaceState['display']) {
+  return !!display && !display.isRunning && !Object.keys(display.pendingApprovals ?? {}).length && !Object.keys(display.pendingSuspensions ?? {}).length && !display.queuedFollowUps
+}
+export function Files({ api, identity, revision, target, onClose, workspace: suppliedWorkspace, onOpenDocument, onActivity }: { api: LumenApi; identity: Identity; revision: number; target?: FileTarget | null; onClose?: () => void; workspace?: WorkspaceState; onOpenDocument?: (target: FileTarget) => void; onActivity?: () => void }) {
   const localWorkspace = useWorkspace(api, suppliedWorkspace ? null : identity, revision)
   const workspace = suppliedWorkspace ?? localWorkspace
   const [browsing, setBrowsing] = useState(false)
@@ -193,7 +198,7 @@ export function Files({ api, identity, revision, target, onClose, workspace: sup
   useEffect(() => setCopied(false), [readKey])
   const filePath = (name: string) => folder === '.' ? name : `${folder}/${name}`
   const uploadInput = <input ref={input} hidden type="file" multiple onChange={event => { const files = Array.from(event.target.files ?? []); event.target.value = ''; void upload(files) }} />
-  if (!path && !browsing) return <><WorkspaceRail workspace={{ ...workspace, error: uploadError || error || workspace.error }} onOpen={asset => { setScope(asset.scope); navigate(asset.path.includes('/') ? asset.path.slice(0, asset.path.lastIndexOf('/')) : '.', asset.path) }} onBrowse={scope => { changeScope(scope); setBrowsing(true) }} onUpload={() => input.current?.click()} uploading={uploading} />{uploadInput}</>
+  if (!path && !browsing) return <><WorkspaceRail workspace={{ ...workspace, error: uploadError || error || workspace.error }} onOpen={asset => { setScope(asset.scope); navigate(asset.path.includes('/') ? asset.path.slice(0, asset.path.lastIndexOf('/')) : '.', asset.path) }} onBrowse={scope => { changeScope(scope); setBrowsing(true) }} onUpload={() => input.current?.click()} uploading={uploading} specialists={<Specialists className="rail-card" api={api} identity={identity} idle={specialistsIdle(workspace.display)} onActivity={onActivity ?? workspace.refresh} />} />{uploadInput}</>
   return <aside className={`mw-files ${path ? 'reader mw-files-open' : ''}`} style={path ? { '--reader-w': `${width}px` } as CSSProperties : undefined}>
     {path && <div className="reader-resize" role="separator" aria-orientation="vertical" aria-label="调整阅读器宽度（双击复位）" {...handleProps} />}
     <header className={path ? 'reader-head' : 'mw-files-head'}>

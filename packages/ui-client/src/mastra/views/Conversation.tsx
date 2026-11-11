@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 原生 SessionFeed/DisplayState、原生reasoning/工具轮次投影与真实用户消息计时、子任务轮询、当前会话稿件路径与已有 AssistantContent 沙箱
- * [OUTPUT]: Conversation：原消息舞台与输入坞、折叠思考和轮次导航；运行错误保留，连接错误可重试；审批/追问固定在输入卡上方，消息按坞高度让位；子任务轮询同一世代串行；滚动只在用户停留底部时追新；widget 回调稳定以保留历史消息 memo
+ * [OUTPUT]: Conversation：原消息舞台与输入坞、折叠思考和轮次导航；运行错误保留，连接错误可重试；审批/追问与进行中的专家任务固定在输入卡上方(专家目录在右轨，对话底部始终是最新消息)，消息按坞高度让位；子任务轮询同一世代串行；滚动只在用户停留底部时追新；widget 回调稳定以保留历史消息 memo
  * [POS]: 新会话组合，不依赖旧 chat reducer；按身份 key 挂载以隔离草稿和迟到结果
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -20,7 +20,6 @@ import { Composer } from './conversation/Composer'
 import { createConversationProjection, turnStartedAt } from './conversation/process/project'
 import { ProcessRow, ThoughtRow, Waiting } from './conversation/process/Rows'
 import { getTimeGreeting } from '../../copy/greeting'
-import { Specialists } from './conversation/Specialists'
 import { Question } from './conversation/question/Question'
 import { workspaceLink, type FileTarget } from '../data/file-links'
 import { useTranscriptStick } from './conversation/stick'
@@ -44,7 +43,9 @@ export function Conversation({ api, identity, onActivity, onOpenFile, onSettings
   const approvals = Object.values(display?.pendingApprovals ?? {})
   const suspended = Boolean(approvals.length || Object.keys(display?.pendingSuspensions ?? {}).length)
   const empty = !view.messages.length && !running
-  const canStop = running || suspended || Boolean(display?.queuedFollowUps) || children.some(child => ['pending', 'running', 'suspended'].includes(child.status))
+  // 进行中的专家任务挂输入坞上方；完成的专家目录在右轨，对话底部始终是最新消息
+  const liveChildren = children.filter(child => ['pending', 'running', 'suspended'].includes(child.status))
+  const canStop = running || suspended || Boolean(display?.queuedFollowUps) || liveChildren.length > 0
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
   useEffect(() => {
     let cancelled = false, pending = false
@@ -97,8 +98,6 @@ export function Conversation({ api, identity, onActivity, onOpenFile, onSettings
         </div><MessageCopy user={messageRole(message) === 'user'} text={messageRole(message) === 'user' ? userContent(message).text : messageText(message)} />
       </article>})}
       {running && !suspended && !timeline.some(row => row.kind !== 'message' && row.running) && !display?.currentMessage?.content.parts.some(part => part.type === 'text' && part.text.trim()) && <Waiting startedAt={turnStartedAt(view.messages)} />}
-      <Specialists api={api} identity={identity} idle={!canStop && connected} onActivity={onActivity} />
-      {children.length > 0 && <section className="mw-children"><h3>{C.children}</h3>{children.map(child => <div key={child.id}><span>{child.toolName} · {C.childStatus[child.status as keyof typeof C.childStatus] ?? child.status}{child.error ? `：${child.error.message}` : ''}</span>{['pending', 'running', 'suspended'].includes(child.status) && <Button variant="ghost" onClick={() => { void api.cancelChild(identity, child.id).catch(showError) }}>{C.stopChild}</Button>}</div>)}</section>}
       </div>
     </div>
     <TurnRail turns={turns} scroller={stick.transcript} onSelect={id => {
@@ -108,6 +107,7 @@ export function Conversation({ api, identity, onActivity, onOpenFile, onSettings
     }} />
     </div>
     <Composer prompt={<>
+      {liveChildren.length > 0 && <section className="mw-children" aria-label={C.children}>{liveChildren.map(child => <div key={child.id}><span>{child.toolName} · {C.childStatus[child.status as keyof typeof C.childStatus] ?? child.status}</span><Button variant="ghost" onClick={() => { void api.cancelChild(identity, child.id).catch(showError) }}>{C.stopChild}</Button></div>)}</section>}
       {approvals.map(approval => <Approval key={approval.toolCallId} approval={approval} onReply={async approved => { if (!feed) throw new Error(C.connecting); acknowledged(await feed.session.approveTool(approval.toolCallId, approved)); await feed.refresh() }} />)}
       {display && Object.values(display.pendingSuspensions).map(suspension => <Question key={suspension.toolCallId} payload={suspension.suspendPayload} onAnswer={async answer => { if (!feed) throw new Error(C.connecting); acknowledged(await feed.session.respondToToolSuspension(suspension.toolCallId, answer)); await feed.refresh() }} />)}
     </>} activePath={activePath} onClearActivePath={onClearActivePath} onJumpToLatest={stick.following ? undefined : () => { stick.jumpToLatest(); markVisibleRead() }} model={view.model} onSettings={onSettings} api={api} identity={identity} feed={feed} connected={connected} canStop={canStop} queued={display?.queuedFollowUps ?? 0} onActivity={onActivity} />
