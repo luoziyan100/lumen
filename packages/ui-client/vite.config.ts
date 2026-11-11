@@ -4,7 +4,8 @@
  * [POS]: 浏览器开发入口；只注入私有 Mastra 发现身份，失败显示可重试错误，无旧 WS 回退
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
-import { defineConfig, type Plugin } from 'vite'
+import { fileURLToPath } from 'node:url'
+import { defineConfig, searchForWorkspaceRoot, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { lstatSync, openSync, fstatSync, readSync, closeSync, constants } from 'node:fs'
@@ -65,8 +66,11 @@ function injectCsp(): Plugin {
 }
 
 // Tauri 期望固定 dev 端口
+// 设计系统以 file: 依赖链接在仓库外；开发服务器需显式允许读取其真实目录。
+const designSystemRoot = fileURLToPath(new URL('.', import.meta.resolve('yan-design-system/tokens.css'))).replace(/\/css\/$/, '')
+
 export default defineConfig({
   plugins: [react(), tailwindcss(), injectMastraConnection(), injectCsp(), widgetReceiverPlugin()],
   clearScreen: false,
-  server: { port: 5180, strictPort: true },
+  server: { port: 5180, strictPort: true, fs: { allow: [searchForWorkspaceRoot(process.cwd()), designSystemRoot] } },
 })

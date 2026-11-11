@@ -34,7 +34,8 @@
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
     "tailwindcss": "^4.3.2",
-    "thinking-orbs": "0.2.0"
+    "thinking-orbs": "0.2.0",
+    "yan-design-system": "file:../../../yan-design-system"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",

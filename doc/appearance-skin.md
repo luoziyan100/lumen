@@ -1,6 +1,7 @@
 # 外观偏好与皮肤（Appearance / Skin）
 
 状态: **内置明暗皮肤与玻璃/纸面材质已实现**（2026-10-05）
+> 2026-11-11：通用 token 基线已迁入 `yan-design-system`(tokens/*.tokens.json → css/tokens.css)；下文所指 Lumen `tokens.css` 中的通用变量现以设计系统为准，Lumen `tokens.css` 只留皮肤背景槽、装饰色与布局尺寸。
 类型: 产品 + 工程架构合同（**内置皮肤与切换链已实现**）
 作者会话: Lumen UI；外部 AI 审计 §14–§16
 历史对照分支: `experiment/glass-ui`（仅用于追溯最初的 Glass Beam 设计，不代表当前实现）

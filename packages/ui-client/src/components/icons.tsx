@@ -1,12 +1,12 @@
 /**
- * [INPUT]: iconGlyphs 自绘几何与 React ref；doc/ui-design.md §3.1 的纯线条、尺寸、动效和操作语义
+ * [INPUT]: yan-design-system/icons 的几何(静态常量 SVG 标记)与 React ref；doc/ui-design.md §3.1 的纯线条、尺寸、动效和操作语义
  * [OUTPUT]: currentColor 纯线条的操作、文件类别与 Kumo 菜单图标(兼容 Phosphor Icon 类型)，ICON_SM/MD/LG
  * [POS]: 业务图标唯一入口；同一包装约束 JSX 与菜单引用，文件类别映射不含格式文字徽标
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { forwardRef } from 'react'
 import type { Icon, IconProps } from '@phosphor-icons/react'
-import { GLYPHS, type GlyphName } from './iconGlyphs'
+import { GLYPHS, type GlyphName } from 'yan-design-system/icons'
 
 // ---- 16 行内 / 18 文件与按钮 / 20 主导航 ----
 export const ICON_SM = 16
@@ -18,9 +18,8 @@ function makeIcon(name: GlyphName, defaultSize = ICON_MD): Icon {
   return forwardRef<SVGSVGElement, IconProps>(({ size = defaultSize, className = '', mirrored, style, weight: _w, color: _c, alt: _a, children: _ch, ...props }, ref) => (
     <svg {...props} ref={ref} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}
       strokeLinecap="round" strokeLinejoin="round" className={`lumen-icon li li-${name} ${className}`.trim()}
-      style={mirrored ? { ...style, transform: `${style?.transform ?? ''} scaleX(-1)`.trim() } : style} aria-hidden="true" focusable="false">
-      {GLYPHS[name]}
-    </svg>
+      style={mirrored ? { ...style, transform: `${style?.transform ?? ''} scaleX(-1)`.trim() } : style} aria-hidden="true" focusable="false"
+      dangerouslySetInnerHTML={{ __html: GLYPHS[name] }} />
   )) as Icon
 }
 

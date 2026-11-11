@@ -10,7 +10,7 @@ components/
 ├── MermaidBlock.tsx / MermaidLightbox.tsx
 ├── PdfViewer.tsx / HtmlViewer.tsx
 ├── ExternalLinkDialog.tsx
-├── icons.tsx / iconGlyphs.tsx / hljs-celadon.css
+├── icons.tsx / hljs-celadon.css
 ├── disclosure/             # 原卷帘、详情开合与长文本阅读
 └── widget/                 # HTML 隔离沙箱
 ```
@@ -23,7 +23,7 @@ components/
 - `HtmlViewer.tsx`：复用 widget iframe 呈现 HTML，保留脚本能力但隔离同源权限。
 - `ExternalLinkDialog.tsx`：由用户确认外链并保存受信域名，实际打开统一走 openExternalUrl。
 - `icons.tsx`：业务图标唯一入口，统一16/18/20尺寸与导航/菜单 ref 合同(兼容 Kumo 的 Phosphor Icon 类型)；文件按类别使用简洁轮廓，附件不冒充 PDF。
-- `iconGlyphs.tsx`：自绘 24 网格纯线条几何，`m-*` 部件的悬停位姿在 styles.css 图标动效段；合同见 `doc/ui-design.md` §3.1。
+- 图标几何与动效在 `yan-design-system`(icons/glyphs.ts、icons/motion.css)；icons.tsx 只做 React 包装与语义映射。
 - `hljs-celadon.css`：消费 token 的代码语法配色。
 - `widget/`：show-widget 解析、HTML/脚本处理、CSP iframe 与跨窗消息边界，见自身地图。
 - `disclosure/`：侧栏、思考、过程、目录和详情共用原卷帘；关闭保留DOM播放退出，焦点由 inert 隔离。
@@ -31,6 +31,6 @@ components/
 2026-09-19：旧对话/侧栏/设置组件随 WS 入口退役，领域阅读能力留存。
 2026-10-03：清理无生产消费者的旧图标出口，保留单一现役图标边界。
 2026-10-06：文件夹、附件、菜单与缩放统一轮廓；同一包装显式固定 regular，消除业务图标的异源与格式文字徽标。
-2026-11-11：业务图标从 Phosphor 换为自绘动态纯线条(悬停做物件动作、无色调)；Phosphor 仅作为 Kumo 的 peer 依赖保留。
+2026-11-11：业务图标从 Phosphor 换为自绘动态纯线条(悬停做物件动作、无色调)；Phosphor 仅作为 Kumo 的 peer 依赖保留。同日几何与动效迁入 yan-design-system。
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

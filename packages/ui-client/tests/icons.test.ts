@@ -1,5 +1,5 @@
 /**
- * [INPUT]: 真实 icons.tsx 导出组件、FileTypeIcon/skillGlyphForName 与 iconGlyphs 全部几何(React SSR)
+ * [INPUT]: 真实 icons.tsx 导出组件、FileTypeIcon/skillGlyphForName 与 yan-design-system 全部几何(React SSR)
  * [OUTPUT]: 每个图标都是 24 网格、currentColor 描边、无填充(仅 solid 记号例外)、几何不出画布；镜像只加 scaleX
  * [POS]: doc/ui-design.md §3.1 的结构验收；像素与动效观感由明暗基线实渲核对，不在此冒充
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -12,7 +12,7 @@ import { createElement, type ComponentType } from 'react'
 register('./helpers/tsx-loader.mjs', import.meta.url)
 const { renderToStaticMarkup } = await import('react-dom/server')
 const icons = await import('../src/components/icons.tsx') as Record<string, unknown>
-const { GLYPHS } = await import('../src/components/iconGlyphs.tsx')
+const { GLYPHS } = await import('yan-design-system/icons')
 
 const exported = Object.entries(icons).filter(([name, value]) => /(Icon|Glyph)$/.test(name) && typeof value === 'object' && value !== null)
 const fileTypes = ['a.pdf', 'a.html', 'a.png', 'a.zip', 'a.csv', 'a.pptx', 'a.mp3', 'a.mp4', 'a.unknown']

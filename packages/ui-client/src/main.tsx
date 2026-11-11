@@ -14,8 +14,12 @@ import { Button } from '@cloudflare/kumo/components/button'
 const MastraApp = lazy(() => import('./mastra/views/WorkspaceApp').then(module => ({ default: module.WorkspaceApp })))
 const connection = (window as Window & { __LUMEN_MASTRA__?: Connection }).__LUMEN_MASTRA__ ?? { baseUrl: '', token: '', error: '未发现本机研究服务，请启动 Mastra 服务后重试。' }
 import { bootstrapAppearance } from './appearance'
+import 'yan-design-system/fonts.css'
+import 'yan-design-system/tokens.css'
+import 'yan-design-system/base.css'
 import './tokens.css'
 import './kumo.css'
+import 'yan-design-system/icons/motion.css'
 import './styles.css'
 import './mastra/views/workbench.css'
 

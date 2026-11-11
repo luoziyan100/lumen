@@ -1,112 +1,16 @@
 /*
- * [INPUT]: appearance 解析后的明暗配色与玻璃/纸面材质；doc/ui-design.md 的视觉约束
- * [OUTPUT]: 画布、表面、文字、强调、材质、阴影与排版语义变量
- * [POS]: UI 视觉真源；深色玻璃为静态基线，皮肤补丁由 appearance 唯一出口覆盖，Kumo 与布局同源消费
+ * [INPUT]: yan-design-system 的 tokens/base(main.tsx 中先于本文件引入)；appearance 解析后的皮肤补丁
+ * [OUTPUT]: Lumen 专属变量：皮肤背景槽、炫光边与画布 aurora 装饰色、应用布局尺寸
+ * [POS]: 通用语义变量(表面、墨色、强调、字体、间距、圆角、阴影、动效)由设计系统提供，这里只放 Lumen 独有的部分
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600;700&display=swap');
-@import url('https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/style.css');
-
 :root {
-  color-scheme: dark;
-
-  /* ---- 表面(自下而上:画布 → 纸面 → 卡片)---- */
-  --canvas:       #0B0C10;
-  --paper:        rgba(28, 30, 38, 0.72);
-  --paper-solid:  rgba(20, 22, 28, 0.86);
-  --paper-deep:   rgba(16, 18, 24, 0.92);
-  --vellum:       rgba(255, 255, 255, 0.09);
-  --card:         rgba(34, 36, 44, 0.78);
-  --sand:         rgba(255, 255, 255, 0.06);
-  --sand-deep:    rgba(255, 255, 255, 0.14);
-
-  /* ---- 实色伴生(Kumo Solid 槽;doc/appearance-skin.md R4/R5)---- */
-  --surface-canvas:      var(--canvas);
-  --surface-base:        #14161C;
-  --surface-elevated:    #1E212A;
-  --surface-recessed:    #101218;
-  --surface-control:     #1A1D26;
-  --surface-fill:        #252833;
-  --surface-fill-hover:  #2E323E;
-  --surface-interact:    #2A2F3C;
-
   /* ---- 皮肤背景层(applyTheme 写入)---- */
   --skin-bg-image: none;
   --skin-overlay: 0;
   --skin-overlay-rgb: 0, 0, 0;
   --skin-blur: 0px;
-
-  /* ---- 材质(玻璃保留折射，纸面由皮肤关闭模糊与装饰)---- */
-  --material-blur: 20px;
-  --material-saturation: 1.25;
-  --material-highlight: rgba(255, 255, 255, 0.38);
-  --material-edge: rgba(255, 255, 255, 0.14);
-
-  /* ---- 墨色(浅字压暗底)---- */
-  --ink:          #E8EAEE;
-  --ink-soft:     rgba(232, 234, 238, 0.82);
-  --ink-mute:     rgba(200, 206, 214, 0.55);
-  --ink-faint:    rgba(200, 206, 214, 0.34);
-  --ink-on-accent: #0B0C10;
-
-  /* ---- 强调与语义 ---- */
-  --ember:        #6BC49A;
-  --ember-soft:   #8AD4B0;
-  --ember-tint:   rgba(107, 196, 154, 0.14);
-  --moss:         #7FCF9E;
-  --moss-tint:    rgba(127, 207, 158, 0.14);
-  --indigo:       #8FB8CE;
-  --indigo-tint:  rgba(143, 184, 206, 0.14);
-
-  --success:      var(--moss);
-  --success-bg:   var(--moss-tint);
-  --warning:      #D4A94F;
-  --warning-bg:   rgba(212, 169, 79, 0.14);
-  --danger:       #E08A72;
-  --danger-bg:    rgba(224, 138, 114, 0.12);
-  --danger-line:  rgba(224, 138, 114, 0.36);
-
-  --focus-ring:   rgba(120, 220, 200, 0.36);
-  --scrim:        rgba(0, 0, 0, 0.52);
-
-  /* ---- 代码语法色板 ---- */
-  --code-keyword: var(--ember);
-  --code-string:  #E0A878;
-  --code-number:  var(--warning);
-  --code-title:   var(--indigo);
-  --code-type:    #7FCFC0;
-  --code-attr:    #A8C4B4;
-
-  /* ---- 字体 ---- */
-  --font-sans: 'Inter Tight', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  --font-serif: 'Source Serif 4', 'LXGW WenKai', 'Kaiti SC', 'STKaiti', 'Kaiti', Georgia, serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
-
-  --t-display-lg:   28px;   --lh-display-lg:  1.15;
-  --t-display-md:   22px;   --lh-display-md:  1.25;
-  --t-display-sm:   17px;   --lh-display-sm:  1.3;
-  --t-body-lg:      16px;   --lh-body-lg:     1.6;
-  --t-body:         14px;   --lh-body:        1.5;
-  --t-body-sm:      13px;   --lh-body-sm:     1.4;
-  --t-caption:      12px;   --lh-caption:     1.35;
-  --t-mono:         12px;   --lh-mono:        1.4;
-
-  --w-regular: 400; --w-medium: 500; --w-semi: 600; --w-bold: 700;
-  --ls-tight: -0.01em; --ls-wide: 0.02em; --ls-caps: 0.08em;
-
-  /* ---- 间距(4px 基线)---- */
-  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px;
-  --s-6: 24px; --s-8: 32px; --s-10: 40px; --s-12: 48px; --s-16: 64px;
-
-  /* ---- 圆角(玻璃岛略更圆)---- */
-  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px; --radius-xl: 22px; --radius-full: 9999px;
-
-  /* ---- 阴影(暗底 + 轻色 bloom)---- */
-  --shadow-0: none;
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.28);
-  --shadow-2: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 12px 32px -14px rgba(0, 0, 0, 0.55), 0 0 24px -12px rgba(80, 160, 255, 0.18);
-  --shadow-3: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 24px 56px -18px rgba(0, 0, 0, 0.65), 0 0 40px -16px rgba(140, 100, 255, 0.22);
 
   /* ---- 炫光边色 ---- */
   --beam-a: #5EF0D0;
@@ -118,37 +22,9 @@
   --aurora-b: rgba(140, 100, 255, 0.16);
   --aurora-c: rgba(255, 200, 80, 0.09);
 
-  /* ---- 动效 ---- */
-  --dur-fast: 120ms; --dur-base: 180ms; --dur-slow: 280ms; --dur-reader: 400ms;
-  --dur-collapse-in: 600ms;   /* 展开亮相:长于收起以显 spring */
-  --dur-collapse-out: 380ms;  /* 收起:卷帘节奏 */
-  --ease-out: cubic-bezier(0.2, 0.6, 0.2, 1);
-  --ease-inout: cubic-bezier(0.4, 0, 0.2, 1);
-  --ease-spring: cubic-bezier(0.22, 1.85, 0.32, 1);   /* 过冲加码:短内容也可感 */
-  --ease-curtain: cubic-bezier(0.65, 0.05, 0.35, 1);  /* 收起:帘子上卷 */
-
   /* ---- 布局 ---- */
   --sidebar-w: 300px;
   --titlebar-h: 48px;
   --reader-max: 720px;
   --chat-max: 650px;
-
-  --z-sticky: 10; --z-popover: 100; --z-modal: 1000; --z-toast: 2000;
 }
-
-html, body {
-  font-family: var(--font-sans);
-  color: var(--ink);
-  background: var(--canvas);
-  font-size: var(--t-body);
-  line-height: var(--lh-body);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-a { color: var(--indigo); text-decoration: none; }
-::selection { background: var(--ember-tint); color: var(--ink); }
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--sand-deep); border-radius: var(--radius-full); border: 2px solid var(--canvas); }
-::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }
