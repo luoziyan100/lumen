@@ -25,8 +25,10 @@ import { Question } from './conversation/question/Question'
 import { workspaceLink, type FileTarget } from '../data/file-links'
 import { useTranscriptStick } from './conversation/stick'
 
+// --- 1.82 命令以 ack 返回未被认领的原因，不再静默成功 ---
+function acknowledged(ack: { ok: boolean; reason?: string }) { if (!ack.ok) throw new Error(ack.reason ?? 'rejected') }
 function stringify(value: unknown) { return typeof value === 'string' ? value : JSON.stringify(value, null, 2) }
-function Approval({ approval, onReply }: { approval: NonNullable<DisplayState['pendingApproval']>; onReply: (approved: boolean) => Promise<void> }) {
+function Approval({ approval, onReply }: { approval: DisplayState['pendingApprovals'][string]; onReply: (approved: boolean) => Promise<void> }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState('')
   return <section className="mw-question"><strong>{C.approval}: {approval.toolName}</strong><pre>{stringify(approval.args)}</pre>{[true, false].map(approved => <Button disabled={busy} key={String(approved)} variant={approved ? 'primary' : 'ghost'} onClick={() => { setBusy(true); setError(''); void onReply(approved).catch(error => { setError(String(error)); setBusy(false) }) }}>{approved ? C.allow : C.deny}</Button>)}{error && <p role="alert">{error}</p>}</section>
 }
@@ -39,7 +41,8 @@ export function Conversation({ api, identity, onActivity, onOpenFile, onSettings
   const connected = view.connected && feed?.api === api
   const project = useMemo(createConversationProjection, [])
   const { timeline, turns } = useMemo(() => project(view.messages, display), [project, view.messages, display])
-  const suspended = Boolean(display?.pendingApproval || Object.keys(display?.pendingSuspensions ?? {}).length)
+  const approvals = Object.values(display?.pendingApprovals ?? {})
+  const suspended = Boolean(approvals.length || Object.keys(display?.pendingSuspensions ?? {}).length)
   const empty = !view.messages.length && !running
   const canStop = running || suspended || Boolean(display?.queuedFollowUps) || children.some(child => ['pending', 'running', 'suspended'].includes(child.status))
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
@@ -105,8 +108,8 @@ export function Conversation({ api, identity, onActivity, onOpenFile, onSettings
     }} />
     </div>
     <Composer prompt={<>
-      {display?.pendingApproval && <Approval key={display.pendingApproval.toolCallId} approval={display.pendingApproval} onReply={async approved => { if (!feed) throw new Error(C.connecting); await feed.session.approveTool(display.pendingApproval!.toolCallId, approved); await feed.refresh() }} />}
-      {display && Object.values(display.pendingSuspensions).map(suspension => <Question key={suspension.toolCallId} payload={suspension.suspendPayload} onAnswer={async answer => { if (!feed) throw new Error(C.connecting); await feed.session.respondToToolSuspension(suspension.toolCallId, answer); await feed.refresh() }} />)}
+      {approvals.map(approval => <Approval key={approval.toolCallId} approval={approval} onReply={async approved => { if (!feed) throw new Error(C.connecting); acknowledged(await feed.session.approveTool(approval.toolCallId, approved)); await feed.refresh() }} />)}
+      {display && Object.values(display.pendingSuspensions).map(suspension => <Question key={suspension.toolCallId} payload={suspension.suspendPayload} onAnswer={async answer => { if (!feed) throw new Error(C.connecting); acknowledged(await feed.session.respondToToolSuspension(suspension.toolCallId, answer)); await feed.refresh() }} />)}
     </>} activePath={activePath} onClearActivePath={onClearActivePath} onJumpToLatest={stick.following ? undefined : () => { stick.jumpToLatest(); markVisibleRead() }} model={view.model} onSettings={onSettings} api={api} identity={identity} feed={feed} connected={connected} canStop={canStop} queued={display?.queuedFollowUps ?? 0} onActivity={onActivity} />
   </section>
 }

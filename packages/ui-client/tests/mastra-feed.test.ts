@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 真实 Mastra/LibSQL/Hono 与官方 SDK，经本机 HTTP/SSE；仅模型网络可控
- * [OUTPUT]: SessionFeed 现存会话恢复、隔离/并发刷新/断线/分页，以及主子用量在真实 SSE 与 Progress 中的证据；运行错误跨终态补取保留，连接恢复独立清错
+ * [OUTPUT]: SessionFeed 现存会话恢复、message_update 按 id 增量、隔离/并发刷新/断线/分页，以及主子用量在真实 SSE 与 Progress 中的证据；运行错误跨终态补取保留，连接恢复独立清错
  * [POS]: 新客户端恢复契约；网络延迟与断开作用于真实响应，不伪造框架事件
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -244,6 +244,36 @@ test('CT-MASTRA-FEED-004: 原生 display_state_changed 即使缺少 message 事�
     await until(() => transcript(feed).includes('模型仍在输出的回复'), 'displayState 没有合入正文')
     assert.ok(feed.getSnapshot().display?.currentMessage)
     assert.equal(feed.getSnapshot().display?.isRunning, true)
+  } finally { provider.finish(); await env.close() }
+})
+
+test('CT-MASTRA-FEED-011: 1.82 message_update 只带 id 与增量时，缺少 display_state_changed 也能按 id 拼出流式正文', { timeout: 25000 }, async () => {
+  const provider = streamingProvider(), env = await environment(provider.fetch)
+  try {
+    const seen = new Set<string>()
+    env.network.after = async (url, response) => {
+      if (!url.pathname.endsWith('/stream') || !response.body) return response
+      let buffer = ''
+      const decoder = new TextDecoder(), encoder = new TextEncoder()
+      const filter = new TransformStream<Uint8Array, Uint8Array>({ transform(chunk, controller) {
+        buffer += decoder.decode(chunk, { stream: true })
+        let end: number
+        while ((end = buffer.indexOf('\n\n')) >= 0) {
+          const frame = buffer.slice(0, end); buffer = buffer.slice(end + 2)
+          const data = frame.split('\n').find(line => line.startsWith('data:'))?.slice(5)
+          const type = data ? String(JSON.parse(data).type) : ''
+          seen.add(type)
+          if (type !== 'display_state_changed') controller.enqueue(encoder.encode(`${frame}\n\n`))
+        }
+      } })
+      return new Response(response.body.pipeThrough(filter), { status: response.status, headers: response.headers })
+    }
+    const feed = await env.feed('delta'); await feed.start()
+    await env.api.session(feed.identity).sendMessage('增量协议')
+    await provider.started; provider.push('第一段增量，'); provider.push('第二段增量')
+    await until(() => transcript(feed).includes('第一段增量，第二段增量'), 'message_update 增量没有按 id 合入正文')
+    assert.ok(seen.has('message_update') && seen.has('display_state_changed'))
+    assert.equal(feed.getSnapshot().display?.currentMessage ?? null, null)
   } finally { provider.finish(); await env.close() }
 })
 

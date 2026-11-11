@@ -1,10 +1,10 @@
 /**
  * [INPUT]: 现存会话身份、官方 Controller SSE、持久消息、原生 displayState 与专家用量派生值
- * [OUTPUT]: SessionFeed 与 messageRole/messageText；原生消息展示、补取和取消订阅，运行错误保留到下一轮开始，连接错误随恢复清除；消息合并在顺序稳定时走追加路径
+ * [OUTPUT]: SessionFeed 与 messageRole/messageText；原生消息展示（message_start 初始消息 + message_update 按 id 增量）、补取和取消订阅，运行错误保留到下一轮开始，连接错误随恢复清除；消息合并在顺序稳定时走追加路径
  * [POS]: 原生数据的展示缓存，只恢复已存在身份；不创建研究或重新实现执行状态机；旧端点重连有界，耗尽通知宿主重新发现
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
-import { agentControllerMessageText, isKnownAgentControllerEvent, type AgentControllerEvent, type MastraDBMessage } from '@mastra/client-js'
+import { agentControllerMessageText, isKnownAgentControllerEvent, type AgentControllerEvent, type KnownAgentControllerEvent, type MastraDBMessage } from '@mastra/client-js'
 import { LumenApi, type ChildTokenUsage, type DisplayState, type Identity } from './client.ts'
 
 export interface SessionView { messages: MastraDBMessage[]; display: DisplayState | null; connected: boolean; error: string | null; connectionError: string | null; model: string; lastStoredMessageId: string | null }
@@ -57,10 +57,38 @@ function withDisplay(view: SessionView, display: DisplayState): SessionView {
   return { ...view, display, messages: message ? mergeMessages(view.messages, [message]) : view.messages }
 }
 
+type MessageUpdate = Extract<KnownAgentControllerEvent, { type: 'message_update' }>['event']
+
+// --- 1.82 消息协议：message_start 给初始消息，message_update 只带 id 与增量，message_end 只带 id ---
+function applyUpdate(message: MastraDBMessage, update: MessageUpdate): MastraDBMessage {
+  const parts = [...message.content.parts]
+  if (update.type === 'text-delta') {
+    let index = -1
+    for (let i = parts.length - 1; i >= 0; i--) if (parts[i]!.type === 'text') { index = i; break }
+    const part = parts[index]
+    if (part?.type === 'text') parts[index] = { ...part, text: part.text + update.delta }
+    else parts.push({ type: 'text', text: update.delta })
+  } else if (update.type === 'reasoning-delta') {
+    const part = parts[update.index]
+    const reasoning = part?.type === 'reasoning' ? part.reasoning + update.delta : update.delta
+    parts[update.index] = { ...(part?.type === 'reasoning' ? part : { type: 'reasoning' as const }), reasoning, details: [{ type: 'text', text: reasoning }] }
+  } else parts[update.index] = update.part
+  return { ...message, content: { ...message.content, parts } }
+}
+
+function updateMessage(view: SessionView, id: string, update: MessageUpdate): SessionView {
+  let index = -1
+  for (let i = view.messages.length - 1; i >= 0; i--) if (view.messages[i]!.id === id) { index = i; break }
+  if (index < 0) return view
+  const messages = view.messages.slice(); messages[index] = applyUpdate(messages[index]!, update)
+  return { ...view, messages }
+}
+
 function applyEvent(view: SessionView, event: AgentControllerEvent): SessionView {
   if (!isKnownAgentControllerEvent(event)) return view
   if (event.type === 'display_state_changed') return withDisplay(view, event.displayState)
-  if (event.type === 'message_start' || event.type === 'message_update' || event.type === 'message_end') return { ...view, messages: mergeMessages(view.messages, [event.message]) }
+  if (event.type === 'message_start') return { ...view, messages: mergeMessages(view.messages, [event.message]) }
+  if (event.type === 'message_update') return updateMessage(view, event.id, event.event)
   if (event.type === 'model_changed') return { ...view, model: event.modelId }
   if (event.type === 'agent_start') return { ...view, error: null }
   if (event.type === 'error') return { ...view, error: typeof event.error === 'string' ? event.error : event.error.message }
