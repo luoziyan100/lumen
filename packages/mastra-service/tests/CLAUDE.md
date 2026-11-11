@@ -10,7 +10,7 @@ P0 预注册：工具结果必须进入下一轮模型请求；两个会话不�
 - `http.test.ts`：官方客户端经真实本机 HTTP/SSE 完成执行和持久消息补取；超限附件返回 413、残缺附件包返回 400，两者均不落盘且保留先前成功材料。
 
 - `background.test.ts`：原生后台子代理的单子取消与父运行独立性。
-- `tool-pairing.test.ts`：并行后台委派后持久历史与下一轮实际请求的 toolCallId 唯一且配对；裸 Mastra 通过，完整应用复现重复 id 与子专家 workspace 元数据进入父线程（todo，待定位）。
+- `tool-pairing.test.ts`：并行后台委派后持久历史与下一轮实际请求的 toolCallId 唯一且配对；裸 Agent 通过，原生 AgentController 1.67.0 重复保存委派调用、重复 id 进入下一轮请求（todo，框架缺陷）；子专家 workspace 元数据进入父线程（todo，待查）。
 
 - `collaboration.test.ts`：产品 HTTP 控制双会话后台子代，核对子任务归属与独立取消。
 

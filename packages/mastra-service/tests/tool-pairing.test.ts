@@ -1,7 +1,7 @@
 /**
  * [INPUT]: Mastra 原生并行后台委派、Memory/LibSQL 与 provider 网络夹具
  * [OUTPUT]: 持久历史与实际模型请求中 toolCallId 唯一且配对的机制证据
- * [POS]: 2026-09-19 正式库出现同一后台委派被两条 assistant 消息重复保存；裸 Mastra 不复现，完整应用复现（todo），不另建配对层
+ * [POS]: 2026-09-19 正式库出现同一后台委派被两条 assistant 消息重复保存；裸 Agent 不复现，原生 AgentController 1.67.0 即复现（todo），不另建配对层
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import test from 'node:test'
@@ -10,7 +10,9 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Agent } from '@mastra/core/agent'
+import { AgentController } from '@mastra/core/agent-controller'
 import { Mastra } from '@mastra/core/mastra'
+import { LocalFilesystem, Workspace } from '@mastra/core/workspace'
 import { LibSQLStore } from '@mastra/libsql'
 import { Memory } from '@mastra/memory'
 import { createApplication } from '../src/application.ts'
@@ -97,8 +99,8 @@ test('并行后台委派后，持久历史与下一轮请求的 toolCallId 唯�
   } finally { await mastra.shutdown(); await storage.close(); await rm(root, { recursive: true, force: true }) }
 })
 
-// 已知缺陷（2026-11-10 复现）：完整应用中同一委派被两条 assistant 消息保存，重复 id 进入下一轮请求；子专家 workspace 元数据也写入父线程。修复后移除 todo。
-test('完整应用：并行后台委派 reader/verifier 读取工作区后，父历史与下一轮请求配对唯一', { timeout: 40000, todo: '重复 toolCallId 根因在 Lumen 组合层，待二分定位' }, async () => {
+// 已知缺陷（2026-11-10 复现）：根因在原生 AgentController（见下一用例），完整应用中重复 id 进入下一轮请求；子专家 workspace 元数据写入父线程另属 Lumen 问题。修复后移除 todo。
+test('完整应用：并行后台委派 reader/verifier 读取工作区后，父历史与下一轮请求配对唯一', { timeout: 40000, todo: '原生 AgentController 重复保存后台委派调用；workspace 元数据进入父线程待查' }, async () => {
   const root = await mkdtemp(join(tmpdir(), 'lumen-pairing-app-'))
   let delegated = false
   const finished = new Set<string>()
@@ -154,4 +156,61 @@ test('完整应用：并行后台委派 reader/verifier 读取工作区后，父
 
     assert.deepEqual({ duplicated, violations, foreign }, { duplicated: [], violations: [], foreign: 0 })
   } finally { await application.close(); await rm(root, { recursive: true, force: true }) }
+})
+
+// 二分结论（2026-11-10）：processor 全关、裸 Agent + Lumen 专家均不复现；纯原生 Controller + 普通 Agent 即复现。升级 Mastra 后此用例通过即可移除 todo。
+test('原生 AgentController：并行后台委派后同一调用不应被第二条 assistant 消息重复保存', { timeout: 30000, todo: '@mastra/core 1.67.0 AgentController 缺陷' }, async () => {
+  const root = await mkdtemp(join(tmpdir(), 'lumen-pairing-controller-'))
+  let delegated = false
+  const finished = new Set<string>()
+  const fixture = fixtureProvider(async request => {
+    const names = request.tools?.map(t => t.function.name) ?? []
+    const reader = names.find(n => n.includes('reader')), verifier = names.find(n => n.includes('verifier'))
+    if (reader && verifier) {
+      if (delegated) return textReply('已委派')
+      delegated = true
+      return toolsReply([
+        { id: 'call-reader', name: reader, arguments: { prompt: 'Read', _background: { disposition: 'deferred' } } },
+        { id: 'call-verifier', name: verifier, arguments: { prompt: 'Verify', _background: { disposition: 'deferred' } } },
+      ])
+    }
+    const role = request.messages.some(m => m.role === 'system' && String(m.content).includes('CHILD_VERIFIER')) ? 'verifier' : 'reader'
+    await pause(role === 'reader' ? 200 : 500)
+    finished.add(role)
+    return textReply(`${role} 结论`)
+  })
+  const settings = { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'research-test', fetch: fixture.fetch }
+  const storage = new LibSQLStore({ id: 'pairing-controller', url: `file:${join(root, 'mastra.sqlite')}` })
+  const memory = new Memory({ storage, options: { semanticRecall: false, workingMemory: { enabled: false } } })
+  const gateway = createModelGateway(settings)
+  const reader = new Agent({ id: 'reader', name: 'Reader', description: 'Read papers', instructions: 'CHILD_READER', model: modelId(settings), memory })
+  const verifier = new Agent({ id: 'verifier', name: 'Verifier', description: 'Verify claims', instructions: 'CHILD_VERIFIER', model: modelId(settings), memory })
+  const agent = new Agent({ id: 'research', name: 'Parent', instructions: 'Delegate', model: modelId(settings), memory,
+    agents: { reader, verifier }, backgroundTasks: { tools: { reader: { enabled: true }, verifier: { enabled: true } } },
+  })
+  const workspace = new Workspace({ id: 'pairing-ws', filesystem: new LocalFilesystem({ basePath: join(root, 'task'), contained: true }) })
+  const controller = new AgentController({ id: 'lumen', agent, storage, memory, workspace: () => workspace, gateways: [gateway],
+    modes: [{ id: 'research', name: '研究', defaultModelId: modelId(settings), metadata: { default: true } }], disableBuiltinTools: ['subagent', 'submit_plan'],
+  })
+  const mastra = new Mastra({ agents: { research: agent, reader, verifier }, agentControllers: { lumen: controller }, storage, gateways: { lumen: gateway },
+    backgroundTasks: { enabled: true, recoverStaleTasksOnStart: false, defaultRetries: { maxRetries: 0 }, backpressure: 'reject' },
+  })
+  await controller.init()
+  try {
+    const session = await controller.createSession({ resourceId: 'p:task', threadId: 'p:task', workspace })
+    session.subscribe(event => {
+      if (event.type === 'tool_approval_required') session.respondToToolApproval({ toolCallId: event.toolCallId, decision: 'approve' })
+    })
+    await session.sendMessage({ content: '委派两位专家' })
+    for (let i = 0; i < 100 && finished.size < 2; i++) await pause(100)
+    assert.equal(finished.size, 2)
+    await pause(800)
+    const { messages } = await memory.recall({ threadId: 'p:task', resourceId: 'p:task' })
+    const owners = new Map<string, Set<string>>()
+    for (const message of messages.filter(m => m.role === 'assistant')) for (const part of message.content.parts) {
+      if (part.type === 'tool-invocation') owners.set(part.toolInvocation.toolCallId, (owners.get(part.toolInvocation.toolCallId) ?? new Set()).add(message.id))
+    }
+    assert.deepEqual([...owners.keys()].sort(), ['call-reader', 'call-verifier'])
+    assert.deepEqual([...owners].filter(([, ids]) => ids.size > 1).map(([id]) => id), [])
+  } finally { await controller.destroy(); await mastra.shutdown(); await storage.close(); await rm(root, { recursive: true, force: true }) }
 })
