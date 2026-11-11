@@ -5,6 +5,7 @@
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
+import { coerceCjkFont, coerceLatinFont, readingFontFamily } from './fonts.ts'
 import { getSkin } from './registry.ts'
 import {
   APPEARANCE_TOKEN_SET,
@@ -182,6 +183,8 @@ export function resolveTheme(
     appearanceIntent,
     skinId: skin.id,
     material: skin.material ?? 'glass',
+    fontSerif: readingFontFamily(coerceLatinFont(state.latinFont), coerceCjkFont(state.cjkFont)),
+    justify: state.justify === true,
     tokens,
     backgroundImage: skin.backgroundImage,
     overlay,

@@ -18,6 +18,11 @@ export function applyTheme(resolved: ResolvedTheme): void {
   root.dataset.theme = 'celadon'
   root.dataset.skin = resolved.skinId
   root.dataset.material = resolved.material
+  // 阅读字体：默认组合移除覆盖，回到设计系统 --font-serif
+  if (resolved.fontSerif) root.style.setProperty('--font-serif', resolved.fontSerif)
+  else root.style.removeProperty('--font-serif')
+  if (resolved.justify) root.dataset.justify = ''
+  else delete root.dataset.justify
   // 用户意图（system 已折叠）；不驱动 widget
   root.dataset.appearance = resolved.appearanceIntent
 

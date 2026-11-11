@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 真实设置窗口/外观面板、useAppearance、明暗基线、服务忙碌 DTO 与媒体查询事件
- * [OUTPUT]: 真实明暗/材质切换恢复、三个设置分类且无预算入口、忙碌时本机换肤与配置写入隔离、模型增减/凭证保留证据
+ * [OUTPUT]: 真实明暗/材质切换恢复、阅读字体组合/对齐/持久化、三个设置分类且无预算入口、忙碌时本机换肤与配置写入隔离、模型增减/凭证保留证据
  * [POS]: 设置与外观的用户路径回归；验证导航、服务配置与本机偏好各自的边界
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -20,7 +20,7 @@ let dark = true
 Object.defineProperty(window, 'matchMedia', { value: () => ({ matches: dark, addEventListener(_name: string, callback: () => void) { subscribers.add(callback) }, removeEventListener(_name: string, callback: () => void) { subscribers.delete(callback) } }) })
 register('./helpers/tsx-loader.mjs', import.meta.url)
 const { createRoot } = await import('react-dom/client')
-const { useAppearance, APPEARANCE_STORAGE_KEY, listSkins, DARK_BASELINE, LIGHT_BASELINE } = await import('../src/appearance/index.ts')
+const { useAppearance, APPEARANCE_STORAGE_KEY, listSkins, DARK_BASELINE, LIGHT_BASELINE, LATIN_FONTS } = await import('../src/appearance/index.ts')
 const { PreferencePane } = await import('../src/mastra/views/chrome/Appearance.tsx')
 const { Settings } = await import('../src/mastra/views/Settings.tsx')
 function Panel() { const appearance = useAppearance(); return createElement(PreferencePane, { state: appearance.state, onChange: appearance.setAppearance }) }
@@ -169,5 +169,39 @@ test('模型编辑逐行增减不误提交，保留当前模型与凭证，删�
     assert.deepEqual(patches[1], { deleteProfileId: 'one' })
     assert.equal(patches.length, 2)
     assert.ok(document.querySelector('.mpc-list'))
+  } finally { await act(async () => root.unmount()); element.remove() }
+})
+
+test('阅读字体：西文/中文分别选、两端对齐开关，写入 --font-serif 并持久化，回到默认组合即移除覆盖', async () => {
+  localStorage.clear()
+  const host = document.documentElement
+  const element = document.createElement('div'); document.body.append(element)
+  let root = createRoot(element)
+  const pick = (group: string, name: string) => [...element.querySelectorAll<HTMLButtonElement>(`[aria-label="${group}字体"] button`)].find(button => button.textContent === name)!
+  const justify = () => element.querySelector<HTMLInputElement>('.pref-check input')!
+  const saved = () => JSON.parse(localStorage.getItem(APPEARANCE_STORAGE_KEY)!)
+  try {
+    await act(async () => root.render(createElement(Panel)))
+    assert.equal(host.style.getPropertyValue('--font-serif'), '', '默认组合不覆盖设计系统字族')
+    assert.equal(pick('西文', 'Source Serif').getAttribute('aria-pressed'), 'true')
+    assert.equal(pick('中文', '霞鹜文楷').getAttribute('aria-pressed'), 'true')
+    assert.equal(LATIN_FONTS.length, 7)
+    await act(async () => pick('西文', 'EB Garamond').click())
+    assert.match(host.style.getPropertyValue('--font-serif'), /^'Lumen EB Garamond', 'LXGW WenKai'/)
+    await act(async () => pick('中文', '宋体').click())
+    assert.match(host.style.getPropertyValue('--font-serif'), /^'Lumen EB Garamond', 'Songti SC'/)
+    assert.match(pick('西文', 'Literata').style.fontFamily, /Lumen Literata/, '选项用自身字体预览')
+    assert.equal('justify' in host.dataset, false)
+    await act(async () => justify().click())
+    assert.equal('justify' in host.dataset, true)
+    assert.deepEqual([saved().latinFont, saved().cjkFont, saved().justify], ['eb-garamond', 'song', true])
+    await act(async () => root.unmount())
+    root = createRoot(element)
+    await act(async () => root.render(createElement(Panel)))
+    assert.match(host.style.getPropertyValue('--font-serif'), /^'Lumen EB Garamond', 'Songti SC'/, '重挂载恢复')
+    assert.equal(justify().checked, true)
+    await act(async () => { pick('西文', 'Source Serif').click(); pick('中文', '霞鹜文楷').click(); justify().click() })
+    assert.equal(host.style.getPropertyValue('--font-serif'), '')
+    assert.equal('justify' in host.dataset, false)
   } finally { await act(async () => root.unmount()); element.remove() }
 })

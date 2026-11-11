@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 外观偏好合同 doc/appearance-skin.md
- * [OUTPUT]: AppearanceState / SkinDefinition / ResolvedTheme / 白名单
+ * [OUTPUT]: AppearanceState(含阅读字体) / SkinDefinition / ResolvedTheme / 白名单
  * [POS]: appearance 层类型真源;resolve/apply/store/registry 共用
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -15,6 +15,10 @@ export interface AppearanceState {
   /** 0–1 背景遮罩 */
   overlay: number
   blurPx: number
+  /** 阅读字体：西文与中文分别选(id 见 fonts.ts)，justify 让正文两端对齐 */
+  latinFont: string
+  cjkFont: string
+  justify: boolean
 }
 
 export const DEFAULT_APPEARANCE: AppearanceState = {
@@ -24,6 +28,9 @@ export const DEFAULT_APPEARANCE: AppearanceState = {
   /** Phase A 无壁纸图时默认 0,避免整窗发灰;有图皮肤可在 effects 里抬高 */
   overlay: 0,
   blurPx: 0,
+  latinFont: 'source-serif',
+  cjkFont: 'wenkai',
+  justify: false,
 }
 
 /** 皮肤可 patch 的原语键（不含别名 --code-keyword 等） */
@@ -128,6 +135,9 @@ export interface ResolvedTheme {
   appearanceIntent: 'dark' | 'light'
   skinId: string
   material: SkinMaterial
+  /** 组合正文字族；undefined 表示沿用设计系统默认 --font-serif */
+  fontSerif?: string
+  justify: boolean
   tokens: Record<string, string>
   backgroundImage: string | null
   overlay: number

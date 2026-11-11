@@ -24,6 +24,7 @@ export { resolveTheme, filterWhitelist, DARK_BASELINE, LIGHT_BASELINE } from './
 export { applyTheme } from './apply.ts'
 export { loadAppearance, saveAppearance, normalizeAppearance, APPEARANCE_STORAGE_KEY, LEGACY_APPEARANCE_STORAGE_KEY } from './store.ts'
 export { resolveSystemScheme, subscribeSystemScheme } from './systemMode.ts'
+export { LATIN_FONTS, CJK_FONTS, coerceLatinFont, coerceCjkFont, readingFontFamily, type ReadingFontOption } from './fonts.ts'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { applyTheme } from './apply.ts'

@@ -293,16 +293,25 @@ export interface AppearanceState {
   skinId: string
   overlay: number  // 0–1
   blurPx: number
+  latinFont: string  // 阅读字体·西文，id 见 appearance/fonts.ts
+  cjkFont: string    // 阅读字体·中文
+  justify: boolean   // 正文两端对齐
 }
 
+// 2026-11-11 现行默认：浅色「清透」+ 设计系统默认字体(Source Serif 4 + 霞鹜文楷)，不对齐
 export const DEFAULT_APPEARANCE: AppearanceState = {
   version: 1,
-  mode: 'dark',
-  skinId: 'default',
+  mode: 'light',
+  skinId: 'yan-clear',
   overlay: 0,
   blurPx: 0,
+  latinFont: 'source-serif',
+  cjkFont: 'wenkai',
+  justify: false,
 }
 ```
+
+阅读字体只改正文字族 `--font-serif` 与 `.md-body` 对齐：默认组合不写覆盖；其余西文为本地打包的 OFL 可变字体(@fontsource-variable)，按 x 字高 size-adjust 与中文齐平，只覆盖拉丁字符(破折号、省略号留给中文字体)；中文宋体、苹方取 macOS 系统字体。
 
 ### 6.2 SkinDefinition 与白名单（修订 · F3）
 

@@ -1,11 +1,11 @@
 /**
  * [INPUT]: AppearanceState + onChange、统一 Phosphor 勾选图标
- * [OUTPUT]: PreferencePane：整窗皮肤、真实明暗及背景效果选择；点选皮肤同步推荐模式与材质
+ * [OUTPUT]: PreferencePane：整窗皮肤、真实明暗、阅读字体(西文/中文/两端对齐，带实时样张)及背景效果选择；点选皮肤同步推荐模式与材质
  * [POS]: Mastra 设置的外观页；复用迁移前皮肤控件，偏好仅保存在本机
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
-import type { AppearanceMode, AppearanceState, SkinDefinition } from '../../../appearance'
-import { coerceSkinId, listSkins } from '../../../appearance'
+import type { AppearanceMode, AppearanceState, ReadingFontOption, SkinDefinition } from '../../../appearance'
+import { CJK_FONTS, LATIN_FONTS, coerceCjkFont, coerceLatinFont, coerceSkinId, listSkins } from '../../../appearance'
 import { CheckIcon, ICON_SM } from '../../../components/icons'
 
 const MODE_ITEMS: { id: AppearanceMode; label: string }[] = [
@@ -13,6 +13,8 @@ const MODE_ITEMS: { id: AppearanceMode; label: string }[] = [
   { id: 'light', label: '浅色' },
   { id: 'system', label: '跟随系统' },
 ]
+
+const FONT_SAMPLE = '读得懂，不等于被带走。Understanding precedes proof — Einstein chased a beam of light.'
 
 export function PreferencePane({
   state,
@@ -48,6 +50,17 @@ export function PreferencePane({
             </button>
           ))}
         </div>
+      </section>
+
+      <section className="pref-section">
+        <h3 className="pref-h">阅读字体</h3>
+        <FontRow label="西文" fonts={LATIN_FONTS} active={coerceLatinFont(state.latinFont)} onPick={(id) => onChange({ latinFont: id })} />
+        <FontRow label="中文" fonts={CJK_FONTS} active={coerceCjkFont(state.cjkFont)} onPick={(id) => onChange({ cjkFont: id })} />
+        <label className="pref-check">
+          <input type="checkbox" checked={state.justify === true} onChange={(e) => onChange({ justify: e.target.checked })} />
+          <span>正文两端对齐</span>
+        </label>
+        <p className={`pref-font-sample${state.justify ? ' is-justify' : ''}`}>{FONT_SAMPLE}</p>
       </section>
 
       <section className="pref-section">
@@ -135,5 +148,28 @@ function SkinCard({
       </span>
       {active ? <span className="pref-skin-check" aria-hidden><CheckIcon size={ICON_SM} /></span> : null}
     </button>
+  )
+}
+
+/** 每个选项用自身字体渲染名字，即选即见 */
+function FontRow({ label, fonts, active, onPick }: { label: string; fonts: readonly ReadingFontOption[]; active: string; onPick: (id: string) => void }) {
+  return (
+    <div className="pref-font-row">
+      <span className="pref-font-label">{label}</span>
+      <div className="pref-mode-row" role="group" aria-label={`${label}字体`}>
+        {fonts.map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            className={`pref-mode-btn${active === f.id ? ' is-active' : ''}`}
+            aria-pressed={active === f.id}
+            style={{ fontFamily: f.family }}
+            onClick={() => onPick(f.id)}
+          >
+            {f.name}
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }

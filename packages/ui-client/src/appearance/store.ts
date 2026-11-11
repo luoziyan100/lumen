@@ -7,6 +7,7 @@
  */
 
 import { coerceSkinId } from './registry.ts'
+import { coerceCjkFont, coerceLatinFont } from './fonts.ts'
 import { DEFAULT_APPEARANCE, type AppearanceMode, type AppearanceState } from './types.ts'
 
 export const APPEARANCE_STORAGE_KEY = 'lumen:appearance.v2'
@@ -23,7 +24,8 @@ export function normalizeAppearance(raw: unknown): AppearanceState {
   overlay = Math.min(1, Math.max(0, overlay))
   let blurPx = typeof o.blurPx === 'number' && Number.isFinite(o.blurPx) ? o.blurPx : DEFAULT_APPEARANCE.blurPx
   blurPx = Math.max(0, blurPx)
-  return { version: 1, mode, skinId, overlay, blurPx }
+  return { version: 1, mode, skinId, overlay, blurPx,
+    latinFont: coerceLatinFont(o.latinFont), cjkFont: coerceCjkFont(o.cjkFont), justify: o.justify === true }
 }
 
 export function loadAppearance(): AppearanceState {

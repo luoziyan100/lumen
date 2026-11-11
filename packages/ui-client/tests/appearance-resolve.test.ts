@@ -199,6 +199,12 @@ describe('normalizeAppearance', () => {
   it('坏数据回退 default', () => {
     assert.deepEqual(normalizeAppearance(null), DEFAULT_APPEARANCE)
     assert.equal(normalizeAppearance({ version: 1, mode: 'nope', skinId: 'x' }).mode, DEFAULT_APPEARANCE.mode)
+    const fonts = normalizeAppearance({ version: 1, mode: 'light', skinId: 'yan-clear', latinFont: 'comic-sans', cjkFont: 'song', justify: 'yes' })
+    assert.deepEqual([fonts.latinFont, fonts.cjkFont, fonts.justify], ['source-serif', 'song', false], '未知西文回默认，非布尔对齐视为关')
+    const legacy = normalizeAppearance({ version: 1, mode: 'light', skinId: 'yan-clear' })
+    assert.deepEqual([legacy.latinFont, legacy.cjkFont, legacy.justify], ['source-serif', 'wenkai', false], '旧偏好没有字体字段时取默认组合')
+    assert.equal(resolveTheme(legacy).fontSerif, undefined, '默认组合不产生 --font-serif 覆盖')
+    assert.equal(resolveTheme({ ...legacy, cjkFont: 'hei' }).fontSerif, "'Source Serif 4', 'PingFang SC', 'Noto Sans SC', serif")
   })
 })
 

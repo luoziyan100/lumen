@@ -22,6 +22,7 @@ import './kumo.css'
 import 'yan-design-system/icons/motion.css'
 import './styles.css'
 import './mastra/views/workbench.css'
+import './appearance/fonts.css'
 
 function AppRoot() {
   const [current, setCurrent] = useState(connection)

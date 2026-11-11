@@ -1,0 +1,35 @@
+/*
+ * [INPUT]: apply.ts 写入的 --font-serif 组合与 html[data-justify]；fonts.ts 引用的族名
+ * [OUTPUT]: 本地打包的西文阅读字体(OFL 可变字体，@fontsource-variable)与正文两端对齐
+ * [POS]: 阅读字体唯一样式出口；默认 Source Serif 4/文楷仍由 yan-design-system/fonts.css 加载
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ */
+/* size-adjust 按各字体 x 字高折算到与宋体齐平(EB Garamond 112% 为目测基准)；
+   只覆盖拉丁字符，破折号 U+2014 与省略号 U+2026 留给中文字体，避免「——」断成两截 */
+@font-face { font-family: 'Lumen EB Garamond'; font-style: normal; font-weight: 100 900; font-display: swap; size-adjust: 112%;
+  src: url('@fontsource-variable/eb-garamond/files/eb-garamond-latin-wght-normal.woff2') format('woff2-variations'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-2013, U+2015-2025, U+2027-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Lumen EB Garamond'; font-style: italic; font-weight: 100 900; font-display: swap; size-adjust: 112%;
+  src: url('@fontsource-variable/eb-garamond/files/eb-garamond-latin-wght-italic.woff2') format('woff2-variations'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-2013, U+2015-2025, U+2027-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Lumen Crimson Pro'; font-style: normal; font-weight: 100 900; font-display: swap; size-adjust: 107%;
+  src: url('@fontsource-variable/crimson-pro/files/crimson-pro-latin-wght-normal.woff2') format('woff2-variations'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-2013, U+2015-2025, U+2027-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Lumen Crimson Pro'; font-style: italic; font-weight: 100 900; font-display: swap; size-adjust: 107%;
+  src: url('@fontsource-variable/crimson-pro/files/crimson-pro-latin-wght-italic.woff2') format('woff2-variations'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-2013, U+2015-2025, U+2027-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Lumen Newsreader'; font-style: normal; font-weight: 100 900; font-display: swap; size-adjust: 105%;
+  src: url('@fontsource-variable/newsreader/files/newsreader-latin-wght-normal.woff2') format('woff2-variations'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-2013, U+2015-2025, U+2027-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Lumen Newsreader'; font-style: italic; font-weight: 100 900; font-display: swap; size-adjust: 105%;
+  src: url('@fontsource-variable/newsreader/files/newsreader-latin-wght-italic.woff2') format('woff2-variations'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-2013, U+2015-2025, U+2027-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Lumen Literata'; font-style: normal; font-weight: 100 900; font-display: swap; size-adjust: 94%;
+  src: url('@fontsource-variable/literata/files/literata-latin-wght-normal.woff2') format('woff2-variations'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-2013, U+2015-2025, U+2027-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Lumen Literata'; font-style: italic; font-weight: 100 900; font-display: swap; size-adjust: 94%;
+  src: url('@fontsource-variable/literata/files/literata-latin-wght-italic.woff2') format('woff2-variations'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-2013, U+2015-2025, U+2027-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Lumen Lora'; font-style: normal; font-weight: 100 900; font-display: swap; size-adjust: 95%;
+  src: url('@fontsource-variable/lora/files/lora-latin-wght-normal.woff2') format('woff2-variations'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-2013, U+2015-2025, U+2027-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Lumen Lora'; font-style: italic; font-weight: 100 900; font-display: swap; size-adjust: 95%;
+  src: url('@fontsource-variable/lora/files/lora-latin-wght-italic.woff2') format('woff2-variations'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-2013, U+2015-2025, U+2027-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Lumen Inter'; font-style: normal; font-weight: 100 900; font-display: swap; size-adjust: 90%;
+  src: url('@fontsource-variable/inter/files/inter-latin-wght-normal.woff2') format('woff2-variations'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-2013, U+2015-2025, U+2027-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Lumen Inter'; font-style: italic; font-weight: 100 900; font-display: swap; size-adjust: 90%;
+  src: url('@fontsource-variable/inter/files/inter-latin-wght-italic.woff2') format('woff2-variations'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-2013, U+2015-2025, U+2027-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+
+html[data-justify] .md-body { text-align: justify; }
+html[data-justify] .md-body :is(pre, code, table, .mermaid-block) { text-align: start; }
