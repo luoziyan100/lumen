@@ -53,7 +53,11 @@ export function renderPlist(config: DeploymentConfig): string {
   return plistWith(config, [config.nodePath, '--experimental-strip-types', `--env-file-if-exists=${secretsPath(config)}`, config.entryPath, '--data-root', config.dataRoot])
 }
 
-/** 本部署历史版本生成的 plist：同一所有权，install 时原地升级而不视为冲突 */
+/**
+ * 本部署历史版本生成的 plist 白名单：命中即同一所有权，install 原地升级而不视为冲突。
+ * 合同：改动 renderPlist 的任何输出(参数、顺序、键)时，必须把改动前的渲染追加到这里，
+ * 否则已装机器会被判为「同 label 不同配置」而拒绝升级。tests/deployment/launchd.test.ts 的形状快照强制这一点。
+ */
 export function renderPreviousPlists(config: DeploymentConfig): string[] {
   return [plistWith(config, [config.nodePath, '--experimental-strip-types', config.entryPath, '--data-root', config.dataRoot])]
 }

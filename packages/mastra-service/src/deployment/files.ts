@@ -1,6 +1,6 @@
 /**
  * [INPUT]: Node 文件系统、显式绝对路径和待发布内容
- * [OUTPUT]: privateDirectory、readPrivateFile、writePrivateFile、preparePrivateLog
+ * [OUTPUT]: privateDirectory、readPrivateFile、writePrivateFile、preparePrivateLog、assertPrivateIfPresent
  * [POS]: deployment 的磁盘边界；私有文件只经原子替换发布，不跟随链接改写外部 inode
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -13,6 +13,14 @@ import { DeploymentError } from './types.ts'
 export function assertPrivate(stat: Stats, directory = false) {
   if (stat.uid !== process.getuid?.() || (stat.mode & 0o077) !== 0) throw new DeploymentError('Deployment path must be private and owned by this user')
   if (directory ? !stat.isDirectory() : !stat.isFile() || stat.nlink !== 1) throw new DeploymentError('Deployment path must not be a link or special file')
+}
+
+/** 交给外部读取者(如 Node --env-file)的私有文件：缺失放行，存在则必须是本人 0600 普通文件；只 lstat 不读内容 */
+export async function assertPrivateIfPresent(path: string) {
+  let stat
+  try { stat = await lstat(path) }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return; throw error }
+  assertPrivate(stat)
 }
 
 export async function privateDirectory(path: string) {

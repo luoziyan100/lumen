@@ -1,11 +1,12 @@
 /**
  * [INPUT]: 合成 launchctl 调度、真实 Node 24 子进程和本机认证 HTTP
- * [OUTPUT]: 私有部署安装/重启/卸载、崩溃恢复、旧版 plist 原地升级、凭证不进 plist 与所有权冲突行为证明
+ * [OUTPUT]: 私有部署安装/重启/卸载、崩溃恢复、旧版 plist 原地升级、plist 形状快照(强制登记历史渲染)、
+ *           凭证不进 plist 且 .env 必须为本人 0600 普通文件，以及所有权冲突行为证明
  * [POS]: 只替换系统注册边界；不注册真实 LaunchAgent，不读取正式 Lumen 根
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, link, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -141,5 +142,61 @@ test('旧版 plist 视为同一部署并在 install 时原地升级；凭证只�
     assert.doesNotMatch(plist, /TAVILY|OPENALEX|API_KEY/)
     await writeFile(config.plistPath, legacy!, { mode: 0o600 })
     assert.equal((await deployment.uninstall()).state, 'absent', '旧版同样可卸载')
+  } finally { await context.close() }
+})
+
+test('plist 形状快照：改 renderPlist 必须把旧渲染登记进 renderPreviousPlists', async () => {
+  const context = await setup()
+  try {
+    const { config } = context
+    const args = [config.nodePath, '--experimental-strip-types', `--env-file-if-exists=${secretsPath(config)}`, config.entryPath, '--data-root', config.dataRoot]
+    const xml = (v: string) => v.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&apos;')
+    const snapshot = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>${xml(config.label)}</string>
+  <key>ProgramArguments</key><array>${args.map(arg => `<string>${xml(arg)}</string>`).join('')}</array>
+  <key>WorkingDirectory</key><string>${xml(config.projectRoot)}</string>
+  <key>EnvironmentVariables</key><dict><key>NODE_ENV</key><string>production</string><key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>5</integer>
+  <key>ExitTimeOut</key><integer>45</integer>
+  <key>Umask</key><integer>63</integer>
+  <key>StandardOutPath</key><string>${xml(config.stdoutPath)}</string>
+  <key>StandardErrorPath</key><string>${xml(config.stderrPath)}</string>
+</dict></plist>
+`
+    assert.equal(renderPlist(config), snapshot, 'renderPlist 输出变了：把本快照(改动前的渲染)追加进 renderPreviousPlists，再把快照更新为新形状')
+    assert.ok(!renderPreviousPlists(config).includes(snapshot), '当前形状不应同时出现在历史白名单里')
+  } finally { await context.close() }
+})
+
+test('install 拒绝非私有、软链或硬链的 .env，且不触碰现有部署；缺失与 0600 放行', async () => {
+  const context = await setup()
+  try {
+    const { config, fixture, deployment } = context
+    const secrets = secretsPath(config)
+    const installed = await deployment.install()
+    const calls = () => fixture.calls.filter(call => call[0] !== 'print').length
+    const before = calls()
+    await writeFile(secrets, 'TAVILY_API_KEY=x\n', { mode: 0o644 })
+    await chmod(secrets, 0o644)
+    await assert.rejects(() => deployment.install({ restart: true }), /Research secrets file .* must be a private regular file/)
+    await rm(secrets)
+    const outside = join(context.temporary, 'elsewhere.env')
+    await writeFile(outside, 'TAVILY_API_KEY=x\n', { mode: 0o600 })
+    await symlink(outside, secrets)
+    await assert.rejects(() => deployment.install({ restart: true }), /must be a private regular file/, '软链(lstat 权限 0755)按非私有拒绝')
+    await rm(secrets)
+    await link(outside, secrets)
+    await assert.rejects(() => deployment.install({ restart: true }), /must not be a link/)
+    await rm(secrets)
+    assert.equal(calls(), before, '校验失败时不得 bootout/bootstrap')
+    assert.equal((await deployment.status()).pid, installed.pid)
+    await writeFile(secrets, 'TAVILY_API_KEY=x\n', { mode: 0o600 })
+    assert.equal((await deployment.install({ restart: true })).state, 'ready')
+    const plist = await readFile(config.plistPath, 'utf8')
+    assert.ok(!plist.includes('TAVILY_API_KEY=x'))
   } finally { await context.close() }
 })

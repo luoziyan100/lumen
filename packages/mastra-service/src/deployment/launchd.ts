@@ -8,9 +8,9 @@ import { execFile } from 'node:child_process'
 import { lstat, mkdir, unlink } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
-import { deploymentConfig, renderPlist, renderPreviousPlists } from './config.ts'
+import { deploymentConfig, renderPlist, renderPreviousPlists, secretsPath } from './config.ts'
 import { readDiscovery, type Discovery } from './discovery.ts'
-import { privateDirectory, preparePrivateLog, readPrivateFile, writePrivateFile } from './files.ts'
+import { assertPrivateIfPresent, privateDirectory, preparePrivateLog, readPrivateFile, writePrivateFile } from './files.ts'
 import { acquireServiceLock, processAlive } from './lock.ts'
 import { DeploymentError, type CommandResult, type CommandRunner, type DeploymentConfig, type DeploymentOptions, type DeploymentStatus } from './types.ts'
 
@@ -123,6 +123,9 @@ export async function createLaunchdDeployment(options: DeploymentOptions, depend
     const current = await status()
     if (current.state === 'conflict') throw new DeploymentError(current.reason!)
     if (current.state === 'ready' && !options.restart && !current.outdated) return current
+    // 凭证文件由 Node 直接读取，绕过 readPrivateFile；在停旧服务之前校验，不达标不动现有部署
+    try { await assertPrivateIfPresent(secretsPath(config)) }
+    catch (error) { throw new DeploymentError(`Research secrets file ${secretsPath(config)} must be a private regular file (0600, owned by this user, not a link): ${error instanceof Error ? error.message : 'unreadable'}`) }
     await prepare(config, run)
     if (current.state !== 'absent') await stop(current)
     const exclusive = acquireServiceLock(config.dataRoot)
