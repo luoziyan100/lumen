@@ -34,7 +34,7 @@ tests/
 - `mermaid-layout.test.ts`：固有尺寸政策与真实 Mermaid ELK 配置。
 - `mermaid-measure-host.test.ts`：测量 host 的宽度分桶与缓存提交时机。
 - `mermaid-theme.test.ts`：真实明暗基线 token 的调色板、模型颜色剥离与语义 class 主题定义。
-- `mermaid-block.test.ts`：真实组件与真实 mermaid.parse 的失败卡，「请模型修正」发出含原图与错误的普通消息且只发一次；流式/无会话出口不出现。
+- `mermaid-block.test.ts`：真实组件与真实 mermaid.parse 的失败卡，「请模型修正」发出含原图与错误的普通消息，同会话同图(两处/重挂载)只发一次、换会话可再发；流式/无会话出口不出现；按钮与 alert 不在 role=img 内；缓存上限 64。
 - `mermaid-syntax.test.ts`：图表语法归一与极宽 LR 方向保持。
 - `mermaid-zoom.test.ts`：阅读器图表缩放几何规则。
 - `scroll-debug.test.ts`：默认关闭、有界缓冲与标量日志契约。

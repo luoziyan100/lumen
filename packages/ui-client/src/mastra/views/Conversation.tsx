@@ -93,7 +93,7 @@ export function Conversation({ api, identity, onActivity, onOpenFile, onSettings
         const message = row.message
         return <article className={`msg-group msg-group-${messageRole(message)} mw-message mw-${messageRole(message)}`} key={row.id} id={messageAnchor(message.id)}>
         <div className={`bubble bubble-${messageRole(message)}`}>
-        {messageRole(message) === 'assistant' ? <AssistantContent content={messageText(message)} isStreaming={running && display?.currentMessage?.id === message.id} onSendMessage={sendWidgetMessage} /> : <UserMessage message={message} onOpenFile={onOpenFile} />}
+        {messageRole(message) === 'assistant' ? <AssistantContent content={messageText(message)} isStreaming={running && display?.currentMessage?.id === message.id} onSendMessage={sendWidgetMessage} fixScope={`${identity.projectId}:${identity.taskId}`} /> : <UserMessage message={message} onOpenFile={onOpenFile} />}
         </div><MessageCopy user={messageRole(message) === 'user'} text={messageRole(message) === 'user' ? userContent(message).text : messageText(message)} />
       </article>})}
       {running && !suspended && !timeline.some(row => row.kind !== 'message' && row.running) && !display?.currentMessage?.content.parts.some(part => part.type === 'text' && part.text.trim()) && <Waiting startedAt={turnStartedAt(view.messages)} />}

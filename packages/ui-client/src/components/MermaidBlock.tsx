@@ -1,12 +1,13 @@
 /**
  * [INPUT]: mermaid; mermaidSyntax prepareAndValidate; mermaidTheme 宿主调色板; mermaidMeasureHost; MermaidLightbox
  * [OUTPUT]: MermaidBlock —— ```mermaid → 已 tighten 的 final SVG 一次进入主流; 放大 + 复制源码;
- *           失败显示源码,可选「请模型修正」把原图与错误作为普通消息发回当前会话
+ *           失败显示源码,可选「请模型修正」把原图与错误作为普通消息发回当前会话(去重由提供方按会话 × 原文裁决)
  * [POS]: Markdown language-mermaid 分支;合同见 doc/mermaid.md。主流只允许 source 与 final-svg(或 source/error)。
  * [PROTOCOL]: 变更时更新此头部与 doc/mermaid.md
  *
  * 管线: 语法修补 → 宿主颜色裁决 → 同源 parse → 箱外 render/tighten → 一次提交 final SVG。
- * 复制始终用模型原文; 展示像素用改写稿。缓存键 = 原文 hash@列宽桶@主题签名,换皮肤即重画。
+ * 复制始终用模型原文; 展示像素用改写稿。缓存键 = 原文 hash@列宽桶@主题签名,换皮肤即重画;缓存 LRU 64 条。
+ * 无障碍:外层 figure 承载工具栏与失败卡(按钮、alert 可达),role=img 只给 SVG 本身。
  * mermaid.initialize 是全局状态,initialize+parse+render 串行执行,避免并发图互相覆盖配置。
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
@@ -22,8 +23,21 @@ import type { MermaidTracePhase } from '../scroll/scrollDebug'
 
 type CacheEntry = { svg: string | null; error: string | null; detail: string | null; tightened?: boolean }
 
-/** 会话内内存缓存(不落库) */
+/** 内存缓存(不落库):Map 保持插入序,读时移到队尾,超过上限淘汰最久未用 */
+const RENDER_CACHE_LIMIT = 64
 const renderCache = new Map<string, CacheEntry>()
+function cacheGet(key: string): CacheEntry | undefined {
+  const entry = renderCache.get(key)
+  if (entry) { renderCache.delete(key); renderCache.set(key, entry) }
+  return entry
+}
+function cacheSet(key: string, entry: CacheEntry): void {
+  renderCache.delete(key)
+  renderCache.set(key, entry)
+  while (renderCache.size > RENDER_CACHE_LIMIT) renderCache.delete(renderCache.keys().next().value!)
+}
+/** 测试用:当前缓存条数 */
+export function mermaidRenderCacheSize(): number { return renderCache.size }
 
 let renderQueue: Promise<unknown> = Promise.resolve()
 function serialized<T>(task: () => Promise<T>): Promise<T> {
@@ -71,10 +85,13 @@ async function copyText(text: string): Promise<void> {
 export function MermaidBlock({
   chart,
   onAskFix,
+  fixAsked = false,
 }: {
   chart: string
   /** 失败时把原图与解析错误交给当前会话;阅读器等无会话处不传 */
   onAskFix?: (source: string, error: string) => void
+  /** 本会话已为这张图请求过修正(另一处同图或重挂载前) */
+  fixAsked?: boolean
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const reactId = useId().replace(/:/g, '')
@@ -83,14 +100,15 @@ export function MermaidBlock({
   const theme = paletteSignature(palette)
   const [colW, setColW] = useState(0)
   const key = original && colW > 0 ? `${mermaidLayoutCacheKey(hashSource(original), colW)}@${hashSource(theme)}` : ''
-  const cached0 = key ? renderCache.get(key) : undefined
+  const cached0 = key ? cacheGet(key) : undefined
   const [svg, setSvg] = useState<string | null>(() => (cached0 && cacheHoldsFinalSvg(cached0) ? cached0.svg : null))
   const [error, setError] = useState<string | null>(() => cached0?.error ?? null)
   const [detail, setDetail] = useState<string | null>(() => cached0?.detail ?? null)
   const [showDetail, setShowDetail] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [askedFix, setAskedFix] = useState(false)
+  const [askedHere, setAskedFix] = useState(false)
+  const askedFix = askedHere || fixAsked
 
   useLayoutEffect(() => {
     const el = hostRef.current
@@ -122,7 +140,7 @@ export function MermaidBlock({
       setDetail(entry.detail)
       logMermaid('mermaid-phase', entry.error ? 'source/error' : 'final-svg', hostRef.current, { key, note })
     }
-    const cached = renderCache.get(key)
+    const cached = cacheGet(key)
     if (cached && (cacheHoldsFinalSvg(cached) || cached.error)) {
       show(cached, 'cache')
       return
@@ -139,7 +157,7 @@ export function MermaidBlock({
         if (cancelled) return
         if (!validated.ok) {
           const entry: CacheEntry = { svg: null, error: validated.error, detail: validated.detail }
-          renderCache.set(key, entry)
+          cacheSet(key, entry)
           show(entry)
           return
         }
@@ -154,13 +172,13 @@ export function MermaidBlock({
         host = null
         if (cancelled) return
         const entry: CacheEntry = { svg: final.svg, error: null, detail: null, tightened: true }
-        renderCache.set(key, entry)
+        cacheSet(key, entry)
         show(entry)
       } catch (e) {
         if (cancelled) return
         const msg = e instanceof Error ? e.message : '流程图渲染失败'
         const entry: CacheEntry = { svg: null, error: msg.length > 160 ? `${msg.slice(0, 157)}…` : msg, detail: msg }
-        renderCache.set(key, entry)
+        cacheSet(key, entry)
         show(entry)
       } finally {
         host?.dispose()
@@ -189,7 +207,7 @@ export function MermaidBlock({
   }
 
   return (
-    <div ref={hostRef} className="mermaid-block" role="img" aria-label="流程图">
+    <div ref={hostRef} className="mermaid-block" role="figure" aria-label="流程图">
       <div className="mermaid-toolbar" role="toolbar" aria-label="流程图操作">
         {svg && !error ? (
           <button type="button" className="mermaid-tool" title="放大查看" aria-label="放大查看" onClick={() => setExpanded(true)}>
@@ -229,7 +247,7 @@ export function MermaidBlock({
             <pre className="mermaid-source"><code>{original}</code></pre>
           </div>
         ) : null}
-        {!error && svg ? <div className="mermaid-svg" dangerouslySetInnerHTML={{ __html: svg }} /> : null}
+        {!error && svg ? <div className="mermaid-svg" role="img" aria-label="流程图" dangerouslySetInnerHTML={{ __html: svg }} /> : null}
       </div>
       {expanded && svg ? <MermaidLightbox svg={svg} onClose={() => setExpanded(false)} /> : null}
     </div>

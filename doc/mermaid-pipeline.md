@@ -55,12 +55,12 @@
 
 **一般化根因**：LLM 生成的 Mermaid 是**不可信 DSL**；宿主仅做颜色 sanitize、无语法闸、无失败回传，必然系统性复现（非单次运气）。
 
-### 1.3 现状锚点（决策时代码事实）
+### 1.3 现状锚点（已退役：2026-08-16 决策时代码事实，表内路径多已删除，现行见 `doc/mermaid.md`）
 
 | 环节 | 路径 | 行为 |
 |------|------|------|
-| 人格/能力合同 | `packages/agent-service/src/agents/persona.ts` | 要求使用 mermaid 围栏；**无**引号/危险符硬规则 |
-| 颜色清洗 | `packages/ui-client/src/mermaidSanitize.ts` | 语义 class / 字面色对比度；**无**语法修复 |
+| 人格/能力合同 | （已退役）`packages/agent-service/src/agents/persona.ts` | 要求使用 mermaid 围栏；**无**引号/危险符硬规则 |
+| 颜色清洗 | （已退役）`packages/ui-client/src/mermaidSanitize.ts` | 语义 class / 字面色对比度；**无**语法修复 |
 | 渲染 | `packages/ui-client/src/components/MermaidBlock.tsx` | `sanitize` → 直接 `mermaid.render`；catch 后全文 error + 源码 |
 | 入口 | `packages/ui-client/src/components/Markdown.tsx` | `language-mermaid` → `MermaidBlock` |
 | 回传 | — | **不存在** |
@@ -471,7 +471,7 @@ validateMermaid(source: string, mermaidApi) →
 | 能力 | 路径 | 状态 |
 |------|------|------|
 | 语法 repair | `packages/ui-client/src/mermaid/mermaidSyntax.ts` | **Phase A 已落地** |
-| 颜色 sanitize | `packages/ui-client/src/mermaid/mermaidSanitize.ts` | 已有（仅颜色） |
+| 颜色 sanitize | （已退役，2026-11-10 由 `mermaidTheme.ts` 取代）`packages/ui-client/src/mermaid/mermaidSanitize.ts` | 已有（仅颜色） |
 | 渲染块 | `packages/ui-client/src/components/MermaidBlock.tsx` | **Phase A 管线已接**；可读性见 `mermaidLayout.ts` |
 | 布局/停拉伸 | `packages/ui-client/src/mermaid/mermaidLayout.ts` | **R1′ 已落地**（ELK + 禁 100% 宽） |
 | Markdown 入口 | `packages/ui-client/src/components/Markdown.tsx` | 已有 |

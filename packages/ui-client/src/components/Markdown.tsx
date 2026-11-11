@@ -3,8 +3,8 @@
  * [OUTPUT]: Markdown —— GFM/数学/代码高亮 + ```mermaid 流程图;deferMath 流式暂缓 KaTeX
  * [POS]: .md 阅读器与 AssistantContent 的文本段;show-widget 不经此组件;
  *        终稿在 ReactMarkdown 前走 normalizeMathDelimiters(\( \)/\[ \]→$/$$);流式不归一、不跑 KaTeX。
- *        禁全局 React 树缓存(会把 onMermaidFix 闭包串会话);历史不重 parse 靠 item 引用 + memo。
- *        onMermaidFix 只由对话终稿注入,阅读器不修图。
+ *        禁全局 React 树缓存(会把 mermaidFix 闭包串会话);历史不重 parse 靠 item 引用 + memo。
+ *        mermaidFix 只由对话终稿注入,阅读器不修图。
  *        流式 mermaid 保持源码 pre;定稿后 MermaidBlock 箱外测量,主流一次提交 final SVG。
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
@@ -39,16 +39,19 @@ function codeText(children: ReactNode): string {
   return String(children ?? '').replace(/\n$/, '')
 }
 
+/** 失败图修正通道：asked 查询该图是否已请求过，ask 发送(由提供方去重) */
+export type MermaidFix = { asked: (source: string) => boolean; ask: (source: string, error: string) => void }
+
 export const Markdown = memo(function Markdown({
   children,
   deferMath = false,
-  onMermaidFix,
+  mermaidFix,
 }: {
   children: string
   /** true:流式中暂缓 KaTeX/remark-math,定稿后再渲染 */
   deferMath?: boolean
   /** 失败图交回当前会话修正 */
-  onMermaidFix?: (source: string, error: string) => void
+  mermaidFix?: MermaidFix
 }) {
   const remarkPlugins = deferMath ? REMARK_STREAM : REMARK_FULL
   const rehypePlugins = deferMath ? REHYPE_STREAM : REHYPE_FULL
@@ -84,11 +87,12 @@ export const Markdown = memo(function Markdown({
             </pre>
           )
         }
-        return <MermaidBlock chart={codeText(code.props.children)} onAskFix={onMermaidFix} />
+        const chart = codeText(code.props.children)
+        return <MermaidBlock chart={chart} onAskFix={mermaidFix?.ask} fixAsked={mermaidFix?.asked(chart)} />
       }
       return <pre {...props}>{children}</pre>
     },
-  }), [openExternal, deferMath, onMermaidFix])
+  }), [openExternal, deferMath, mermaidFix])
   return (
     <div className="md-body">
       <ReactMarkdown

@@ -17,7 +17,7 @@ components/
 
 - `Markdown.tsx`：GFM、数学、代码高亮和 Mermaid 的统一渲染器；流式输入暂缓不完整数学，文件链接由调用方处理，禁全局 React 树缓存。
 - `markdownMath.ts`：感知围栏与代码片段的数学定界符归一，避免跨代码区配对。
-- `MermaidBlock.tsx`：官方 Mermaid/ELK 渲染与箱外测量，颜色随当前外观、换皮肤重画，渲染串行；失败显示源码并可「请模型修正」(会话内普通消息)。
+- `MermaidBlock.tsx`：官方 Mermaid/ELK 渲染与箱外测量，颜色随当前外观、换皮肤重画，渲染串行，缓存 LRU 64 条；外层 figure、SVG 层 role=img(按钮与错误对读屏可达)；失败显示源码并可「请模型修正」(会话内普通消息，同会话同图只发一次)。
 - `MermaidLightbox.tsx`：流程图放大层的缩放/拖移/Esc 交互。
 - `PdfViewer.tsx`：pdf.js 直接读取已认证 Blob 字节，避免桌面 CSP 阻挡二次 blob URL fetch；连续页渲染与受控页码定位只滚 PDF 容器，缩放沿统一图标入口；加载失败显示具体原因。
 - `HtmlViewer.tsx`：复用 widget iframe 呈现 HTML，保留脚本能力但隔离同源权限。

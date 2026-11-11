@@ -29,7 +29,7 @@
 | 几何 | 箱外测量宿主里按墨迹收紧 viewBox，主流只接收最终 SVG；SVG 保持固有宽，不写 `width:100%` 或卡片 `max-width`，宽图由 `.mermaid-scroll` 横滚 | `mermaidMeasureHost.ts`、`styles.css` |
 | 缓存 | 会话内内存：原文 hash @ 列宽桶 @ 主题签名；换皮肤即按新主题重画，旧图在新图就绪前保持可见 | `MermaidBlock.tsx` |
 | 放大 | 独立放大层：± 钮、滚轮/触控板、双指缩放、单指拖移、Esc 关闭 | `components/MermaidLightbox.tsx`、`mermaidZoom.ts` |
-| 失败修正 | 「请模型修正」把原图与解析错误作为**普通用户消息**发回当前会话（与 widget 回发同一出口），只要求重发这一张图；每张失败图只发一次；流式中与阅读器内不出现 | `AssistantContent.tsx` → `Markdown` → `MermaidBlock`；文案 `copy/appCopy.ts` |
+| 失败修正 | 「请模型修正」把原图与解析错误作为**普通用户消息**发回当前会话（与 widget 回发同一出口），只要求重发这一张图；同一会话里同一张图(按原文)只发一次，图重复出现或重挂载都不再发；流式中与阅读器内不出现 | `AssistantContent.tsx` → `Markdown` → `MermaidBlock`，去重 `mermaid/mermaidFixLedger.ts`；文案 `copy/appCopy.ts` |
 
 复制按钮始终复制模型原文；修补与颜色裁决只影响像素。
 
