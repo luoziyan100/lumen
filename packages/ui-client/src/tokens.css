@@ -1,16 +1,9 @@
-/* ==========================================================================
-   Lumen Design System — Glass Beam 全窗实验(2026-08-04)
-   --------------------------------------------------------------------------
-   分支:experiment/glass-ui · 回退:git checkout main(或丢弃本分支提交)
-   检查点提交:chore: checkpoint before full-window glass experiment
-   暖纸 v3 真源在 main;本文件为体验用暗玻璃 + 炫光全局覆盖。
-   基调:近黑画布 + 毛玻璃面板 + 光边语义。纵深来自玻璃与 bloom:
-     1. 画布层  --canvas 近黑 + .app aurora
-     2. 纸面层  --paper / --paper-solid 半透玻璃
-     3. 卡片层  --card 更高一层玻璃;浮层/模型卡另见 styles.css `.glass-card`(blur+双边反射)
-   颜色纪律(实验放宽):青瓷绿仍做主强调;允许彩色光边装饰层。
-   对比度:正文按暗底浅字维护 ≥ 4.5:1。
-   ========================================================================== */
+/*
+ * [INPUT]: appearance 解析后的明暗配色与玻璃/纸面材质；doc/ui-design.md 的视觉约束
+ * [OUTPUT]: 画布、表面、文字、强调、材质、阴影与排版语义变量
+ * [POS]: UI 视觉真源；深色玻璃为静态基线，皮肤补丁由 appearance 唯一出口覆盖，Kumo 与布局同源消费
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600;700&display=swap');
 @import url('https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.1.0/style.css');
@@ -40,14 +33,22 @@
 
   /* ---- 皮肤背景层(applyTheme 写入)---- */
   --skin-bg-image: none;
-  --skin-overlay: 0.42;
+  --skin-overlay: 0;
+  --skin-overlay-rgb: 0, 0, 0;
   --skin-blur: 0px;
+
+  /* ---- 材质(玻璃保留折射，纸面由皮肤关闭模糊与装饰)---- */
+  --material-blur: 20px;
+  --material-saturation: 1.25;
+  --material-highlight: rgba(255, 255, 255, 0.38);
+  --material-edge: rgba(255, 255, 255, 0.14);
 
   /* ---- 墨色(浅字压暗底)---- */
   --ink:          #E8EAEE;
   --ink-soft:     rgba(232, 234, 238, 0.82);
   --ink-mute:     rgba(200, 206, 214, 0.55);
   --ink-faint:    rgba(200, 206, 214, 0.34);
+  --ink-on-accent: #0B0C10;
 
   /* ---- 强调与语义 ---- */
   --ember:        #6BC49A;
@@ -146,8 +147,8 @@ html, body {
 }
 
 a { color: var(--indigo); text-decoration: none; }
-::selection { background: rgba(107, 196, 154, 0.28); color: var(--ink); }
+::selection { background: var(--ember-tint); color: var(--ink); }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--sand-deep); border-radius: var(--radius-full); border: 2px solid rgba(12, 14, 18, 0.8); }
+::-webkit-scrollbar-thumb { background: var(--sand-deep); border-radius: var(--radius-full); border: 2px solid var(--canvas); }
 ::-webkit-scrollbar-thumb:hover { background: var(--ink-faint); }

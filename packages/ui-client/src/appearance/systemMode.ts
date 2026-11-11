@@ -1,7 +1,7 @@
 /**
  * [INPUT]: window.matchMedia prefers-color-scheme
  * [OUTPUT]: resolveSystemScheme / subscribeSystemScheme
- * [POS]: appearance;mode=system 时折叠意图（宿主 color-scheme 仍固定 dark）
+ * [POS]: 外观的系统适配边界；媒体查询只提供明暗，基线选择与实际应用交给 resolve/apply
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 

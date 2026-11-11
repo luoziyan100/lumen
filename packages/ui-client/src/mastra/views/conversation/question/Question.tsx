@@ -1,11 +1,12 @@
 /**
- * [INPUT]: 原生 ask_user suspendPayload、官方恢复回调与原 ask-user 卡片样式
+ * [INPUT]: 原生 ask_user suspendPayload、官方恢复回调、原 ask-user 卡片样式与统一加号图标
  * [OUTPUT]: Question：编号纵排选项、自由补充与提交状态；单选回字符串，多选回字符串数组
  * [POS]: 由会话挂在输入坞上方；只恢复展示，不合成跳过或改写原生 resume 契约
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useId, useState, type FormEvent } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
+import { PlusIcon, ICON_SM } from '../../../../components/icons'
 import { MASTRA_COPY as C } from '../../../../copy/mastraCopy'
 import './question.css'
 
@@ -42,7 +43,7 @@ export function Question({ payload, onAnswer }: { payload: unknown; onAnswer: (t
           </button>
         </li>)}
         <li><label className={`ask-user-opt ask-user-opt-other${answer.trim() ? ' is-active' : ''}`}>
-          <span className="ask-user-opt-n" aria-hidden>+</span>
+          <span className="ask-user-opt-n" aria-hidden><PlusIcon size={ICON_SM} /></span>
           <input className="ask-user-other-input" aria-label={C.answer} placeholder={options.length ? C.otherAnswer : C.answer} value={answer} disabled={busy} onFocus={() => { if (!multiple) setSelected([]) }} onChange={event => { setAnswer(event.target.value); if (!multiple) setSelected([]) }} />
         </label></li>
       </ul>

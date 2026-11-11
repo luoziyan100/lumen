@@ -27,11 +27,13 @@ tests/                      # 原生 HTTP/SSE 客户端与保留渲染算法回�
 
 - `mastra/data/` 消费服务接口；工作区文件和历史都从服务读取，不拼装旧目录或重放旧 WS 事件。
 - `components/` 保留与运行时无关的阅读能力；HTML 走隔离 widget iframe，Markdown 外链走统一确认出口。
+- `components/icons.tsx` 统一业务图标为 Phosphor regular/currentColor，16/18/20三档覆盖行内、按钮和主导航；管理三点与折叠箭头分工，文件类别用轮廓表达，禁止手绘/字符和 CSS 尺寸例外。
 - `main.tsx` / `vite.config.ts` / `src-tauri/src/mastra.rs` 负责发现服务。冷启动失败展示错误并进行有界退避发现；工作台已经打开后，短暂探测失败保留当前连接，不卸载界面。成功换端口/令牌时替换连接并补取历史，不启动另一个运行时。
 - `package.json` 声明浏览器与桌面命令；`tsconfig.json` 检查现役源码；`vite.config.ts` 提供本机开发发现；`index.html` 是网页宿主。
 - 服务发现默认读取 `~/.lumen-mastra`，参数或 `LUMEN_MASTRA_HOME` 保留隔离预览；旧入口和 WS 回退已删除。
-- `tokens.css` 是颜色、字体与阴影真源；`theme-celadon.css`、`kumo.css` 与 `styles.css` 负责控件映射和布局。
+- `tokens.css` 是明暗颜色、玻璃/纸面材质、字体与阴影真源；`theme-celadon.css` 让 Kumo 实色控件同源换肤并对齐内置 Select 图标，`kumo.css` 加载控件，`styles.css` 消费语义变量定义布局与图标对齐，不重缩放图标。
 - `styles.css` 只保留现役布局、卷帘、消息、输入卡、阅读器、工作区和 Mermaid/widget 样式；退役侧栏、附件抽屉、Todo/来源/诊断/HUD 规则已清除。
+- 玻璃反光、边缘和背景饱和度统一随材质 token；纸面关闭面板模糊、按钮扫光及输入卡彩边，面板与浮动跳转按钮使用实色，保留静态表面层次。背景模糊仅处理画布伪层，不模糊正文；浅色遮罩提亮，深色遮罩压暗。
 - `components/disclosure/` 共用原卷帘时序与三层容器；`styles.css` 的开合/错峰只命中当前层，父项目展开不得覆盖已收起的子会话。
 
 ## 开发纪律

@@ -1,7 +1,7 @@
 /**
  * [INPUT]: 已鉴权的 LumenApi 分页目录接口
- * [OUTPUT]: loadCatalog：跨项目完整会话目录，latestSessions：确定的更新时间排序
- * [POS]: 导航的数据聚合边界；最多四个项目并发，取消后不继续请求下一页
+ * [OUTPUT]: loadCatalog：隐藏默认标题空记录的跨项目会话目录，latestSessions：确定的更新时间排序
+ * [POS]: 导航与搜索共用的数据边界；保留有消息、活动运行或显式命名/置顶的会话，最多四项目并发，取消后不继续分页
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import type { LumenApi, Page, Project, SessionInfo } from '../../data/client'
@@ -29,5 +29,6 @@ export async function loadCatalog(api: LumenApi, archivedProjects: boolean, arch
       sessions.push(...await pages<SessionInfo>(api, `/lumen/projects/${encodeURIComponent(project.id)}/sessions?archived=${archivedSessions}`, active))
     }
   }))
-  return { projects, sessions: latestSessions(sessions) }
+  const visible = sessions.filter(session => session.lastMessageId || session.running || session.waiting || session.pinned || session.title !== '新研究')
+  return { projects, sessions: latestSessions(visible) }
 }

@@ -1,7 +1,7 @@
 /*
- * [INPUT]: tokens.css 的颜色、字体、间距和动效；原组件类名与 Kumo 控件映射
- * [OUTPUT]: 桌面壳、侧栏、聊天、阅读器和原卷帘的全局视觉
- * [POS]: 形态 A 的布局真源；嵌套卷帘只匹配当前层 pane/veil，避免祖先状态越界
+ * [INPUT]: tokens.css 的明暗材质、排版和动效；原组件类名、统一 icons 轮廓与 Kumo 控件映射
+ * [OUTPUT]: 桌面壳、侧栏、聊天、阅读器和原卷帘的全局视觉；背景模糊仅作用装饰层
+ * [POS]: 形态 A 布局真源；图标居中且不覆盖其尺寸，材质沿语义变量传导，纸面关闭反光动效
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 * { box-sizing: border-box; }
@@ -20,16 +20,17 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
   background-size: cover;
   background-position: center;
 }
-/* 画布 aurora（D8）;遮罩用 --skin-overlay；拿铁多一层暖星云 */
+/* 画布装饰：遮罩按明暗配色，模糊仅处理此伪层，不触碰正文。 */
 .app::before {
   content: '';
   position: absolute; inset: 0; z-index: 0;
   pointer-events: none;
   background:
-    linear-gradient(rgba(0, 0, 0, var(--skin-overlay)), rgba(0, 0, 0, var(--skin-overlay))),
+    linear-gradient(rgba(var(--skin-overlay-rgb), var(--skin-overlay)), rgba(var(--skin-overlay-rgb), var(--skin-overlay))),
     radial-gradient(ellipse 52% 42% at 12% 18%, var(--aurora-a), transparent 62%),
     radial-gradient(ellipse 46% 38% at 88% 28%, var(--aurora-b), transparent 62%),
     radial-gradient(ellipse 42% 32% at 48% 92%, var(--aurora-c), transparent 58%);
+  filter: blur(var(--skin-blur));
 }
 /*
  * 宇宙拿铁：frosted 铺在 **canvas 层**（整窗底），不是中间对话大卡片。
@@ -39,12 +40,12 @@ html, body { height: 100%; overflow: hidden; overscroll-behavior: none; }
  *   侧栏/标题/正文 透明叠在 cover 上，不再单独套一张内容卡
  */
 html[data-skin="cosmic-latte"] {
-  --frost-fill: rgba(255, 255, 255, 0.08);
-  --frost-border: rgba(255, 255, 255, 0.14);
-  --frost-blur: 20px;
+  --frost-fill: color-mix(in srgb, var(--material-highlight) 21%, transparent);
+  --frost-border: var(--material-edge);
+  --frost-blur: var(--material-blur);
 }
 html[data-skin="cosmic-latte"] .app {
-  background-color: #16181e;
+  background-color: var(--canvas);
   background-image: none;
 }
 /* Canvas cover：全窗 frosted，材质对齐原 bubble 包裹层 */
@@ -56,16 +57,16 @@ html[data-skin="cosmic-latte"] .app::before {
   z-index: 0;
   pointer-events: none;
   background: var(--frost-fill);
-  backdrop-filter: blur(var(--frost-blur)) saturate(1.06);
-  -webkit-backdrop-filter: blur(var(--frost-blur)) saturate(1.06);
+  backdrop-filter: blur(var(--frost-blur)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(var(--frost-blur)) saturate(var(--material-saturation));
   border: none;
   box-shadow:
-    inset 0 0 120px rgba(255, 255, 255, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.10);
-  filter: none;
+    inset 0 0 120px color-mix(in srgb, var(--material-highlight) 11%, transparent),
+    inset 0 1px 0 var(--material-edge);
+  filter: blur(var(--skin-blur));
 }
 html[data-skin="cosmic-latte"] body {
-  background: #16181e;
+  background: var(--canvas);
 }
 /* 主内容区 / 对话列：不要卡片壳，透出 canvas cover */
 html[data-skin="cosmic-latte"] .chat,
@@ -82,9 +83,9 @@ html[data-skin="cosmic-latte"] .body {
 }
 html[data-aurora="0"] .app::before {
   display: block;
-  background: linear-gradient(rgba(0, 0, 0, var(--skin-overlay)), rgba(0, 0, 0, var(--skin-overlay)));
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
+  background:
+    linear-gradient(rgba(var(--skin-overlay-rgb), var(--skin-overlay)), rgba(var(--skin-overlay-rgb), var(--skin-overlay))),
+    linear-gradient(var(--frost-fill, transparent), var(--frost-fill, transparent));
 }
 .app > * { position: relative; z-index: 1; }
 
@@ -129,13 +130,13 @@ html[data-aurora="0"] .app::before {
   overflow: hidden;
   /* 默认：皮肤 --card；拿铁皮肤用 frosted 白玻璃 */
   background: color-mix(in srgb, var(--card) 78%, transparent);
-  backdrop-filter: blur(14px) saturate(1.28);
-  -webkit-backdrop-filter: blur(14px) saturate(1.28);
-  border: 1px solid color-mix(in srgb, var(--sand-deep) 55%, rgba(255, 255, 255, 0.28));
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  border: 1px solid color-mix(in srgb, var(--sand-deep) 55%, var(--material-edge));
   box-shadow:
     var(--shadow-2),
     inset 0 0 90px color-mix(in srgb, var(--ember) 6%, transparent),
-    inset 0 0 3px 1px rgba(255, 255, 255, 0.14);
+    inset 0 1px 0 var(--material-edge);
 }
 /*
  * 侧栏/标题：轻于 canvas cover，略抬一点白以便分区，仍是同一 frosted 语言。
@@ -144,11 +145,11 @@ html[data-aurora="0"] .app::before {
 html[data-skin="cosmic-latte"] .sidebar,
 html[data-skin="cosmic-latte"] .titlebar,
 html[data-skin="cosmic-latte"] .glass-card {
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(16px) saturate(1.05);
-  -webkit-backdrop-filter: blur(16px) saturate(1.05);
+  background: var(--paper);
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
   border-color: var(--frost-border);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  box-shadow: var(--shadow-1), inset 0 1px 0 var(--material-edge);
 }
 html[data-skin="cosmic-latte"] .titlebar {
   border-bottom-color: var(--frost-border);
@@ -156,9 +157,9 @@ html[data-skin="cosmic-latte"] .titlebar {
 /* 右轨工作区：同样透 canvas cover，避免实心黑块（截图 #2） */
 html[data-skin="cosmic-latte"] .rail,
 html[data-skin="cosmic-latte"] .rail-card {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(16px) saturate(1.05);
-  -webkit-backdrop-filter: blur(16px) saturate(1.05);
+  background: var(--card);
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
   border-color: var(--frost-border);
 }
 .glass-card::before {
@@ -167,7 +168,7 @@ html[data-skin="cosmic-latte"] .rail-card {
   pointer-events: none;
   border-radius: inherit;
   z-index: 1;
-  background: linear-gradient(to left top, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 52%);
+  background: linear-gradient(to left top, color-mix(in srgb, var(--material-highlight) 22%, transparent) 0%, transparent 52%);
 }
 .glass-card::after {
   content: '';
@@ -175,7 +176,7 @@ html[data-skin="cosmic-latte"] .rail-card {
   pointer-events: none;
   border-radius: inherit;
   z-index: 1;
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.055) 0%, rgba(255, 255, 255, 0) 100%);
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--material-highlight) 15%, transparent) 0%, transparent 100%);
 }
 .glass-card > * {
   position: relative;
@@ -228,9 +229,9 @@ html[data-skin="cosmic-latte"] .rail-card {
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 var(--s-4); border-bottom: 1px solid var(--sand-deep);
   background: var(--paper);
-  backdrop-filter: blur(18px) saturate(1.2);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  box-shadow: inset 0 1px 0 var(--material-edge);
 }
 .tb-left { display: flex; align-items: center; gap: var(--s-2); }
 .brand { font-weight: var(--w-semi); }
@@ -252,8 +253,8 @@ html[data-skin="cosmic-latte"] .rail-card {
   border-radius: var(--radius-lg);
   background: var(--paper);
   box-shadow: var(--shadow-2);
-  backdrop-filter: blur(20px) saturate(1.25);
-  -webkit-backdrop-filter: blur(20px) saturate(1.25);
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
 }
 /* 右缘拖拽把手:7px 命中区,悬停/拖动时中缝浮现 2px 提示线 */
 .sb-resize {
@@ -298,8 +299,8 @@ html[data-skin="cosmic-latte"] .rail-card {
   border-radius: var(--radius-xl);
   background: var(--card);
   box-shadow: var(--shadow-3);
-  backdrop-filter: blur(22px) saturate(1.25);
-  -webkit-backdrop-filter: blur(22px) saturate(1.25);
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
 }
 .settings-nav {
   flex: 0 0 168px; background: var(--paper-deep); border-right: 1px solid var(--sand);
@@ -404,11 +405,11 @@ html[data-skin="cosmic-latte"] .rail-card {
   transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
 .mpc-card.is-in-use {
-  border-color: color-mix(in srgb, var(--ember-soft) 75%, rgba(255, 255, 255, 0.35));
+  border-color: color-mix(in srgb, var(--ember-soft) 75%, var(--material-edge));
   box-shadow:
     var(--shadow-2),
     inset 0 0 90px color-mix(in srgb, var(--ember) 10%, transparent),
-    inset 0 0 3px 1px rgba(255, 255, 255, 0.16),
+    inset 0 1px 0 var(--material-edge),
     0 0 0 1px color-mix(in srgb, var(--ember) 28%, transparent);
 }
 .mpc-main {
@@ -449,13 +450,13 @@ html[data-skin="cosmic-latte"] .rail-card {
 .mpc-act {
   flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
   height: 28px; padding: 0 8px;
-  border: 1px solid color-mix(in srgb, var(--sand-deep) 60%, rgba(255, 255, 255, 0.18));
+  border: 1px solid color-mix(in srgb, var(--sand-deep) 60%, var(--material-edge));
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--vellum) 85%, transparent);
   color: var(--ink-soft); font: inherit; font-size: var(--t-body-sm);
   cursor: pointer;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
   transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
 }
 .mpc-act:hover { background: var(--sand-deep); color: var(--ink); }
@@ -478,7 +479,7 @@ html[data-skin="cosmic-latte"] .rail-card {
 }
 /* 第二屏:编辑表单 */
 .mp-editor { display: flex; flex-direction: column; flex: 1; }
-.mp-back { border: none; background: none; color: var(--ink-soft); font: inherit; font-size: var(--t-body-sm); cursor: pointer; padding: 4px 8px; border-radius: var(--radius-md); }
+.mp-back { display: inline-flex; align-items: center; gap: var(--s-1); border: none; background: none; color: var(--ink-soft); font: inherit; font-size: var(--t-body-sm); cursor: pointer; padding: 4px 8px; border-radius: var(--radius-md); }
 .mp-back:hover { background: var(--sand); }
 .mp-edit-title { flex: 1; }
 .set-saved { color: var(--moss); font-size: var(--t-body-sm); }
@@ -646,7 +647,7 @@ html[data-skin="cosmic-latte"] .rail-card {
 .sb-folder-ic-chev { opacity: 0; }
 .sb-folder-row:hover .sb-folder-ic-folder { opacity: 0; }
 .sb-folder-row:hover .sb-folder-ic-chev { opacity: 1; }
-/* 闭↔开文件夹:叠层交叉淡入(与 FoldersIcon 同派:CSS 驱动) */
+/* 闭↔开文件夹：同源轮廓在固定槽位交叉淡入。 */
 .folder-glyph {
   position: relative; display: inline-flex; flex: none;
 }
@@ -765,8 +766,8 @@ html[data-skin="cosmic-latte"] .rail-card {
   border: 1px solid var(--sand-deep); border-radius: var(--radius-xl);
   background: var(--card);
   box-shadow: var(--shadow-3);
-  backdrop-filter: blur(22px) saturate(1.25);
-  -webkit-backdrop-filter: blur(22px) saturate(1.25);
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
 }
 .create-proj-head { display: flex; align-items: center; gap: var(--s-3); }
 .create-proj-title { flex: 1; margin: 0; font-size: var(--t-title); font-weight: var(--w-medium); color: var(--ink); }
@@ -846,8 +847,8 @@ html[data-aurora="0"] .composer-dock::before { opacity: 0; }
   border: 1px solid var(--sand-deep); border-radius: var(--radius-xl);
   background: var(--card);
   box-shadow: var(--shadow-3);
-  backdrop-filter: blur(22px) saturate(1.25);
-  -webkit-backdrop-filter: blur(22px) saturate(1.25);
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
   overflow: hidden;
 }
 .ask-user-head { display: flex; align-items: flex-start; gap: var(--s-3); flex: none; }
@@ -882,7 +883,7 @@ html[data-aurora="0"] .composer-dock::before { opacity: 0; }
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--sand); color: var(--ink-mute); font-size: var(--t-caption); font-weight: var(--w-medium);
 }
-.ask-user-opt.is-active .ask-user-opt-n { background: var(--ember); color: #0B0C10; }
+.ask-user-opt.is-active .ask-user-opt-n { background: var(--ember); color: var(--ink-on-accent); }
 .ask-user-opt-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ask-user-opt-label { color: inherit; }
 .ask-user-opt-desc { color: var(--ink-mute); font-size: var(--t-caption); line-height: 1.4; }
@@ -896,7 +897,7 @@ html[data-aurora="0"] .composer-dock::before { opacity: 0; }
   color: var(--ink);
 }
 .ask-user-opt-other:focus-within .ask-user-opt-n {
-  background: var(--ember); color: #0B0C10;
+  background: var(--ember); color: var(--ink-on-accent);
 }
 .ask-user-other-input {
   flex: 1; min-width: 0; border: none; outline: none; background: transparent;
@@ -1004,15 +1005,15 @@ html[data-aurora="0"] .composer-dock::before { opacity: 0; }
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid color-mix(in srgb, var(--sand-deep) 55%, rgba(255, 255, 255, 0.28));
+  border: 1px solid color-mix(in srgb, var(--sand-deep) 55%, var(--material-edge));
   border-radius: var(--radius-full);
   background: color-mix(in srgb, var(--card) 82%, transparent);
   color: var(--ink);
   cursor: pointer;
   pointer-events: auto;
   box-shadow: var(--shadow-2);
-  backdrop-filter: blur(12px) saturate(1.2);
-  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
   transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
 .jump-latest:hover {
@@ -1124,14 +1125,14 @@ html[data-skin="cosmic-latte"] .bubble-assistant:not(.is-provisional) {
   -webkit-backdrop-filter: none;
 }
 html[data-skin="cosmic-latte"] .bubble-user {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--vellum);
   border: 1px solid var(--frost-border);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
 }
 html[data-skin="cosmic-latte"] .thought {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--sand);
+  border: 1px solid var(--sand-deep);
   border-radius: 12px;
   padding: 8px 12px;
 }
@@ -1243,7 +1244,7 @@ html[data-skin="cosmic-latte"] .thought {
   --c-fg-mute: var(--ink-mute);
   --c-line: var(--sand-deep);
   --c-fill: var(--sand);
-  --c-fill-hot: rgba(255, 255, 255, 0.11);
+  --c-fill-hot: var(--vellum);
   position: relative; z-index: auto;
   display: flex; flex-direction: column; gap: 10px;
   width: 100%; margin: 0;
@@ -1251,18 +1252,14 @@ html[data-skin="cosmic-latte"] .thought {
   border: 1px solid var(--sand-deep);
   border-radius: 24px;
   background: var(--card);
-  backdrop-filter: blur(22px) saturate(1.25);
-  -webkit-backdrop-filter: blur(22px) saturate(1.25);
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
   box-shadow: var(--shadow-3);
   color: var(--c-fg);
   transition: box-shadow var(--dur-fast) var(--ease-out);
 }
 .composer-card:focus-within {
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.08) inset,
-    0 18px 48px -18px rgba(0, 0, 0, 0.58),
-    0 0 0 1px rgba(120, 200, 255, 0.12),
-    0 10px 36px -10px rgba(56, 180, 220, 0.28);
+  box-shadow: var(--shadow-3), 0 0 0 1px var(--focus-ring);
 }
 .composer-card.is-drop-target {
   border-color: color-mix(in srgb, var(--ember-soft) 70%, var(--sand-deep));
@@ -1272,8 +1269,7 @@ html[data-skin="cosmic-latte"] .thought {
     var(--shadow-3);
 }
 /*
- * 液态抛光玻璃(composer 岛内按钮)——对标 inspora 液态球:
- * 体:深色曲面 + 左上固定镜面高光
+ * 液态玻璃：体色来自当前 card/surface，明暗共用左上镜面反射。
  * 动:铺满圆角面的渐变扫光(background-position),贴合 pill/圆钮边界,完整扫过
  * 边:静态色散 rim,仅呼吸
  */
@@ -1281,22 +1277,16 @@ html[data-skin="cosmic-latte"] .thought {
   position: relative;
   isolation: isolate;
   overflow: hidden; /* 裁切所有伪层到本元素 border-radius */
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--material-edge);
   background:
-    radial-gradient(120% 100% at 28% 12%, rgba(255, 255, 255, 0.38) 0%, rgba(255, 255, 255, 0.08) 28%, transparent 52%),
-    radial-gradient(90% 80% at 78% 92%, rgba(0, 0, 0, 0.45) 0%, transparent 58%),
-    linear-gradient(165deg,
-      rgba(255, 255, 255, 0.14) 0%,
-      rgba(48, 52, 62, 0.55) 38%,
-      rgba(18, 20, 26, 0.72) 100%);
-  backdrop-filter: blur(16px) saturate(1.55);
-  -webkit-backdrop-filter: blur(16px) saturate(1.55);
+    radial-gradient(120% 100% at 28% 12%, var(--material-highlight), transparent 54%),
+    linear-gradient(165deg, color-mix(in srgb, var(--card) 55%, transparent), color-mix(in srgb, var(--surface-control) 30%, transparent));
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
   box-shadow:
-    0 1.5px 0 rgba(255, 255, 255, 0.5) inset,
-    0 -3px 10px rgba(0, 0, 0, 0.4) inset,
-    0 0 0 0.5px rgba(255, 255, 255, 0.06),
-    0 0 20px -8px rgba(100, 180, 255, 0.28),
-    0 10px 24px -12px rgba(0, 0, 0, 0.55);
+    inset 0 1.5px 0 var(--material-highlight),
+    inset 0 -1px 0 var(--material-edge),
+    var(--shadow-1);
   transition:
     background var(--dur-fast) var(--ease-out),
     color var(--dur-fast) var(--ease-out),
@@ -1314,11 +1304,11 @@ html[data-skin="cosmic-latte"] .thought {
     105deg,
     transparent 0%,
     transparent 38%,
-    rgba(255, 255, 255, 0.03) 44%,
-    rgba(255, 255, 255, 0.18) 48%,
-    rgba(255, 255, 255, 0.58) 50.5%,
-    rgba(170, 215, 255, 0.32) 53%,
-    rgba(255, 195, 150, 0.12) 56%,
+    color-mix(in srgb, var(--material-highlight) 8%, transparent) 44%,
+    color-mix(in srgb, var(--material-highlight) 45%, transparent) 48%,
+    var(--material-highlight) 50.5%,
+    color-mix(in srgb, var(--beam-a) 30%, transparent) 53%,
+    color-mix(in srgb, var(--beam-c) 12%, transparent) 56%,
     transparent 62%,
     transparent 100%
   );
@@ -1344,11 +1334,11 @@ html[data-skin="cosmic-latte"] .thought {
   padding: 1px;
   background: linear-gradient(
     125deg,
-    rgba(255, 255, 255, 0.65) 0%,
-    rgba(120, 200, 255, 0.7) 22%,
-    rgba(180, 140, 255, 0.45) 48%,
-    rgba(255, 180, 110, 0.55) 72%,
-    rgba(255, 255, 255, 0.25) 100%
+    var(--material-highlight) 0%,
+    color-mix(in srgb, var(--beam-a) 70%, transparent) 22%,
+    color-mix(in srgb, var(--beam-b) 45%, transparent) 48%,
+    color-mix(in srgb, var(--beam-c) 55%, transparent) 72%,
+    var(--material-edge) 100%
   );
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
@@ -1365,19 +1355,10 @@ html[data-skin="cosmic-latte"] .thought {
 .liquid-glass > * { position: relative; z-index: 1; }
 .liquid-glass:hover:not(:disabled) {
   background:
-    radial-gradient(120% 100% at 28% 12%, rgba(255, 255, 255, 0.48) 0%, rgba(255, 255, 255, 0.12) 30%, transparent 54%),
-    radial-gradient(90% 80% at 78% 92%, rgba(0, 0, 0, 0.38) 0%, transparent 58%),
-    linear-gradient(165deg,
-      rgba(255, 255, 255, 0.2) 0%,
-      rgba(56, 60, 72, 0.6) 40%,
-      rgba(22, 24, 32, 0.75) 100%);
-  border-color: rgba(255, 255, 255, 0.22);
-  box-shadow:
-    0 1.5px 0 rgba(255, 255, 255, 0.58) inset,
-    0 -3px 10px rgba(0, 0, 0, 0.35) inset,
-    0 0 0 0.5px rgba(255, 255, 255, 0.1),
-    0 0 28px -6px rgba(140, 170, 255, 0.4),
-    0 12px 28px -12px rgba(0, 0, 0, 0.6);
+    radial-gradient(120% 100% at 28% 12%, var(--material-highlight), transparent 62%),
+    linear-gradient(165deg, color-mix(in srgb, var(--card) 65%, transparent), color-mix(in srgb, var(--surface-interact) 38%, transparent));
+  border-color: color-mix(in srgb, var(--material-edge) 70%, var(--ink-faint));
+  box-shadow: inset 0 1.5px 0 var(--material-highlight), var(--shadow-2);
 }
 .liquid-glass:hover:not(:disabled)::before {
   animation-duration: 2.4s;
@@ -1412,12 +1393,9 @@ html[data-skin="cosmic-latte"] .thought {
   opacity: 0;
 }
 .app.is-ui-busy .liquid-glass {
-  backdrop-filter: blur(10px) saturate(1.12);
-  -webkit-backdrop-filter: blur(10px) saturate(1.12);
-  box-shadow:
-    0 1.5px 0 rgba(255, 255, 255, 0.35) inset,
-    0 -2px 6px rgba(0, 0, 0, 0.35) inset,
-    0 6px 16px -10px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(min(var(--material-blur), 10px)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(min(var(--material-blur), 10px)) saturate(var(--material-saturation));
+  box-shadow: inset 0 1.5px 0 var(--material-edge), var(--shadow-1);
 }
 .app.is-ui-busy .composer-beam {
   filter: none;
@@ -1442,11 +1420,11 @@ html[data-skin="cosmic-latte"] .thought {
 .skill-slash-menu {
   position: fixed; z-index: 40; max-height: min(42vh, 320px); overflow: auto;
   padding: 8px; border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--sand-deep) 55%, rgba(255, 255, 255, 0.2));
+  border: 1px solid color-mix(in srgb, var(--sand-deep) 55%, var(--material-edge));
   background: color-mix(in srgb, var(--card) 92%, transparent);
   box-shadow: var(--shadow-2);
-  backdrop-filter: blur(14px) saturate(1.2);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
 }
 .skill-slash-hint {
   padding: 4px 8px 6px; font-size: var(--t-meta); color: var(--c-fg-mute);
@@ -1566,6 +1544,7 @@ html[data-skin="cosmic-latte"] .thought {
   padding: 10px 12px; color: var(--ink-mute); font-size: var(--t-body-sm);
 }
 .icon-btn {
+  display: inline-flex; align-items: center; justify-content: center; padding: 0;
   width: 30px; height: 30px; border: none; border-radius: var(--radius-md);
   background: none; color: var(--ink-soft); font-size: 18px; line-height: 1;
   cursor: pointer; transition: background var(--dur-fast) var(--ease-out);
@@ -1580,47 +1559,37 @@ html[data-skin="cosmic-latte"] .thought {
   align-items: center;
   justify-content: center;
 }
-.nav-icon-btn svg {
-  width: 22px;
-  height: 22px;
-  flex: none;
-}
+/* 图标尺寸由统一入口决定；按钮只负责命中区与对齐。 */
+.lumen-icon { display: inline-block; flex-shrink: 0; vertical-align: middle; }
 /* 发送/停止:液态玻璃圆钮 */
 .composer-btn {
   display: inline-flex; align-items: center; justify-content: center;
   width: 34px; height: 34px; flex: none; padding: 0;
   border-radius: 50%; cursor: pointer;
-  color: rgba(236, 238, 242, 0.92);
+  color: var(--ink);
 }
 .composer-btn:disabled { cursor: default; }
 .composer-btn-send:active:not(:disabled) { transform: scale(0.96); }
 .composer-btn-send:disabled {
-  color: rgba(220, 224, 230, 0.28);
+  color: var(--ink-faint);
 }
 /* 停止 = 与发送同一套 liquid-glass 壳;不另刷暖底,否则盖住色散边 */
 .composer-btn-stop {
-  color: rgba(236, 238, 242, 0.95);
+  color: var(--ink);
 }
 .composer-btn-stop:active { transform: scale(0.96); }
 /* 扫光相位与发送错开,避免同拍齐闪 */
 .composer-btn-stop.liquid-glass::before { animation-delay: -0.9s; }
-.stop-square {
-  width: 11px;
-  height: 11px;
-  background: currentColor;
-  border-radius: 2.5px;
-  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.12);
-}
 
 /* 待发送图片 chips 已由 conversation/workbench.css 承担。 */
-.active-doc-label { flex: none; color: rgba(138, 212, 176, 0.95); font-weight: var(--w-medium); }
+.active-doc-label { flex: none; color: var(--ember-soft); font-weight: var(--w-medium); }
 .active-doc-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .active-doc-clear {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 16px; height: 16px; border: none; border-radius: 50%; flex: none; padding: 0;
-  background: none; color: rgba(200, 206, 214, 0.55); cursor: pointer;
+  width: 20px; height: 20px; border: none; border-radius: 50%; flex: none; padding: 0;
+  background: none; color: var(--ink-mute); cursor: pointer;
 }
-.active-doc-clear:hover { background: rgba(255, 255, 255, 0.10); color: rgba(245, 246, 248, 0.95); }
+.active-doc-clear:hover { background: var(--sand); color: var(--ink); }
 
 /* 文件名截断：消息附件 chip 共享此规则。 */
 .file-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1651,8 +1620,8 @@ html[data-skin="cosmic-latte"] .thought {
   background: var(--card); border: 1px solid var(--sand-deep);
   border-radius: var(--radius-lg); box-shadow: var(--shadow-2);
   padding: var(--s-4);
-  backdrop-filter: blur(18px) saturate(1.2);
-  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
 }
 .rail-h {
   display: flex; align-items: center; gap: var(--s-2);
@@ -1673,11 +1642,8 @@ html[data-skin="cosmic-latte"] .thought {
   background: none; color: var(--ink-mute); cursor: pointer;
 }
 .rail-upload-shared:hover { background: var(--sand); color: var(--ink); }
-/* 工作目录文件夹图标:hover 卡片时前后层微动(owner 定;CSS 驱动,不引 framer) */
-.rail-h .folders-ic { flex: none; color: var(--ember); }
-.folders-front, .folders-back { transition: transform var(--dur-slow) var(--ease-out), opacity var(--dur-slow) var(--ease-out); }
-.rail-card:hover .folders-back { transform: translate(2px, -2px) scale(.92); opacity: 0; }
-.rail-card:hover .folders-front { transform: translate(-2px, 2px); }
+/* 工作目录标题与文件列表共用中性轮廓，不单独加彩色或路径动画。 */
+.rail-h > .lumen-icon:first-child { color: var(--ink-soft); }
 /* 工作目录文件图标(替代文字小框):柔和墨色,统一一档 */
 .ws-file-icon { flex: none; display: inline-flex; align-items: center; color: var(--ink-soft); }
 .ws-item:hover .ws-file-icon { color: var(--ink); }
@@ -1689,7 +1655,7 @@ html[data-skin="cosmic-latte"] .thought {
 .ws-tag { font: var(--w-medium) 10px/1 var(--font-mono); letter-spacing: .04em; padding: 5px 7px; border-radius: var(--radius-sm); border: 1px solid; flex: none; }
 .ws-tag-pdf { color: var(--ember); border-color: var(--ember-soft); background: var(--ember-tint); }
 .ws-tag-md { color: var(--ink-soft); border-color: var(--sand-deep); background: var(--vellum); }
-.ws-tag-html { color: var(--ember); border-color: rgba(47, 107, 78, 0.4); }
+.ws-tag-html { color: var(--ember); border-color: var(--ember-soft); }
 /* ---- Reader ---- */
 /* 阅读器分屏 = 浮卡 */
 .reader {
@@ -1702,8 +1668,8 @@ html[data-skin="cosmic-latte"] .thought {
   border: 1px solid var(--sand-deep);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-2);
-  backdrop-filter: blur(20px) saturate(1.2);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
   overflow: hidden;
 }
 .reader-head { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) var(--s-5); border-bottom: 1px solid var(--sand); }
@@ -1757,7 +1723,7 @@ html[data-skin="cosmic-latte"] .thought {
   color: var(--ink-mute);
   letter-spacing: var(--ls-tight);
 }
-.thought-toggle { color: var(--ink-mute); font-size: var(--t-body-sm); }
+.thought-toggle { display: inline-flex; align-items: center; color: var(--ink-mute); flex: none; }
 .thought-body { padding: var(--s-2) 0 var(--s-2) var(--s-4); border-left: 1px solid var(--sand); margin-left: 2px; }
 .thought-text {
   margin: 0; white-space: pre-wrap; word-break: break-word;
@@ -1772,7 +1738,7 @@ html[data-skin="cosmic-latte"] .thought {
 .proc-label { flex: 1; }
 .proc-running .proc-label { color: var(--ink-soft); }
 .proc-done .proc-label { color: var(--ink-mute); }
-.proc-toggle { color: var(--ink-mute); font-size: var(--t-body-sm); flex: none; }
+.proc-toggle { display: inline-flex; align-items: center; gap: var(--s-1); color: var(--ink-mute); font-size: var(--t-body-sm); flex: none; }
 .proc-steps { list-style: none; margin: var(--s-1) 0 0; padding: var(--s-2) 0 var(--s-2) var(--s-5); display: flex; flex-direction: column; gap: 2px; }
 .proc-step { display: flex; align-items: center; gap: var(--s-2); min-height: 28px; color: var(--ink-soft); font-size: var(--t-body-sm); }
 .proc-step-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--sand-deep); flex: none; }
@@ -1876,7 +1842,7 @@ html[data-skin="cosmic-latte"] .thought {
 .md-body p { margin: 0.7em 0; }
 .md-body ul, .md-body ol { margin: 0.7em 0; padding-left: 1.5em; }
 .md-body li { margin: 0.3em 0; }
-.md-body a { color: var(--indigo); text-decoration: none; border-bottom: 1px solid rgba(58, 94, 112, 0.35); }
+.md-body a { color: var(--indigo); text-decoration: none; border-bottom: 1px solid var(--indigo-tint); }
 .md-body a:hover { border-bottom-color: var(--indigo); }
 
 /* 答末来源:标题列表,不是裸 URL 段 */
@@ -2103,7 +2069,7 @@ html[data-skin="cosmic-latte"] .thought {
 .textLayer { position: absolute; inset: 0; overflow: clip; opacity: 1; line-height: 1; text-size-adjust: none; forced-color-adjust: none; transform-origin: 0 0; z-index: 1; }
 .textLayer :is(span, br) { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0 0; }
 .textLayer span.markedContent { top: 0; height: 0; }
-.textLayer ::selection { background: rgba(47, 107, 78, 0.25); color: transparent; }
+.textLayer ::selection { background: var(--ember-tint); color: transparent; }
 .textLayer br::selection { background: transparent; }
 /* pdf.js 渲染时往 body 追加的字体测量画布:官方 pdf_viewer.css 用这条藏掉;精简移植漏拷会给 body
    多出一个行盒(约 21px),整页可滚 → 上面那条壳级锁滚是保险,这条是根治 */
@@ -2119,7 +2085,7 @@ html[data-skin="cosmic-latte"] .thought {
   flex-direction: column;
   overflow: hidden;
 }
-.ws-tag-html { color: var(--ember); border-color: rgba(47, 107, 78, 0.4); }
+.ws-tag-html { color: var(--ember); border-color: var(--ember-soft); }
 
 .assistant-content { display: flex; flex-direction: column; gap: var(--s-3); }
 .widget-frame {
@@ -2228,8 +2194,8 @@ html[data-skin="cosmic-latte"] .thought {
 .pref-skin-card .pref-skin-swatch { position: relative; }
 .pref-skin-dot {
   width: 10px; height: 10px; border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--material-edge);
+  box-shadow: var(--shadow-1);
 }
 .pref-skin-meta {
   display: flex; flex-direction: column; gap: 2px;
@@ -2247,8 +2213,8 @@ html[data-skin="cosmic-latte"] .thought {
   position: absolute; top: 10px; right: 10px; z-index: 2;
   width: 24px; height: 24px; border-radius: 999px;
   display: grid; place-items: center;
-  background: var(--ember); color: #0B0C10; font-size: 13px; font-weight: 700;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  background: var(--ember); color: var(--ink-on-accent); font-size: 13px; font-weight: 700;
+  box-shadow: var(--shadow-1);
 }
 .pref-slider {
   display: flex; align-items: center; gap: var(--s-3);
@@ -2258,3 +2224,34 @@ html[data-skin="cosmic-latte"] .thought {
   flex: none; min-width: 3.5em; font-size: var(--t-caption); color: var(--ink-mute);
   font-variant-numeric: tabular-nums;
 }
+
+/* ---- 浮层与材质边界：正文不参与滤镜，纸面保留实色和静态层次 ---- */
+.mw-dialog, .ext-link-modal {
+  backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+  -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
+}
+html[data-material="paper"] :is(.titlebar, .sidebar, .settings-modal, .glass-card, .mpc-act, .create-proj-card, .ask-user-card, .jump-latest, .composer-card, .liquid-glass, .skill-slash-menu, .rail-card, .reader, .mw-dialog, .ext-link-modal) {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+html[data-material="paper"] :is(.titlebar, .sidebar) { background: var(--surface-base); }
+html[data-material="paper"] .settings-nav { background: var(--surface-recessed); }
+html[data-material="paper"] .jump-latest { background: var(--surface-control); }
+html[data-material="paper"] :is(.settings-modal, .glass-card, .create-proj-card, .ask-user-card, .composer-card, .skill-slash-menu, .rail-card, .reader, .mw-dialog, .ext-link-modal) { background: var(--surface-elevated); }
+html[data-material="paper"] .liquid-glass {
+  border-color: var(--sand-deep);
+  background: var(--surface-control);
+  box-shadow: var(--shadow-1);
+}
+html[data-material="paper"] .liquid-glass:hover:not(:disabled) {
+  background: var(--surface-interact);
+  box-shadow: var(--shadow-1);
+}
+html[data-material="paper"] :is(.glass-card, .liquid-glass, .composer-dock)::before,
+html[data-material="paper"] :is(.glass-card, .liquid-glass, .glass-beam)::after,
+html[data-material="paper"] .composer-beam[data-beam]::before,
+html[data-material="paper"] .composer-beam[data-beam]::after,
+html[data-material="paper"] .composer-beam[data-beam] [data-beam-bloom] {
+  display: none;
+}
+html[data-material="paper"] .composer-beam[data-beam] { animation: none; }

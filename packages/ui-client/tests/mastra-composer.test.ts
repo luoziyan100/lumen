@@ -1,6 +1,6 @@
 /**
- * [INPUT]: 真实 Composer/Welcome与React DOM、HTTP/Mastra 服务及确定性模型响应
- * [OUTPUT]: 草稿/提交竞赛恢复、欢迎态延迟建会话与跨项目隔离、斜杠技能、输入滚动及 Conversation/Specialists 轮询时序的行为证据
+ * [INPUT]: 真实 WorkspaceApp/Composer/Welcome与React DOM、HTTP/Mastra 服务及确定性模型响应
+ * [OUTPUT]: 新对话入口/恢复旧空选择的延迟建会话、历史切换草稿保留、提交竞赛、斜杠技能与会话轮询时序的行为证据
  * [POS]: 组件级 Mastra 客户端回归；控制上传/提交与轮询网络时序，实际组件和服务处理消息；不宣称覆盖 WebKit
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -21,18 +21,21 @@ import { SessionFeed, messageText } from '../src/mastra/data/feed.ts'
 import { MASTRA_COPY as C } from '../src/copy/mastraCopy.ts'
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/', pretendToBeVisual: true })
-for (const name of ['window', 'document', 'HTMLElement', 'Element', 'Node', 'Text', 'DocumentFragment', 'MutationObserver', 'localStorage']) {
+for (const name of ['window', 'document', 'HTMLElement', 'HTMLInputElement', 'Element', 'Node', 'NodeFilter', 'Text', 'DocumentFragment', 'MutationObserver', 'localStorage', 'getComputedStyle']) {
   Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name as keyof typeof dom.window] })
 }
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true, requestAnimationFrame: dom.window.requestAnimationFrame.bind(dom.window), cancelAnimationFrame: dom.window.cancelAnimationFrame.bind(dom.window) })
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true, requestAnimationFrame: dom.window.requestAnimationFrame.bind(dom.window), cancelAnimationFrame: dom.window.cancelAnimationFrame.bind(dom.window), ResizeObserver: class { observe() {} unobserve() {} disconnect() {} } })
 Object.defineProperty(window, 'matchMedia', { configurable: true, value: () => ({ matches: true, addEventListener() {}, removeEventListener() {} }) })
 after(() => dom.window.close())
 register('./helpers/tsx-loader.mjs', import.meta.url)
+// ---- Node 沿用文件回归的 Vite 资源入口；组件与服务保持真实 ----
+register('data:text/javascript,' + encodeURIComponent(`export async function resolve(specifier, context, next) { if (specifier.endsWith('?url')) return { url: 'data:text/javascript,export default "test-worker-url"', shortCircuit: true }; return next(specifier, context) }`), import.meta.url)
 const { createRoot } = await import('react-dom/client')
 const { Specialists } = await import('../src/mastra/views/conversation/Specialists.tsx')
 const { Conversation } = await import('../src/mastra/views/Conversation.tsx')
 const { Composer } = await import('../src/mastra/views/conversation/Composer.tsx')
 const { Welcome } = await import('../src/mastra/views/conversation/welcome/Welcome.tsx')
+const { WorkspaceApp } = await import('../src/mastra/views/WorkspaceApp.tsx')
 
 function gate() {
   let resolve!: () => void
@@ -62,9 +65,10 @@ async function environment(prefix: string) {
   const fixture = fixtureProvider(() => textReply('回复完成'))
   const service = await createHttpService({ dataRoot, token, model: { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixture.fetch } })
   const network: { before?: (request: Request) => Promise<Response | void> } = {}
-  const requests: Array<{ url: URL; method: string }> = []
+  const requests: Array<{ url: URL; method: string; identity?: Identity }> = []
   const server = serve({ hostname: '127.0.0.1', port: 0, fetch: async request => {
-    requests.push({ url: new URL(request.url), method: request.method })
+    const url = new URL(request.url), identity = request.method === 'POST' && url.pathname === '/lumen/sessions' ? await request.clone().json() as Identity : undefined
+    requests.push({ url, method: request.method, identity })
     return await network.before?.(request.clone()) ?? service.app.fetch(request)
   } })
   if (!server.listening) await new Promise<void>(resolve => server.once('listening', resolve))
@@ -86,6 +90,17 @@ async function environment(prefix: string) {
     },
     async welcome(projectId: string, onSession: (identity: Identity) => void) {
       await act(async () => root.render(createElement(Welcome, { key: projectId, api, projectId, onSession, onSettings() {} })))
+    },
+    async workspace(saved: Identity | null = null) {
+      localStorage.setItem('lumen.mastra.selection', JSON.stringify(saved))
+      if (!dom.window.HTMLElement.prototype.scrollTo) Object.defineProperty(dom.window.HTMLElement.prototype, 'scrollTo', {
+        configurable: true, value(this: HTMLElement, options: ScrollToOptions) { this.scrollTop = Number(options.top ?? 0) },
+      })
+      await act(async () => root.render(createElement(StrictMode, {}, createElement(WorkspaceApp, { connection: api.connection }))))
+    },
+    async click(name: string) {
+      const button = [...element.querySelectorAll<HTMLButtonElement>('button')].find(item => !item.disabled && !item.closest('[aria-hidden="true"], [inert]') && (item.textContent?.trim() === name || item.getAttribute('aria-label') === name))
+      assert.ok(button, `未找到按钮：${name}`); await act(async () => button.click())
     },
     async specialists(identity: Identity, idle: boolean) {
       await act(async () => root.render(createElement(Specialists, { api, identity, idle, onActivity() {} })))
@@ -470,4 +485,104 @@ test('不同本地服务的同名项目欢迎草稿与附件隔离', async () =>
     assert.ok(!second.element.textContent!.includes('first-service.txt'))
     assert.equal(first.element.querySelector('textarea')!.value, '只属于第一个服务')
   } finally { await first.close(); await second.close() }
+})
+
+test('工作台新对话与项目加号只回欢迎态，首次重复提交只建一个目标项目会话并进入导航', { timeout: 30000 }, async () => {
+  const env = await environment('workspace-new'), started = gate(), release = gate()
+  const saved = () => JSON.parse(localStorage.getItem('lumen.mastra.selection') ?? 'null') as Identity | null
+  const creations = () => env.requests.filter(request => request.method === 'POST' && (request.url.pathname === '/lumen/sessions' || /^\/lumen\/projects\/[^/]+\/sessions$/.test(request.url.pathname)))
+  let target: Identity | null = null
+  try {
+    const threadId = `${env.a.projectId}:${env.a.taskId}`
+    await env.memory.saveMessages({ messages: [{ id: 'workspace-history', threadId, resourceId: threadId, role: 'user', createdAt: new Date(), content: { format: 2, parts: [{ type: 'text', text: '已有历史研究内容' }] } }] })
+    await env.api.updateSession(env.a, { title: '已有历史研究' })
+    const initialThreads = (await env.memory.listThreads({ perPage: false })).threads.map(thread => thread.id).sort()
+    env.requests.length = 0
+    await env.workspace(env.a)
+    await until(() => env.element.querySelector('.mw-message')?.textContent?.includes('已有历史研究内容') ?? false, '工作台未恢复已有消息会话')
+    await until(() => env.element.querySelector('aside')?.textContent?.includes('已有历史研究') ?? false, '历史会话未进入导航')
+    assert.deepEqual(saved(), env.a)
+    assert.ok(![...env.element.querySelectorAll('aside .sb-item')].some(item => item.textContent === '新研究'), '旧默认空会话仍出现在导航')
+    await env.click('搜索对话')
+    await until(() => [...document.querySelectorAll('[role=option]')].some(item => item.textContent?.includes('已有历史研究')), '历史会话未出现在搜索')
+    assert.ok(![...document.querySelectorAll('[role=option]')].some(item => item.textContent === '新研究'), '旧默认空会话仍出现在搜索')
+    await act(async () => [...document.querySelectorAll<HTMLElement>('[role=option]')].find(item => item.textContent?.includes('已有历史研究'))!.click())
+    env.requests.length = 0
+    for (let click = 0; click < 3; click++) {
+      await env.click('新对话'); assert.equal(saved(), null)
+    }
+    for (let click = 0; click < 2; click++) {
+      await env.click(`在${env.b.projectId}新建对话`); assert.equal(saved(), null)
+    }
+    assert.equal(env.element.querySelector('.sb-folder-main[aria-pressed="true"]')?.textContent, env.b.projectId)
+    await env.key('Enter'); await env.text('   '); await env.key('Enter')
+    await env.text('只在目标项目首次发送'); await env.attach([new File(['evidence'], 'first-send.txt', { type: 'text/plain' })])
+    assert.equal(saved(), null)
+    assert.equal(creations().length, 0, '浏览新对话、输入或附件提前发出了创建请求')
+    assert.deepEqual((await env.memory.listThreads({ perPage: false })).threads.map(thread => thread.id).sort(), initialThreads)
+    env.network.before = async request => {
+      if (request.method === 'POST' && new URL(request.url).pathname === '/lumen/sessions') { target = await request.json() as Identity; started.resolve(); await release.promise }
+    }
+    await env.submit(2); await started.promise
+    assert.equal(creations().length, 1, '创建在途时重复提交建了多个会话')
+    assert.equal(target!.projectId, env.b.projectId); assert.equal(saved(), null)
+    release.resolve()
+    await until(() => saved()?.taskId === target?.taskId, '首次发送后未选中已创建会话')
+    assert.deepEqual(saved(), target)
+    await until(() => env.element.querySelector('nav[aria-label="最近会话"] .sb-item[aria-current="page"]') !== null, '首次发送会话未进入导航')
+    const messages = await env.answer(target!)
+    assert.match(messages, /只在目标项目首次发送/); assert.match(messages, /first-send\.txt/)
+    assert.ok(creations().every(request => request.identity?.projectId === target!.projectId && request.identity.taskId === target!.taskId), '首次发送绑定了额外会话身份')
+    assert.equal(env.requests.filter(request => request.method === 'POST' && /^\/lumen\/projects\/[^/]+\/sessions$/.test(request.url.pathname)).length, 0)
+    assert.equal(env.requests.filter(request => request.method === 'POST' && request.url.pathname.endsWith('/messages')).length, 1)
+    const threads = (await env.memory.listThreads({ perPage: false })).threads
+    assert.equal(threads.length, initialThreads.length + 1)
+    assert.ok(threads.some(thread => thread.id === `${env.b.projectId}:${target!.taskId}`))
+    assert.ok((await env.api.sessions(env.b.projectId)).items.find(item => item.taskId === target!.taskId)?.lastMessageId)
+  } finally { release.resolve(); await env.close(); localStorage.removeItem('lumen.mastra.selection') }
+})
+
+test('工作台切历史再回新对话保留欢迎草稿和附件，重复新入口不会重新分配草稿', { timeout: 25000 }, async () => {
+  const env = await environment('workspace-draft')
+  try {
+    const threadId = `${env.a.projectId}:${env.a.taskId}`
+    await env.memory.saveMessages({ messages: [{ id: 'draft-history', threadId, resourceId: threadId, role: 'user', createdAt: new Date(), content: { format: 2, parts: [{ type: 'text', text: '可重新打开的历史内容' }] } }] })
+    await env.api.updateSession(env.a, { title: '草稿切换历史' })
+    env.requests.length = 0
+    await env.workspace(env.a)
+    await until(() => env.element.querySelector('.mw-message')?.textContent?.includes('可重新打开的历史内容') ?? false, '历史未恢复')
+    await until(() => env.element.querySelector('aside')?.textContent?.includes('草稿切换历史') ?? false, '历史未进入导航')
+    env.requests.length = 0
+    await env.click('新对话'); await env.text('尚未发送的欢迎草稿')
+    await env.attach([new File(['draft'], 'unsent.txt', { type: 'text/plain' })])
+    await env.click('草稿切换历史')
+    await until(() => env.element.querySelector('.mw-message')?.textContent?.includes('可重新打开的历史内容') ?? false, '点击历史未打开原会话')
+    assert.equal(env.element.querySelector('textarea')!.value, '')
+    assert.equal(env.element.querySelectorAll('.mw-attachment').length, 0)
+    await env.text('历史会话独立草稿'); await env.click('新对话')
+    assert.equal(env.element.querySelector('textarea')!.value, '尚未发送的欢迎草稿')
+    assert.ok(env.element.querySelector('.mw-attachment')?.textContent?.includes('unsent.txt'))
+    await env.click(`在${env.a.projectId}新建对话`)
+    assert.equal(env.element.querySelector('textarea')!.value, '尚未发送的欢迎草稿')
+    assert.ok(env.element.querySelector('.mw-attachment')?.textContent?.includes('unsent.txt'))
+    await env.click('草稿切换历史')
+    assert.equal(env.element.querySelector('textarea')!.value, '历史会话独立草稿')
+    assert.equal(env.requests.filter(request => request.method === 'POST' && /^\/lumen\/projects\/[^/]+\/sessions$/.test(request.url.pathname)).length, 0)
+    assert.ok(env.requests.filter(request => request.method === 'POST' && request.url.pathname === '/lumen/sessions').every(request => request.identity?.projectId === env.a.projectId && request.identity.taskId === env.a.taskId), '历史往返绑定了未发送的欢迎身份')
+    assert.equal((await env.memory.listThreads({ perPage: false })).threads.length, 2)
+  } finally { await env.close(); localStorage.removeItem('lumen.mastra.selection') }
+})
+
+test('工作台恢复旧默认空选择后回欢迎态，保留原线程且不会自动创建', { timeout: 20000 }, async () => {
+  const env = await environment('workspace-empty')
+  try {
+    env.requests.length = 0
+    await env.workspace(env.b)
+    await until(() => env.element.querySelector('.mw-center.chat-empty textarea') !== null && localStorage.getItem('lumen.mastra.selection') === 'null', '旧默认空选择未回到欢迎输入')
+    assert.equal(env.element.querySelector('.sb-folder-main[aria-pressed="true"]')?.textContent, env.b.projectId)
+    assert.equal(env.element.querySelectorAll('aside .sb-item').length, 0)
+    assert.equal((await env.memory.listThreads({ perPage: false })).threads.length, 2)
+    assert.equal((await env.api.sessions(env.b.projectId)).items.find(item => item.taskId === env.b.taskId)?.lastMessageId, null)
+    assert.equal(env.requests.filter(request => request.method === 'POST' && (request.url.pathname === '/lumen/sessions' || /^\/lumen\/projects\/[^/]+\/sessions$/.test(request.url.pathname))).length, 0)
+  } finally { await env.close(); localStorage.removeItem('lumen.mastra.selection') }
 })

@@ -1,5 +1,5 @@
 /**
- * [INPUT]: 当前任务技能 API、欢迎态按需准备、会话草稿与输入卡锚点
+ * [INPUT]: 当前任务技能 API、欢迎态按需准备、会话草稿与输入卡锚点、统一技能图标入口
  * [OUTPUT]: useSkillSlash：原斜杠过滤、键盘选择及技能正文插入
  * [POS]: 技能仅显式加入原会话草稿；迟到激活不覆盖新输入，不提交模型请求
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -73,11 +73,11 @@ export function useSkillSlash({ api, identity, text, anchor, onManage, prepareSe
     {error && <p role="alert">{error}</p>}
     <ul className="skill-slash-list" role="listbox" aria-label="研究技能">
       {rows.map((skill, index) => <li key={`${skill.layer}:${skill.name}`}><button type="button" role="option" aria-selected={index === highlight} disabled={busy} className={`skill-slash-item${index === highlight ? ' is-active' : ''}`} onMouseEnter={() => setHighlight(index)} onClick={() => void pick(skill)}>
-        <SkillIcon name={skill.name} size={16} /><span className="skill-slash-name">{skill.name}</span><span className="skill-slash-desc">{skill.description}</span>
+        <SkillIcon name={skill.name} /><span className="skill-slash-name">{skill.name}</span><span className="skill-slash-desc">{skill.description}</span>
       </button></li>)}
       {!rows.length && <li className="skill-slash-empty">{loading ? '正在读取技能…' : '没有匹配的技能'}</li>}
     </ul><div className="skill-slash-sep" />
-    <button type="button" className="skill-slash-item skill-slash-manage" onClick={() => { store.setText(''); onManage() }}><ManageSkillsIcon size={16} /><span className="skill-slash-name">管理技能</span></button>
+    <button type="button" className="skill-slash-item skill-slash-manage" onClick={() => { store.setText(''); onManage() }}><ManageSkillsIcon /><span className="skill-slash-name">管理技能</span></button>
   </div>, document.body) : null
   return { onKeyDown, menu }
 }

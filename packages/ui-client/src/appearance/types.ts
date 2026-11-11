@@ -2,10 +2,11 @@
  * [INPUT]: 外观偏好合同 doc/appearance-skin.md
  * [OUTPUT]: AppearanceState / SkinDefinition / ResolvedTheme / 白名单
  * [POS]: appearance 层类型真源;resolve/apply/store/registry 共用
- * [PROTOCOL]: 变更时同步 doc/appearance-skin.md §6
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
 export type AppearanceMode = 'dark' | 'light' | 'system'
+export type SkinMaterial = 'glass' | 'paper'
 
 export interface AppearanceState {
   version: 1
@@ -51,6 +52,7 @@ export const APPEARANCE_TOKEN_WHITELIST = [
   '--ink-soft',
   '--ink-mute',
   '--ink-faint',
+  '--ink-on-accent',
   // 强调原语
   '--ember',
   '--ember-soft',
@@ -73,6 +75,15 @@ export const APPEARANCE_TOKEN_WHITELIST = [
   '--aurora-a',
   '--aurora-b',
   '--aurora-c',
+  // 材质与层次
+  '--shadow-1',
+  '--shadow-2',
+  '--shadow-3',
+  '--material-blur',
+  '--material-saturation',
+  '--material-highlight',
+  '--material-edge',
+  '--skin-overlay-rgb',
   // 代码原语（字面量）
   '--code-string',
   '--code-type',
@@ -104,17 +115,21 @@ export interface SkinDefinition {
   /** 卡片底部强调色点（2–3 个 hex） */
   accents?: string[]
   preferredScheme: 'dark' | 'light'
+  material?: SkinMaterial
   backgroundImage: string | null
+  /** 推荐明暗模式的完整配色，另一模式使用独立补丁，避免深浅文字混用。 */
   tokens: Partial<Record<AppearanceTokenName, string>>
+  alternateTokens?: Partial<Record<AppearanceTokenName, string>>
   effects?: { overlay?: number; blurPx?: number; aurora?: boolean }
 }
 
 export interface ResolvedTheme {
-  /** Phase A 恒为 dark（已应用 token 的 scheme） */
+  /** 与实际 token 基线及原生控件一致的明暗模式。 */
   colorScheme: 'dark' | 'light'
   /** 用户意图（system 已折叠）供 data-appearance */
   appearanceIntent: 'dark' | 'light'
   skinId: string
+  material: SkinMaterial
   tokens: Record<string, string>
   backgroundImage: string | null
   overlay: number

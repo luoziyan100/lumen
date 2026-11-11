@@ -1,5 +1,5 @@
 /**
- * [INPUT]: pdfjs-dist 与文件 API 已认证的 PDF Blob
+ * [INPUT]: pdfjs-dist、文件 API 已认证的 PDF Blob 与统一 icons 缩放图标
  * [OUTPUT]: PdfViewer：连续页面、文本层、缩放、限定阅读容器的页码定位与加载错误
  * [POS]: 旧阅读器与新工作台复用的 PDF 展示器，不处理后端协议
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -17,6 +17,7 @@ import * as pdfjs from 'pdfjs-dist'
 import { TextLayer } from 'pdfjs-dist'
 import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist'
+import { ZoomInIcon, ZoomOutIcon } from './icons'
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerSrc
 
@@ -81,9 +82,9 @@ export function PdfViewer({ blob, page }: { blob: Blob; page?: number }) {
   return (
     <div className="pdf-scroll" ref={scrollRef}>
       <div className="pdf-toolbar" role="toolbar" aria-label="缩放">
-        <button className="pdf-zoom-btn" onClick={() => zoom(-STEP)} aria-label="缩小" disabled={scale <= MIN_SCALE}>−</button>
+        <button className="pdf-zoom-btn" onClick={() => zoom(-STEP)} aria-label="缩小" disabled={scale <= MIN_SCALE}><ZoomOutIcon /></button>
         <span className="pdf-zoom-val" aria-live="polite">{Math.round(scale * 100)}%</span>
-        <button className="pdf-zoom-btn" onClick={() => zoom(STEP)} aria-label="放大" disabled={scale >= MAX_SCALE}>+</button>
+        <button className="pdf-zoom-btn" onClick={() => zoom(STEP)} aria-label="放大" disabled={scale >= MAX_SCALE}><ZoomInIcon /></button>
       </div>
       <div className="pdf-pages">
         {Array.from({ length: doc.numPages }, (_, i) => (

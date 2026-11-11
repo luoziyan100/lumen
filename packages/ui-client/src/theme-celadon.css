@@ -1,9 +1,8 @@
 /**
- * Kumo 青瓷主题桥 —— 引用 Lumen 语义 / 实色伴生 token
- * doc/appearance-skin.md D7/D15：禁止字面量烘焙主路径;Solid 槽走 --surface-*
- *
- * 挂载:index.html <html data-theme="celadon">（恒驻）
- * 校验:npm run check:theme
+ * [INPUT]: tokens.css 与 appearance 提供的语义颜色、实色伴生表面和强调色上文字
+ * [OUTPUT]: Kumo 颜色与 Select 图标尺寸合同；控件、弹窗与徽章同步宿主明暗配色
+ * [POS]: Lumen → Kumo 单向桥；celadon 锚恒驻，Solid 槽使用实色表面，阴影与徽章使用语义色
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
 @layer base {
@@ -41,25 +40,25 @@
     --color-kumo-info:         var(--indigo);
     --color-kumo-info-tint:    var(--indigo-tint);
 
-    /* ---- 遮罩与阴影 Tint / 字面量(无 Lumen 对等)---- */
+    /* ---- 遮罩与阴影 Tint ---- */
     --color-kumo-overlay:     var(--scrim);
-    --color-kumo-shadow-drop: rgba(0, 0, 0, 0.45);
-    --color-kumo-shadow-edge: rgba(0, 0, 0, 0.55);
-    --color-kumo-tip-shadow:  rgba(0, 0, 0, 0.50);
+    --color-kumo-shadow-drop: var(--scrim);
+    --color-kumo-shadow-edge: var(--scrim);
+    --color-kumo-tip-shadow:  var(--scrim);
     --color-kumo-tip-stroke:  var(--sand-deep);
 
     /* ---- 横幅 ---- */
     --color-kumo-banner-info:    var(--indigo-tint);
     --color-kumo-banner-warning: var(--warning-bg);
 
-    /* ---- 徽章 literalAllowlist（无对应 Lumen 原语）---- */
-    --color-kumo-badge-blue:     #223440;
-    --color-kumo-badge-green:    #21382A;
-    --color-kumo-badge-red:      #3D231C;
-    --color-kumo-badge-orange:   #3A2F17;
-    --color-kumo-badge-purple:   #2E2838;
-    --color-kumo-badge-teal:     #1F3733;
-    --color-kumo-badge-neutral:  #2A303A;
+    /* ---- 徽章：语义 Tint 随宿主明暗变化 ---- */
+    --color-kumo-badge-blue:     var(--indigo-tint);
+    --color-kumo-badge-green:    var(--moss-tint);
+    --color-kumo-badge-red:      var(--danger-bg);
+    --color-kumo-badge-orange:   var(--warning-bg);
+    --color-kumo-badge-purple:   var(--ember-tint);
+    --color-kumo-badge-teal:     var(--moss-tint);
+    --color-kumo-badge-neutral:  var(--surface-fill);
     --color-kumo-badge-inverted: var(--ink);
 
     /* ---- 文字 Ink ---- */
@@ -68,7 +67,7 @@
     --text-color-kumo-subtle:      var(--ink-mute);
     --text-color-kumo-placeholder: var(--ink-faint);
     --text-color-kumo-inactive:    var(--ink-faint);
-    --text-color-kumo-inverse:     var(--surface-canvas);
+    --text-color-kumo-inverse:     var(--ink-on-accent);
     --text-color-kumo-brand:       var(--ember-soft);
     --text-color-kumo-link:        var(--indigo);
     --text-color-kumo-info:        var(--indigo);
@@ -81,4 +80,11 @@
     --text-color-kumo-badge-orange-subtle:  var(--warning);
     --text-color-kumo-badge-teal-subtle:    var(--moss);
   }
+}
+
+/* ---- Kumo 内置箭头/勾选与 Lumen 行内档对齐，不改变控件命中区 ---- */
+[data-theme="celadon"] [data-kumo-component="Select"]:is([data-kumo-part="trigger"], [data-kumo-part="option"]) svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }

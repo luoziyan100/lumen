@@ -1,5 +1,5 @@
 /**
- * [INPUT]: Tauri 窗口、文件/完整技能选择、受控系统打开、外链、widget脚本与Mastra服务连接
+ * [INPUT]: Tauri 窗口、外观明暗、文件/完整技能选择、受控系统打开、外链、widget脚本与Mastra服务连接
  * [OUTPUT]: 唯一桌面窗口和显式原生命令，不持有 Agent 服务进程
  * [POS]: 原生薄壳；研究生命周期归 launchd/Mastra，窗口只负责发现、展示和用户文件动作
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -20,6 +20,13 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 struct WidgetScripts {
     map: Mutex<HashMap<String, String>>,
     seq: AtomicU64,
+}
+
+// --- 应用窗口沿用外观模式，不修改系统全局主题 ---
+#[tauri::command]
+fn set_window_theme(window: tauri::WebviewWindow, dark: bool) -> Result<(), String> {
+    let theme = if dark { tauri::Theme::Dark } else { tauri::Theme::Light };
+    window.set_theme(Some(theme)).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -98,7 +105,7 @@ fn main() {
         .manage(mastra::ServiceConnection::from_process())
         .manage(WidgetScripts { map: Mutex::new(HashMap::new()), seq: AtomicU64::new(1) })
         .invoke_handler(tauri::generate_handler![
-            pick_folder, open_external_url, widget_put_script,
+            pick_folder, open_external_url, widget_put_script, set_window_theme,
             mastra::refresh_mastra_connection, mastra::save_diagnostic_file, mastra::save_workspace_file,
             files::open_workspace_file, skills::pick_skill_package
         ])

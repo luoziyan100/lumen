@@ -1,8 +1,8 @@
 /**
  * [INPUT]: 宿主 documentElement 的 computed style / color-scheme
  * [OUTPUT]: hostChromeIsDark;collectThemeVars —— widget 指南 CSS 变量
- * [POS]: widget/ 主题桥;与 receiver 沙箱壳分离,便于 Node 单测
- * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
+ * [POS]: widget 主题桥；暗壳固定浅色文档，浅壳镜像深墨与实色伴生，内容岛不继承玻璃透明度
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
 /** 解析 css 颜色通道 0–255;失败返回 null */
@@ -57,7 +57,7 @@ export const LIGHT_DOC_VARS: Record<string, string> = {
 /**
  * widget 主题变量。
  * 暗壳(玻璃)或未知壳:永远浅档文档色——agent 常硬编码白底/彩钮,灌玻璃浅墨会「只剩字」。
- * 浅壳暖纸:仍可镜像宿主 token。
+ * 浅壳:镜像宿主深墨与实色表面，透明玻璃只留在工作台壳层。
  */
 export function collectThemeVars(el: HTMLElement | null): Record<string, string> {
   const fonts = (() => {
@@ -87,9 +87,9 @@ export function collectThemeVars(el: HTMLElement | null): Record<string, string>
   const cs = getComputedStyle(el)
   const pick = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback
   return {
-    '--color-background-primary': pick('--paper-solid', '#fffeff'),
-    '--color-background-secondary': pick('--card', '#ffffff'),
-    '--color-background-tertiary': pick('--paper-deep', '#f4f2ec'),
+    '--color-background-primary': pick('--surface-elevated', '#fffeff'),
+    '--color-background-secondary': pick('--surface-base', '#ffffff'),
+    '--color-background-tertiary': pick('--surface-recessed', '#f4f2ec'),
     '--color-text-primary': pick('--ink', '#211f1c'),
     '--color-text-secondary': pick('--ink-soft', 'rgba(33,31,28,0.82)'),
     '--color-text-tertiary': pick('--ink-mute', 'rgba(33,31,28,0.56)'),

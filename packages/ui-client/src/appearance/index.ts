@@ -2,6 +2,7 @@
  * [INPUT]: appearance 子模块
  * [OUTPUT]: 公共导出 + bootstrapAppearance / useAppearance
  * [POS]: ui-client 外观入口
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
 export type {
@@ -10,6 +11,7 @@ export type {
   AppearanceTokenName,
   ResolvedTheme,
   SkinDefinition,
+  SkinMaterial,
 } from './types.ts'
 export {
   APPEARANCE_TOKEN_WHITELIST,
@@ -18,7 +20,7 @@ export {
   TOKEN_ALIASES,
 } from './types.ts'
 export { listSkins, getSkin, SKIN_REGISTRY, coerceSkinId, SKIN_DEFAULT } from './registry.ts'
-export { resolveTheme, filterWhitelist, DARK_BASELINE } from './resolve.ts'
+export { resolveTheme, filterWhitelist, DARK_BASELINE, LIGHT_BASELINE } from './resolve.ts'
 export { applyTheme } from './apply.ts'
 export { loadAppearance, saveAppearance, normalizeAppearance, APPEARANCE_STORAGE_KEY } from './store.ts'
 export { resolveSystemScheme, subscribeSystemScheme } from './systemMode.ts'

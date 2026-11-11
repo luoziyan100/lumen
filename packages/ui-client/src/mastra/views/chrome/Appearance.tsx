@@ -1,11 +1,12 @@
 /**
- * [INPUT]: AppearanceState + onChange
- * [OUTPUT]: PreferencePane —— 必须单选一套皮肤;预览渐变 + 强调色点;点选同步生效
+ * [INPUT]: AppearanceState + onChange、统一 Phosphor 勾选图标
+ * [OUTPUT]: PreferencePane：整窗皮肤、真实明暗及背景效果选择；点选皮肤同步推荐模式与材质
  * [POS]: Mastra 设置的外观页；复用迁移前皮肤控件，偏好仅保存在本机
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import type { AppearanceMode, AppearanceState, SkinDefinition } from '../../../appearance'
 import { coerceSkinId, listSkins } from '../../../appearance'
+import { CheckIcon, ICON_SM } from '../../../components/icons'
 
 const MODE_ITEMS: { id: AppearanceMode; label: string }[] = [
   { id: 'dark', label: '深色' },
@@ -26,11 +27,10 @@ export function PreferencePane({
   return (
     <div className="pref-pane">
       <div className="mp-head">
-        <h2 className="settings-h">偏好</h2>
+        <h2 className="settings-h">外观</h2>
       </div>
       <p className="set-hint pref-hint">
-        外观偏好仅保存在本机。选择一套皮肤，调整遮罩和模糊。
-        浅色模式目前沿用深色配色。
+        选择一套皮肤，立即切换整窗配色与材质。外观偏好仅保存在本机。
       </p>
 
       <section className="pref-section">
@@ -58,7 +58,7 @@ export function PreferencePane({
               key={s.id}
               skin={s}
               active={activeId === s.id}
-              onSelect={() => onChange({ skinId: s.id })}
+              onSelect={() => onChange({ skinId: s.id, mode: s.preferredScheme })}
             />
           ))}
         </div>
@@ -131,9 +131,9 @@ function SkinCard({
       <span className="pref-skin-meta">
         <span className="pref-skin-name">{skin.name}</span>
         {skin.description ? <span className="pref-skin-desc">{skin.description}</span> : null}
-        <span className="pref-skin-badge">深色</span>
+        <span className="pref-skin-badge">{skin.preferredScheme === 'light' ? '浅色' : '深色'} · {skin.material === 'paper' ? '纸面' : '玻璃'}</span>
       </span>
-      {active ? <span className="pref-skin-check" aria-hidden>✓</span> : null}
+      {active ? <span className="pref-skin-check" aria-hidden><CheckIcon size={ICON_SM} /></span> : null}
     </button>
   )
 }

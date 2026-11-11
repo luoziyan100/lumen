@@ -1,11 +1,12 @@
 /**
  * [INPUT]: ResolvedTheme
  * [OUTPUT]: applyTheme —— 唯一 DOM 副作用
- * [POS]: appearance;data-theme=celadon 恒驻;color-scheme 固定 dark（R1）
- * [PROTOCOL]: doc/appearance-skin.md §6.4
+ * [POS]: 外观唯一写入端；Kumo 锚恒驻，宿主与原生窗口跟随实际明暗，材质由 CSS 消费
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
 import type { ResolvedTheme } from './types.ts'
+import { isTauri, invoke } from '@tauri-apps/api/core'
 
 const APPLIED_TOKEN_KEYS = 'data-lumen-appearance-keys'
 
@@ -16,11 +17,13 @@ export function applyTheme(resolved: ResolvedTheme): void {
   // D4：Kumo 锚恒驻
   root.dataset.theme = 'celadon'
   root.dataset.skin = resolved.skinId
+  root.dataset.material = resolved.material
   // 用户意图（system 已折叠）；不驱动 widget
   root.dataset.appearance = resolved.appearanceIntent
 
-  // R1 / D12：宿主 color-scheme 固定 dark
-  root.style.colorScheme = 'dark'
+  // --- 明暗模式贯通网页控件与桌面标题栏 ---
+  root.style.colorScheme = resolved.colorScheme
+  if (isTauri()) void invoke('set_window_theme', { dark: resolved.colorScheme === 'dark' }).catch(() => {})
 
   // 清除上一轮 setProperty 的键（避免皮肤切换残留）
   const prevRaw = root.getAttribute(APPLIED_TOKEN_KEYS)

@@ -1,7 +1,7 @@
 /**
  * [INPUT]: 官方MastraClient、原生注入的本机服务发现与所选技能文件清单
  * [OUTPUT]: LumenApi、Connection、目录/资料/完整技能包/诊断与问题评估入口、附专家用量的快照和带 ETag 的文件版本读取，范围和身份显式传递；同会话阅读写入串行，手动未读不被先发自动确认覆盖
- * [POS]: 新客户端唯一网络边界；附件先有界完整读取，再用内存 Blob 上传，文件读取失败不产生残缺请求
+ * [POS]: 新客户端唯一网络边界；不暴露提前创建空会话的目录写入，提交准备沿 open 绑定；附件先完整读取，失败不发残缺请求
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { MastraClient, type KnownAgentControllerEvent } from '@mastra/client-js'
@@ -58,7 +58,6 @@ export class LumenApi {
   projectSource(projectId: string) { return this.request<ProjectSource>(`/lumen/projects/${encodeURIComponent(projectId)}/source`) }
   updateProjectSource(projectId: string, path: string | null) { return this.request<ProjectSource>(`/lumen/projects/${encodeURIComponent(projectId)}/source`, 'PATCH', { path }) }
   sessions(projectId: string, page = 0, archived = false, search = '') { return this.request<Page<SessionInfo>>(`/lumen/projects/${encodeURIComponent(projectId)}/sessions?${new URLSearchParams({ page: String(page), archived: String(archived), search })}`) }
-  createSession(projectId: string) { return this.request<SessionInfo>(`/lumen/projects/${encodeURIComponent(projectId)}/sessions`, 'POST', {}) }
   updateSession(identity: Identity, updates: Partial<Pick<SessionInfo, 'title' | 'pinned' | 'archived'>>) { return this.request<SessionInfo>(`/lumen/projects/${encodeURIComponent(identity.projectId)}/sessions/${encodeURIComponent(identity.taskId)}`, 'PATCH', updates) }
   private changeReadState(identity: Identity, action: string, body: unknown) {
     const key = `${identity.projectId}:${identity.taskId}`

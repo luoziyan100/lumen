@@ -22,11 +22,11 @@ tests/
 - `mastra-files.test.ts`：文件引用/当前稿路径边界；真实HTTP目录投影验证隐藏加载、新产物通知、切身份首帧隔离；真实工作目录轨的分组/卷帘折叠/打开交互，阅读内容更新与共享批量上传失败提示；不可读/残缺/超大附件不发送请求，完整上传保持字节和名称，失败展示服务原因。
 - `mastra-transcript.test.ts`：真实消息组件的历史附件受控打开、内嵌图片预览、长正文折叠、剪贴板回退与轮次焦点/跳转；不把 DOM 验证视为 WebKit 验收。
 - `mastra-process.test.ts`：原生reasoning与工具投影、定稿隐藏成功过程、未完成保留、六步窗口与流式手动开合；不展示redacted数据和原始JSON。
-- `mastra-composer.test.ts`：欢迎页输入/附件不提前建会话、准备失败留稿并重试，切项目后已确认提交不改目标或抢回页面，斜杠技能准备真实会话但不发送研究，准备期间新增文本/附件不进入已确认快照、不同服务同名项目草稿隔离；输入高度增长/上限/收缩与草稿恢复重算，真实Conversation的松开跟随/近底上滑/轮次跳转/回到最新；真实 React Composer 与 HTTP/Mastra 验证草稿/上传竞赛恢复、提交期间当前稿冻结且不串会话、StrictMode 重挂载、斜杠技能过滤和键盘激活；选择技能或空结果回车不误发模型请求；Conversation/Specialists 轮询不重叠且完成后显示最新状态。
+- `mastra-composer.test.ts`：真实 WorkspaceApp 的新对话/项目加号只回本地草稿，空白回车/输入/附件不提前建线程；首次重复提交只新增一个正确项目会话并进入导航，历史往返保留草稿附件，旧默认空选择冷启动退回欢迎且无绑定请求；欢迎页准备失败留稿并重试，切项目后已确认提交不改目标或抢回页面，斜杠技能准备真实会话但不发送研究，准备期间新增文本/附件不进入已确认快照、不同服务同名项目草稿隔离；输入高度增长/上限/收缩与草稿恢复重算，真实Conversation的松开跟随/近底上滑/轮次跳转/回到最新；真实 React Composer 与 HTTP/Mastra 验证草稿/上传竞赛恢复、提交期间当前稿冻结且不串会话、StrictMode 重挂载、斜杠技能过滤和键盘激活；选择技能或空结果回车不误发模型请求；Conversation/Specialists 轮询不重叠且完成后显示最新状态。
 - `stick-scroll.test.ts`：滚动判定的上滑离钉、程序近底不恢复、塌缩不吸回、手势窗内不追高。
 - `connection-hold.test.ts`：已连接后的发现失败保留连接，冷启动失败和成功的新令牌仍替换。
-- `mastra-appearance.test.ts`：真实恢复后的皮肤面板点击、偏好持久化、系统明暗变化和卸载订阅清理；模型ID逐行增减不提交、保存保留活动模型/凭证，删除只发送删除请求。
-- `appearance-resolve.test.ts`：外观偏好与系统主题合成规则。
+- `mastra-appearance.test.ts`：真实设置窗口与外观宿主验证系统变化切换实际明暗基线，纸面/玻璃皮肤的颜色与材质经本机保存恢复；设置仅有模型、研究偏好和外观三个分类，服务返回预算也不产生编辑入口；研究忙碌时分类可切换、配置写入仍受限、浅色换肤不提交服务；另覆盖卸载订阅、模型ID逐行增减不提交、保存保留活动模型/凭证、删除只发送删除请求。
+- `appearance-resolve.test.ts`：真实明暗与系统模式基线、浅色皮肤/玻璃纸面材质、跨明暗补丁隔离、原语白名单及别名级联。
 - `markdown-cache.test.ts`：禁止跨会话共享携带回调的 Markdown React 树缓存。
 - `markdown-math.test.ts`：数学定界符归一与真实 KaTeX SSR，代码区阻止跨区配对。
 - `mermaid-layout.test.ts`：固有尺寸政策与真实 Mermaid ELK 配置。
@@ -37,7 +37,7 @@ tests/
 - `scroll-debug.test.ts`：默认关闭、有界缓冲与标量日志契约。
 - `source-cite.test.ts`：URL、正文来源段、工具来源与站点归并的纯算法；不再包含旧 reducer 集成。
 - `widget-parse.test.ts`：show-widget 围栏分段和不完整输入处理。
-- `widget-theme.test.ts`：沙箱主题变量映射与明暗继承。
+- `widget-theme.test.ts`：暗壳保持固定浅色文档岛；浅玻璃内容岛从实色伴生取底并沿用深墨，透明壳面不泄漏到 iframe；保留明暗识别与 receiver fillHeight 滚动合同。
 - `fixtures/`：真实渲染内核使用的合成材料，见局部地图。
 - `mastra-create-project.test.ts`：真实创建卡验证创建失败保留草稿、源目录绑定失败保留项目身份，修改路径重试不重复创建。
 - `mastra-navigation.test.ts`：真实 HTTP 跨项目分页与侧栏折叠持久化、四条预览/全局置顶/最近二十条导航、右键菜单目标、CommandPalette 选择与手动未读不会被已发自动确认覆盖的真实HTTP顺序。

@@ -1,18 +1,18 @@
 /**
- * [INPUT]: Mastra 目录 DTO 与工作台选择/管理回调、原 CurtainFold、侧栏样式与图标
- * [OUTPUT]: Sidebar：项目树与会话导航，右键菜单包含显式会话诊断目标，状态灯允许已读切换
- * [POS]: 项目和会话树持续挂载播放原卷帘与错峰；只呈现目录，所有写入和会话身份归工作台
+ * [INPUT]: Mastra 目录 DTO 与工作台选择/管理回调、原 CurtainFold、侧栏样式与统一三档 Phosphor 图标
+ * [OUTPUT]: Sidebar：项目树、持久会话导航与本地新草稿入口；右键显式管理目标，状态灯允许已读切换
+ * [POS]: 项目和会话树持续挂载播放原卷帘与错峰；导航、更多管理与折叠图标各司其职，写入和会话身份归工作台
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useEffect, useState, type CSSProperties } from 'react'
 import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
-import { AccountIcon, ChatIcon, FolderIcon, GearIcon, NewProjectIcon, SearchIcon, ArchiveIcon, ChevronIcon, SectionChevronIcon, PlusIcon } from '../../../components/icons'
+import { AccountIcon, ChatIcon, FolderIcon, GearIcon, NewProjectIcon, SearchIcon, ArchiveIcon, ChevronIcon, SectionChevronIcon, PlusIcon, MoreIcon, ArchiveGlyph, PencilGlyph, BriefcaseGlyph, ICON_SM, ICON_MD, ICON_LG } from '../../../components/icons'
 import type { Identity, Project, SessionInfo } from '../../data/client'
 import { useResizable } from './useResizable'
 import { CurtainFold } from '../../../components/disclosure/CurtainFold'
 
 type Props = {
-  projects: Project[]; sessions: SessionInfo[]; projectId: string; identity: Identity | null; busy: boolean
+  projects: Project[]; sessions: SessionInfo[]; projectId: string; identity: Identity | null
   onIndex: (projectId: string | null) => void; onSearch: () => void
   archivedProjects: boolean; archivedSessions: boolean; toggleProjects: () => void; toggleSessions: () => void
   onProject: (project: Project) => void; onSession: (session: SessionInfo) => void; onNew: (projectId: string) => void; onCreateProject: () => void
@@ -46,15 +46,15 @@ export function Sidebar(p: Props) {
   const selectedProject = p.projects.find(project => project.id === p.projectId)
   return <aside className="sidebar mw-sidebar" style={{ '--sidebar-w': `${width}px` } as CSSProperties}>
     <nav className="sb-nav">
-      <button className="sb-navrow" disabled={p.busy || !selectedProject || selectedProject.archived} onClick={() => p.onNew(p.projectId)}><ChatIcon />新对话</button>
-      <button className="sb-navrow" onClick={p.onSearch}><SearchIcon size={18} />搜索对话</button>
-      <button className="sb-navrow" onClick={p.onCreateProject}><NewProjectIcon />新建项目</button>
+      <button className="sb-navrow" disabled={!selectedProject || selectedProject.archived} onClick={() => p.onNew(p.projectId)}><ChatIcon size={ICON_LG} />新对话</button>
+      <button className="sb-navrow" onClick={p.onSearch}><SearchIcon size={ICON_LG} />搜索对话</button>
+      <button className="sb-navrow" onClick={p.onCreateProject}><NewProjectIcon size={ICON_LG} />新建项目</button>
     </nav>
     <div className="sb-list">
       <div className="mw-section-label"><button type="button" className={`sb-section-h sb-section-toggle${projectsOpen ? ' is-open' : ''}`} aria-expanded={projectsOpen} aria-controls="sb-projects-body" onClick={() => { setMenu(null); setProjectsOpen(value => !value) }}><span className="sb-section-label">项目</span><span className="sb-section-chev" aria-hidden><SectionChevronIcon open={projectsOpen} /></span></button><DropdownMenu>
-        <DropdownMenu.Trigger render={<button className="icon-btn nav-icon-btn" aria-label="项目管理" />}><GearIcon size={16} /></DropdownMenu.Trigger>
-        <DropdownMenu.Content><DropdownMenu.Item onClick={p.toggleProjects}>{p.archivedProjects ? '查看当前项目' : '查看归档项目'}</DropdownMenu.Item>
-          {selectedProject && <><DropdownMenu.Item onClick={() => p.onRenameProject(selectedProject)}>重命名项目</DropdownMenu.Item>{selectedProject.id !== 'default' && <DropdownMenu.Item onClick={() => p.onArchiveProject(selectedProject)}>{selectedProject.archived ? '恢复项目' : '归档项目'}</DropdownMenu.Item>}<DropdownMenu.Item onClick={p.onAgents}>研究角色</DropdownMenu.Item></>}
+        <DropdownMenu.Trigger render={<button className="icon-btn nav-icon-btn" aria-label="项目管理" />}><MoreIcon size={ICON_MD} /></DropdownMenu.Trigger>
+        <DropdownMenu.Content><DropdownMenu.Item icon={ArchiveGlyph} onClick={p.toggleProjects}>{p.archivedProjects ? '查看当前项目' : '查看归档项目'}</DropdownMenu.Item>
+          {selectedProject && <><DropdownMenu.Item icon={PencilGlyph} onClick={() => p.onRenameProject(selectedProject)}>重命名项目</DropdownMenu.Item>{selectedProject.id !== 'default' && <DropdownMenu.Item icon={ArchiveGlyph} onClick={() => p.onArchiveProject(selectedProject)}>{selectedProject.archived ? '恢复项目' : '归档项目'}</DropdownMenu.Item>}<DropdownMenu.Item icon={BriefcaseGlyph} onClick={p.onAgents}>研究角色</DropdownMenu.Item></>}
         </DropdownMenu.Content>
       </DropdownMenu></div>
       <nav aria-label="项目"><CurtainFold open={projectsOpen} id="sb-projects-body" className="sb-projects-body" stagger>{p.projects.filter(project => project.id !== 'default').map(project => {
@@ -63,16 +63,16 @@ export function Sidebar(p: Props) {
         return <div className={`sb-folder${project.id === p.projectId ? ' is-active-proj' : ''}`} key={project.id}><div className="sb-folder-row">
           <button className="sb-folder-ic" aria-label={`${open ? '收起' : '展开'}${project.name}`} aria-expanded={open} aria-controls={`sb-sessions-${project.id}`} onClick={() => toggle(project.id)}><span className="sb-folder-ic-folder"><FolderIcon open={open} /></span><span className="sb-folder-ic-chev"><ChevronIcon open={open} /></span></button>
           <DropdownMenu open={menu === `project:${project.id}`} onOpenChange={open => { if (!open) setMenu(null) }}><DropdownMenu.Trigger render={<button className="sb-folder-main" aria-pressed={project.id === p.projectId} />} onClick={event => { event.preventDefault(); setMenu(null); p.onProject(project) }} onContextMenu={event => { event.preventDefault(); setMenu(`project:${project.id}`) }}><span className="sb-folder-name">{project.name}</span></DropdownMenu.Trigger><DropdownMenu.Content align="start" className="sb-task-menu glass-card"><DropdownMenu.Item onClick={() => p.onRenameProject(project)}>重命名项目</DropdownMenu.Item><DropdownMenu.Item onClick={() => p.onArchiveProject(project)}>{project.archived ? '恢复项目' : '归档项目'}</DropdownMenu.Item></DropdownMenu.Content></DropdownMenu>
-          <button className="sb-folder-plus" aria-label={`在${project.name}新建对话`} disabled={p.busy || project.archived} onClick={() => p.onNew(project.id)}><PlusIcon size={14} /></button>
+          <button className="sb-folder-plus" aria-label={`在${project.name}新建对话`} disabled={project.archived} onClick={() => p.onNew(project.id)}><PlusIcon size={ICON_SM} /></button>
         </div><CurtainFold open={open} id={`sb-sessions-${project.id}`} className="sb-sess-wrap" stagger><div className="sb-sess">{preview(children, 4).map(session => row(session, true))}{children.length > 4 && <button className="sb-sess-more" onClick={() => p.onIndex(project.id)}>查看全部</button>}</div></CurtainFold></div>
       })}</CurtainFold></nav>
       {pinned.length > 0 && <><h2 className="sb-section-h">置顶</h2><nav aria-label="置顶会话">{pinned.map(session => row(session))}</nav></>}
-      <div className="mw-section-label"><h2 className="sb-section-h">{p.archivedSessions ? '已归档对话' : '最近对话'}</h2><button className="icon-btn nav-icon-btn" title={p.archivedSessions ? '查看当前会话' : '查看归档会话'} aria-label={p.archivedSessions ? '查看当前会话' : '查看归档会话'} onClick={p.toggleSessions}><ArchiveIcon /></button></div>
+      <div className="mw-section-label"><h2 className="sb-section-h">{p.archivedSessions ? '已归档对话' : '最近对话'}</h2><button className="icon-btn nav-icon-btn" title={p.archivedSessions ? '查看当前会话' : '查看归档会话'} aria-label={p.archivedSessions ? '查看当前会话' : '查看归档会话'} onClick={p.toggleSessions}><ArchiveIcon size={ICON_MD} /></button></div>
       <nav aria-label="最近会话">{preview(recent, 20).map(session => row(session))}</nav>
       {!p.sessions.length && <p className="sb-empty">暂无会话</p>}
       {recent.length > 20 && <button className="sb-sess-more sb-sess-more-recent" onClick={() => p.onIndex(null)}>查看全部会话</button>}
     </div>
-    <div className="sb-foot"><button className="sb-account" onClick={p.onSettings} title="设置"><span className="sb-avatar"><AccountIcon size={18} /></span><span className="sb-account-text"><span className="sb-account-name">本地账户</span><span className="sb-account-hint">设置与偏好</span></span><span className="sb-account-gear"><GearIcon size={16} /></span></button></div>
+    <div className="sb-foot"><button className="sb-account" onClick={p.onSettings} title="设置"><span className="sb-avatar"><AccountIcon size={ICON_LG} /></span><span className="sb-account-text"><span className="sb-account-name">本地账户</span><span className="sb-account-hint">设置与偏好</span></span><span className="sb-account-gear"><GearIcon size={ICON_MD} /></span></button></div>
     <div className="sb-resize" role="separator" aria-orientation="vertical" aria-label="调整侧栏宽度（双击复位）" {...handleProps} />
   </aside>
 }

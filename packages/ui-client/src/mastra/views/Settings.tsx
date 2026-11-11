@@ -1,7 +1,7 @@
 /**
- * [INPUT]: 共享Disclosure卷帘、脱敏设置DTO、模型档案更新API、原设置行样式与外观面板
- * [OUTPUT]: Settings：供应商卡、逐行模型ID、研究偏好、预算及视觉/上下文/价格设置
- * [POS]: 设置组合层；保留原横向表单与模型增减，密钥只单向提交，失败留稿，服务裁定运行中修改边界
+ * [INPUT]: 共享Disclosure卷帘、脱敏设置DTO、模型档案更新API、原设置行样式、统一 icons 与外观面板
+ * [OUTPUT]: Settings：模型、研究偏好与外观三个分类；供应商卡、逐行模型ID及视觉/上下文/价格设置
+ * [POS]: 设置组合层；分类浏览与配置写入分离，外观本机即时应用；密钥只单向提交，失败留稿，服务裁定运行中修改边界
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { Disclosure } from '../../components/disclosure/Disclosure'
@@ -10,7 +10,7 @@ import { Button } from '@cloudflare/kumo/components/button'
 import { Dialog } from '@cloudflare/kumo/components/dialog'
 import { Select } from '@cloudflare/kumo/components/select'
 import { MASTRA_COPY as C } from '../../copy/mastraCopy'
-import { CloseIcon, BackIcon, MinusIcon, PlusIcon, PlayIcon, TrashIcon } from '../../components/icons'
+import { CloseIcon, BackIcon, MinusIcon, PlusIcon, PlayIcon, TrashIcon, ICON_SM } from '../../components/icons'
 import { PreferencePane } from './chrome/Appearance'
 import type { useAppearance } from '../../appearance'
 import { LumenApi, type PublicModelProfile, type PublicSettings, type SettingsPatch } from '../data/client.ts'
@@ -21,9 +21,8 @@ function SettingRow({ label, children }: { label: string; children: ReactNode })
 }
 
 export function Settings({ api, onClose, appearance }: { api: LumenApi; onClose: () => void; appearance?: ReturnType<typeof useAppearance> }) {
-  const [pane, setPane] = useState<'model' | 'prompt' | 'preference' | 'budget'>('model')
+  const [pane, setPane] = useState<'model' | 'prompt' | 'preference'>('model')
   const [editing, setEditing] = useState(false)
-  const [budget, setBudget] = useState<NonNullable<SettingsPatch['researchBudget']>>({})
   const [settings, setSettings] = useState<PublicSettings | null>(null), [profile, setProfile] = useState<PublicModelProfile>(emptyProfile)
   const [key, setKey] = useState(''), [keyFocused, setKeyFocused] = useState(false), [instructions, setInstructions] = useState('')
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(false)
@@ -31,13 +30,13 @@ export function Settings({ api, onClose, appearance }: { api: LumenApi; onClose:
   function edit(next: PublicModelProfile) { setProfile({ ...next, models: next.models.length ? [...next.models] : [''] }); setKey(''); setKeyFocused(false); setSaved(false); setError('') }
   useEffect(() => {
     let active = true
-    void api.settings().then(result => { if (active) { setSettings(result); setBudget(result.researchBudget ?? {}); setInstructions(result.userInstructions) } }).catch(error => { if (active) setError(String(error)) })
+    void api.settings().then(result => { if (active) { setSettings(result); setInstructions(result.userInstructions) } }).catch(error => { if (active) setError(String(error)) })
     return () => { active = false }
   }, [api])
   useEffect(() => {
     if (!settings?.busy) return
     let active = true
-    const refresh = () => { void api.settings().then(result => { if (active) { setSettings(result); setBudget(result.researchBudget ?? {}); setInstructions(result.userInstructions) } }).catch(() => {}) }
+    const refresh = () => { void api.settings().then(result => { if (active) { setSettings(result); setInstructions(result.userInstructions) } }).catch(() => {}) }
     const timer = window.setInterval(refresh, 2000)
     return () => { active = false; window.clearInterval(timer) }
   }, [api, settings?.busy])
@@ -47,7 +46,6 @@ export function Settings({ api, onClose, appearance }: { api: LumenApi; onClose:
     try {
       const result = await api.updateSettings(patch)
       setSettings(result)
-      if (patch.researchBudget) setBudget(result.researchBudget ?? {})
       if (patch.userInstructions !== undefined) setInstructions(result.userInstructions)
       if (patch.upsertProfile) {
         const next = result.profiles.find(item => item.id === profile.id) ?? result.profiles.find(item => !settings?.profiles.some(previous => previous.id === item.id))
@@ -72,12 +70,12 @@ export function Settings({ api, onClose, appearance }: { api: LumenApi; onClose:
   const masked = profile.hasApiKey && !key && !keyFocused
   const configurationBusy = settings?.busy === true
   return <Dialog.Root open onOpenChange={open => { if (!open && !pending.current) onClose() }}><Dialog className="settings-modal mw-settings p-0" aria-label={C.settings}>
-    <nav className="settings-nav" aria-label="设置分类"><div className="settings-nav-title">设置</div>{([['model', '模型'], ['prompt', '研究偏好'], ['budget', '研究预算'], ['preference', '外观']] as const).map(([id, label]) => <button type="button" disabled={busy || configurationBusy} key={id} className={`settings-nav-item${pane === id ? ' is-active' : ''}`} onClick={() => { setPane(id); setSaved(false); setError(''); if (id === 'model') setEditing(false) }}>{label}</button>)}</nav>
+    <nav className="settings-nav" aria-label="设置分类"><div className="settings-nav-title">设置</div>{([['model', '模型'], ['prompt', '研究偏好'], ['preference', '外观']] as const).map(([id, label]) => <button type="button" disabled={busy} key={id} className={`settings-nav-item${pane === id ? ' is-active' : ''}`} onClick={() => { setPane(id); setSaved(false); setError(''); if (id === 'model') setEditing(false) }}>{label}</button>)}</nav>
     <section className="settings-body">
     <button type="button" className="settings-close" disabled={busy} onClick={onClose} aria-label="关闭设置"><CloseIcon size={18} /></button>
     {pane === 'preference' && (appearance ? <PreferencePane state={appearance.state} onChange={appearance.setAppearance} /> : <p className="set-hint">外观偏好不可用</p>)}
     {pane !== 'preference' && !settings && <p className="set-hint">加载中…</p>}
-    {pane === 'model' && settings && !editing && <><div className="mp-head"><h2 className="settings-h">模型</h2><Button type="button" disabled={busy || configurationBusy} variant="outline" size="sm" onClick={() => { edit(emptyProfile()); setEditing(true) }}>添加模型</Button></div><p className="set-hint">{configurationBusy ? '模型选择可立即保存；编辑配置请完成或停止当前研究。' : C.settingsHint}</p><div className="mpc-list">{settings.profiles.map(item => <div className={`mpc-card glass-card ${settings.activeProfileId === item.id ? 'is-in-use' : ''}`} key={item.id}><button type="button" disabled={busy || configurationBusy} className="mpc-main" onClick={() => { edit(item); setEditing(true) }}><span className="mpc-name">{item.name}</span><span className="mpc-url">{item.baseUrl}</span><span className="mpc-model">{item.models.join(' · ') || '未填模型 ID'}{!item.hasApiKey && ' · 未配置 Key'}</span></button><div className="mpc-aside"><div className="mpc-aside-idle">{settings.activeProfileId === item.id && <span className="mp-active">使用中</span>}</div><div className="mpc-aside-hot">{settings.activeProfileId !== item.id && <button type="button" disabled={busy} className="mpc-act mpc-act-enable" onClick={() => void save({ activeProfileId: item.id })}><PlayIcon size={14} /><span>启用</span></button>}{settings.profiles.length > 1 && <button type="button" disabled={busy || configurationBusy} className="mpc-act mpc-act-danger" aria-label={`删除 ${item.name}`} onClick={() => void save({ deleteProfileId: item.id })}><TrashIcon size={16} /></button>}</div></div></div>)}</div></>}
+    {pane === 'model' && settings && !editing && <><div className="mp-head"><h2 className="settings-h">模型</h2><Button type="button" disabled={busy || configurationBusy} variant="outline" size="sm" onClick={() => { edit(emptyProfile()); setEditing(true) }}>添加模型</Button></div><p className="set-hint">{configurationBusy ? '模型选择可立即保存；编辑配置请完成或停止当前研究。' : C.settingsHint}</p><div className="mpc-list">{settings.profiles.map(item => <div className={`mpc-card glass-card ${settings.activeProfileId === item.id ? 'is-in-use' : ''}`} key={item.id}><button type="button" disabled={busy || configurationBusy} className="mpc-main" onClick={() => { edit(item); setEditing(true) }}><span className="mpc-name">{item.name}</span><span className="mpc-url">{item.baseUrl}</span><span className="mpc-model">{item.models.join(' · ') || '未填模型 ID'}{!item.hasApiKey && ' · 未配置 Key'}</span></button><div className="mpc-aside"><div className="mpc-aside-idle">{settings.activeProfileId === item.id && <span className="mp-active">使用中</span>}</div><div className="mpc-aside-hot">{settings.activeProfileId !== item.id && <button type="button" disabled={busy} className="mpc-act mpc-act-enable" onClick={() => void save({ activeProfileId: item.id })}><PlayIcon size={ICON_SM} /><span>启用</span></button>}{settings.profiles.length > 1 && <button type="button" disabled={busy || configurationBusy} className="mpc-act mpc-act-danger" aria-label={`删除 ${item.name}`} onClick={() => void save({ deleteProfileId: item.id })}><TrashIcon size={16} /></button>}</div></div></div>)}</div></>}
     {pane === 'model' && editing && <form className="mp-editor" onSubmit={event => { event.preventDefault(); saveProfile() }}>
       <div className="mp-head"><button type="button" disabled={busy || configurationBusy} className="mp-back" onClick={() => setEditing(false)}><BackIcon size={16} />返回</button><h2 className="settings-h mp-edit-title">{profile.id ? profile.name || '编辑配置' : '新建模型配置'}</h2></div>
       <SettingRow label="名称"><input className="set-control" aria-label={C.profileName} disabled={busy || configurationBusy} value={profile.name} placeholder="DeepSeek / Claude 官方 / GPT …" onChange={event => setProfile({ ...profile, name: event.target.value })} /></SettingRow>
@@ -94,7 +92,6 @@ export function Settings({ api, onClose, appearance }: { api: LumenApi; onClose:
       <div className="settings-foot">{profile.id && settings && settings.profiles.length > 1 && <Button type="button" variant="secondary-destructive" size="sm" disabled={busy || configurationBusy} onClick={() => void save({ deleteProfileId: profile.id })}>删除</Button>}<Button type="submit" variant="primary" size="sm" disabled={busy || configurationBusy || !profile.models.some(value => value.trim())}>{C.save}</Button></div>
     </form>}
     {pane === 'prompt' && settings && <form className="mp-editor" onSubmit={event => { event.preventDefault(); void save({ userInstructions: instructions }) }}><h2 className="settings-h">研究偏好</h2><p className="set-hint">{C.instructions}</p><textarea className="set-textarea" aria-label={C.instructions} disabled={busy || configurationBusy} rows={10} value={instructions} onChange={event => setInstructions(event.target.value)} /><div className="settings-foot"><Button type="submit" variant="primary" size="sm" disabled={busy || configurationBusy}>{C.saveInstructions}</Button></div></form>}
-    {pane === 'budget' && settings && <form className="mp-editor" onSubmit={event => { event.preventDefault(); void save({ researchBudget: budget }) }}><h2 className="settings-h">研究预算</h2><p className="set-hint">每个会话累计主研究者与专家的用量。留空表示不设该项上限；费用上限需要为使用的模型配置价格。</p>{([['maxPromptTokens', '累计输入 token'], ['maxCompletionTokens', '累计输出 token'], ['maxCostUsd', '累计费用（美元）']] as const).map(([field, label]) => <SettingRow key={field} label={label}><input className="set-control" aria-label={label} disabled={busy || configurationBusy} type="number" min={0} step={field === 'maxCostUsd' ? 'any' : 1} value={budget[field] ?? ''} onChange={event => setBudget({ ...budget, [field]: event.target.value ? Number(event.target.value) : undefined })} /></SettingRow>)}<div className="settings-foot"><Button type="submit" variant="primary" size="sm" disabled={busy || configurationBusy}>保存预算</Button></div></form>}
     {saved && <p className="set-saved" role="status">{C.saved}</p>}{error && <p className="mw-error" role="alert">{error}</p>}
     </section>
   </Dialog></Dialog.Root>

@@ -1,4 +1,4 @@
-/* [INPUT]: 原 styles.css 侧栏/输入卡/阅读器形制与 tokens.css 视觉真源
+/* [INPUT]: styles.css 侧栏/输入卡/阅读器形制、统一 icons 尺寸与 tokens.css 视觉真源
  * [OUTPUT]: Mastra 数据上的原桌面布局；只补充新接口所需的局部状态
  * [POS]: 复用 titlebar/body/sidebar/chat/composer/reader，避免建立第二套视觉设计
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md */
@@ -13,7 +13,6 @@
 .mw-section-label { display: flex; align-items: center; justify-content: space-between; }
 .mw-section-label h2 { margin: 0; }
 .mw-section-label .nav-icon-btn { width: 26px; height: 26px; }
-.mw-section-label .nav-icon-btn svg { width: 16px; height: 16px; }
 .mw-pagination { display: flex; justify-content: space-between; }
 .mw-center { min-width: 300px; min-height: 0; }
 .mw-conversation { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }

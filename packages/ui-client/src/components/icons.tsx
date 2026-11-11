@@ -1,243 +1,155 @@
-/** 图标唯一入口:一律 @phosphor-icons/react(Kumo 同源家族),经此单点 re-export。
- *  [INPUT]: @phosphor-icons/react;doc/ui-design.md §3.1
- *  [OUTPUT]: ICON_SM/MD + Panel/Folder/Chevron/SectionChevron/FileType/Skill/OpenOut 等现役图标出口
- *  [POS]: components 图标单点;树左 ChevronIcon(CaretRight)、区右 SectionChevronIcon(CaretDown);
- *        Skills 菜单:条目用 skillGlyphForName,Manage 用 Briefcase(对齐 Claude);
- *        阅读器打开用 OpenOutIcon(ArrowSquareOut)
- *  [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
- *  规范:三档尺寸 + weight 全站统一 regular;禁手写 SVG / 字符凑图标 / emoji / 绕过本文件。 */
+/**
+ * [INPUT]: Phosphor 图形与 React ref；doc/ui-design.md §3.1 的轮廓、尺寸和操作语义
+ * [OUTPUT]: 固定 regular/currentColor 的操作、文件类别与 Kumo 菜单图标，ICON_SM/MD/LG
+ * [POS]: 业务图标唯一入口；同一包装约束 JSX 与菜单引用，文件类别映射不含格式文字徽标
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ */
+import { forwardRef } from 'react'
 import {
-  Archive, ArrowDown, ArrowSquareOut, ArrowUp, ArrowsOut, At, BookOpen, Brain, Briefcase, CalendarBlank, CaretDown, CaretLeft, CaretRight,
-  ChatCircle, Check, Code, Copy, File, FileCode, FileCsv, FileDoc, FileHtml, FileImage, FilePdf, FilePpt, FileText, FileZip,
-  FolderOpen, FolderSimple, Gear, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, Minus, Palette, Play, Plus,
-  Question, Scroll, SidebarSimple, Stack, Trash, User, Wrench, X,
-  type Icon,
+  Archive, ArrowClockwise, ArrowDown, ArrowSquareOut, ArrowUp, ArrowsOut, BookOpen, Brain, Briefcase,
+  CalendarBlank, CaretDown, CaretLeft, CaretRight, CaretUp, ChatCircle, Check, Code, Copy, DotsThree,
+  File, FileArchive, FileAudio, FileCode, FileImage, FileText, FileVideo, FolderOpen, Folders, FolderSimple,
+  Gear, MagnifyingGlass, MagnifyingGlassMinus, MagnifyingGlassPlus, Minus, Palette, Paperclip, PencilSimple,
+  Play, Plus, Presentation, Question, Scroll, SidebarSimple, Square, Stack, Table, Trash, User, Wrench, X,
+  type Icon, type IconProps,
 } from '@phosphor-icons/react'
 
-// 尺寸三档:行内(列表/标签内) / 按钮内 / 导航按钮
+// ---- 16 行内 / 18 文件与按钮 / 20 主导航 ----
 export const ICON_SM = 16
 export const ICON_MD = 18
-const ICON_LG = 20
+export const ICON_LG = 20
 
-export function PanelIcon({ size = ICON_LG }: { size?: number }) {
-  return <SidebarSimple size={size} />
+function makeIcon(Glyph: Icon, defaultSize = ICON_MD): Icon {
+  return forwardRef<SVGSVGElement, IconProps>(({ size = defaultSize, className = '', ...props }, ref) => (
+    <Glyph {...props} ref={ref} size={size} weight="regular" color="currentColor"
+      className={`lumen-icon ${className}`.trim()} aria-hidden="true" focusable="false" />
+  ))
 }
 
-/** 工作区(右轨)收起/展开:右侧面板图标(SidebarSimple 水平镜像,与左侧栏折叠钮对称) */
+// ---- 操作：相同语义在各区域使用同一个轮廓 ----
+export const PanelIcon = makeIcon(SidebarSimple, ICON_LG)
+export const SearchIcon = makeIcon(MagnifyingGlass, ICON_LG)
+export const AccountIcon = makeIcon(User, ICON_LG)
+export const ChatIcon = makeIcon(ChatCircle, ICON_LG)
+export const NewProjectIcon = makeIcon(Plus, ICON_LG)
+export const FoldersIcon = makeIcon(Folders)
+export const PlusIcon = makeIcon(Plus)
+export const MinusIcon = makeIcon(Minus)
+export const SendIcon = makeIcon(ArrowUp)
+export const StopIcon = makeIcon(Square)
+export const MoreIcon = makeIcon(DotsThree)
+export const GearIcon = makeIcon(Gear)
+export const BackIcon = makeIcon(CaretLeft)
+export const CloseIcon = makeIcon(X)
+export const FileTextIcon = makeIcon(FileText)
+export const ArrowDownIcon = makeIcon(ArrowDown)
+export const PlayIcon = makeIcon(Play, ICON_SM)
+export const TrashIcon = makeIcon(Trash, ICON_SM)
+export const CopyIcon = makeIcon(Copy, ICON_SM)
+export const OpenOutIcon = makeIcon(ArrowSquareOut, ICON_SM)
+export const ArchiveIcon = makeIcon(Archive)
+export const CheckIcon = makeIcon(Check, ICON_SM)
+export const ChevronDownIcon = makeIcon(CaretDown, ICON_SM)
+export const ChevronUpIcon = makeIcon(CaretUp, ICON_SM)
+export const ExpandIcon = makeIcon(ArrowsOut, ICON_SM)
+export const ZoomInIcon = makeIcon(MagnifyingGlassPlus, ICON_SM)
+export const ZoomOutIcon = makeIcon(MagnifyingGlassMinus, ICON_SM)
+export const ManageSkillsIcon = makeIcon(Briefcase, ICON_SM)
+
+/** 右面板与左侧栏使用同一轮廓镜像，保持两侧导航对称。 */
 export function RailIcon({ size = ICON_LG }: { size?: number }) {
-  return <SidebarSimple size={size} style={{ transform: 'scaleX(-1)' }} />
+  return <PanelIcon size={size} mirrored />
 }
 
-export function SearchIcon({ size = ICON_LG }: { size?: number }) {
-  return <MagnifyingGlass size={size} />
-}
+const ClosedFolderIcon = makeIcon(FolderSimple)
+const OpenFolderIcon = makeIcon(FolderOpen)
 
-/** 回到对话最新(松钉后的跳转钮) */
-export function ArrowDownIcon({ size = ICON_MD }: { size?: number }) {
-  return <ArrowDown size={size} />
-}
-
-/** 新对话:聊天气泡(owner 定用 chat 图标,非加号) */
-export function ChatIcon({ size = ICON_MD }: { size?: number }) {
-  return <ChatCircle size={size} />
-}
-
-/** 新建项目:加号(与「新建」语义对齐;新对话已用气泡,不抢戏) */
-export function NewProjectIcon({ size = ICON_MD }: { size?: number }) {
-  return <Plus size={size} />
-}
-
-/** 项目行:折叠=FolderSimple / 展开=FolderOpen;交叉淡入由 .folder-glyph CSS 驱动(不引 framer) */
+/** 目录开合共用图标家族，保留同一槽位内的交叉淡入。 */
 export function FolderIcon({ size = ICON_MD, open = false }: { size?: number; open?: boolean }) {
-  return (
-    <span className={`folder-glyph${open ? ' is-open' : ''}`} style={{ width: size, height: size }} aria-hidden>
-      <span className="folder-glyph-closed"><FolderSimple size={size} /></span>
-      <span className="folder-glyph-open"><FolderOpen size={size} /></span>
-    </span>
-  )
+  return <span className={`folder-glyph${open ? ' is-open' : ''}`} style={{ width: size, height: size }} aria-hidden>
+    <span className="folder-glyph-closed"><ClosedFolderIcon size={size} /></span>
+    <span className="folder-glyph-open"><OpenFolderIcon size={size} /></span>
+  </span>
 }
 
-/* 以下两枚为 owner 指定的具体图标(非 phosphor 库内),经此单点收口:
-   PdfIcon = 书本(替代工作区里 PDF 文字标);FoldersIcon = 文件夹,hover 微动(CSS 驱动,不引 framer)。 */
-
-/** 工作区 PDF 文件标记:owner 指定书本图标(填充款) */
-export function PdfIcon({ size = ICON_SM }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
-      <path d="M232,48H160a40,40,0,0,0-32,16A40,40,0,0,0,96,48H24a8,8,0,0,0-8,8V200a8,8,0,0,0,8,8H96a24,24,0,0,1,24,24,8,8,0,0,0,16,0,24,24,0,0,1,24-24h72a8,8,0,0,0,8-8V56A8,8,0,0,0,232,48ZM96,192H32V64H96a24,24,0,0,1,24,24V200A39.81,39.81,0,0,0,96,192Zm128,0H160a39.81,39.81,0,0,0-24,8V88a24,24,0,0,1,24-24h64Z" />
-    </svg>
-  )
-}
-
-/** 工作目录文件夹:hover 时前后层微动(CSS 见 styles.css .folders-*;不引 framer-motion) */
-export function FoldersIcon({ size = ICON_MD }: { size?: number }) {
-  return (
-    <svg className="folders-ic" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path className="folders-back" d="M2 8v11a2 2 0 0 0 2 2h14" />
-      <path className="folders-front" d="M20 17a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.9a2 2 0 0 1-1.69-.9l-.81-1.2a2 2 0 0 0-1.67-.9H8a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2Z" />
-    </svg>
-  )
-}
-
-export function PlusIcon({ size = ICON_MD }: { size?: number }) {
-  return <Plus size={size} />
-}
-
-/** 设置表单:删掉一行模型 ID */
-export function MinusIcon({ size = ICON_MD }: { size?: number }) {
-  return <Minus size={size} />
-}
-
-/** 供应商卡悬停:启用 */
-export function PlayIcon({ size = ICON_SM }: { size?: number }) {
-  return <Play size={size} />
-}
-
-/** 供应商卡悬停:删除 */
-export function TrashIcon({ size = ICON_SM }: { size?: number }) {
-  return <Trash size={size} />
-}
-
-export function FileTextIcon({ size = ICON_MD }: { size?: number }) {
-  return <FileText size={size} />
-}
-
-export function SendIcon({ size = ICON_MD }: { size?: number }) {
-  return <ArrowUp size={size} />
-}
-
-/** pill 下拉示意:CaretDown */
-export function ChevronDownIcon({ size = ICON_SM }: { size?: number }) {
-  return <CaretDown size={size} />
-}
-
-/** 区级折叠(标题右侧):CaretDown;展开朝下,收起 −90° 朝右 —— 与树节点 ChevronIcon(CaretRight) 分层 */
+/** 标题右侧：展开朝下，收起朝右；只表示折叠，不兼任管理菜单。 */
 export function SectionChevronIcon({ open }: { open?: boolean }) {
-  return (
-    <CaretDown
-      size={ICON_SM}
-      style={{
-        transform: open ? undefined : 'rotate(-90deg)',
-        transition: 'transform var(--dur-collapse-in) var(--ease-spring)',
-      }}
-    />
-  )
+  return <ChevronDownIcon style={{ transform: open ? undefined : 'rotate(-90deg)', transition: 'transform var(--dur-collapse-in) var(--ease-spring)' }} />
 }
 
-export function GearIcon({ size = ICON_MD }: { size?: number }) {
-  return <Gear size={size} />
-}
+const RightChevronIcon = makeIcon(CaretRight, ICON_SM)
 
-export function BackIcon({ size = ICON_MD }: { size?: number }) {
-  return <CaretLeft size={size} />
-}
-
-export function CloseIcon({ size = ICON_MD }: { size?: number }) {
-  return <X size={size} />
-}
-
-/** 折叠展开指示:CaretRight 旋转(展开态转 90°) */
+/** 树与详情左侧：展开向下，收起向右。 */
 export function ChevronIcon({ open }: { open?: boolean }) {
-  return (
-    <CaretRight
-      size={ICON_SM}
-      style={{
-        transform: open ? 'rotate(90deg)' : undefined,
-        transition: 'transform var(--dur-collapse-in) var(--ease-spring)',
-      }}
-    />
-  )
+  return <RightChevronIcon style={{ transform: open ? 'rotate(90deg)' : undefined, transition: 'transform var(--dur-collapse-in) var(--ease-spring)' }} />
 }
 
-/** 文件类型图标:按扩展名给工作目录列表配图标(替代文字小框,owner 定 2026-07-10)。
- *  全站 weight 统一 regular;未识别的类型退回通用 File。 */
+// ---- 文件：轮廓表达类别；具体格式由文件名与阅读器标签表达 ----
+const DocumentGlyph = makeIcon(FileText)
+const CodeGlyph = makeIcon(FileCode)
+const ImageGlyph = makeIcon(FileImage)
+const ArchiveFileGlyph = makeIcon(FileArchive)
+const TableGlyph = makeIcon(Table)
+const PresentationGlyph = makeIcon(Presentation)
+const AudioGlyph = makeIcon(FileAudio)
+const VideoGlyph = makeIcon(FileVideo)
+export const FileGlyph = makeIcon(File)
+const FILE_GLYPHS: Record<string, Icon> = {
+  pdf: DocumentGlyph, md: DocumentGlyph, txt: DocumentGlyph, tex: DocumentGlyph, epub: DocumentGlyph,
+  doc: DocumentGlyph, docx: DocumentGlyph, rtf: DocumentGlyph,
+  html: CodeGlyph, htm: CodeGlyph, json: CodeGlyph, css: CodeGlyph, js: CodeGlyph, jsx: CodeGlyph,
+  ts: CodeGlyph, tsx: CodeGlyph, py: CodeGlyph, xml: CodeGlyph, yaml: CodeGlyph, yml: CodeGlyph,
+  png: ImageGlyph, jpg: ImageGlyph, jpeg: ImageGlyph, webp: ImageGlyph, gif: ImageGlyph, svg: ImageGlyph,
+  zip: ArchiveFileGlyph, gz: ArchiveFileGlyph, tar: ArchiveFileGlyph, '7z': ArchiveFileGlyph, rar: ArchiveFileGlyph,
+  csv: TableGlyph, tsv: TableGlyph, xls: TableGlyph, xlsx: TableGlyph,
+  ppt: PresentationGlyph, pptx: PresentationGlyph,
+  mp3: AudioGlyph, wav: AudioGlyph, m4a: AudioGlyph,
+  mp4: VideoGlyph, mov: VideoGlyph, webm: VideoGlyph,
+}
+
 export function FileTypeIcon({ name, size = ICON_MD }: { name: string; size?: number }) {
   const ext = (name.match(/\.([A-Za-z0-9]+)$/)?.[1] ?? '').toLowerCase()
-  switch (ext) {
-    case 'pdf': return <FilePdf size={size} />
-    case 'md': case 'txt': case 'tex': case 'epub': return <FileText size={size} />
-    case 'html': case 'htm': return <FileHtml size={size} />
-    case 'csv': return <FileCsv size={size} />
-    case 'json': return <FileCode size={size} />
-    case 'png': case 'jpg': case 'jpeg': case 'webp': case 'gif': return <FileImage size={size} />
-    case 'docx': case 'doc': return <FileDoc size={size} />
-    case 'pptx': case 'ppt': return <FilePpt size={size} />
-    case 'zip': return <FileZip size={size} />
-    default: return <File size={size} />
-  }
-}
-
-/** 账户头像:User regular(轮廓款,owner 定;全站 weight 统一 regular,无例外) */
-export function AccountIcon({ size = ICON_LG }: { size?: number }) {
-  return <User size={size} />
-}
-
-/** 消息悬停操作:复制 / 已复制 */
-export function CopyIcon({ size = ICON_SM }: { size?: number }) {
-  return <Copy size={size} />
-}
-
-/** 阅读器:用系统应用/浏览器打开本地产物 */
-export function OpenOutIcon({ size = ICON_SM }: { size?: number }) {
-  return <ArrowSquareOut size={size} />
-}
-
-/** 会话软归档 */
-export function ArchiveIcon({ size = ICON_SM }: { size?: number }) {
-  return <Archive size={size} />
-}
-
-/** Kumo DropdownMenu.Item 的 icon= 要 phosphor 组件引用 */
-export {
-  At as AtGlyph,
-  Briefcase as BriefcaseGlyph,
-  Gear as GearGlyph,
-  Scroll as SkillGlyph,
-}
-
-/**
- * Skills 条目图标(Claude 式:每行左侧 glyph)。
- * 按 name 关键字映射,未知 skill 回落 Scroll(工作流卷轴,区别于普通 FileText 附件)。
- * Kumo `icon=` 要组件引用 → 用本函数;JSX 用 `SkillIcon`。
- */
-export function skillGlyphForName(name: string): Icon {
-  const n = name.toLowerCase()
-  if (/paper|read|pdf|doc|journal|arxiv/.test(n)) return BookOpen
-  if (/schedul|calendar|cron|remind|time/.test(n)) return CalendarBlank
-  if (/design|ui|visual|draw|palette/.test(n)) return Palette
-  if (/memory|remember|consolidat/.test(n)) return Brain
-  if (/context|stack|window/.test(n)) return Stack
-  if (/setup|install|config|cowork|init/.test(n)) return Wrench
-  if (/explain|usage|help|how|faq/.test(n)) return Question
-  if (/search|web|fetch|find|lookup/.test(n)) return MagnifyingGlass
-  if (/code|script|run|exec/.test(n)) return Code
-  return Scroll
-}
-
-/** Skills 列表行内图标 */
-export function SkillIcon({ name, size = ICON_SM }: { name: string; size?: number }) {
-  const Glyph = skillGlyphForName(name)
+  const Glyph = FILE_GLYPHS[ext] ?? FileGlyph
   return <Glyph size={size} />
 }
 
-/** Manage skills:公文包(对齐 Claude;非齿轮——齿轮留给设置/模型) */
-export function ManageSkillsIcon({ size = ICON_SM }: { size?: number }) {
-  return <Briefcase size={size} />
+// ---- 菜单：保留 Kumo 的 Icon ref 合同，同样固定轮廓和颜色 ----
+export const PaperclipGlyph = makeIcon(Paperclip, ICON_SM)
+export const BriefcaseGlyph = makeIcon(Briefcase, ICON_SM)
+export const GearGlyph = makeIcon(Gear, ICON_SM)
+export const SkillGlyph = makeIcon(Scroll, ICON_SM)
+export const ArchiveGlyph = makeIcon(Archive, ICON_SM)
+export const PencilGlyph = makeIcon(PencilSimple, ICON_SM)
+export const RefreshGlyph = makeIcon(ArrowClockwise, ICON_SM)
+export const FolderGlyph = makeIcon(FolderSimple, ICON_SM)
+export const BrainGlyph = makeIcon(Brain, ICON_SM)
+const BookGlyph = makeIcon(BookOpen, ICON_SM)
+const CalendarGlyph = makeIcon(CalendarBlank, ICON_SM)
+const PaletteGlyph = makeIcon(Palette, ICON_SM)
+const StackGlyph = makeIcon(Stack, ICON_SM)
+const WrenchGlyph = makeIcon(Wrench, ICON_SM)
+const QuestionGlyph = makeIcon(Question, ICON_SM)
+const SearchGlyph = makeIcon(MagnifyingGlass, ICON_SM)
+const ScriptGlyph = makeIcon(Code, ICON_SM)
+
+const SKILL_GLYPHS: readonly [RegExp, Icon][] = [
+  [/paper|read|pdf|doc|journal|arxiv/, BookGlyph],
+  [/schedul|calendar|cron|remind|time/, CalendarGlyph],
+  [/design|ui|visual|draw|palette/, PaletteGlyph],
+  [/memory|remember|consolidat/, BrainGlyph],
+  [/context|stack|window/, StackGlyph],
+  [/setup|install|config|cowork|init/, WrenchGlyph],
+  [/explain|usage|help|how|faq/, QuestionGlyph],
+  [/search|web|fetch|find|lookup/, SearchGlyph],
+  [/code|script|run|exec/, ScriptGlyph],
+]
+
+/** 技能名称只决定语义，轮廓规范始终由统一包装决定。 */
+export function skillGlyphForName(name: string): Icon {
+  return SKILL_GLYPHS.find(([pattern]) => pattern.test(name.toLowerCase()))?.[1] ?? SkillGlyph
 }
 
-/** 流程图放大查看 */
-export function ExpandIcon({ size = ICON_SM }: { size?: number }) {
-  return <ArrowsOut size={size} />
-}
-
-export function ZoomInIcon({ size = ICON_SM }: { size?: number }) {
-  return <MagnifyingGlassPlus size={size} />
-}
-
-export function ZoomOutIcon({ size = ICON_SM }: { size?: number }) {
-  return <MagnifyingGlassMinus size={size} />
-}
-
-export function CheckIcon({ size = ICON_SM }: { size?: number }) {
-  return <Check size={size} />
+export function SkillIcon({ name, size = ICON_SM }: { name: string; size?: number }) {
+  const Glyph = skillGlyphForName(name)
+  return <Glyph size={size} />
 }
