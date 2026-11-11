@@ -1,6 +1,6 @@
 # 问用户（Ask user question）
 
-状态: **现行**（2026-08-09）
+状态: **历史实现参考**（2026-08-09 起草；2026-09-19 旧 WS/Dialog 退役，与 `doc/CLAUDE.md` 状态表一致）
 
 ## 问题
 
@@ -21,7 +21,9 @@
 
 - 自动超时交空答案、secret 输入、worker 内提问、对话流常驻 QuestionCard、用户改历史答案。
 
-## 实现锚点
+## 实现锚点（已退役：2026-09-19 Mastra 迁移删除旧 agent-service/WS 实现，以下路径仅作溯源，原文件按迁移记录有 SHA256 备份）
+
+- 现役实现：Controller 原生 ask_user 持久挂起/恢复，跨重启恢复与明确停止见 `packages/mastra-service/src/lifecycle/questions.ts`，界面见 `packages/ui-client/src/mastra/views/conversation/question/`。
 
 - 工具：`packages/agent-service/src/tools/env/ask-user.ts`
 - Runtime pending：`packages/agent-service/src/runtime/agent-runtime.ts`

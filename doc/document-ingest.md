@@ -1,6 +1,6 @@
 # 文档摄取（读可见 vs Skill 创作）
 
-状态: **现行**（2026-08-08）
+状态: **产品意图参考**（2026-08-08 起草；2026-09-19 旧接入退役，与 `doc/CLAUDE.md` 状态表一致）
 
 ## 问题
 
@@ -32,7 +32,9 @@
 - 一等 `docx` Skill 包（B 轨后续）
 - xlsx/pptx 抽取（可按 A 同构追加）
 
-## 实现锚点
+## 实现锚点（已退役：2026-09-19 Mastra 迁移删除旧 agent-service/WS 实现，以下路径仅作溯源，原文件按迁移记录有 SHA256 备份）
+
+- 现役实现：`packages/mastra-service/src/ingestion/docx.ts` 与同目录摄取处理器。
 
 - 抽取：`packages/agent-service/src/tools/ingest/docx.ts`
 - 摄取：`AgentRuntime.saveUpload`

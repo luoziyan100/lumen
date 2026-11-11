@@ -1,6 +1,6 @@
 # 会话 Todo（进度清单）
 
-状态: **现行**（2026-08-08）
+状态: **历史实现参考**（2026-08-08 起草；2026-09-19 旧实现退役，与 `doc/CLAUDE.md` 状态表一致）
 
 > 取代 `plan-card.md`（计划卡）。产品真名 Todo，不是人审大 Plan。
 
@@ -38,7 +38,9 @@
 - 独立项目管理实体、甘特、跨会话任务板
 - 仅靠 persona「完成立刻标 completed」保证 UI 诚实（软纪律，不构成保证）
 
-## 实现锚点
+## 实现锚点（已退役：2026-09-19 Mastra 迁移删除旧 agent-service/WS 实现，以下路径仅作溯源，原文件按迁移记录有 SHA256 备份）
+
+- 现役实现：Mastra AgentController 原生任务工具 task_write/task_update/task_complete/task_check（放行名单见 `packages/mastra-service/src/permissions.ts`），界面见 `packages/ui-client/src/mastra/views/CLAUDE.md`。
 
 - 工具：`packages/agent-service/src/tools/env/todo.ts`
 - Persona：`packages/agent-service/src/agents/persona.ts`

@@ -1,6 +1,6 @@
 # 产物闭环（当前稿）
 
-状态: **现行**（2026-08-17 · P0 真机验收通过）
+状态: **产品意图参考**（2026-08-17 旧实现 P0 真机验收；2026-09-19 旧 activePath/reducer/事件实现退役，与 `doc/CLAUDE.md` 状态表一致）
 
 长交付的默认归宿是工作区文件。人与模型的注意力钉在**当前可写 path**，而不是钉在气泡上。
 
@@ -51,7 +51,9 @@ P0 不强制 write 后自动打开阅读器。若阅读器已打开且 `open.pat
 
 静默把每条长回复存成 md；改 `persona.ts`；侧栏源/稿分面与气泡路径可点（P1+）。
 
-## 实现锚点
+## 实现锚点（已退役：2026-09-19 Mastra 迁移删除旧 agent-service/WS 实现，以下路径仅作溯源，原文件按迁移记录有 SHA256 备份）
+
+- 现役实现：附件摄取 `packages/mastra-service/src/ingestion/`，文件引用与当前稿 `packages/ui-client/src/mastra/data/file-links.ts`。
 
 - 附言 / 消毒：`packages/agent-service/src/runtime/upload-awareness.ts`
 - 落库：`event-hub.emitUser`；重建：`storage/resume.ts`
