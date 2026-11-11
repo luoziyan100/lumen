@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 产品设置 HTTP、真实 Controller 与本机模型 HTTP 夹具
- * [OUTPUT]: 空配置启动、延迟模型切换、运行中配置保护和清除密钥后的禁止执行
+ * [OUTPUT]: 空配置启动、延迟模型切换、运行中配置保护(未打开的挂起在目录显示为等待)和清除密钥后的禁止执行
  * [POS]: 验证设置落盘与实际模型请求一致，不以配置 DTO 成功代替生效
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -54,8 +54,12 @@ test('设置从空配置启动并延迟切换实际模型，挂起任务保持�
     await service.close()
     service = await createHttpService({ dataRoot: root, token })
     assert.equal((await update({ upsertProfile: { id: 'model', baseUrl: `${baseUrl}/c/v1` } })).status, 409, '重启后未打开的挂起研究仍阻止完整配置修改')
+    const listed = async () => ((await (await request('/lumen/projects/default/sessions')).json()) as { items: Array<{ resourceId: string; running: boolean; waiting: boolean }> })
+      .items.find(item => item.resourceId === 'default:settings')
+    assert.deepEqual(await listed().then(item => item && { running: item.running, waiting: item.waiting }), { running: false, waiting: true }, '挡住配置的未打开挂起必须在目录里显示为等待')
     assert.equal((await request('/lumen/stop', 'POST', { projectId: 'default', taskId: 'settings' })).status, 200)
     assert.equal((await (await request('/lumen/settings')).json() as { busy: boolean }).busy, false)
+    assert.equal((await listed())?.waiting, false, '停止后目录不再显示等待')
     ask = false
     session = await service.application.session('default', 'settings')
     await session.sendMessage({ content: '下一轮使用新模型' })

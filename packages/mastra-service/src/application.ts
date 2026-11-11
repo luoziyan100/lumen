@@ -352,6 +352,11 @@ export async function createApplication(options: ApplicationOptions) {
         else state.running = true
         states.set(child.resourceId, state)
       }
+      // -------- 未打开会话的持久挂起同样挡配置写闸(isBusy)，必须在目录里可见，否则界面无从解释 409 --------
+      for (const run of (await agent.listSuspendedRuns()).runs) {
+        if (!run.resourceId) continue
+        states.set(run.resourceId, { running: false, ...states.get(run.resourceId), waiting: true })
+      }
       return states
     },
     async isBusy() {

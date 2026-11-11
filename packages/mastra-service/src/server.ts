@@ -78,7 +78,7 @@ export async function createHttpService(options: ApplicationOptions & { token: s
     const operation = configurationTail.then(async () => {
       reconfiguring = true
       try {
-        if (!isModelSelectionPatch(patch) && (executionRequests > 0 || await application.isBusy())) throw new SettingsError('请先完成或停止正在进行的研究，再修改配置', 409)
+        if (!isModelSelectionPatch(patch) && (executionRequests > 0 || await application.isBusy())) throw new SettingsError('请先完成或停止正在进行的研究(含侧栏中等待回答的会话)，再修改配置', 409)
         return await work()
       } finally { reconfiguring = false }
     })
