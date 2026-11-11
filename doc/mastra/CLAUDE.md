@@ -7,6 +7,7 @@
 mastra/
 ├── CLAUDE.md       # 目标架构的局部地图
 ├── modules.md      # 全项目职责处置与验收边界
+├── adapters.md     # 框架缺陷、窄适配与升级复核清单
 └── architecture.md # 职责、数据归属与迁移约束
 ```
 
