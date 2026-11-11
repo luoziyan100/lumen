@@ -10,6 +10,7 @@ P0 预注册：工具结果必须进入下一轮模型请求；两个会话不�
 - `http.test.ts`：官方客户端经真实本机 HTTP/SSE 完成执行和持久消息补取；超限附件返回 413、残缺附件包返回 400，两者均不落盘且保留先前成功材料。
 
 - `background.test.ts`：原生后台子代理的单子取消与父运行独立性。
+- `persona.test.ts`：完整应用主 Agent 实际 system 提示包含完整画图规则，与界面主题颜色裁决镜像。
 - `permissions.test.ts`：完整应用主 Agent 实际请求中的每个工具都有权限类别或单独放行，防止漏登记触发人工审批。
 - `tool-pairing.test.ts`：并行后台委派后持久历史与下一轮实际请求的 toolCallId 唯一且配对；裸 Agent、纯原生 Controller 与完整应用均验证（1.67.0 重复 id 缺陷已随 1.82.0 关闭）；子专家 workspace 元数据进入父线程为 todo 子用例（台账 F2）。
 
