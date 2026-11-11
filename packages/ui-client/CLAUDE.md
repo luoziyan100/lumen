@@ -11,7 +11,7 @@ src/
 ├── components/              # Markdown、PDF、HTML、图表、外链与共享卷帘交互
 ├── appearance/              # 外观偏好解析、持久化与整窗应用
 ├── copy/                    # 产品文案
-├── mermaid/                 # 图表语法、测量、净化与缩放
+├── mermaid/                 # 图表语法、主题颜色、测量与缩放
 ├── scroll/                  # 阅读器与图表共享的滚动诊断
 ├── shell/                   # 原生文件夹选择
 ├── sourceCite.ts            # 引用 URL 解析与站点归并
