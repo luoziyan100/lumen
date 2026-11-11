@@ -117,7 +117,7 @@ Preference UI → AppearanceState → resolveTheme() → applyTheme() → CSS va
 |----|------|
 | **D1** | 管道：`AppearanceState → resolveTheme → applyTheme` |
 | **D2** | 双轴：`mode`（对比度基线）× `skinId`（氛围包）+ 用户 `overlay`/`blurPx` |
-| **D3** | 存储：`localStorage` 键 `lumen:appearance.v1`；**不**进模型 settings |
+| **D3** | 存储：`localStorage` 键 `lumen:appearance.v2`(2026-11-11 起；v1 一次性迁移，旧默认青瓷迁到「清透」)；**不**进模型 settings |
 | **D4** | DOM：`data-appearance` / `data-skin`；**`data-theme="celadon"` 恒驻**（Kumo 选择器锚，见 D7） |
 | **D5** | A 阶段皮肤只写**白名单 Lumen token**；禁止任意 CSS 字符串 |
 | **D6** | 不兼容 DreamSkin ZIP 字节级 |
@@ -406,7 +406,7 @@ hostChromeIsDark 仍优先读取真实 color-scheme，缺失时依据 canvas 亮
 
 | 键 | 说明 |
 |----|------|
-| `lumen:appearance.v1` | AppearanceState JSON；坏数据 → DEFAULT |
+| `lumen:appearance.v2` | AppearanceState JSON；坏数据 → DEFAULT(清透)；无 v2 时读 v1 并迁移 |
 
 **多窗口**：同 origin WKWebView 共享 localStorage（外部审计 F 确认）；A 不强制 `~/.lumen` 文件。
 

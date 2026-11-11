@@ -33,6 +33,7 @@ tests/                      # 原生 HTTP/SSE 客户端与保留渲染算法回�
 - 服务发现默认读取 `~/.lumen-mastra`，参数或 `LUMEN_MASTRA_HOME` 保留隔离预览；旧入口和 WS 回退已删除。
 - 通用语义变量(表面、墨色、强调、材质、字体、字阶、间距、圆角、阴影、动效)来自 `yan-design-system`(`~/Workspace/Projects/yan-design-system`，`file:` 依赖)，main.tsx 依次引入 fonts/tokens/base 与图标动效；本包 `tokens.css` 只放皮肤背景槽、炫光/aurora 装饰与布局尺寸；`theme-celadon.css` 让 Kumo 实色控件同源换肤并对齐内置 Select 图标，`kumo.css` 加载控件，`styles.css` 消费语义变量定义布局与图标对齐，不重缩放图标。
 - `styles.css` 只保留现役布局、卷帘、消息、输入卡、阅读器、工作区和 Mermaid/widget 样式；退役侧栏、附件抽屉、Todo/来源/诊断/HUD 规则已清除。
+- 默认外观「清透」：侧栏/标题栏为半透明窗框、正文与工作区为实色内容面，细线分隔不浮卡；桌面端 `data-vibrancy` 下整窗透明，窗框透出 macOS 系统毛玻璃。
 - 玻璃反光、边缘和背景饱和度统一随材质 token；纸面关闭面板模糊、按钮扫光及输入卡彩边，面板与浮动跳转按钮使用实色，保留静态表面层次。背景模糊仅处理画布伪层，不模糊正文；浅色遮罩提亮，深色遮罩压暗。
 - `components/disclosure/` 共用原卷帘时序与三层容器；`styles.css` 的开合/错峰只命中当前层，父项目展开不得覆盖已收起的子会话。
 

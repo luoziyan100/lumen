@@ -1,5 +1,5 @@
 /**
- * [INPUT]: Tauri 窗口、外观明暗、文件/完整技能选择、受控系统打开、外链、widget脚本与Mastra服务连接
+ * [INPUT]: Tauri 窗口(macOS 透明 + 系统侧栏毛玻璃)、外观明暗、文件/完整技能选择、受控系统打开、外链、widget脚本与Mastra服务连接
  * [OUTPUT]: 唯一桌面窗口和显式原生命令，不持有 Agent 服务进程
  * [POS]: 原生薄壳；研究生命周期归 launchd/Mastra，窗口只负责发现、展示和用户文件动作
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -134,7 +134,19 @@ fn main() {
         .setup(|app| {
             let script = mastra::startup(app.handle());
             // --- 文件拖放交给网页附件入口；原生层不截留 OS drop ---
-            WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
+            // --- 窗口透明 + 系统侧栏毛玻璃：网页只在主题声明透明的区域透出，实色区域外观不变 ---
+            let builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default());
+            #[cfg(target_os = "macos")]
+            let builder = builder
+                .transparent(true)
+                .effects(tauri::utils::config::WindowEffectsConfig {
+                    effects: vec![tauri::window::Effect::Sidebar],
+                    state: Some(tauri::window::EffectState::FollowsWindowActiveState),
+                    radius: None,
+                    color: None,
+                })
+                .initialization_script("document.documentElement.dataset.vibrancy = 'sidebar'");
+            builder
                 .title("Lumen")
                 .inner_size(1160.0, 800.0)
                 .min_inner_size(720.0, 480.0)

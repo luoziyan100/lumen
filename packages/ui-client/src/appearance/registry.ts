@@ -1,14 +1,41 @@
 /**
  * [INPUT]: SkinDefinition 合同
- * [OUTPUT]: 十一套内置整窗皮肤、注册表、列表与未知皮肤回退
- * [POS]: 外观模块的配色与材质真源；浅色玻璃/纸面、暗色玻璃及模式适配补丁供主题解析器消费
+ * [OUTPUT]: 十二套内置整窗皮肤、注册表、列表与未知皮肤回退(回退到默认「清透」)
+ * [POS]: 外观模块的配色与材质真源；「清透」取值直接来自 yan-design-system 主题值表，其余皮肤为本地补丁
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
-import type { AppearanceTokenName, SkinDefinition } from './types.ts'
+import { THEMES } from 'yan-design-system/themes'
+import { APPEARANCE_TOKEN_SET, TOKEN_ALIASES, type AppearanceTokenName, type SkinDefinition } from './types.ts'
 
 function t(partial: Partial<Record<AppearanceTokenName, string>>): SkinDefinition['tokens'] {
   return partial
+}
+
+/** 设计系统主题 → 皮肤补丁：只取白名单原语，别名留给解析器保持 var() 级联 */
+function fromDesignSystem(name: string, extra: Partial<Record<AppearanceTokenName, string>>): SkinDefinition['tokens'] {
+  const theme = THEMES[name]
+  if (!theme) throw new Error(`yan-design-system 缺少主题 ${name}`)
+  const out: Partial<Record<AppearanceTokenName, string>> = {}
+  for (const [key, value] of Object.entries(theme)) {
+    if (APPEARANCE_TOKEN_SET.has(key) && !TOKEN_ALIASES[key]) out[key as AppearanceTokenName] = value
+  }
+  return { ...out, ...extra }
+}
+
+/** 清透(默认)：近白实色内容面、半透明侧栏/标题栏(桌面端透出系统毛玻璃)、单一蓝强调；暗色为中性深灰对应版 */
+export const SKIN_CLEAR: SkinDefinition = {
+  id: 'yan-clear',
+  name: '清透',
+  description: '近白内容面 + 透明侧栏，单一蓝色强调；暗色为中性深灰',
+  preview: 'linear-gradient(145deg, #F4F5F7 0%, #F4F5F7 34%, #FEFEFE 34%, #FEFEFE 100%)',
+  accents: ['#FEFEFE', '#2E6BE6', '#2B2D31'],
+  preferredScheme: 'light',
+  material: 'glass',
+  backgroundImage: null,
+  tokens: fromDesignSystem('yan-clear-light', { '--beam-a': '#8FB2F2', '--beam-b': '#2E6BE6', '--beam-c': '#C9D9F8' }),
+  alternateTokens: fromDesignSystem('yan-clear-dark', { '--beam-a': '#79A8F7', '--beam-b': '#5B93F5', '--beam-c': '#2A3F66' }),
+  effects: { aurora: false, overlay: 0, blurPx: 0 },
 }
 
 /** 冰川玻璃：明亮银灰底透过低不透明度白玻璃，文字与控件保持实色边界。 */
@@ -255,11 +282,11 @@ export const SKIN_SEA_SALT: SkinDefinition = {
   effects: { aurora: true, overlay: 0, blurPx: 0 },
 }
 
-/** 当前 Lumen Glass 青瓷（空补丁 = 全基线） */
-export const SKIN_DEFAULT: SkinDefinition = {
+/** 旧默认 Lumen Glass 青瓷（空补丁 = 全基线）；id 保持 'default' 以兼容已保存偏好 */
+export const SKIN_CELADON: SkinDefinition = {
   id: 'default',
-  name: '青瓷默认',
-  description: '当前 Lumen：近黑玻璃壳 + 青瓷强调（整窗基线）',
+  name: '青瓷暗色',
+  description: '近黑玻璃壳 + 青瓷强调（明暗基线本身）',
   preview: 'linear-gradient(145deg, #0B0C10 0%, #14161C 35%, #1E212A 55%, #6BC49A 100%)',
   accents: ['#6BC49A', '#8AD4B0', '#5EF0D0'],
   preferredScheme: 'dark',
@@ -674,11 +701,14 @@ export const SKIN_COSMIC_LATTE: SkinDefinition = {
   effects: { aurora: false, overlay: 0, blurPx: 0 },
 }
 
+export const SKIN_DEFAULT = SKIN_CLEAR
+
 const ALL: SkinDefinition[] = [
+  SKIN_CLEAR,
   SKIN_GLACIER,
   SKIN_PAPER,
   SKIN_SEA_SALT,
-  SKIN_DEFAULT,
+  SKIN_CELADON,
   SKIN_COSMIC_LATTE,
   SKIN_MIST,
   SKIN_SKY,

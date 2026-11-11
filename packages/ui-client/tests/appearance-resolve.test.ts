@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 外观解析/归一入口、明暗基线、皮肤注册表与原语白名单
- * [OUTPUT]: 真实明暗、皮肤补丁隔离、玻璃/纸面材质与别名级联的纯函数回归
+ * [OUTPUT]: 真实明暗、默认清透取自设计系统、v1 偏好迁移、皮肤补丁隔离、玻璃/纸面材质与别名级联的纯函数回归
  * [POS]: 外观状态到主题输出的合同；DOM 应用与用户点击由 mastra-appearance 覆盖
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -17,7 +17,43 @@ import {
   listSkins,
   coerceSkinId,
   SKIN_DEFAULT,
+  APPEARANCE_TOKEN_SET,
+  loadAppearance,
+  APPEARANCE_STORAGE_KEY,
+  LEGACY_APPEARANCE_STORAGE_KEY,
 } from '../src/appearance/index.ts'
+import { THEMES } from 'yan-design-system/themes'
+
+describe('默认「清透」', () => {
+  it('默认浅色，明暗两侧逐项取自设计系统主题值表', () => {
+    assert.equal(DEFAULT_APPEARANCE.mode, 'light')
+    assert.equal(DEFAULT_APPEARANCE.skinId, SKIN_DEFAULT.id)
+    for (const [mode, theme] of [['light', 'yan-clear-light'], ['dark', 'yan-clear-dark']] as const) {
+      const r = resolveTheme({ ...DEFAULT_APPEARANCE, mode }, mode)
+      assert.equal(r.colorScheme, mode)
+      assert.equal(r.aurora, false)
+      const primitives = Object.entries(THEMES[theme]!).filter(([k]) => !TOKEN_ALIASES[k] && APPEARANCE_TOKEN_SET.has(k))
+      assert.ok(primitives.length >= 40)
+      for (const [k, v] of primitives) assert.equal(r.tokens[k], v, `${mode} ${k}`)
+    }
+  })
+
+  it('v1 偏好迁移：旧默认青瓷改为清透，其他皮肤选择保留', () => {
+    const store = new Map<string, string>()
+    const fake = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) }
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: fake })
+    try {
+      store.set(LEGACY_APPEARANCE_STORAGE_KEY, JSON.stringify({ version: 1, mode: 'dark', skinId: 'default', overlay: 0, blurPx: 0 }))
+      assert.deepEqual(loadAppearance(), DEFAULT_APPEARANCE)
+      assert.equal(JSON.parse(store.get(APPEARANCE_STORAGE_KEY)!).skinId, 'yan-clear')
+      store.clear()
+      store.set(LEGACY_APPEARANCE_STORAGE_KEY, JSON.stringify({ version: 1, mode: 'dark', skinId: 'mist-forest', overlay: 0, blurPx: 0 }))
+      assert.equal(loadAppearance().skinId, 'mist-forest')
+      store.set(LEGACY_APPEARANCE_STORAGE_KEY, JSON.stringify({ version: 1, mode: 'dark', skinId: 'clay-warm', overlay: 0, blurPx: 0 }))
+      assert.equal(loadAppearance().skinId, 'mist-forest', 'v2 已存在时不再读 v1')
+    } finally { Reflect.deleteProperty(globalThis, 'localStorage') }
+  })
+})
 
 describe('filterWhitelist', () => {
   it('丢弃别名与未知键', () => {
@@ -37,9 +73,9 @@ describe('filterWhitelist', () => {
 })
 
 describe('resolveTheme', () => {
-  it('非法 skinId → default', () => {
+  it('非法 skinId → 默认「清透」', () => {
     const r = resolveTheme({ ...DEFAULT_APPEARANCE, skinId: 'nope', mode: 'dark' }, 'dark')
-    assert.equal(r.skinId, 'default')
+    assert.equal(r.skinId, 'yan-clear')
     assert.equal(r.colorScheme, 'dark')
   })
 

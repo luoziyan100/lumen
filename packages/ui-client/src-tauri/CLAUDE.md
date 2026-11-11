@@ -17,12 +17,12 @@ src-tauri/
 └── icons/
 ```
 
-- `src/main.rs`：1160×800 原生窗口、外观明暗同步、项目目录选择、系统浏览器外链、widget 脚本注册与 URI 协议；macOS 关窗隐藏、Dock 重开显示，Cmd+Q 只退出窗口进程。
+- `src/main.rs`：1160×800 原生窗口(macOS 透明窗口 + 系统侧栏毛玻璃，注入 `data-vibrancy`；只有主题声明透明的区域才透出)、外观明暗同步、项目目录选择、系统浏览器外链、widget 脚本注册与 URI 协议；macOS 关窗隐藏、Dock 重开显示，Cmd+Q 只退出窗口进程。
 - `src/mastra.rs`：默认 `~/.lumen-mastra`，参数 `--mastra-data-root` 优先于 `LUMEN_MASTRA_HOME`；私有发现验证后只向可信顶层页面注入 HTTP 身份，失败显示重试入口。
 - `src/files.rs`：系统文档打开先向受信服务验证项目文件归属，二次确认实际路径，禁止页面传入任意宿主路径。
 - `src/skills.rs`：原生选择完整技能包，保留脚本、资源和空目录相对结构，32 MiB/4096项/32层限制且拒绝符号链接。
 - `src/CLAUDE.md`：原生职责与依赖地图。
-- `tauri.conf.json`：应用身份与最小 CSP；脚本仅 self/lumenwidget，无 unsafe-inline/eval；服务连接仅本机 HTTP。
+- `tauri.conf.json`：应用身份与最小 CSP；`macOSPrivateApi` 开启以允许窗口透明(私有 API，不可上架 App Store)；脚本仅 self/lumenwidget，无 unsafe-inline/eval；服务连接仅本机 HTTP。
 - `Cargo.toml` / `Cargo.lock`：Tauri、rfd、serde、base64 0.22和reqwest 0.13；二进制名Lumen，reqwest只连私有发现的本机服务，不跟随重定向或系统代理。
 - `build.rs`：Tauri 构建元数据。
 - `icons/`：用户提供的飞鸟/星芒水彩图标，全幅1024母版派生桌面各尺寸与ICNS/ICO，详见局部地图。

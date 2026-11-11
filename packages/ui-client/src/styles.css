@@ -1,6 +1,6 @@
 /*
  * [INPUT]: tokens.css 的明暗材质、排版和动效；原组件类名、统一 icons 轮廓与 Kumo 控件映射
- * [OUTPUT]: 桌面壳、侧栏、聊天、阅读器和原卷帘的全局视觉；背景模糊仅作用装饰层
+ * [OUTPUT]: 桌面壳、侧栏、聊天、阅读器和原卷帘的全局视觉；背景模糊仅作用装饰层；清透皮肤的窗框/内容面分工与原生毛玻璃透出
  * [POS]: 形态 A 布局真源；图标居中且不覆盖其尺寸，材质沿语义变量传导，纸面关闭反光动效
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -78,6 +78,37 @@ html[data-skin="cosmic-latte"] .body {
   border-radius: 0;
   background: transparent !important;
   box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+/*
+ * 清透(默认)：侧栏与标题栏是半透明「窗框」，正文与工作区是实色内容面；框与面之间只用一条细线，不浮卡。
+ * 桌面端(data-vibrancy，由原生窗口注入)整窗透明，窗框直接透出 macOS 系统侧栏毛玻璃，只叠一层很淡的底色。
+ */
+html[data-skin="yan-clear"] .sidebar {
+  margin: 0;
+  border: none;
+  border-right: 1px solid var(--sand);
+  border-radius: 0;
+  box-shadow: none;
+}
+html[data-skin="yan-clear"] .titlebar { border-bottom-color: var(--sand); box-shadow: none; }
+html[data-skin="yan-clear"] .chat { background: var(--surface-base); }
+html[data-skin="yan-clear"] .mw-files {
+  margin: 0;
+  border: none;
+  border-left: 1px solid var(--sand);
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--surface-base);
+}
+html[data-skin="yan-clear"][data-vibrancy],
+html[data-skin="yan-clear"][data-vibrancy] body,
+html[data-skin="yan-clear"][data-vibrancy] .app { background: transparent; }
+html[data-skin="yan-clear"][data-vibrancy] .app::before { display: none; }
+html[data-skin="yan-clear"][data-vibrancy] .sidebar,
+html[data-skin="yan-clear"][data-vibrancy] .titlebar {
+  background: color-mix(in srgb, var(--surface-base) 28%, transparent);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }

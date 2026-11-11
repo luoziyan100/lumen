@@ -19,10 +19,10 @@ export {
   DEFAULT_APPEARANCE,
   TOKEN_ALIASES,
 } from './types.ts'
-export { listSkins, getSkin, SKIN_REGISTRY, coerceSkinId, SKIN_DEFAULT } from './registry.ts'
+export { listSkins, getSkin, SKIN_REGISTRY, coerceSkinId, SKIN_DEFAULT, SKIN_CLEAR, SKIN_CELADON } from './registry.ts'
 export { resolveTheme, filterWhitelist, DARK_BASELINE, LIGHT_BASELINE } from './resolve.ts'
 export { applyTheme } from './apply.ts'
-export { loadAppearance, saveAppearance, normalizeAppearance, APPEARANCE_STORAGE_KEY } from './store.ts'
+export { loadAppearance, saveAppearance, normalizeAppearance, APPEARANCE_STORAGE_KEY, LEGACY_APPEARANCE_STORAGE_KEY } from './store.ts'
 export { resolveSystemScheme, subscribeSystemScheme } from './systemMode.ts'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'

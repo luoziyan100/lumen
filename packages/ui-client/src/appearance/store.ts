@@ -1,14 +1,16 @@
 /**
- * [INPUT]: localStorage lumen:appearance.v1
+ * [INPUT]: localStorage lumen:appearance.v2(无则一次性读取 v1)
  * [OUTPUT]: loadAppearance / saveAppearance / normalizeAppearance
- * [POS]: appearance 本地偏好持久化，与服务端模型和运行设置分离
+ * [POS]: appearance 本地偏好持久化，与服务端模型和运行设置分离；
+ *        v1 迁移：停留在旧默认青瓷的偏好改为新默认「清透」，其余皮肤选择原样保留
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
 import { coerceSkinId } from './registry.ts'
 import { DEFAULT_APPEARANCE, type AppearanceMode, type AppearanceState } from './types.ts'
 
-export const APPEARANCE_STORAGE_KEY = 'lumen:appearance.v1'
+export const APPEARANCE_STORAGE_KEY = 'lumen:appearance.v2'
+export const LEGACY_APPEARANCE_STORAGE_KEY = 'lumen:appearance.v1'
 
 const MODES = new Set<AppearanceMode>(['dark', 'light', 'system'])
 
@@ -28,8 +30,13 @@ export function loadAppearance(): AppearanceState {
   try {
     if (typeof localStorage === 'undefined') return { ...DEFAULT_APPEARANCE }
     const raw = localStorage.getItem(APPEARANCE_STORAGE_KEY)
-    if (!raw) return { ...DEFAULT_APPEARANCE }
-    return normalizeAppearance(JSON.parse(raw))
+    if (raw) return normalizeAppearance(JSON.parse(raw))
+    const legacy = localStorage.getItem(LEGACY_APPEARANCE_STORAGE_KEY)
+    if (!legacy) return { ...DEFAULT_APPEARANCE }
+    const previous = normalizeAppearance(JSON.parse(legacy))
+    const migrated = previous.skinId === 'default' ? { ...DEFAULT_APPEARANCE } : previous
+    saveAppearance(migrated)
+    return migrated
   } catch {
     return { ...DEFAULT_APPEARANCE }
   }

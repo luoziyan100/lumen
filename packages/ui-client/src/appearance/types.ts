@@ -19,8 +19,8 @@ export interface AppearanceState {
 
 export const DEFAULT_APPEARANCE: AppearanceState = {
   version: 1,
-  mode: 'dark',
-  skinId: 'default',
+  mode: 'light',
+  skinId: 'yan-clear',
   /** Phase A 无壁纸图时默认 0,避免整窗发灰;有图皮肤可在 effects 里抬高 */
   overlay: 0,
   blurPx: 0,
