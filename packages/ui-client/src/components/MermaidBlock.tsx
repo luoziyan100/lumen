@@ -7,7 +7,8 @@
  *
  * 管线: 语法修补 → 宿主颜色裁决 → 同源 parse → 箱外 render/tighten → 一次提交 final SVG。
  * 复制始终用模型原文; 展示像素用改写稿。缓存键 = 原文 hash@列宽桶@主题签名,换皮肤即重画;缓存 LRU 64 条。
- * 无障碍:外层 figure 承载工具栏与失败卡(按钮、alert 可达),role=img 只给 SVG 本身。
+ * 无障碍:外层 figure 承载工具栏与失败卡(按钮、alert 可达),role=img 只给 SVG 本身;名称只出现一次。
+ * 渲染期只读缓存(不改 LRU 顺序),命中时由 effect 更新顺序。
  * mermaid.initialize 是全局状态,initialize+parse+render 串行执行,避免并发图互相覆盖配置。
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
@@ -16,6 +17,7 @@ import { getMermaidPalette, mermaidThemeVariables, paletteSignature, subscribeMe
 import { cacheHoldsFinalSvg, createMermaidMeasureHost, mermaidLayoutCacheKey, tightenSvgInHost } from '../mermaid/mermaidMeasureHost'
 import { ensureElkLayout, mermaidInitializeOptions } from '../mermaid/mermaidLayout'
 import { MERMAID_COPY } from '../copy/appCopy'
+import type { MermaidFix } from '../mermaid/mermaidFixLedger'
 import { CheckIcon, CopyIcon, ExpandIcon, ICON_SM } from './icons'
 import { MermaidLightbox } from './MermaidLightbox'
 import { scrollDebugLog } from '../scroll/scrollDebug'
@@ -45,6 +47,8 @@ function serialized<T>(task: () => Promise<T>): Promise<T> {
   renderQueue = run.catch(() => undefined)
   return run
 }
+
+const noSubscribe = () => () => {}
 
 function hashSource(s: string): string {
   let h = 0x811c9dc5
@@ -84,14 +88,11 @@ async function copyText(text: string): Promise<void> {
 
 export function MermaidBlock({
   chart,
-  onAskFix,
-  fixAsked = false,
+  fix,
 }: {
   chart: string
   /** 失败时把原图与解析错误交给当前会话;阅读器等无会话处不传 */
-  onAskFix?: (source: string, error: string) => void
-  /** 本会话已为这张图请求过修正(另一处同图或重挂载前) */
-  fixAsked?: boolean
+  fix?: MermaidFix
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const reactId = useId().replace(/:/g, '')
@@ -100,15 +101,14 @@ export function MermaidBlock({
   const theme = paletteSignature(palette)
   const [colW, setColW] = useState(0)
   const key = original && colW > 0 ? `${mermaidLayoutCacheKey(hashSource(original), colW)}@${hashSource(theme)}` : ''
-  const cached0 = key ? cacheGet(key) : undefined
+  const cached0 = key ? renderCache.get(key) : undefined
   const [svg, setSvg] = useState<string | null>(() => (cached0 && cacheHoldsFinalSvg(cached0) ? cached0.svg : null))
   const [error, setError] = useState<string | null>(() => cached0?.error ?? null)
   const [detail, setDetail] = useState<string | null>(() => cached0?.detail ?? null)
   const [showDetail, setShowDetail] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [askedHere, setAskedFix] = useState(false)
-  const askedFix = askedHere || fixAsked
+  const askedFix = useSyncExternalStore(fix?.subscribe ?? noSubscribe, () => fix?.asked(original) ?? false)
 
   useLayoutEffect(() => {
     const el = hostRef.current
@@ -122,8 +122,6 @@ export function MermaidBlock({
     ro.observe(el)
     return () => ro.disconnect()
   }, [original, svg, error])
-
-  useEffect(() => { setAskedFix(false) }, [original])
 
   useEffect(() => {
     if (!original) {
@@ -207,7 +205,7 @@ export function MermaidBlock({
   }
 
   return (
-    <div ref={hostRef} className="mermaid-block" role="figure" aria-label="流程图">
+    <div ref={hostRef} className="mermaid-block" role="figure" aria-label={svg && !error ? undefined : '流程图'}>
       <div className="mermaid-toolbar" role="toolbar" aria-label="流程图操作">
         {svg && !error ? (
           <button type="button" className="mermaid-tool" title="放大查看" aria-label="放大查看" onClick={() => setExpanded(true)}>
@@ -234,12 +232,12 @@ export function MermaidBlock({
               </button>
             ) : null}
             {showDetail && detail ? <pre className="mermaid-error-detail"><code>{detail}</code></pre> : null}
-            {onAskFix ? (
+            {fix ? (
               <button
                 type="button"
                 className="mermaid-ask-fix"
                 disabled={askedFix}
-                onClick={() => { setAskedFix(true); onAskFix(original, detail ?? error) }}
+                onClick={() => fix.ask(original, detail ?? error)}
               >
                 {askedFix ? MERMAID_COPY.askedFix : MERMAID_COPY.askFix}
               </button>

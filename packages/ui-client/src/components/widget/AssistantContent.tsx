@@ -8,8 +8,7 @@
  */
 import { memo, useMemo } from 'react'
 import { mermaidFixPrompt } from '../../copy/appCopy'
-import { markMermaidFixAsked, mermaidFixAsked } from '../../mermaid/mermaidFixLedger'
-import type { MermaidFix } from '../Markdown'
+import { markMermaidFixAsked, mermaidFixAsked, subscribeMermaidFix, type MermaidFix } from '../../mermaid/mermaidFixLedger'
 import { Markdown } from '../Markdown'
 import { WidgetFrame } from './WidgetFrame'
 import { parseShowWidgets } from './parseShowWidget'
@@ -33,6 +32,7 @@ export const AssistantContent = memo(function AssistantContent({
       ? {
           asked: (source) => mermaidFixAsked(fixScope, source),
           ask: (source, error) => { if (markMermaidFixAsked(fixScope, source)) onSendMessage(mermaidFixPrompt(source, error)) },
+          subscribe: subscribeMermaidFix,
         }
       : undefined),
     [onSendMessage, fixScope, isStreaming],

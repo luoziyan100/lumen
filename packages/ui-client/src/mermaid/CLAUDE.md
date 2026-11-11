@@ -12,6 +12,6 @@
 - `mermaidLayout.ts` — 官方 ELK(失败回 dagre)+ SVG 固有尺寸归一(剥离百分比宽/卡片 max-width);卡片横滚与 lightbox fit 由 CSS 决定;见 `doc/mermaid.md`
 - `mermaidMeasureHost.ts` — 箱外测量宿主 + 墨迹收紧 + 宽度分桶缓存键;主流只收 final SVG
 - `mermaidZoom.ts` — 放大层缩放/平移算术
-- `mermaidFixLedger.ts` — 「请模型修正」按会话 × 图原文去重(模块级、不落库)
+- `mermaidFixLedger.ts` — 「请模型修正」按会话 × 图原文去重(模块级、不落库、可订阅，保留最近 32 个会话)
 
 颜色唯一入口是 `mermaidTheme.ts`；2026-11-10 删除按暗色写死的 `mermaidSanitize.ts`(固定色板 + 对比度引擎)与无消费者的 `mermaidMetrics`。

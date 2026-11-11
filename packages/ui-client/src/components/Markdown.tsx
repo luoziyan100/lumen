@@ -16,6 +16,7 @@ import rehypeKatex from 'rehype-katex'
 import rehypeHighlight from 'rehype-highlight'
 import 'katex/dist/katex.min.css'
 import './hljs-celadon.css'
+import type { MermaidFix } from '../mermaid/mermaidFixLedger'
 import { MermaidBlock } from './MermaidBlock'
 import { useOpenExternal } from './ExternalLinkDialog'
 import { normalizeMathDelimiters } from './markdownMath.ts'
@@ -38,9 +39,6 @@ function isMermaidCode(node: ReactNode): node is React.ReactElement<CodeProps> {
 function codeText(children: ReactNode): string {
   return String(children ?? '').replace(/\n$/, '')
 }
-
-/** 失败图修正通道：asked 查询该图是否已请求过，ask 发送(由提供方去重) */
-export type MermaidFix = { asked: (source: string) => boolean; ask: (source: string, error: string) => void }
 
 export const Markdown = memo(function Markdown({
   children,
@@ -87,8 +85,7 @@ export const Markdown = memo(function Markdown({
             </pre>
           )
         }
-        const chart = codeText(code.props.children)
-        return <MermaidBlock chart={chart} onAskFix={mermaidFix?.ask} fixAsked={mermaidFix?.asked(chart)} />
+        return <MermaidBlock chart={codeText(code.props.children)} fix={mermaidFix} />
       }
       return <pre {...props}>{children}</pre>
     },
