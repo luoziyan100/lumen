@@ -32,6 +32,7 @@ import { readSourceBinding, sourcePath } from './workspace/source.ts'
 import { createMemoryTools, readMemoryIndex } from './workspace/memory.ts'
 import { createSharedTools } from './workspace/shared.ts'
 import { createExecutionTools } from './execution/tools.ts'
+import { ALWAYS_ALLOWED_TOOLS, toolCategory } from './permissions.ts'
 import { RESEARCH_DOMAINS } from './execution/domains.ts'
 import { createIngestionTools, createImageToolResultProcessor, type IngestionWorkspaceResolver } from './ingestion/index.ts'
 import { createInputProcessors, modelTools } from './agents/context.ts'
@@ -207,13 +208,7 @@ export async function createApplication(options: ApplicationOptions) {
     gateways: [models.gateway],
     modes: [{ id: 'research', name: '研究', defaultModelId: selectedModel, metadata: { default: true } }],
     disableBuiltinTools: ['subagent', 'submit_plan'],
-    toolCategoryResolver: name => {
-      if (['read_file', 'list_files', 'grep', 'read_memory', 'read_history', 'read_project_file', 'list_project_files', 'search_papers', 'get_citations', 'fetch_url', 'search_web', 'extract_pdf', 'extract_docx', 'look_at_image', 'list_skills', 'run_skill', 'read_skill_file', 'task_check'].includes(name)) return 'read'
-      if (['write_file', 'edit_file', 'write_memory', 'copy_project_file', 'install_skill', 'task_write', 'task_update', 'task_complete'].includes(name)) return 'edit'
-      // 原生 agent-* 只来自已注册的项目角色；角色白名单和独立目录先于执行权限生效。
-      if (name === 'run_code' || name.startsWith('agent-')) return 'execute'
-      return 'other'
-    },
+    toolCategoryResolver: toolCategory,
   })
   const mastra = new Mastra({ agents: { research: agent }, agentControllers: { lumen: controller }, storage, gateways: { lumen: models.gateway }, observability: diagnostics.observability,
     backgroundTasks: { enabled: true, recoverStaleTasksOnStart: false, defaultRetries: { maxRetries: 0 }, backpressure: 'reject', globalConcurrency: 4, perAgentConcurrency: 2, defaultTimeoutMs: 300000 },
@@ -270,7 +265,7 @@ export async function createApplication(options: ApplicationOptions) {
       sessionModelIds.set(resourceId, session.model.get())
       const rules = session.permissions.getRules()
       for (const category of ['read', 'edit', 'execute'] as const) if (!rules.categories[category]) await session.permissions.setForCategory({ category, policy: 'allow' })
-      for (const toolName of ['ask_user', 'task_write', 'task_update', 'task_complete', 'task_check']) {
+      for (const toolName of ALWAYS_ALLOWED_TOOLS) {
         if (!rules.tools[toolName]) await session.permissions.setForTool({ toolName, policy: 'allow' })
       }
       await restoreSuspendedQuestions({ session, agent })
