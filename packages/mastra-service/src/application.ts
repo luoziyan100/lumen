@@ -184,7 +184,9 @@ export async function createApplication(options: ApplicationOptions) {
   const agent = new Agent({ id: 'research', name: 'Lumen', model: currentModel,
     instructions: async ({ requestContext }) => {
       const owner = requestContext.get<'controller', AgentControllerRequestContext>('controller')
-      const index = owner?.resourceId ? await readMemoryIndex(await projectFiles(projectFromContext(owner), 'memory')) : ''
+      // -------- 记忆索引只是提示词旁路；读取失败如实告知模型，不中断研究运行 --------
+      const index = owner?.resourceId ? await readMemoryIndex(await projectFiles(projectFromContext(owner), 'memory'))
+        .catch(error => `（MEMORY.md 暂时无法读取：${error instanceof Error ? error.message : String(error)}；需要时用 read_memory 检查。）`) : ''
       return [RESEARCH_PERSONA, userInstructions && `用户研究偏好：\n${userInstructions}`, index && `项目记忆索引（按需读取，不视为外部证据）：\n${index}`].filter(Boolean).join('\n\n')
     },
     memory,

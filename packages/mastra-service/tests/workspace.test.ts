@@ -6,9 +6,10 @@
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { createApplication } from '../src/application.ts'
 import { createHttpService } from '../src/server.ts'
 import { createMemoryTools } from '../src/workspace/memory.ts'
 import { fixtureProvider, textReply, toolReply } from './provider-fixture.ts'
@@ -90,4 +91,21 @@ test('模型工具格式兼容不放宽记忆文件的本地验证，中文名�
       assert.equal(!result.issues, valid, name)
     }
   }
+})
+
+test('项目记忆索引不可读时研究仍运行，模型收到如实的读取失败说明', { timeout: 20000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), 'lumen-memory-index-'))
+  const fixture = fixtureProvider(() => textReply('完成'))
+  const application = await createApplication({ dataRoot: root,
+    model: { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixture.fetch },
+  })
+  try {
+    await mkdir(join(root, 'projects/p/memory/MEMORY.md'), { recursive: true })
+    const session = await application.session('p', 'task')
+    await session.sendMessage({ content: '你好' })
+    assert.equal(fixture.requests.length, 1)
+    const system = fixture.requests[0]!.messages.filter(message => message.role === 'system').map(message => String(message.content)).join('\n')
+    assert.match(system, /MEMORY\.md 暂时无法读取：.*read_memory/)
+    assert.match(JSON.stringify(await application.memory.recall({ threadId: 'p:task', resourceId: 'p:task' })), /完成/)
+  } finally { await application.close(); await rm(root, { recursive: true, force: true }) }
 })
