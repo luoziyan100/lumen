@@ -7,7 +7,7 @@
 import { SPECIALIST_ROLES, type SpecialistRole } from '../roles.ts'
 import type { AgentDefinition } from './types.ts'
 
-const writeTools = new Set(['write_file', 'edit_file', 'copy_project_file', 'copy_task_file'])
+const writeTools = new Set(['write_file', 'edit_file', 'copy_task_file'])
 const sourceTools = new Set(['list_task_files', 'read_task_file'])
 
 export function constrainAgent(definition: AgentDefinition): { role: SpecialistRole; notes: string[] } {

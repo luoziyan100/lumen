@@ -1,5 +1,5 @@
 /**
- * [INPUT]: 真实 React 会话呈现组件、迁移消息形状与浏览器 DOM
+ * [INPUT]: 真实 React 会话呈现组件、资料库附言消息形状与浏览器 DOM
  * [OUTPUT]: 附件边界、折叠、复制反馈与轮次导航的定向行为回归
  * [POS]: 不调用模型或修改正式会话；验证原生消息的 UI 投影和实际点击
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -30,27 +30,24 @@ function mounted() {
   return { element, root, async close() { await act(async () => root.unmount()); element.remove() } }
 }
 
-test('历史文件保持当前 task/shared 范围，拒绝越界和远程附件；新上传附言只在完整合法时隐藏', () => {
-  const item = message('u', '读这些')
-  item.content.metadata = { legacyUploads: [
-    { name: '任务.pdf', path: 'papers/task.pdf' }, { name: '共享.pdf', path: 'shared/papers/shared.pdf' },
-    ...['../private', 'shared/../private', 'shared/%2e%2e/private', '/etc/passwd', 'https://example.com/x', 'projects/other/file'].map(path => ({ name: '拒绝', path })),
-  ] }
+test('附件只认资料库条目 id，越界、路径与远程附件不当附件；附言只在完整合法时隐藏', () => {
+  const item = message('u', `读这些\n\n${C.uploadedMaterials}\n- 论文.pdf: item-a1\n- 笔记.md: item_b2\n- 论文.pdf: item-a1`)
   item.content.experimental_attachments = [
     { url: 'data:image/png;base64,YQ==', name: '旧图' }, { url: 'https://example.com/image.png' }, { url: 'data:image/svg+xml;base64,YQ==' },
   ]
   const projected = userContent(item)
-  assert.deepEqual(projected.files, [{ name: '任务.pdf', target: { path: 'papers/task.pdf', scope: 'task' } }, { name: '共享.pdf', target: { path: 'papers/shared.pdf', scope: 'shared' } }])
+  assert.equal(projected.text, '读这些')
+  assert.deepEqual(projected.files, [{ name: '论文.pdf', target: { path: 'item-a1', scope: 'library' } }, { name: '笔记.md', target: { path: 'item_b2', scope: 'library' } }])
   assert.equal(projected.images.length, 1)
-  const uploaded = userContent(message('new', `研究\n\n${C.uploadedMaterials}\n- 论文: library/paper.pdf`))
-  assert.equal(uploaded.text, '研究'); assert.equal(uploaded.files[0]?.target.path, 'library/paper.pdf')
-  const invalid = `研究\n\n${C.uploadedMaterials}\n- 文件: library/../secret`
-  assert.equal(userContent(message('bad', invalid)).text, invalid)
+  for (const reference of ['library/../secret', '../private', '/etc/passwd', 'https://example.com/x', 'papers/paper.pdf', '-leading']) {
+    const invalid = `研究\n\n${C.uploadedMaterials}\n- 文件: ${reference}`
+    assert.equal(userContent(message('bad', invalid)).text, invalid, reference)
+    assert.deepEqual(userContent(message('bad', invalid)).files, [])
+  }
 })
 
 test('长消息展开/收起不隐藏附件，点击历史文件保持其受控范围', async () => {
-  const view = mounted(), opened: unknown[] = [], item = message('long', '长'.repeat(751))
-  item.content.metadata = { legacyUploads: [{ name: '附件.pdf', path: 'shared/papers/a.pdf' }] }
+  const view = mounted(), opened: unknown[] = [], item = message('long', `${'长'.repeat(751)}\n\n${C.uploadedMaterials}\n- 附件.pdf: item-a`)
   item.content.experimental_attachments = [{ name: '图片', url: 'data:image/png;base64,YQ==' }]
   try {
     await act(async () => view.root.render(createElement(UserMessage, { message: item, onOpenFile: target => opened.push(target) })))
@@ -66,7 +63,7 @@ test('长消息展开/收起不隐藏附件，点击历史文件保持其受控�
     await act(async () => dialog.querySelector<HTMLButtonElement>('button')!.click())
     assert.equal(dialog.open, false)
     await act(async () => view.element.querySelector<HTMLButtonElement>('.msg-file-chip')!.click())
-    assert.deepEqual(opened, [{ path: 'papers/a.pdf', scope: 'shared' }])
+    assert.deepEqual(opened, [{ path: 'item-a', scope: 'library' }])
     await act(async () => toggle.click())
     assert.equal(toggle.getAttribute('aria-expanded'), 'true'); assert.equal(view.element.querySelector('.is-collapsed'), null)
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 40)) })

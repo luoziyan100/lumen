@@ -1,7 +1,7 @@
 # mastra-service — Mastra 应用服务
 > L2 | 父级: ../../CLAUDE.md
 
-唯一现役应用服务。消息、执行与恢复使用 Mastra，项目/研究算法/文件权限属于 Lumen；禁止打开旧 ~/.lumen。
+唯一现役应用服务。消息、执行与恢复使用 Mastra，主题/资料库/白板/研究算法/文件权限属于 Lumen；禁止打开旧 ~/.lumen。
 
 - `package.json`：精确锁定 Mastra/模型 SDK/unpdf 依赖与独立启动、验证命令。
 - `tsconfig.json`：新服务与行为用例的严格类型检查。

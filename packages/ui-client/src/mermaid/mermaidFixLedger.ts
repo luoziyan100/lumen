@@ -1,5 +1,5 @@
 /**
- * [INPUT]: 会话作用域(projectId:taskId)与失败图原文
+ * [INPUT]: 会话作用域(topicId:taskId)与失败图原文
  * [OUTPUT]: MermaidFix 通道类型；mermaidFixAsked / markMermaidFixAsked / subscribeMermaidFix —— 「请模型修正」按会话 × 图原文去重
  * [POS]: MermaidBlock 修正请求的去重真源；组件 state 挡不住同一张坏图在会话里出现两次或重挂载，
  *        所以记录放在模块级、随应用进程存活，不落库。可订阅：一处请求后同图各处立即显示已请求。

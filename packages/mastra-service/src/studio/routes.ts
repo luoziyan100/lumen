@@ -100,7 +100,10 @@ export function studioRoutes(options: { studio: Studio; http: ResearchHttp; acti
     c.header('ETag', etag)
     c.header('Cache-Control', 'no-cache')
     if (c.req.header('If-None-Match') === etag) return c.body(null, 304)
+    // ---- 原件按上传类型返回；HTML/SVG 不能在服务源上执行脚本，阅读器自有沙箱渲染 ----
     c.header('Content-Type', item.mediaType)
+    c.header('X-Content-Type-Options', 'nosniff')
+    c.header('Content-Security-Policy', 'sandbox')
     return c.body(new Uint8Array(await library.read(item)))
   })
 

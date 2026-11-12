@@ -1,18 +1,18 @@
 /**
- * [INPUT]: 受控文件列表与原生 snapshot API、当前会话身份
+ * [INPUT]: 受控文件列表与原生 snapshot API、当前会话身份（列的是主题工作区，同主题各段对话共用）
  * [OUTPUT]: useWorkspace：独立于右轨可见性的产物目录、原生任务投影及首次出现通知
  * [POS]: 不复制消息；跳过内部目录，串行遍历文件夹，渲染时按身份与连接投影，隔离切换首帧和晚到响应；空闲目录每分钟刷新，运行中每五秒刷新
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DisplayState, Identity, LumenApi } from '../../data/client'
-export interface WorkspaceAsset { name: string; path: string; scope: 'task' | 'shared' }
+export interface WorkspaceAsset { name: string; path: string; scope: 'work' }
 export interface WorkspaceState { assets: WorkspaceAsset[]; display: DisplayState | null; loading: boolean; error: string; revealVersion: number; refresh: () => void }
 const internal = /^(?:\.|workers?$|agents?$|experts?$|specialists?$|node_modules$|__pycache__$|memory$|skills$)/i
 const deliverable = /\.(?:pdf|md|markdown|html?|txt|csv|json|png|jpe?g|webp|gif|svg|docx?|xlsx?|pptx?|tex|bib|zip)$/i
 export async function workspaceAssets(api: LumenApi, identity: Identity, active = () => true) {
   const files: WorkspaceAsset[] = []
-  for (const scope of ['shared', 'task'] as const) {
+  for (const scope of ['work'] as const) {
     const folders = ['.']
     while (folders.length && active()) {
       const folder = folders.shift()!
@@ -28,7 +28,7 @@ export async function workspaceAssets(api: LumenApi, identity: Identity, active 
   return files
 }
 export function useWorkspace(api: LumenApi, identity: Identity | null, revision: number): WorkspaceState {
-  const key = identity ? `${identity.projectId}:${identity.taskId}` : ''
+  const key = identity ? `${identity.topicId}:${identity.taskId}` : ''
   const [state, setState] = useState<Omit<WorkspaceState, 'refresh'> & { owner: string; api: LumenApi }>({ owner: key, api, assets: [], display: null, loading: !!identity, error: '', revealVersion: 0 })
   const [refreshVersion, setRefreshVersion] = useState(0)
   const refresh = useCallback(() => setRefreshVersion(value => value + 1), [])
@@ -58,7 +58,7 @@ export function useWorkspace(api: LumenApi, identity: Identity | null, revision:
     }
     void load(); const timer = window.setInterval(() => void load(), 5000)
     return () => { active = false; clearInterval(timer) }
-  }, [api, identity?.projectId, identity?.taskId, revision, refreshVersion])
+  }, [api, identity?.topicId, identity?.taskId, revision, refreshVersion])
   if (state.owner !== key || state.api !== api) return { assets: [], display: null, loading: !!identity, error: '', revealVersion: state.revealVersion, refresh }
   return { ...state, refresh }
 }

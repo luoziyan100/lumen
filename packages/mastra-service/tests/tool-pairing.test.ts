@@ -119,7 +119,7 @@ test('完整应用：并行后台委派 reader/verifier 读取工作区后，父
     }
     const system = request.messages.filter(m => m.role === 'system').map(m => String(m.content)).join('\n')
     const role = system.includes('默认保持怀疑') ? 'verifier' : 'reader'
-    const read = names.find(name => name.endsWith('read_file') && !/task|project|skill/.test(name))
+    const read = names.find(name => name.endsWith('read_file') && !/task|material|skill/.test(name))
     assert.ok(read, JSON.stringify(names))
     if (!results.length) { await pause(role === 'reader' ? 200 : 500); return toolsReply([{ id: `${role}-read`, name: read, arguments: { path: 'input.md' } }]) }
     finished.add(role)
@@ -130,8 +130,8 @@ test('完整应用：并行后台委派 reader/verifier 读取工作区后，父
   })
   try {
     const session = await application.session('p', 'task')
-    await mkdir(join(root, 'projects/p/tasks/task'), { recursive: true })
-    await writeFile(join(root, 'projects/p/tasks/task/input.md'), 'PAPER_TEXT')
+    await mkdir(join(root, 'topics/p/work'), { recursive: true })
+    await writeFile(join(root, 'topics/p/work/input.md'), 'PAPER_TEXT')
     await session.sendMessage({ content: '委派两位专家' })
     for (let i = 0; i < 150 && finished.size < 2; i++) await pause(100)
     assert.equal(finished.size, 2)

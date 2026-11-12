@@ -17,6 +17,7 @@ import { serve } from '@hono/node-server'
 import type { MastraDBMessage } from '@mastra/client-js'
 import { createHttpService } from '../../mastra-service/src/server.ts'
 import { fixtureProvider, textReply, toolReply } from '../../mastra-service/tests/provider-fixture.ts'
+import { ensureTopic } from '../../mastra-service/tests/topic-fixture.ts'
 import { LumenApi } from '../src/mastra/data/client.ts'
 import { SessionFeed, errorText, mergeMessages, messageRole, messageText } from '../src/mastra/data/feed.ts'
 
@@ -107,9 +108,9 @@ async function environment(modelFetch = fixtureProvider(() => textReply('模型�
   const address = server.address()
   assert.ok(address && typeof address !== 'string')
   const api = new LumenApi({ baseUrl: `http://127.0.0.1:${address.port}`, token })
-  await api.request('/lumen/projects', 'POST', { id: 'p', name: 'Feed project' })
+  ensureTopic(service, 'p', 'Feed topic')
   return { api, service, network, requests, dropStreams: () => { for (const drop of [...streams]) drop() },
-    async feed(taskId: string) { await api.request('/lumen/projects/p/sessions', 'POST', { taskId }); const feed = new SessionFeed(api, { projectId: 'p', taskId }); feeds.push(feed); return feed },
+    async feed(taskId: string) { await api.request('/lumen/topics/p/sessions', 'POST', { taskId }); const feed = new SessionFeed(api, { topicId: 'p', taskId }); feeds.push(feed); return feed },
     async rehost() {
       for (const drop of [...streams]) drop()
       server.closeAllConnections()
@@ -280,7 +281,7 @@ test('CT-MASTRA-FEED-011: 1.82 message_update 只带 id 与增量时，缺少 di
 test('CT-MASTRA-FEED-005: 按页读完超过一千条持久消息，不静默截断历史', { timeout: 25000 }, async () => {
   const env = await environment()
   try {
-    const identity = { projectId: 'p', taskId: 'history' }
+    const identity = { topicId: 'p', taskId: 'history' }
     await env.api.open(identity)
     const messages: MastraDBMessage[] = Array.from({ length: 1005 }, (_, i) => ({
       id: `history-${String(i).padStart(4, '0')}`, role: i % 2 ? 'assistant' : 'user', threadId: 'p:history', resourceId: 'p:history',
@@ -318,14 +319,14 @@ test('CT-MASTRA-FEED-006: 较旧刷新失败不得覆盖较新恢复成功的连
 
 test('CT-MASTRA-FEED-007: 切换数据根后过期本地选择不能创建空线程', { timeout: 25000 }, async () => {
   const env = await environment()
-  const feed = new SessionFeed(env.api, { projectId: 'p', taskId: 'previous-data-root' })
+  const feed = new SessionFeed(env.api, { topicId: 'p', taskId: 'previous-data-root' })
   try {
-    const before = await env.api.sessions('p')
+    const before = await env.api.sessions('p'), mark = env.requests.length
     await feed.start()
     assert.equal(feed.getSnapshot().connected, false)
     assert.ok(feed.getSnapshot().connectionError)
+    assert.equal(env.requests.slice(mark).some(url => /\/lumen\/topics\/[^/]+\/sessions$/.test(url.pathname)), false, '订阅不得经会话集合建会话')
     assert.deepEqual(await env.api.sessions('p'), before)
-    assert.equal(env.requests.some(url => url.pathname === '/lumen/sessions'), false)
   } finally { feed.close(); await env.close() }
 })
 
@@ -372,7 +373,7 @@ test('CT-MASTRA-FEED-008: 真实委派的主子用量分别展示，原生 SSE �
 
 test('CT-MASTRA-FEED-009: 实际换端口后旧 SSE 重试有界，重新发现恢复原会话且旧回调失效', { timeout: 25000 }, async () => {
   const env = await environment()
-  const identity = { projectId: 'p', taskId: 'rehost' }
+  const identity = { topicId: 'p', taskId: 'rehost' }
   await env.api.open(identity)
   let discovered: LumenApi | undefined, restored: SessionFeed | undefined, recoveries = 0
   const original = new SessionFeed(env.api, identity, () => {

@@ -11,6 +11,7 @@
 - `topics.ts`：主题增改（新主题同事务建第一张进行中白板）与主题引用：引用/取消引用/阅读进度/被当前区块引用数。取消引用不动区块（R10）。
 - `library.ts`：全局资料库。按 sha256 去重（并发同内容由唯一约束裁决），原件落 `library/<id>/` 后 chmod 0400；链接收入时 PDF 存原件，网页存抽出的正文与来源 URL。
 - `studio.ts`：一条 catalog 连接上组合三个存储；server 与之后的白板工具共用同一实例。
+- `tools.ts`：资料库访问边界（R15）：`createMaterialAccess` 只放行受信会话所在主题引用的条目（未引用/不存在/越界同一句 404），PDF 分页缓存按 sha256；list_materials/read_material（按页或偏移读，推进阅读进度）；`intake` 供研究工具 to_library 收入并引用。
 - `routes.ts`：认证后的 HTTP。主题（状态灯由 `topicId:` 前缀汇总原生运行/等待）、白板（GET 带 ETag/304，＋ 新开一张）、资料库（multipart 上传或 JSON 链接，可顺手引用到主题）、原件（ETag=sha256）、主题引用增删。**没有区块写接口**：P0 白板对人只读。
 
 决策：

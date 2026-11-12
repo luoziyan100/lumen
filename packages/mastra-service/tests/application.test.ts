@@ -22,19 +22,19 @@ test('Controller 写真实文件，下一轮看到工具结果；重开 Memory �
     : toolReply('write_file', { path: 'notes/result.md', content: '# 论文笔记\n来源：测试材料' }))
   let app = await createApplication({ dataRoot: root, model: model(fixture.fetch) })
   try {
-    const session = await app.session('project', 'task')
+    const session = await app.session('topic', 'task')
     session.subscribe(event => {
       if (event.type === 'tool_approval_required') session.respondToToolApproval({ toolCallId: event.toolCallId, decision: 'approve' })
     })
     await session.sendMessage({ content: '把材料整理为笔记' })
-    assert.match(await readFile(join(root, 'projects/project/tasks/task/notes/result.md'), 'utf8'), /论文笔记/)
+    assert.match(await readFile(join(root, 'topics/topic/work/notes/result.md'), 'utf8'), /论文笔记/)
     assert.ok(fixture.requests.some(r => r.messages.some(m => m.role === 'tool')))
-    const before = await session.thread.listMessages({ threadId: 'project:task' })
+    const before = await session.thread.listMessages({ threadId: 'topic:task' })
     assert.ok(before.length >= 2)
     await app.close()
     app = await createApplication({ dataRoot: root, model: model(fixture.fetch) })
-    const restored = await app.session('project', 'task')
-    const after = await restored.thread.listMessages({ threadId: 'project:task' })
+    const restored = await app.session('topic', 'task')
+    const after = await restored.thread.listMessages({ threadId: 'topic:task' })
     assert.deepEqual(after.map(m => m.id), before.map(m => m.id))
   } finally { await app.close(); await rm(root, { recursive: true, force: true }) }
 })
@@ -44,12 +44,12 @@ test('两个 Session 的历史与事件隔离', { timeout: 25000 }, async () => 
   const fixture = fixtureProvider(() => textReply('收到'))
   const app = await createApplication({ dataRoot: root, model: model(fixture.fetch) })
   try {
-    const a = await app.session('project', 'alpha'), b = await app.session('project', 'beta')
+    const a = await app.session('topic', 'alpha'), b = await app.session('topic', 'beta')
     assert.notEqual(a, b)
-    assert.equal(await app.session('project', 'alpha'), a)
+    assert.equal(await app.session('topic', 'alpha'), a)
     await Promise.all([a.sendMessage({ content: 'ALPHA_PRIVATE' }), b.sendMessage({ content: 'BETA_PRIVATE' })])
-    const alpha = JSON.stringify(await a.thread.listMessages({ threadId: 'project:alpha' }))
-    const beta = JSON.stringify(await b.thread.listMessages({ threadId: 'project:beta' }))
+    const alpha = JSON.stringify(await a.thread.listMessages({ threadId: 'topic:alpha' }))
+    const beta = JSON.stringify(await b.thread.listMessages({ threadId: 'topic:beta' }))
     assert.match(alpha, /ALPHA_PRIVATE/); assert.doesNotMatch(alpha, /BETA_PRIVATE/)
     assert.match(beta, /BETA_PRIVATE/); assert.doesNotMatch(beta, /ALPHA_PRIVATE/)
     await assert.rejects(app.session('../escape', 'task'), /Invalid/)
@@ -85,7 +85,7 @@ test('受限子 Agent 独立执行并将结果返回父 Agent', { timeout: 25000
   })
   const app = await createApplication({ dataRoot: root, model: model(fixture.fetch) })
   try {
-    const session = await app.session('project', 'parent')
+    const session = await app.session('topic', 'parent')
     session.subscribe(event => {
       if (event.type === 'tool_approval_required') session.respondToToolApproval({ toolCallId: event.toolCallId, decision: 'approve' })
     })
@@ -101,7 +101,7 @@ test('ask_user 原生挂起可响应，答案进入同一对话', { timeout: 250
     ? textReply('按方法章节继续') : toolReply('ask_user', { question: '重点看什么章节？' }))
   const app = await createApplication({ dataRoot: root, model: model(fixture.fetch) })
   try {
-    const session = await app.session('project', 'ask')
+    const session = await app.session('topic', 'ask')
     let suspendedId: string | undefined
     session.subscribe(event => {
       if (event.type === 'tool_approval_required') session.respondToToolApproval({ toolCallId: event.toolCallId, decision: 'approve' })
@@ -110,7 +110,7 @@ test('ask_user 原生挂起可响应，答案进入同一对话', { timeout: 250
     await session.sendMessage({ content: '帮我读论文' })
     assert.ok(suspendedId)
     await session.respondToToolSuspension({ toolCallId: suspendedId, resumeData: '方法章节' })
-    const history = JSON.stringify(await session.thread.listMessages({ threadId: 'project:ask' }))
+    const history = JSON.stringify(await session.thread.listMessages({ threadId: 'topic:ask' }))
     assert.match(history, /方法章节/)
   } finally { await app.close(); await rm(root, { recursive: true, force: true }) }
 })
@@ -132,7 +132,7 @@ test('取消信号到达实际 provider 请求，取消后可继续', { timeout:
   })
   const app = await createApplication({ dataRoot: root, model: model(fixture.fetch) })
   try {
-    const session = await app.session('project', 'cancel')
+    const session = await app.session('topic', 'cancel')
     const running = session.sendMessage({ content: '长时间任务' })
     await started
     session.abort()
@@ -140,7 +140,7 @@ test('取消信号到达实际 provider 请求，取消后可继续', { timeout:
     assert.ok(aborted)
     block = false
     await session.sendMessage({ content: '继续' })
-    assert.match(JSON.stringify(await session.thread.listMessages({ threadId: 'project:cancel' })), /继续成功/)
+    assert.match(JSON.stringify(await session.thread.listMessages({ threadId: 'topic:cancel' })), /继续成功/)
   } finally { await app.close(); await rm(root, { recursive: true, force: true }) }
 })
 
@@ -161,7 +161,7 @@ test('并发打开同一任务只有一个会话；退出等待模型取消且�
   })
   const app = await createApplication({ dataRoot: root, model: model(fixture.fetch) })
   try {
-    const sessions = await Promise.all(Array.from({ length: 12 }, () => app.session('project', 'same')))
+    const sessions = await Promise.all(Array.from({ length: 12 }, () => app.session('topic', 'same')))
     assert.ok(sessions.every(session => session === sessions[0]))
     const running = sessions[0]!.sendMessage({ content: '长运行' }).catch(error => {
       assert.match(String(error), /abort|cancel/i)
@@ -169,14 +169,14 @@ test('并发打开同一任务只有一个会话；退出等待模型取消且�
     await started
     const closing = app.close()
     assert.equal(app.close(), closing)
-    await assert.rejects(app.session('project', 'late'), /closed/)
+    await assert.rejects(app.session('topic', 'late'), /closed/)
     await closing
     await running
     assert.ok(aborted)
     const reopened = await createApplication({ dataRoot: root, model: model(fixtureProvider(() => textReply('恢复')).fetch) })
     try {
-      const restored = await reopened.session('project', 'same')
-      const history = JSON.stringify(await restored.thread.listMessages({ threadId: 'project:same' }))
+      const restored = await reopened.session('topic', 'same')
+      const history = JSON.stringify(await restored.thread.listMessages({ threadId: 'topic:same' }))
       assert.match(history, /长运行/)
       assert.doesNotMatch(history, /不应持久化/)
       await restored.sendMessage({ content: '继续' })
@@ -203,13 +203,13 @@ test('只读子 Agent 发出未授权写调用也不能落盘', { timeout: 25000
   })
   const app = await createApplication({ dataRoot: root, model: model(fixture.fetch) })
   try {
-    const session = await app.session('project', 'readonly')
+    const session = await app.session('topic', 'readonly')
     session.subscribe(event => {
       if (event.type === 'tool_approval_required') session.respondToToolApproval({ toolCallId: event.toolCallId, decision: 'approve' })
     })
     await session.sendMessage({ content: '委派分析' })
     assert.ok(attempted)
     assert.ok(rejected)
-    await assert.rejects(access(join(root, 'projects/project/tasks/readonly/forbidden.md')))
+    await assert.rejects(access(join(root, 'topics/topic/work/forbidden.md')))
   } finally { await app.close(); await rm(root, { recursive: true, force: true }) }
 })

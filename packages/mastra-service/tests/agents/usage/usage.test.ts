@@ -12,6 +12,7 @@ import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { createHttpService } from '../../../src/server.ts'
 import { fixtureProvider, textReply, toolReply, type ProviderRequest, type Reply } from '../../provider-fixture.ts'
+import { ensureTopic } from '../../topic-fixture.ts'
 
 const token = 'usage-test-private-token-long-enough'
 const main = (request: ProviderRequest) => request.tools?.some(tool => tool.function.name === 'agent-reader')
@@ -27,13 +28,13 @@ async function environment(respond: (request: ProviderRequest, signal?: AbortSig
   const fixture = fixtureProvider(respond)
   const options = { dataRoot: root, token, model: { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixture.fetch } }
   let service = await createHttpService(options)
-  await service.catalog.createProject('用量核对', 'p')
+  ensureTopic(service, 'p', '用量核对')
   await service.catalog.createSession('p', 'task')
   const session = await service.application.session('p', 'task')
   await session.permissions.setForTool({ toolName: 'agent-reader', policy: 'allow' })
   return { get service() { return service }, session, fixture,
     async json(path: string) {
-      const response = await service.app.request(`/lumen/${path}?projectId=p&taskId=task`, { headers: { Authorization: `Bearer ${token}` } })
+      const response = await service.app.request(`/lumen/${path}?topicId=p&taskId=task`, { headers: { Authorization: `Bearer ${token}` } })
       assert.equal(response.status, 200); return response.json()
     },
     async reopen() { await service.close(); service = await createHttpService(options) },
@@ -53,7 +54,7 @@ test('前台专家逐步入账，重复通知不重复累计，主/子快照分�
   try {
     assert.equal(await env.service.application.childUsage.read('p:task'), null)
     await env.session.sendMessage({ content: '委派读取' })
-    await env.service.application.specialistProjects.drain('p:task')
+    await env.service.application.specialists.drain('p:task')
     const before = await env.json('snapshot')
     assert.deepEqual(before.displayState.childTokenUsage, { promptTokens: 24, completionTokens: 8, totalTokens: 32, reasoningTokens: 0, cachedInputTokens: 0 })
     assert.equal(before.displayState.tokenUsage.totalTokens, 32)
@@ -79,7 +80,7 @@ test('两个同时运行的后台专家累加到同一父线程且没有跨线�
     assert.equal(await env.service.application.childUsage.read('p:task'), null)
     release.resolve(); await sending
     await until(async () => (await env.service.application.mastra.backgroundTaskManager!.listTasks({ resourceId: 'p:task' })).tasks.every(task => task.status === 'completed'), '后台专家没有完成')
-    await env.service.application.specialistProjects.drain('p:task')
+    await env.service.application.specialists.drain('p:task')
     assert.deepEqual(await env.service.application.childUsage.read('p:task'), { promptTokens: 24, completionTokens: 8, totalTokens: 32, reasoningTokens: 0, cachedInputTokens: 0 })
     assert.equal(await env.service.application.childUsage.read('other:task'), null)
     assert.equal((await env.json('children')).childTokenUsage.totalTokens, 32)
@@ -119,7 +120,7 @@ test('专家空答复纠正的两次真实模型消耗均保留，不被同一�
   })
   try {
     await env.session.sendMessage({ content: '委派并纠正空答复' })
-    await env.service.application.specialistProjects.drain('p:task')
+    await env.service.application.specialists.drain('p:task')
     assert.equal(childCalls, 2)
     assert.equal((await env.service.application.childUsage.read('p:task'))?.totalTokens, 32)
   } finally { await env.close() }

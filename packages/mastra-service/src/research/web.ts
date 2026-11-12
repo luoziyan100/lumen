@@ -1,5 +1,5 @@
 /**
- * [INPUT]: Mastra createTool、研究网络、当前任务 Workspace
+ * [INPUT]: Mastra createTool、研究网络、当前主题 Workspace、可选资料库收入回调
  * [OUTPUT]: createWebTools：fetch_url/search_web 与网页正文提取
  * [POS]: 公开网页资料接入；保存结果必须真实成功，Tavily 凭证只用于该服务
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -7,6 +7,7 @@
 import { createTool } from '@mastra/core/tools'
 import { z } from 'zod'
 import type { ResearchHttp } from './http.ts'
+import type { LibraryIntake } from './intake.ts'
 
 export function htmlToText(html: string): string {
   return html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ')
@@ -15,12 +16,12 @@ export function htmlToText(html: string): string {
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
 }
 
-export function createWebTools(http: ResearchHttp, tavilyKey?: string) {
+export function createWebTools(http: ResearchHttp, tavilyKey?: string, intake?: LibraryIntake) {
   return {
     fetch_url: createTool({
-      id: 'fetch_url', description: '读取已知公开网页的正文；PDF 用 extract_pdf。save_as 可保存全文到工作区，offset/limit 分段读取；引用原网页，不能只凭开头概括全文。',
-      inputSchema: z.object({ url: z.string().url(), save_as: z.string().min(1).optional(), offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(20000).default(20000) }),
-      execute: async ({ url, save_as, offset, limit }, context) => {
+      id: 'fetch_url', description: '读取已知公开网页的正文；PDF 用 extract_pdf。save_as 可保存全文到工作区，offset/limit 分段读取；to_library=true 把这页正文收进资料库并引用到当前主题（要作为白板出处时用）；引用原网页，不能只凭开头概括全文。',
+      inputSchema: z.object({ url: z.string().url(), save_as: z.string().min(1).optional(), to_library: z.boolean().default(false), offset: z.number().int().min(0).default(0), limit: z.number().int().min(1).max(20000).default(20000) }),
+      execute: async ({ url, save_as, to_library, offset, limit }, context) => {
         const result = await http(url, { signal: context?.abortSignal })
         const raw = new TextDecoder().decode(result.bytes)
         if (result.contentType.includes('application/pdf') || raw.startsWith('%PDF-')) throw new Error('PDF source: use extract_pdf')
@@ -29,7 +30,14 @@ export function createWebTools(http: ResearchHttp, tavilyKey?: string) {
           if (!context?.workspace?.filesystem) throw new Error('Workspace is required to save the document')
           await context.workspace.filesystem.writeFile(save_as, text)
         }
-        return { source: result.url, content: text.slice(offset, offset + limit), totalChars: text.length, offset, truncated: offset + limit < text.length, savedAs: save_as }
+        let library: Awaited<ReturnType<LibraryIntake>> | undefined
+        if (to_library) {
+          if (!intake) throw new Error('当前环境没有资料库')
+          const title = htmlToText(raw.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '').slice(0, 200) || undefined
+          library = await intake(context, { name: `${(title ?? new URL(result.url).hostname).replace(/[^\p{L}\p{N}._ -]/gu, '_').slice(0, 100)}.txt`, bytes: Buffer.from(text), sourceUrl: result.url, kind: 'web', title, mediaType: 'text/plain' })
+        }
+        return { source: result.url, content: text.slice(offset, offset + limit), totalChars: text.length, offset, truncated: offset + limit < text.length, savedAs: save_as,
+          ...(library ? { libraryItemId: library.itemId, libraryTitle: library.title } : {}) }
       },
     }),
     search_web: createTool({

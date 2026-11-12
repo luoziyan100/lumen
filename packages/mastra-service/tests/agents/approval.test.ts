@@ -12,10 +12,10 @@ import { join } from 'node:path'
 import { createApplication } from '../../src/application.ts'
 import { fixtureProvider, textReply, toolReply } from '../provider-fixture.ts'
 
-test('通用专家自动委派并在独立沙箱执行，技能资源只读且不能写父任务', { skip: process.platform !== 'darwin', timeout: 20000 }, async () => {
+test('通用专家自动委派并在独立沙箱执行，技能资源只读且不能写主题原件', { skip: process.platform !== 'darwin', timeout: 20000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), 'lumen-specialist-sandbox-'))
-  const skill = join(root, 'projects/p/skills/helper')
-  const task = join(root, 'projects/p/tasks/task')
+  const skill = join(root, 'skills/helper')
+  const task = join(root, 'topics/p/work')
   await mkdir(skill, { recursive: true })
   await writeFile(join(skill, 'SKILL.md'), '---\nname: helper\ndescription: Skill resource\n---\n读取 asset.bin')
   await writeFile(join(skill, 'asset.bin'), Buffer.from([0, 128, 255]))
@@ -58,7 +58,7 @@ test('通用专家自动委派并在独立沙箱执行，技能资源只读且�
     assert.deepEqual(await readFile(join(skill, 'asset.bin')), Buffer.from([0, 128, 255]))
     assert.match(JSON.stringify(await application.memory.recall({ threadId: 'p:task', resourceId: 'p:task' })), /父研究完成/)
     // -------- 父任务的明确拒绝不能经另一次专家委派绕过 --------
-    const denied = await application.session('p', 'denied')
+    const denied = await application.session('q', 'denied')
     await denied.permissions.setForTool({ toolName: 'run_code', policy: 'deny' })
     denied.subscribe(event => {
       if (event.type !== 'tool_approval_required') return
@@ -67,7 +67,7 @@ test('通用专家自动委派并在独立沙箱执行，技能资源只读且�
     })
     await denied.sendMessage({ content: '尝试委派执行，但必须遵守父会话禁止代码的设置' })
     assert.equal(approvals.length, 0, JSON.stringify(approvals))
-    const deniedWorkers = join(root, 'projects/p/tasks/denied/workers')
+    const deniedWorkers = join(root, 'topics/q/work/workers')
     for (const directory of await readdir(deniedWorkers)) {
       await assert.rejects(access(join(deniedWorkers, directory, 'result.txt')))
       await assert.rejects(access(join(deniedWorkers, directory, 'runs')))

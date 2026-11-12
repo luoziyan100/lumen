@@ -12,6 +12,7 @@ import { join } from 'node:path'
 import type { AgentControllerWireEvent } from '@mastra/core/agent-controller'
 import { createHttpService } from '../src/server.ts'
 import { fixtureProvider, textReply, toolReply } from './provider-fixture.ts'
+import { ensureTopic } from './topic-fixture.ts'
 
 const token = 'approval-restore-token-at-least-24-characters'
 const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
@@ -35,7 +36,8 @@ test('重启后待审批的研究重新出现审批卡，批准后继续执行�
     return await response.json() as T
   }
   try {
-    await request('/lumen/sessions', 'POST', { projectId: 'default', taskId: 'approve' })
+    ensureTopic(service, 'default')
+    await service.catalog.createSession('default', 'approve')
     const session = await service.application.session('default', 'approve')
     await session.permissions.setForTool({ toolName: 'write_file', policy: 'ask' })
     let parked!: () => void
@@ -47,14 +49,14 @@ test('重启后待审批的研究重新出现审批卡，批准后继续执行�
 
     service = await createHttpService({ dataRoot, token, model })
     assert.equal((await request<{ busy: boolean }>('/lumen/settings')).busy, true, '未处理的持久审批仍挡配置写闸')
-    const snapshot = await request<Snapshot>('/lumen/snapshot?projectId=default&taskId=approve')
+    const snapshot = await request<Snapshot>('/lumen/snapshot?topicId=default&taskId=approve')
     const [card] = Object.values(snapshot.displayState.pendingApprovals)
     assert.equal(card?.toolName, 'write_file', '重启后打开会话必须重新出现审批卡')
     assert.equal(card?.toolCallId, 'call-write')
 
     const ack = await request<{ ok: boolean; reason?: string }>(`/api/agent-controller/lumen/sessions/${encodeURIComponent('default:approve')}/tool-approval`, 'POST', { toolCallId: 'call-write', approved: true })
     assert.equal(ack.ok, true, JSON.stringify(ack))
-    const file = join(dataRoot, 'projects/default/tasks/approve/notes/approved.md')
+    const file = join(dataRoot, 'topics/default/work/notes/approved.md')
     await until(async () => (await readFile(file, 'utf8').catch(() => '')) === '批准后写入', '批准后研究未继续执行')
     await until(async () => !(await request<{ busy: boolean }>('/lumen/settings')).busy, '批准完成后配置写闸未解除')
   } finally { await service.close(); await rm(dataRoot, { recursive: true, force: true }) }

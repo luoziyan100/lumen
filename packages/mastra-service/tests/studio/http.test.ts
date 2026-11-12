@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 真实 createHttpService、本机 HTTP、LibSQL/SQLite 与 library/ 文件；研究网络在 fetch 边界替换为本地夹具
- * [OUTPUT]: studio HTTP 证明：认证、主题与状态灯字段、白板 ETag/304、上传与链接入库去重、原件读取、引用增删与可读错误
+ * [OUTPUT]: studio HTTP 证明：认证、主题与状态灯字段、白板 ETag/304、上传与链接入库去重、原件读取（nosniff + CSP sandbox）、引用增删与可读错误
  * [POS]: S1 的 HTTP 验收；不经模型，白板没有对人的写接口（R4）
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -81,6 +81,11 @@ test('studio HTTP：主题、白板 ETag、资料库上传/链接去重、原件
     const content = await fetch(`${base}/library/${note.item.id}/content`, { headers: auth })
     assert.equal(await content.text(), '# 技术扩散\n\n笔记正文')
     assert.equal(content.headers.get('Content-Type'), 'text/markdown')
+    assert.equal(content.headers.get('X-Content-Type-Options'), 'nosniff')
+    assert.equal(content.headers.get('Content-Security-Policy'), 'sandbox')
+    const html = await (await upload('page.html', '<script>parent.steal()</script>')).json() as { item: { id: string; mediaType: string } }
+    const served = await fetch(`${base}/library/${html.item.id}/content`, { headers: auth })
+    assert.deepEqual([served.headers.get('Content-Type'), served.headers.get('Content-Security-Policy'), served.headers.get('X-Content-Type-Options')], ['text/html', 'sandbox', 'nosniff'], 'HTML 原件在服务源上只能以沙箱打开')
     assert.equal((await fetch(`${base}/library/${note.item.id}/content`, { headers: { ...auth, 'If-None-Match': content.headers.get('ETag')! } })).status, 304)
 
     // ---- 链接：PDF 存原件，网页存正文与标题 ----
@@ -94,7 +99,7 @@ test('studio HTTP：主题、白板 ETag、资料库上传/链接去重、原件
     const dead = await json('/library', 'POST', { url: 'https://blog.example/gone' })
     assert.equal(dead.status, 400)
     assert.match((await dead.json() as { error: string }).error, /链接没有取到.*HTTP 404/)
-    assert.equal(((await (await json('/library')).json()) as { items: unknown[] }).items.length, 3)
+    assert.equal(((await (await json('/library')).json()) as { items: unknown[] }).items.length, 4)
 
     // ---- 引用：增、列、删；删不存在的引用给可读 404 ----
     assert.equal((await json(`/topics/${topic.id}/materials`, 'POST', { itemId: web.item.id })).status, 201)

@@ -13,9 +13,9 @@ import { loadAgentCatalog } from '../../src/agents/catalog/registry.ts'
 import { parseAgentMarkdown } from '../../src/agents/catalog/parse.ts'
 import { readAgentToggles, setAgentDisabled } from '../../src/agents/catalog/toggles.ts'
 
-test('角色层级覆盖与启停沿旧格式，工具及步数只能收窄', async () => {
+test('角色只有 builtin > user > plugin 三层，启停沿旧格式，工具及步数只能收窄', async () => {
   const root = await mkdtemp(join(tmpdir(), 'lumen-agent-catalog-'))
-  const roots = { userAgentsDir: join(root, 'user'), workspaceAgentsDir: join(root, 'workspace'), projectAgentsDir: join(root, 'project'), pluginAgentsDir: join(root, 'plugin') }
+  const roots = { userAgentsDir: join(root, 'user'), pluginAgentsDir: join(root, 'plugin') }
   const togglesPath = join(root, 'subagent-toggles.json')
   try {
     await Promise.all(Object.values(roots).map(path => mkdir(path)))
@@ -23,16 +23,17 @@ test('角色层级覆盖与启停沿旧格式，工具及步数只能收窄', as
     await writeFile(join(roots.userAgentsDir, 'reader.md'), definition('reader', 'USER_READER'))
     let catalog = await loadAgentCatalog({ roots, togglesPath })
     assert.equal(catalog.entries.find(entry => entry.role.id === 'reader')?.layer, 'builtin')
-    for (const [key, body] of [['pluginAgentsDir', 'PLUGIN'], ['userAgentsDir', 'USER'], ['workspaceAgentsDir', 'WORKSPACE'], ['projectAgentsDir', 'PROJECT']] as const) {
+    for (const [key, body] of [['pluginAgentsDir', 'PLUGIN'], ['userAgentsDir', 'USER']] as const) {
       await writeFile(join(roots[key], 'scout.md'), definition('scout', body, 'disabled: true'))
     }
-    await writeFile(join(roots.workspaceAgentsDir, 'reader.md'), definition('reader', 'WORKSPACE_READER', 'max_steps: 100\ntools: read_file, write_file, run_code, ask_user, task_write\nallow_nested: true\nisolation: worktree'))
+    await writeFile(join(roots.userAgentsDir, 'narrow.md'), `---\nname: narrow\ndefault_capability: all\nkind_preset: reader\nmax_steps: 100\ntools: read_file, write_file, run_code, ask_user, task_write\nallow_nested: true\nisolation: worktree\n---\nNARROW_READER`)
     await setAgentDisabled(togglesPath, 'scout', false)
     catalog = await loadAgentCatalog({ roots, togglesPath })
     const scout = catalog.entries.find(entry => entry.role.id === 'scout')!
-    assert.equal(scout.layer, 'project'); assert.equal(scout.role.instructions, 'PROJECT'); assert.equal(scout.disabled, false)
-    const reader = catalog.roles.find(role => role.id === 'reader')!
-    assert.equal(reader.instructions, 'WORKSPACE_READER'); assert.equal(reader.writable, false); assert.equal(reader.execute, false)
+    assert.equal(scout.layer, 'user'); assert.equal(scout.role.instructions, 'USER'); assert.equal(scout.disabled, false)
+    assert.equal(catalog.entries.find(entry => entry.role.id === 'reader')?.layer, 'builtin')
+    const reader = catalog.roles.find(role => role.id === 'narrow')!
+    assert.equal(reader.instructions, 'NARROW_READER'); assert.equal(reader.writable, false); assert.equal(reader.execute, false)
     assert.equal(reader.maxSteps, 12); assert.deepEqual(reader.tools, ['read_file'])
     assert.ok(catalog.diagnostics.some(item => item.message.includes('worktree')))
     assert.ok(catalog.diagnostics.some(item => item.message.includes('allow_nested')))
@@ -49,7 +50,7 @@ test('角色层级覆盖与启停沿旧格式，工具及步数只能收窄', as
 
 test('AGENT.md 与 BOM/CRLF 可读取，越界链接与损坏定义产生诊断', async () => {
   const root = await mkdtemp(join(tmpdir(), 'lumen-agent-files-'))
-  const userAgentsDir = join(root, 'user'), workspaceAgentsDir = join(root, 'workspace')
+  const userAgentsDir = join(root, 'user')
   try {
     await mkdir(join(userAgentsDir, 'custom-scout'), { recursive: true })
     await writeFile(join(userAgentsDir, 'custom-scout', 'AGENT.md'), '\uFEFF---\r\nname: Custom_Scout\r\nmax_steps: 3.8\r\ntools: read_file, grep\r\n---\r\n读取证据')
@@ -58,7 +59,7 @@ test('AGENT.md 与 BOM/CRLF 可读取，越界链接与损坏定义产生诊断'
     await mkdir(join(userAgentsDir, 'escape-package'))
     await symlink(join(root, 'outside.md'), join(userAgentsDir, 'escape-package', 'AGENT.md'))
     await writeFile(join(userAgentsDir, 'invalid.md'), '---\nname: ../../escape\n---\nINVALID')
-    const catalog = await loadAgentCatalog({ roots: { userAgentsDir, workspaceAgentsDir }, togglesPath: join(root, 'toggles.json') })
+    const catalog = await loadAgentCatalog({ roots: { userAgentsDir }, togglesPath: join(root, 'toggles.json') })
     assert.deepEqual(catalog.roles.find(role => role.id === 'custom-scout')?.tools, ['read_file', 'grep'])
     assert.equal(catalog.roles.find(role => role.id === 'custom-scout')?.maxSteps, 3)
     assert.ok(!catalog.roles.some(role => role.id === 'leaked'))

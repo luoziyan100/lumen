@@ -6,7 +6,7 @@
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Agent } from '@mastra/core/agent'
@@ -18,7 +18,7 @@ import { fixtureProvider, textReply, toolReply } from './provider-fixture.ts'
 async function setup() {
   const root = await mkdtemp(join(tmpdir(), 'lumen-skills-'))
   const workspaceDir = join(root, 'workspace')
-  const roots = { userSkillsDir: join(root, 'user'), projectSkillsDir: join(root, 'project'), sourceSkillsDir: join(root, 'source') }
+  const roots = { userSkillsDir: join(root, 'user') }
   await mkdir(workspaceDir)
   return { root, workspaceDir, roots, registry: createSkillRegistry({ workspaceDir, roots }), close: () => rm(root, { recursive: true, force: true }) }
 }
@@ -41,20 +41,18 @@ test('解析多行描述与旧字段；用户参数只插值一次', () => {
   assert.throws(() => parseSkillMarkdown('---\nname: bad', 'unused'), /结束分隔符/)
 })
 
-test('实时发现按 source/project/user 覆盖；禁用模型目录的技能仍可显式激活', async () => {
+test('实时发现只有用户一层；禁用模型目录的技能仍可显式激活', async () => {
   const env = await setup()
   try {
-    await skill(env.roots.userSkillsDir, 'compare', 'user evidence')
-    await skill(env.roots.projectSkillsDir, 'compare', 'project evidence')
-    await skill(env.roots.sourceSkillsDir, 'compare', 'source $ARGUMENTS')
+    await skill(env.roots.userSkillsDir, 'compare', 'user $ARGUMENTS')
     await skill(env.roots.userSkillsDir, 'manual-only', 'manual evidence', 'disable-model-invocation: true')
     const discovered = await env.registry.list()
-    assert.equal(discovered.find(item => item.name === 'compare')?.layer, 'source')
-    assert.match((await env.registry.activate('compare', 'papers')).content, /source papers/)
+    assert.equal(discovered.find(item => item.name === 'compare')?.layer, 'user')
+    assert.match((await env.registry.activate('compare', 'papers')).content, /user papers/)
     assert.doesNotMatch(await env.registry.catalog(), /manual-only/)
     assert.match((await env.registry.activate('manual-only')).content, /manual evidence/)
-    await rm(join(env.roots.sourceSkillsDir, 'compare'), { recursive: true })
-    assert.match((await env.registry.activate('compare')).content, /project evidence/)
+    await writeFile(join(env.roots.userSkillsDir, 'compare', 'SKILL.md'), '---\nname: compare\n---\nupdated evidence')
+    assert.match((await env.registry.activate('compare')).content, /updated evidence/)
     await assert.rejects(env.registry.activate('missing'), /未知/)
     await assert.rejects(env.registry.activate('missing'), /可用技能：compare/)
     await assert.rejects(env.registry.activate('missing'), (error: Error) => !error.message.includes('manual-only'))
@@ -87,8 +85,9 @@ test('安装真实目录保留脚本执行位；单 Markdown 的名字不再取�
     await mkdir(join(source, 'scripts'))
     await writeFile(join(source, 'scripts/read.py'), 'print("evidence")\n')
     await chmod(join(source, 'scripts/read.py'), 0o755)
-    const installed = await env.registry.install({ path: 'compare', scope: 'project' })
-    assert.equal(installed.layer, 'project')
+    const installed = await env.registry.install({ path: 'compare' })
+    assert.equal(installed.layer, 'user')
+    assert.equal(installed.baseDir, join(await realpath(env.roots.userSkillsDir), 'compare'))
     assert.match((await env.registry.readFile('compare', 'scripts/read.py')).content, /evidence/)
     assert.equal((await stat(join(installed.baseDir, 'scripts/read.py'))).mode & 0o100, 0o100)
     await writeFile(join(env.workspaceDir, 'summary.md'), '# Summary\nSummarize papers.\n')
@@ -97,12 +96,12 @@ test('安装真实目录保留脚本执行位；单 Markdown 的名字不再取�
     await writeFile(join(env.workspaceDir, 'review/SKILL.md'), '# Review\nReview the paper.\n')
     assert.equal((await env.registry.install({ path: 'review/SKILL.md' })).name, 'review')
     assert.match((await env.registry.activate('summary')).content, /Summarize papers/)
-    await env.registry.uninstall({ name: 'summary', scope: 'user' })
+    await env.registry.uninstall({ name: 'summary' })
     await assert.rejects(env.registry.activate('summary'), /未知/)
   } finally { await env.close() }
 })
 
-test('安装来源限制在任务工作区；失败覆盖保留旧版本和外部文件', async () => {
+test('安装来源限制在主题工作区；失败覆盖保留旧版本和外部文件', async () => {
   const env = await setup()
   try {
     const source = await skill(env.workspaceDir, 'compare', 'stable version')
@@ -118,7 +117,7 @@ test('安装来源限制在任务工作区；失败覆盖保留旧版本和外�
     assert.match(await readFile(join(original.baseDir, 'SKILL.md'), 'utf8'), /stable version/)
     assert.match(await readFile(join(outside, 'SKILL.md'), 'utf8'), /private evidence/)
     assert.deepEqual(await readdir(env.roots.userSkillsDir), ['compare'])
-    await assert.rejects(env.registry.uninstall({ name: '../outside', scope: 'user' }), /非法/)
+    await assert.rejects(env.registry.uninstall({ name: '../outside' }), /非法/)
   } finally { await env.close() }
 })
 
@@ -146,7 +145,7 @@ test('Mastra 原生安装、激活、读取资源把真实结果回灌下一轮�
   let evidenceSeen = false
   const fixture = fixtureProvider(request => {
     const results = request.messages.filter(message => message.role === 'tool')
-    if (!results.length) return toolReply('install_skill', { path: 'evidence', scope: 'project' }, 'install')
+    if (!results.length) return toolReply('install_skill', { path: 'evidence' }, 'install')
     if (results.length === 1) return toolReply('run_skill', { name: 'evidence', args: 'papers' }, 'activate')
     if (results.length === 2) {
       assert.match(JSON.stringify(results), /Read references.md with papers/)

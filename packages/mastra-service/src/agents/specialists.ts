@@ -15,7 +15,7 @@ import { SPECIALIST_ROLES, type SpecialistId, type SpecialistRole } from './role
 import { createSpecialistWorkspaces, specialistDirectory, type TaskFilesystemResolver } from './workspaces.ts'
 import { readOnlyTools } from './readonly.ts'
 import { createTaskSourceTools } from './sources.ts'
-import { createIngestionTools, createImageToolResultProcessor } from '../ingestion/index.ts'
+import { createIngestionTools, createImageToolResultProcessor, type LibraryReader } from '../ingestion/index.ts'
 import { createInputProcessors, modelTools, type ContextSettings } from './context.ts'
 import { createEmptyActionProcessor } from './guards/empty-action.ts'
 import { specialistConclusion, SPECIALIST_MAX_STEPS } from './guards/conclusion.ts'
@@ -31,10 +31,13 @@ export interface SpecialistOptions {
   resolveExecutionEnvironment?: (resourceId: string) => Omit<ExecutionEnvironment, 'filesystem'> | Promise<Omit<ExecutionEnvironment, 'filesystem'>>
   modelSettings?: (requestContext?: RequestContext) => ContextSettings | undefined
   roles?: readonly SpecialistRole[]
-  projectId?: string
+  /** 自定义角色可重载：注册 id 带定义指纹，改过的定义不会冒用旧专家的继续记录。 */
+  versioned?: boolean
   specialistHistory?: SpecialistHistory
   familyBudget?: FamilyBudget
   childUsage?: ChildUsage
+  /** 资料库图片按 itemId 读取；读取器自己只认当前主题的引用清单（R15）。 */
+  readLibrary?: LibraryReader
 }
 
 export function createSpecialists(options: SpecialistOptions) {
@@ -45,7 +48,7 @@ export function createSpecialists(options: SpecialistOptions) {
   const byAgentId = new Map<string, SpecialistRole>()
   const parents = new Map<string, string>()
   for (const role of roles) {
-    const id = options.projectId ? `${role.id}--${createHash('sha256').update(JSON.stringify([options.projectId, role])).digest('hex').slice(0, 20)}` : role.id
+    const id = options.versioned ? `${role.id}--${createHash('sha256').update(JSON.stringify(role)).digest('hex').slice(0, 20)}` : role.id
     const select = (tools: ToolsInput) => Object.fromEntries(Object.entries(tools).filter(([name]) => role.tools.includes(name)))
     byAgentId.set(id, role)
     const tools: ToolsInput = Object.fromEntries(role.tools.filter(name => options.tools[name]).map(name => [name, options.tools[name]!]))
@@ -66,8 +69,8 @@ export function createSpecialists(options: SpecialistOptions) {
       if (!context?.requestContext) throw new Error('Specialist request context is required')
       return workspaces.resolve(context.requestContext, role)
     }
-    Object.assign(tools, select(createIngestionTools(ingestionWorkspace)))
-    const images = role.tools.includes('look_at_image') ? createImageToolResultProcessor(ingestionWorkspace) : undefined
+    Object.assign(tools, select(createIngestionTools(ingestionWorkspace, options.readLibrary)))
+    const images = role.tools.includes('look_at_image') ? createImageToolResultProcessor(ingestionWorkspace, options.readLibrary) : undefined
     const exposed = role.writable ? tools : readOnlyTools(tools)
     agents[role.id] = new Agent({ id, name: role.name, description: `${role.description} 委派 prompt 必须包含本次目标、必要材料路径和约束；其他专家证据通过 contextFromRefs 显式传入，不继承父对话。用户通过专家继续入口指定原专家后，必须委派相同角色，不能新建冒充继续；历史工具只是过去事实，禁止自动重放副作用。`, model: options.model, memory: options.memory,
       instructions: `${role.instructions}\n你只向主研究者回报；用户决策、最终任务清单、共享记忆与技能安装由主研究者负责。不委派下一层专家。最后一步会关闭工具，请总结已经读取的证据及尚未解决的缺口，不能把工具执行本身当作任务完成。`,
@@ -87,15 +90,14 @@ export function createSpecialists(options: SpecialistOptions) {
       const role = byAgentId.get(context.primitiveId)
       if (!role || context.primitiveType !== 'agent') return { proceed: false, rejectionReason: 'Unknown specialist role' }
       const owner = context.requestContext.get('controller') as { resourceId?: string } | undefined
-      if (options.projectId && owner?.resourceId?.split(':')[0] !== options.projectId) throw new Error('Specialist project does not match its parent task')
       await options.familyBudget?.admit(context)
       const continued = await options.specialistHistory?.start(context, role)
       const directory = await workspaces.bind(context, role, continued?.directory)
       parents.set(`${context.runId}:${context.toolCallId}`, owner!.resourceId!)
       options.childUsage?.bind(context)
       const scope = role.writable
-        ? `你的读写工作区是独立目录。主任务材料使用 list_task_files/read_task_file/copy_task_file。产物在父任务的 ${directory}/；完成时只报告实际写入的文件，禁止修改父任务原件或其他专家产物。`
-        : '你的工作区是主任务材料的只读视图。优先读取已有提取文本；返回证据与建议，不修改文件。'
+        ? `你的读写工作区是独立目录。主题工作区里的文件用 list_task_files/read_task_file/copy_task_file；资料库材料用 list_materials/read_material。产物在主题工作区的 ${directory}/；完成时只报告实际写入的文件，禁止修改主题原件或其他专家产物。`
+        : '你的工作区是主题工作区的只读视图，资料库材料用 list_materials/read_material。优先读取已有提取文本；返回证据与建议，不修改文件。'
       const maxSteps = Math.min(context.params.maxSteps ?? role.maxSteps, role.maxSteps)
       context.requestContext.set(SPECIALIST_MAX_STEPS, maxSteps)
       return { modifiedPrompt: `${context.prompt}\n\n${scope}`, modifiedMaxSteps: maxSteps }

@@ -21,7 +21,7 @@ export const AssistantContent = memo(function AssistantContent({
   fixScope,
 }: {
   content: string
-  /** 修正请求去重的会话作用域(projectId:taskId)；缺省时不提供修正 */
+  /** 修正请求去重的会话作用域(topicId:taskId)；缺省时不提供修正 */
   fixScope?: string
   /** 整条 assistant 消息仍在流式(围栏可能未闭合) */
   isStreaming?: boolean

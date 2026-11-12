@@ -1,7 +1,7 @@
 /**
- * [INPUT]: 显式技能根、任务工作区、纯解析、完整目录上传与受限文件操作
+ * [INPUT]: 显式用户技能根、主题工作目录、纯解析、完整目录上传与受限文件操作
  * [OUTPUT]: createSkillRegistry/SkillRegistry：实时发现、激活、资源读取、工作区/完整包安装和卸载
- * [POS]: 工具与产品 API 共用的技能服务；source > project > user，不保存会话执行状态
+ * [POS]: 工具与产品 API 共用的技能服务；新形态只有用户一层（跨主题通用），不保存会话执行状态
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { lstat, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises'
@@ -28,8 +28,7 @@ async function packagesAt(root: string, layer: SkillLayer): Promise<SkillPackage
 }
 
 function configuredRoots(options: SkillRegistryOptions): Array<[SkillLayer, string]> {
-  const layers: Array<[SkillLayer, string]> = [['user', options.roots.userSkillsDir], ['project', options.roots.projectSkillsDir]]
-  if (options.roots.sourceSkillsDir) layers.push(['source', options.roots.sourceSkillsDir])
+  const layers: Array<[SkillLayer, string]> = [['user', options.roots.userSkillsDir]]
   for (const root of [options.workspaceDir, ...layers.map(([, root]) => root)]) {
     if (!isAbsolute(root)) throw new Error('技能与工作区根必须是显式绝对路径')
   }
@@ -84,7 +83,7 @@ export function createSkillRegistry(options: SkillRegistryOptions) {
     throw new Error(`未知 skill: ${name}。${delegation}${available.length ? `可用技能：${available.join('、')}` : '当前没有可用技能'}`)
   }
   const installRoot = (scope: InstallScope): string => {
-    if (scope !== 'user' && scope !== 'project') throw new Error('安装范围仅支持 user 或 project')
+    if (scope !== 'user') throw new Error('技能只安装到用户技能目录')
     const root = roots.find(([layer]) => layer === scope)![1]
     return resolve(root)
   }
@@ -113,15 +112,15 @@ export function createSkillRegistry(options: SkillRegistryOptions) {
       const skill = await find(name)
       return { name: skill.name, path, content: await readText(await containedPath(skill.baseDir, path), 128_000) }
     },
-    async install(input: { path: string; scope?: InstallScope }) {
-      const scope = input.scope ?? 'user'
+    async install(input: { path: string }) {
+      const scope: InstallScope = 'user'
       const configuredRoot = installRoot(scope)
       const source = await containedPath(options.workspaceDir, input.path)
       await mkdir(configuredRoot, { recursive: true, mode: 0o700 })
       const root = await realpath(configuredRoot)
       return serializeRoot(root, () => installAt(root, scope, source))
     },
-    async installFiles(files: SkillUploadFile[], scope: InstallScope = 'project') {
+    async installFiles(files: SkillUploadFile[], scope: InstallScope = 'user') {
       const configuredRoot = installRoot(scope)
       await mkdir(configuredRoot, { recursive: true, mode: 0o700 })
       const root = await realpath(configuredRoot)
@@ -130,8 +129,8 @@ export function createSkillRegistry(options: SkillRegistryOptions) {
         return serializeRoot(root, () => installAt(root, scope, source))
       })
     },
-    async uninstall(input: { name: string; scope: InstallScope }) {
-      const root = await realpath(installRoot(input.scope))
+    async uninstall(input: { name: string }) {
+      const root = await realpath(installRoot('user'))
       const name = normalizeSkillName(input.name)
       return serializeRoot(root, async () => {
         const destination = await writableDestination(root, name)

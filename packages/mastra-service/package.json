@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "tsc --noEmit && node --experimental-strip-types --test --test-concurrency=1 tests/*.test.ts tests/lifecycle/*.test.ts tests/migration/*.test.ts tests/execution/*.test.ts tests/deployment/*.test.ts tests/agents/*.test.ts tests/catalog/*.test.ts tests/agents/usage/*.test.ts tests/agents/lifecycle/*.test.ts tests/studio/*.test.ts",
+    "test": "tsc --noEmit && node --experimental-strip-types --test --test-concurrency=1 tests/*.test.ts tests/lifecycle/*.test.ts tests/execution/*.test.ts tests/deployment/*.test.ts tests/agents/*.test.ts tests/catalog/*.test.ts tests/agents/usage/*.test.ts tests/agents/lifecycle/*.test.ts tests/studio/*.test.ts",
     "start": "node --experimental-strip-types src/start.ts",
     "launchd:install": "node --experimental-strip-types scripts/launchd-cli.ts install",
     "launchd:status": "node --experimental-strip-types scripts/launchd-cli.ts status",

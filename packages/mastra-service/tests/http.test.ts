@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 官方 MastraClient/Hono HTTP 服务与确定性 provider 网络响应
- * [OUTPUT]: HTTP/SSE 全链、持久消息补取、认证及超限/残缺上传状态验证
+ * [OUTPUT]: HTTP/SSE 全链、持久消息补取、认证、资料库上传与主题工作区文件版本、超限/残缺上传状态验证
  * [POS]: P0 新服务/客户端纵向链路；无旧协议参与
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -33,51 +33,55 @@ test('新客户端通过官方 HTTP/SSE 执行，重连可读取持久消息', {
     assert.equal((await fetch(`${baseUrl}/lumen/health`)).status, 401)
     assert.equal((await fetch(`${baseUrl}/api/agents`)).status, 401)
     assert.equal((await fetch(`${baseUrl}/lumen/health`, { headers: { ...headers, Origin: 'https://untrusted.example' } })).status, 403)
-    const project = await fetch(`${baseUrl}/lumen/projects`, { method: 'POST', headers, body: JSON.stringify({ id: 'p', name: '研究' }) })
-    assert.equal(project.status, 201)
-    const created = await fetch(`${baseUrl}/lumen/sessions`, { method: 'POST', headers, body: JSON.stringify({ projectId: 'p', taskId: 't' }) })
-    assert.equal(created.status, 200)
+    const topic = await fetch(`${baseUrl}/lumen/topics`, { method: 'POST', headers, body: JSON.stringify({ title: '研究' }) })
+    assert.equal(topic.status, 201)
+    const p = (await topic.json() as { id: string }).id
+    const created = await fetch(`${baseUrl}/lumen/topics/${p}/sessions`, { method: 'POST', headers, body: JSON.stringify({ taskId: 't' }) })
+    assert.equal(created.status, 201)
+    assert.equal((await fetch(`${baseUrl}/lumen/uploads?topicId=${p}&taskId=t`, { method: 'POST', headers })).status, 404)
+    // ---- 附件只进资料库并引用到主题；原件按内容指纹做 ETag ----
     const form = new FormData()
     const binary = new Uint8Array([0, 1, 2, 128, 255])
-    form.set('file', new File([binary], '材料.pdf', { type: 'application/pdf' }))
-    const uploaded = await fetch(`${baseUrl}/lumen/uploads?projectId=p&taskId=t`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form })
-    assert.equal(uploaded.status, 200)
-    const asset = await uploaded.json() as { path: string }
-    const downloaded = await fetch(`${baseUrl}/lumen/files?projectId=p&taskId=t&binary=1&path=${encodeURIComponent(asset.path)}`, { headers })
+    form.set('file', new File([binary], '材料.bin', { type: 'application/octet-stream' }))
+    form.set('topicId', p)
+    const uploaded = await fetch(`${baseUrl}/lumen/library`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form })
+    assert.equal(uploaded.status, 201)
+    const { item, referenced } = await uploaded.json() as { item: { id: string }; referenced: boolean }
+    assert.equal(referenced, true)
+    const downloaded = await fetch(`${baseUrl}/lumen/library/${item.id}/content`, { headers })
     assert.deepEqual(new Uint8Array(await downloaded.arrayBuffer()), binary)
     const etag = downloaded.headers.get('etag')
     assert.ok(etag)
-    const unchanged = await fetch(`${baseUrl}/lumen/files?projectId=p&taskId=t&binary=1&path=${encodeURIComponent(asset.path)}`, {
-      headers: { ...headers, 'If-None-Match': etag },
-    })
-    assert.equal(unchanged.status, 304)
-    const fileSession = await service.application.session('p', 't')
-    const workspace = await service.application.controller.resolveWorkspace({ session: fileSession })
-    await workspace!.filesystem!.writeFile(asset.path, new Uint8Array([9, 8, 7, 6, 5]))
-    const rewritten = await fetch(`${baseUrl}/lumen/files?projectId=p&taskId=t&binary=1&path=${encodeURIComponent(asset.path)}`, {
-      headers: { ...headers, 'If-None-Match': etag },
-    })
+    assert.equal((await fetch(`${baseUrl}/lumen/library/${item.id}/content`, { headers: { ...headers, 'If-None-Match': etag } })).status, 304)
+    // ---- 主题工作区文件：按修改时间与大小做 ETag，同主题的对话看到同一份 ----
+    const workspace = await service.application.workspaceFor(p)
+    await workspace.filesystem!.writeFile('notes/data.bin', binary)
+    const file = `${baseUrl}/lumen/files?topicId=${p}&taskId=t&binary=1&path=notes%2Fdata.bin`
+    const first = await fetch(file, { headers })
+    assert.deepEqual(new Uint8Array(await first.arrayBuffer()), binary)
+    const fileTag = first.headers.get('etag')
+    assert.ok(fileTag)
+    assert.equal((await fetch(file, { headers: { ...headers, 'If-None-Match': fileTag } })).status, 304)
+    await workspace.filesystem!.writeFile('notes/data.bin', new Uint8Array([9, 8, 7, 6, 5]))
+    const rewritten = await fetch(file, { headers: { ...headers, 'If-None-Match': fileTag } })
     assert.equal(rewritten.status, 200)
-    assert.notEqual(rewritten.headers.get('etag'), etag)
+    assert.notEqual(rewritten.headers.get('etag'), fileTag)
     assert.deepEqual(new Uint8Array(await rewritten.arrayBuffer()), new Uint8Array([9, 8, 7, 6, 5]))
-    const assets = await fetch(`${baseUrl}/lumen/assets?projectId=p&taskId=t&path=library`, { headers })
-    assert.match(await assets.text(), /材料.pdf/)
+    assert.match(await (await fetch(`${baseUrl}/lumen/assets?topicId=${p}&taskId=t&path=notes`, { headers })).text(), /data.bin/)
     const oversized = new FormData()
     oversized.set('file', new File([new Uint8Array(25 * 1024 * 1024)], '会议记录.txt'))
-    const rejected = await fetch(`${baseUrl}/lumen/uploads?projectId=p&taskId=t`, {
-      method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: oversized,
-    })
+    oversized.set('topicId', p)
+    const rejected = await fetch(`${baseUrl}/lumen/library`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: oversized })
     assert.equal(rejected.status, 413)
     assert.match((await rejected.json()).error, /25 MiB/)
-    const incomplete = await fetch(`${baseUrl}/lumen/uploads?projectId=p&taskId=t`, {
+    const incomplete = await fetch(`${baseUrl}/lumen/library`, {
       method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data; boundary=missing-boundary' }, body: '',
     })
     assert.equal(incomplete.status, 400)
     assert.match((await incomplete.json()).error, /不完整/)
-    const afterRejected = await fetch(`${baseUrl}/lumen/assets?projectId=p&taskId=t&path=library`, { headers })
-    assert.equal((await afterRejected.json()).entries.length, 1)
+    assert.equal((await (await fetch(`${baseUrl}/lumen/topics/${p}/materials`, { headers })).json()).items.length, 1)
     const client = new MastraClient({ baseUrl, headers: { Authorization: `Bearer ${token}` } })
-    const session = client.getAgentController('lumen').session('p:t')
+    const session = client.getAgentController('lumen').session(`${p}:t`)
     let finish!: () => void
     const done = new Promise<void>(resolve => { finish = resolve })
     const seen: string[] = []
@@ -87,13 +91,13 @@ test('新客户端通过官方 HTTP/SSE 执行，重连可读取持久消息', {
     } })
     unsubscribe = sub.unsubscribe
     await session.sendMessage('请阅读论文材料')
-    const titled = await fetch(`${baseUrl}/lumen/projects/p/sessions/t`, { headers })
+    const titled = await fetch(`${baseUrl}/lumen/topics/${p}/sessions/t`, { headers })
     assert.equal((await titled.json()).title, '请阅读论文材料')
     await done
     assert.ok(seen.includes('message_end'))
     unsubscribe(); unsubscribe = undefined
     const reconnected = new MastraClient({ baseUrl, headers: { Authorization: `Bearer ${token}` } })
-    const history = await reconnected.getAgentController('lumen').session('p:t').listMessages('p:t')
+    const history = await reconnected.getAgentController('lumen').session(`${p}:t`).listMessages(`${p}:t`)
     assert.match(JSON.stringify(history), /研究结果/)
   } finally {
     unsubscribe?.()

@@ -16,6 +16,7 @@ import { JSDOM } from 'jsdom'
 import { serve } from '@hono/node-server'
 import { createHttpService } from '../../mastra-service/src/server.ts'
 import { fixtureProvider, textReply } from '../../mastra-service/tests/provider-fixture.ts'
+import { ensureTopic } from '../../mastra-service/tests/topic-fixture.ts'
 import { LumenApi, type Identity } from '../src/mastra/data/client.ts'
 import { readDiagnosticFile } from '../src/mastra/diagnostics/files.ts'
 
@@ -36,15 +37,15 @@ test('诊断界面使用的真实 HTTP 完成查看、标注、编辑、导出�
   const server = serve({ fetch: service.app.fetch, hostname: '127.0.0.1', port: 0 })
   if (!server.listening) await new Promise<void>(resolve => server.once('listening', resolve))
   const address = server.address(); assert.ok(address && typeof address !== 'string')
-  const baseUrl = `http://127.0.0.1:${address.port}`, api = new LumenApi({ baseUrl, token }), a = { projectId: 'p', taskId: 'a' }, b = { projectId: 'p', taskId: 'b' }
+  const baseUrl = `http://127.0.0.1:${address.port}`, api = new LumenApi({ baseUrl, token }), a = { topicId: 'p', taskId: 'a' }, b = { topicId: 'p', taskId: 'b' }
   try {
-    await api.request('/lumen/projects', 'POST', { id: 'p', name: 'Diagnostics' }); await api.open(a); await api.open(b)
-    assert.equal((await fetch(`${baseUrl}/lumen/diagnostics/traces?projectId=p&taskId=a`)).status, 401)
+    ensureTopic(service, 'p', 'Diagnostics'); await api.open(a); await api.open(b)
+    assert.equal((await fetch(`${baseUrl}/lumen/diagnostics/traces?topicId=p&taskId=a`)).status, 401)
     await (await service.application.session('p', 'a')).sendMessage({ content: '生成诊断记录' }); await service.application.diagnostics.flush()
     const list = await api.traces(a); assert.ok(list.total > 0); assert.equal(list.collectionEnabled, true)
     const trace = await api.trace(a, list.items[0]!.traceId); assert.match(JSON.stringify(trace), /DIAG_HTTP_RESULT/)
     await assert.rejects(api.trace(b, trace.traceId), /Trace 不存在/)
-    await assert.rejects(api.traces({ projectId: '../p', taskId: 'a' }), /会话身份无效/)
+    await assert.rejects(api.traces({ topicId: '../p', taskId: 'a' }), /会话身份无效/)
     const mark = await api.markBadCase(a, { traceId: trace.traceId, kind: 'answer_quality', actual: `Bearer ${credential}`, expected: '完整说明', note: '待调查' })
     const changed = await api.updateBadCase(a, mark.id, { note: '补充说明' })
     assert.equal(changed.expected, '完整说明'); assert.equal(changed.note, '补充说明'); assert.doesNotMatch(changed.actual, new RegExp(credential))
@@ -96,9 +97,9 @@ async function caseEnvironment(prefix: string) {
   if (!server.listening) await new Promise<void>(resolve => server.once('listening', resolve))
   const address = server.address(); assert.ok(address && typeof address !== 'string')
   const api = new LumenApi({ baseUrl: `http://127.0.0.1:${address.port}`, token })
-  const a = { projectId: prefix, taskId: 'a' }, b = { projectId: `${prefix}-other`, taskId: 'a' }
+  const a = { topicId: prefix, taskId: 'a' }, b = { topicId: `${prefix}-other`, taskId: 'a' }
   for (const identity of [a, b]) {
-    await api.request('/lumen/projects', 'POST', { id: identity.projectId, name: identity.projectId }); await api.open(identity)
+    ensureTopic(service, identity.topicId); await api.open(identity)
   }
   const element = document.createElement('div'); document.body.append(element)
   const root = createRoot(element)
@@ -164,7 +165,7 @@ test('诊断标注同 tick 仅评估一次，缺证据显示无法运行；结�
 test('诊断评估不读取未保存标注，失败留稿；重试由当前模型运行并持久显示文本判断', { timeout: 60000 }, async () => {
   const env = await caseEnvironment('diag-live')
   try {
-    await (await env.service.application.session(env.a.projectId, env.a.taskId)).sendMessage({ content: '生成供验证的答复' })
+    await (await env.service.application.session(env.a.topicId, env.a.taskId)).sendMessage({ content: '生成供验证的答复' })
     await env.service.application.diagnostics.flush()
     const traceId = (await env.api.traces(env.a)).items[0]!.traceId
     const marked = await env.api.markBadCase(env.a, { traceId, actual: 'DIAG_UI_RESULT', expected: 'DIAG_UI_RESULT', note: '原标注' })

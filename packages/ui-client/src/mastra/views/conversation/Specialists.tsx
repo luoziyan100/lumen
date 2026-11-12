@@ -26,7 +26,7 @@ export function Specialists({ api, identity, idle, onActivity, className = 'mw-p
     }
     refresh(); const timer = window.setInterval(refresh, 3000)
     return () => { generation.current++; clearInterval(timer) }
-  }, [api, identity.projectId, identity.taskId])
+  }, [api, identity.topicId, identity.taskId])
   async function resume() {
     if (!selected || !prompt.trim() || submitting.current || !idle) return
     const current = generation.current; submitting.current = true; setBusy(true); setError('')

@@ -35,7 +35,7 @@ test('真实后台专家按父任务排空，停止 A 不等待 B 的专家模�
   const app = await createApplication({ dataRoot, model: { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixture.fetch } })
   try {
     const a = await app.session('p', 'a'), b = await app.session('p', 'b')
-    const drain = trackAgentDrain((await app.specialistProjects.get('p')).agents.reader!)
+    const drain = trackAgentDrain((await app.specialists.get()).agents.reader!)
     for (const session of [a, b]) session.subscribe(event => {
       if (event.type === 'tool_approval_required') session.respondToToolApproval({ toolCallId: event.toolCallId, decision: 'approve' })
     })

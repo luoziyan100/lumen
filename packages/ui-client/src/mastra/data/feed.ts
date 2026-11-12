@@ -160,7 +160,7 @@ export class SessionFeed {
   private async history(revision: number) {
     const messages: MastraDBMessage[] = []
     for (let page = 0; this.alive && revision === this.revision; page++) {
-      const result = await this.session.listMessages(`${this.identity.projectId}:${this.identity.taskId}`, {
+      const result = await this.session.listMessages(`${this.identity.topicId}:${this.identity.taskId}`, {
         page, perPage: 200, orderBy: { field: 'createdAt', direction: 'ASC' },
       })
       messages.push(...result.messages)
@@ -180,7 +180,7 @@ export class SessionFeed {
     this.disconnect = undefined
     try {
       // 恢复的是已有选择；旧数据根留下的本地 ID 不能隐式创建新会话。
-      await this.api.request(`/lumen/projects/${encodeURIComponent(this.identity.projectId)}/sessions/${encodeURIComponent(this.identity.taskId)}`)
+      await this.api.request(`/lumen/topics/${encodeURIComponent(this.identity.topicId)}/sessions/${encodeURIComponent(this.identity.taskId)}`)
       if (!this.alive || generation !== this.generation) return
       await this.api.open(this.identity)
       if (!this.alive || generation !== this.generation) return

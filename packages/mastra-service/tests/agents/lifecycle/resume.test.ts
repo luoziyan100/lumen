@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { createHttpService } from '../../../src/server.ts'
 import { fixtureProvider, textReply, toolReply } from '../../provider-fixture.ts'
+import { ensureTopic } from '../../topic-fixture.ts'
 
 test('显式继续复用原专家上下文及目录，重启后仍可继续；跨任务或模型另建专家均拒绝', { timeout: 30000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'lumen-resume-'))
@@ -34,7 +35,7 @@ test('显式继续复用原专家上下文及目录，重启后仍可继续；�
   const headers = { Authorization: `Bearer ${options.token}`, 'Content-Type': 'application/json' }
   const post = (body: unknown) => service.app.request('/lumen/specialists/continue', { method: 'POST', headers, body: JSON.stringify(body) })
   try {
-    await service.catalog.createProject('项目', 'p'); await service.catalog.createSession('p', 'task')
+    ensureTopic(service, 'p'); await service.catalog.createSession('p', 'task')
     let session = await service.application.session('p', 'task')
     await session.permissions.setForTool({ toolName: 'agent-searcher', policy: 'allow' })
     await session.sendMessage({ content: '委派检索' })
@@ -46,25 +47,25 @@ test('显式继续复用原专家上下文及目录，重启后仍可继续；�
     session = await service.application.session('p', 'task')
     await session.permissions.setForTool({ toolName: 'agent-searcher', policy: 'allow' })
     phase = 'continue'
-    const response = await post({ projectId: 'p', taskId: 'task', specialistId: continuedId, prompt: '补充复核' })
+    const response = await post({ topicId: 'p', taskId: 'task', specialistId: continuedId, prompt: '补充复核' })
     assert.equal(response.status, 200, await response.clone().text())
     const result = await response.json()
     assert.equal(result.record.id, first.id); assert.equal(result.record.directory, first.directory)
     assert.equal(result.record.continuations, 1); assert.equal(result.record.threads.length, first.threads.length + 1)
     assert.equal(inherited, true); assert.equal(childCalls, 2)
     await service.catalog.createSession('p', 'other')
-    const wrong = await post({ projectId: 'p', taskId: 'other', specialistId: continuedId, prompt: '错误任务' })
+    const wrong = await post({ topicId: 'p', taskId: 'other', specialistId: continuedId, prompt: '错误任务' })
     assert.equal(wrong.status, 409); assert.equal(childCalls, 2)
     await session.permissions.setForTool({ toolName: 'agent-reader', policy: 'allow' })
     phase = 'ignores-id'
-    const ignored = await post({ projectId: 'p', taskId: 'task', specialistId: continuedId, prompt: '必须继续' })
+    const ignored = await post({ topicId: 'p', taskId: 'task', specialistId: continuedId, prompt: '必须继续' })
     assert.equal(ignored.status, 409); assert.equal(childCalls, 2)
     assert.equal((await service.application.specialistHistory.list('p:task')).length, 1)
     phase = 'approval'
     await session.permissions.setForTool({ toolName: 'agent-searcher', policy: 'ask' })
-    const waiting = await post({ projectId: 'p', taskId: 'task', specialistId: continuedId, prompt: '审批后继续原专家' })
+    const waiting = await post({ topicId: 'p', taskId: 'task', specialistId: continuedId, prompt: '审批后继续原专家' })
     assert.equal(waiting.status, 202, await waiting.clone().text()); assert.equal(childCalls, 2)
-    const duplicate = await post({ projectId: 'p', taskId: 'task', specialistId: continuedId, prompt: '重复提交' })
+    const duplicate = await post({ topicId: 'p', taskId: 'task', specialistId: continuedId, prompt: '重复提交' })
     assert.equal(duplicate.status, 409)
     const [approval] = session.displayState.get().pendingApprovals.values(); assert.ok(approval)
     let ended!: () => void
@@ -105,19 +106,19 @@ test('专家中断后显式继续读取既有历史与原产物，不重放已�
   const service = await createHttpService({ dataRoot: root, token, model: { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixture.fetch } })
   let sending: Promise<unknown> | undefined
   try {
-    await service.catalog.createProject('项目', 'p'); await service.catalog.createSession('p', 'task')
+    ensureTopic(service, 'p'); await service.catalog.createSession('p', 'task')
     const session = await service.application.session('p', 'task')
     await session.permissions.setForTool({ toolName: 'agent-searcher', policy: 'allow' })
     sending = session.sendMessage({ content: '委派研究' })
     await reachedPending; await service.application.stop('p', 'task'); await sending.catch(() => {})
     const before = (await service.application.specialistHistory.list('p:task'))[0]!
     assert.ok(before.threads.length); assert.notEqual(before.status, 'running')
-    const file = join(root, 'projects', 'p', 'tasks', 'task', before.directory, 'once.txt')
+    const file = join(root, 'topics', 'p', 'work', before.directory, 'once.txt')
     assert.equal(await readFile(file, 'utf8'), 'SAVED_ONCE')
     const writtenAt = (await stat(file)).mtimeMs
     phase = 'resume'; parentCalls = 0
     const response = await service.app.request('/lumen/specialists/continue', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ projectId: 'p', taskId: 'task', specialistId: before.id, prompt: '基于已保存事实继续' }) })
+      body: JSON.stringify({ topicId: 'p', taskId: 'task', specialistId: before.id, prompt: '基于已保存事实继续' }) })
     assert.equal(response.status, 200, await response.clone().text())
     assert.equal(inherited, true); assert.equal((await stat(file)).mtimeMs, writtenAt)
     const after = (await service.application.specialistHistory.list('p:task'))[0]!

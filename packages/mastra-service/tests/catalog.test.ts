@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 新 HTTP 服务、真实 Node SQLite 与 Mastra Memory、确定性模型网络
- * [OUTPUT]: 项目目录、会话元数据、分页、重开与项目隔离的行为证据
+ * [OUTPUT]: 主题下会话的元数据、分页、重开与主题隔离的行为证据
  * [POS]: 验证产品目录直接使用原生 thread，不靠另一份会话表或运行状态副本
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -11,8 +11,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHttpService } from '../src/server.ts'
 import type { AgentControllerWireEvent } from '@mastra/core/agent-controller'
-import type { Page, Project, SessionSummary } from '../src/catalog/types.ts'
+import type { Page, SessionSummary } from '../src/catalog/types.ts'
+import type { Topic } from '../src/studio/types.ts'
 import { fixtureProvider, textReply, toolReply } from './provider-fixture.ts'
+import { ensureTopic } from './topic-fixture.ts'
 
 const token = 'catalog-token-at-least-24-characters'
 const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
@@ -28,82 +30,74 @@ function endpoint(service: Awaited<ReturnType<typeof createHttpService>>) {
   }
 }
 
-test('原生 thread 目录经执行和存储重开保留标题、置顶与项目隔离', { timeout: 25000 }, async () => {
+test('原生 thread 目录经执行和存储重开保留标题、置顶与主题隔离', { timeout: 25000 }, async () => {
   const dataRoot = await mkdtemp(join(tmpdir(), 'lumen-catalog-'))
   const fixture = fixtureProvider(() => textReply('研究目录持久化成功'))
   const options = { dataRoot, token, model: { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixture.fetch } }
   let service = await createHttpService(options)
   try {
     let request = endpoint(service)
-    assert.equal((await request<Page<Project>>('/projects')).items[0]?.id, 'default')
-    await request('/projects', 'POST', { id: 'p', name: '论文研究' }, 201)
-    await request('/projects', 'POST', { id: 'q', name: '另一项目' }, 201)
-    await request('/sessions', 'POST', { projectId: 'missing', taskId: 't' }, 404)
-    for (const project of ['p', 'q']) await request(`/projects/${project}/sessions`, 'POST', { taskId: 'same', title: `${project} 的研究` }, 201)
-    await request('/projects/p/sessions/same', 'PATCH', { title: '方法比较', pinned: true, archived: true })
-    await request('/sessions', 'POST', { projectId: 'p', taskId: 'same' })
-    const session = await service.application.session('p', 'same')
+    const p = (await request<Topic>('/topics', 'POST', { title: '论文研究' }, 201)).id
+    const q = (await request<Topic>('/topics', 'POST', { title: '另一主题' }, 201)).id
+    await request('/topics/missing/sessions', 'POST', { taskId: 't' }, 404)
+    for (const topic of [p, q]) await request(`/topics/${topic}/sessions`, 'POST', { taskId: 'same', title: `${topic} 的研究` }, 201)
+    await request(`/topics/${p}/sessions/same`, 'PATCH', { title: '方法比较', pinned: true, archived: true })
+    await request(`/topics/${p}/sessions`, 'POST', { taskId: 'same' }, 201)
+    const session = await service.application.session(p, 'same')
     await session.sendMessage({ content: '核对目录持久化' })
-    const first = await request<SessionSummary>('/projects/p/sessions/same')
+    const first = await request<SessionSummary>(`/topics/${p}/sessions/same`)
     assert.equal(first.title, '方法比较')
+    assert.equal(first.topicId, p)
     assert.equal(first.pinned, true)
     assert.equal(first.archived, true)
-    assert.equal((await request<SessionSummary>('/projects/q/sessions/same')).pinned, false)
-    assert.equal((await request<Page<SessionSummary>>('/projects/p/sessions')).total, 0)
-    assert.equal((await request<Page<SessionSummary>>('/projects/p/sessions?archived=true')).items[0]?.threadId, 'p:same')
+    assert.equal((await request<SessionSummary>(`/topics/${q}/sessions/same`)).pinned, false)
+    assert.equal((await request<Page<SessionSummary>>(`/topics/${p}/sessions`)).total, 0)
+    assert.equal((await request<Page<SessionSummary>>(`/topics/${p}/sessions?archived=true`)).items[0]?.threadId, `${p}:same`)
     await service.close()
     service = await createHttpService(options)
     request = endpoint(service)
-    assert.equal((await request<Project>('/projects/p')).name, '论文研究')
-    const reopened = await request<SessionSummary>('/projects/p/sessions/same')
+    assert.equal((await request<Topic>(`/topics/${p}`)).title, '论文研究')
+    const reopened = await request<SessionSummary>(`/topics/${p}/sessions/same`)
     assert.equal(reopened.title, first.title)
     assert.equal(reopened.pinned, true)
     assert.equal(reopened.archived, true)
-    await request('/sessions', 'POST', { projectId: 'p', taskId: 'same' })
-    const restored = await service.application.session('p', 'same')
-    assert.match(JSON.stringify(await restored.thread.listMessages({ threadId: 'p:same' })), /研究目录持久化成功/)
-    assert.equal((await request<Page<SessionSummary>>('/projects/q/sessions')).items[0]?.threadId, 'q:same')
-    assert.equal((await request<SessionSummary>('/projects/p/sessions/same')).createdAt, first.createdAt)
+    const restored = await service.application.session(p, 'same')
+    assert.match(JSON.stringify(await restored.thread.listMessages({ threadId: `${p}:same` })), /研究目录持久化成功/)
+    assert.equal((await request<Page<SessionSummary>>(`/topics/${q}/sessions`)).items[0]?.threadId, `${q}:same`)
+    assert.equal((await request<SessionSummary>(`/topics/${p}/sessions/same`)).createdAt, first.createdAt)
   } finally { await service.close(); await rm(dataRoot, { recursive: true, force: true }) }
 })
 
-test('目录分页、归档与并发修改遵守项目边界，非空项目不能误删', { timeout: 25000 }, async () => {
+test('目录分页、归档与并发修改遵守主题边界，归档主题不能开新对话', { timeout: 25000 }, async () => {
   const dataRoot = await mkdtemp(join(tmpdir(), 'lumen-catalog-'))
   const fixture = fixtureProvider(() => textReply('unused'))
   const service = await createHttpService({ dataRoot, token,
     model: { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixture.fetch } })
   try {
     const request = endpoint(service)
-    await request('/projects', 'POST', { id: 'p', name: '初始名' }, 201)
-    await request('/projects/p', 'PATCH', { name: '重命名' })
-    assert.equal((await request<Project>('/projects/p')).name, '重命名')
-    for (const taskId of ['a', 'b', 'c']) await request('/projects/p/sessions', 'POST', { taskId }, 201)
+    const p = (await request<Topic>('/topics', 'POST', { title: '初始名' }, 201)).id
+    for (const taskId of ['a', 'b', 'c']) await request(`/topics/${p}/sessions`, 'POST', { taskId }, 201)
     await Promise.all([
-      request('/projects/p/sessions/a', 'PATCH', { pinned: true }),
-      request('/projects/p/sessions/a', 'PATCH', { title: '并发重命名' }),
+      request(`/topics/${p}/sessions/a`, 'PATCH', { pinned: true }),
+      request(`/topics/${p}/sessions/a`, 'PATCH', { title: '并发重命名' }),
     ])
-    const updated = await request<SessionSummary>('/projects/p/sessions/a')
+    const updated = await request<SessionSummary>(`/topics/${p}/sessions/a`)
     assert.equal(updated.pinned, true)
     assert.equal(updated.title, '并发重命名')
-    const first = await request<Page<SessionSummary>>('/projects/p/sessions?perPage=2')
-    const second = await request<Page<SessionSummary>>('/projects/p/sessions?perPage=2&page=1')
+    const first = await request<Page<SessionSummary>>(`/topics/${p}/sessions?perPage=2`)
+    const second = await request<Page<SessionSummary>>(`/topics/${p}/sessions?perPage=2&page=1`)
     assert.equal(first.total, 3)
     assert.equal(first.hasMore, true)
     assert.equal(second.hasMore, false)
     assert.equal(new Set([...first.items, ...second.items].map(item => item.taskId)).size, 3)
-    await request('/projects/p', 'DELETE', undefined, 409)
-    await request('/projects/p', 'PATCH', { archived: true })
-    assert.equal((await request<Page<Project>>('/projects')).items.some(item => item.id === 'p'), false)
-    assert.equal((await request<Page<Project>>('/projects?archived=true')).items[0]?.id, 'p')
-    await request('/projects/p/sessions', 'POST', { taskId: 'new' }, 409)
-    await request('/projects/p', 'PATCH', { archived: false })
-    await request('/projects', 'POST', { id: 'empty', name: '空项目' }, 201)
-    await request('/projects/empty', 'DELETE', undefined, 204)
-    await request('/projects/empty', 'GET', undefined, 404)
-    await request('/projects/default', 'DELETE', undefined, 409)
-    await request('/projects/default', 'PATCH', { archived: true }, 409)
-    await request('/projects/p/sessions?perPage=0', 'GET', undefined, 400)
-    await request('/projects/p/sessions/a', 'PATCH', { projectId: 'other' }, 400)
+    await request(`/topics/${p}`, 'PATCH', { archived: true })
+    await request(`/topics/${p}/sessions`, 'POST', { taskId: 'new' }, 409)
+    assert.equal((await request<SessionSummary>(`/topics/${p}/sessions/a`)).taskId, 'a')
+    await request(`/topics/${p}`, 'PATCH', { archived: false })
+    await request(`/topics/${p}/sessions`, 'POST', { taskId: 'new' }, 201)
+    await request(`/topics/${p}/sessions?perPage=0`, 'GET', undefined, 400)
+    await request(`/topics/${p}/sessions/a`, 'PATCH', { topicId: 'other' }, 400)
+    assert.equal((await service.app.request('/lumen/projects', { headers })).status, 404)
   } finally { await service.close(); await rm(dataRoot, { recursive: true, force: true }) }
 })
 
@@ -113,6 +107,7 @@ test('会话授权只做归属检查，描述入口才读取最新消息', { tim
   const service = await createHttpService({ dataRoot, token,
     model: { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixture.fetch } })
   try {
+    ensureTopic(service, 'default')
     await service.catalog.createSession('default', 'auth')
     const memory = service.application.memory as any
     const recall = memory.recall.bind(memory)
@@ -137,7 +132,8 @@ test('重连快照保留真实审批与问答挂起，并按官方 wire 形状�
     model: { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixture.fetch } })
   try {
     const request = endpoint(service)
-    await request('/sessions', 'POST', { projectId: 'default', taskId: 'snapshot' })
+    ensureTopic(service, 'default')
+    await request('/topics/default/sessions', 'POST', { taskId: 'snapshot' }, 201)
     const session = await service.application.session('default', 'snapshot')
     await session.permissions.setForTool({ toolName: 'write_file', policy: 'ask' })
     await session.permissions.setForTool({ toolName: 'ask_user', policy: 'allow' })
@@ -147,20 +143,20 @@ test('重连快照保留真实审批与问答挂起，并按官方 wire 形状�
     const running = session.sendMessage({ content: '帮我读论文' })
     await pending
     type Snapshot = { displayState: Extract<AgentControllerWireEvent, { type: 'display_state_changed' }>['displayState'] }
-    const approval = await request<Snapshot>('/snapshot?projectId=default&taskId=snapshot')
+    const approval = await request<Snapshot>('/snapshot?topicId=default&taskId=snapshot')
     const [parked] = Object.values(approval.displayState.pendingApprovals)
     assert.equal(parked?.toolName, 'write_file')
     session.respondToToolApproval({ toolCallId: parked!.toolCallId, decision: 'approve' })
     await running
-    const suspended = await request<Snapshot>('/snapshot?projectId=default&taskId=snapshot')
+    const suspended = await request<Snapshot>('/snapshot?topicId=default&taskId=snapshot')
     const prompt = Object.values(suspended.displayState.pendingSuspensions)[0]
     assert.equal(prompt?.toolName, 'ask_user')
     const changed = Object.values(suspended.displayState.modifiedFiles)[0]
     assert.equal(typeof changed?.firstModified, 'string')
     await session.respondToToolSuspension({ toolCallId: prompt!.toolCallId, resumeData: '方法章节' })
-    const completed = await request<Snapshot>('/snapshot?projectId=default&taskId=snapshot')
+    const completed = await request<Snapshot>('/snapshot?topicId=default&taskId=snapshot')
     assert.equal(Object.keys(completed.displayState.pendingSuspensions).length, 0)
     assert.equal(completed.displayState.isRunning, false)
-    await request('/snapshot?projectId=unknown&taskId=snapshot', 'GET', undefined, 404)
+    await request('/snapshot?topicId=unknown&taskId=snapshot', 'GET', undefined, 404)
   } finally { await service.close(); await rm(dataRoot, { recursive: true, force: true }) }
 })

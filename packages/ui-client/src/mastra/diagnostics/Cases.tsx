@@ -18,9 +18,9 @@ type Props = { api: LumenApi; identity: Identity; target?: CaseTarget; revision?
 type Operation = 'save' | EvaluationResult['mode'] | null
 
 export function Cases(props: Props) {
-  const scope = useRef({ api: props.api, project: props.identity.projectId, task: props.identity.taskId, key: 0 })
-  if (scope.current.api !== props.api || scope.current.project !== props.identity.projectId || scope.current.task !== props.identity.taskId) {
-    scope.current = { api: props.api, project: props.identity.projectId, task: props.identity.taskId, key: scope.current.key + 1 }
+  const scope = useRef({ api: props.api, project: props.identity.topicId, task: props.identity.taskId, key: 0 })
+  if (scope.current.api !== props.api || scope.current.project !== props.identity.topicId || scope.current.task !== props.identity.taskId) {
+    scope.current = { api: props.api, project: props.identity.topicId, task: props.identity.taskId, key: scope.current.key + 1 }
   }
   return <CaseEditor key={scope.current.key} {...props} />
 }
@@ -40,7 +40,7 @@ function CaseEditor({ api, identity, target, revision: refresh = 0 }: Props) {
       setList(value); setSelected(current => current ? value.items.find(item => item.id === current.id) ?? current : null)
     }).catch(error => { if (active) setError(String(error)) })
     return () => { active = false }
-  }, [api, identity.projectId, identity.taskId, page, revision, refresh])
+  }, [api, identity.topicId, identity.taskId, page, revision, refresh])
 
   function edit(item: BadCase | null) {
     editor.current++; setSelected(item)

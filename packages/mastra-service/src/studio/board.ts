@@ -87,7 +87,7 @@ export class BoardStore {
   /** 每个主题同一时刻只有一张接受 AI 写入：ord 最大的那张进行中白板。 */
   writableSheet(topicId: string): Sheet {
     const row = this.db.prepare(`SELECT ${SHEET_COLUMNS} FROM sheets s WHERE s.topic_id = ? AND s.state = 'live' ORDER BY s.ord DESC LIMIT 1`).get(topicId)
-    if (!row) throw new StudioError('这个主题现在没有进行中的白板；请他点 ＋ 新开一张', 409)
+    if (!row) throw new StudioError('这个主题现在没有进行中的白板；请用户点 ＋ 新开一张', 409)
     return sheet(row)
   }
 
@@ -98,7 +98,7 @@ export class BoardStore {
     return transaction(this.db, () => {
       const target = this.writableSheet(topicId)
       if (target.used >= target.capacity) throw new StudioError(
-        `这张白板满了（${target.used}/${target.capacity}）。不要往外挤：先告诉他这张已经写满，把想清楚的部分沉淀下来，再请他点 ＋ 开一张新的；如果某块已被新的理解取代，可以用 board_supersede 把它标灰腾出位置。`, 409)
+        `这张白板满了（${target.used}/${target.capacity}）。不要往外挤：先告诉用户这张已经写满，把想清楚的部分沉淀下来，再请用户点 ＋ 开一张新的；如果某块已被新的理解取代，可以用 board_supersede 把它标灰腾出位置。`, 409)
       const place = this.place(target.id, input.kind, content, input.near)
       const id = `b${randomBytes(5).toString('hex')}`, now = new Date().toISOString()
       this.db.prepare(`INSERT INTO blocks (id, sheet_id, kind, title, content, x, y, w, h, state, superseded_by, rev, sources, thread_id, run_id, created_at, updated_at)

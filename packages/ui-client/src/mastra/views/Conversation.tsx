@@ -60,7 +60,7 @@ export function Conversation({ api, identity, onActivity, onOpenFile, onSettings
     }
     update(); const timer = window.setInterval(update, 2000)
     return () => { cancelled = true; clearInterval(timer) }
-  }, [api, identity.projectId, identity.taskId, feed])
+  }, [api, identity.topicId, identity.taskId, feed])
   const stick = useTranscriptStick(empty)
   useEffect(() => { if (priorRunning.current && !running) onActivity(); priorRunning.current = running }, [running, onActivity])
   const markVisibleRead = useCallback(() => {
@@ -68,7 +68,7 @@ export function Conversation({ api, identity, onActivity, onOpenFile, onSettings
     if (!id || id === readAttempt.current || !stick.followingNow.current || document.visibilityState !== 'visible' || !document.hasFocus()) return
     readAttempt.current = id
     void api.markSessionRead(identity, id).then(result => { if (alive.current && result.changed) onActivity() }).catch(() => { if (readAttempt.current === id) readAttempt.current = null })
-  }, [api, identity.projectId, identity.taskId, view.lastStoredMessageId, onActivity, stick.followingNow])
+  }, [api, identity.topicId, identity.taskId, view.lastStoredMessageId, onActivity, stick.followingNow])
   useEffect(() => {
     markVisibleRead(); window.addEventListener('focus', markVisibleRead); document.addEventListener('visibilitychange', markVisibleRead)
     return () => { window.removeEventListener('focus', markVisibleRead); document.removeEventListener('visibilitychange', markVisibleRead) }
@@ -94,7 +94,7 @@ export function Conversation({ api, identity, onActivity, onOpenFile, onSettings
         const message = row.message
         return <article className={`msg-group msg-group-${messageRole(message)} mw-message mw-${messageRole(message)}`} key={row.id} id={messageAnchor(message.id)}>
         <div className={`bubble bubble-${messageRole(message)}`}>
-        {messageRole(message) === 'assistant' ? <AssistantContent content={messageText(message)} isStreaming={running && display?.currentMessage?.id === message.id} onSendMessage={sendWidgetMessage} fixScope={`${identity.projectId}:${identity.taskId}`} /> : <UserMessage message={message} onOpenFile={onOpenFile} />}
+        {messageRole(message) === 'assistant' ? <AssistantContent content={messageText(message)} isStreaming={running && display?.currentMessage?.id === message.id} onSendMessage={sendWidgetMessage} fixScope={`${identity.topicId}:${identity.taskId}`} /> : <UserMessage message={message} onOpenFile={onOpenFile} />}
         </div><MessageCopy user={messageRole(message) === 'user'} text={messageRole(message) === 'user' ? userContent(message).text : messageText(message)} />
       </article>})}
       {running && !suspended && !timeline.some(row => row.kind !== 'message' && row.running) && !display?.currentMessage?.content.parts.some(part => part.type === 'text' && part.text.trim()) && <Waiting startedAt={turnStartedAt(view.messages)} />}

@@ -7,8 +7,8 @@
 - `zip.ts`：OOXML 所需的 ZIP 中央目录读取、CRC 和有实际输出上限的可取消解压，不释放文件到宿主目录。
 - `docx.ts`：命名空间感知的正文抽取；保留段落、制表/换行，排除删除修订，拒绝 DTD 和无界正文。
 - `images.ts`：以真实文件头确认 PNG/JPEG/GIF/WebP、尺寸及像素上限；不按扩展名臆测格式；SHA256 引用绑定读取时的真实内容。
-- `tools.ts`：原生 extract_docx/look_at_image；DOCX 返回正文，图像返回路径/指纹/尺寸，持久结果与事件不携带 base64。
-- `processor.ts`：用官方 processLLMRequest 在可信 Workspace 校验引用并加载原生 user-file 输入；文件变动/删除显式要求重读，不改持久消息。
+- `tools.ts`：原生 extract_docx/look_at_image（`path` 读工作区，`itemId` 经 LibraryReader 读本主题引用的资料库图片，二者择一）；DOCX 返回正文，图像返回路径/指纹/尺寸，持久结果与事件不携带 base64。
+- `processor.ts`：用官方 processLLMRequest 在可信 Workspace 或资料库（引用带 itemId 时，仍过主题引用检查）校验引用并加载原生 user-file 输入；文件变动/删除显式要求重读，不改持久消息。
 - `index.ts`：工具组合与纯摄取函数的公开入口。
 
 边界：DOCX 读取主文档正文，不承诺还原版式或提取嵌入图像/独立脚注；图片不提供 OCR 替代模型，当前模型必须支持视觉。

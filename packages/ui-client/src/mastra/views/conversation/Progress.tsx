@@ -54,7 +54,7 @@ export function ContextMeter({ api, identity, running }: { api: LumenApi; identi
     void refresh()
     const timer = running ? window.setInterval(() => { void refresh() }, 3000) : undefined
     return () => { active = false; if (timer !== undefined) clearInterval(timer) }
-  }, [api, identity.projectId, identity.taskId, running])
+  }, [api, identity.topicId, identity.taskId, running])
   if (!value || value.lastMainInputTokens === null || !Number.isFinite(value.lastMainInputTokens) || value.contextWindow <= 0) return null
   const ratio = value.lastMainInputTokens / value.contextWindow
   if (ratio < 0.6) return null

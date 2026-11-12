@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 原生路由策略、真实 Mastra HTTP 服务与官方客户端
- * [OUTPUT]: 身份重绑定、scope 旁路、任务材料混读与历史读取无写入的 HTTP 回归证据
+ * [OUTPUT]: 身份重绑定、scope 旁路、跨主题材料混读与历史读取无写入的 HTTP 回归证据
  * [POS]: 验证框架入口无法绕过产品会话生命周期，同时正常消息/SSE 仍可使用
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -13,6 +13,7 @@ import { serve } from '@hono/node-server'
 import { MastraClient } from '@mastra/client-js'
 import { createHttpService } from '../src/server.ts'
 import { fixtureProvider, textReply } from './provider-fixture.ts'
+import { ensureTopic } from './topic-fixture.ts'
 
 test('原生 HTTP 固定任务身份，拒绝重绑定及 scope，正常 SDK 消息仍落盘', { timeout: 25000 }, async () => {
   const dataRoot = await mkdtemp(join(tmpdir(), 'lumen-native-boundary-'))
@@ -30,31 +31,33 @@ test('原生 HTTP 固定任务身份，拒绝重绑定及 scope，正常 SDK 消
   const base = '/api/agent-controller/lumen/sessions/p%3Aa'
   let unsubscribe: (() => void) | undefined
   try {
-    assert.equal((await fetch(`${baseUrl}/lumen/projects`, { method: 'POST', headers, body: JSON.stringify({ id: 'p', name: '研究' }) })).status, 201)
-    for (const taskId of ['a', 'b']) assert.equal((await fetch(`${baseUrl}/lumen/sessions`, { method: 'POST', headers, body: JSON.stringify({ projectId: 'p', taskId }) })).status, 200)
+    for (const [topic, taskId] of [['p', 'a'], ['q', 'b']]) {
+      ensureTopic(service, topic!)
+      assert.equal((await fetch(`${baseUrl}/lumen/topics/${topic}/sessions`, { method: 'POST', headers, body: JSON.stringify({ taskId }) })).status, 201)
+    }
     const client = new MastraClient({ baseUrl, headers })
     const session = client.getAgentController('lumen').session('p:a')
     const state = await session.state()
     assert.equal(state.threadId, 'p:a')
-    const a = await service.application.session('p', 'a'), b = await service.application.session('p', 'b')
+    const a = await service.application.session('p', 'a'), b = await service.application.session('q', 'b')
     for (const [current, text] of [[a, 'TASK_A_ONLY'], [b, 'TASK_B_ONLY']] as const) {
       await (await service.application.controller.resolveWorkspace({ session: current }))!.filesystem!.writeFile('marker.md', text)
     }
     for (const path of [`${base}/resource`, `${base}/thread`, '/api/agents/research/generate', '/api/agent-controller/lumen/sessions']) {
-      const response = await fetch(`${baseUrl}${path}`, { method: 'POST', headers, body: JSON.stringify({ newResourceId: 'p:b', threadId: 'p:b', resourceId: 'p:a' }) })
+      const response = await fetch(`${baseUrl}${path}`, { method: 'POST', headers, body: JSON.stringify({ newResourceId: 'q:b', threadId: 'q:b', resourceId: 'p:a' }) })
       assert.equal(response.status, 404, path)
     }
-    for (const path of [`${base}/messages?sessionScope=other`, `${base}/messages?sessionScope=`, `${base}?threadId=p%3Ab`]) {
+    for (const path of [`${base}/messages?sessionScope=other`, `${base}/messages?sessionScope=`, `${base}?threadId=q%3Ab`]) {
       const response = await fetch(`${baseUrl}${path}`, { method: path.includes('/messages') ? 'POST' : 'GET', headers,
         ...(path.includes('/messages') ? { body: JSON.stringify({ message: 'UNTRACKED_RUN' }) } : {}),
       })
       assert.equal(response.status, 400, path)
     }
-    const wrongThread = await fetch(`${baseUrl}${base}/threads/p%3Ab/messages`, { headers })
+    const wrongThread = await fetch(`${baseUrl}${base}/threads/q%3Ab/messages`, { headers })
     assert.equal(wrongThread.status, 404)
     assert.equal(fixture.requests.length, 0)
     assert.equal(a.identity.getResourceId(), 'p:a')
-    assert.equal(await service.application.controller.getSession('p:b'), b)
+    assert.equal(await service.application.controller.getSession('q:b'), b)
     assert.equal(await service.application.controller.getSession('p:unbound'), undefined)
     let finish!: () => void
     const done = new Promise<void>(resolve => { finish = resolve })
@@ -63,7 +66,7 @@ test('原生 HTTP 固定任务身份，拒绝重绑定及 scope，正常 SDK 消
     await session.sendMessage('Read task A')
     await done
     assert.match(JSON.stringify(await session.listMessages('p:a')), /BOUND_TO_TASK_A/)
-    const file = await fetch(`${baseUrl}/lumen/files?projectId=p&taskId=a&path=marker.md`, { headers })
+    const file = await fetch(`${baseUrl}/lumen/files?topicId=p&taskId=a&path=marker.md`, { headers })
     assert.deepEqual(await file.json(), { content: 'TASK_A_ONLY' })
   } finally {
     unsubscribe?.()
@@ -86,6 +89,7 @@ test('只读原生历史不创建运行会话，不写模型配置、改排序�
   const baseUrl = `http://127.0.0.1:${address.port}`
   const headers = { Authorization: `Bearer ${token}` }
   try {
+    ensureTopic(service, 'default')
     await service.catalog.createSession('default', 'history', '保留历史顺序')
     const { memory, controller } = service.application
     await memory.saveMessages({ messages: [{ id: 'original-message', role: 'assistant', threadId: 'default:history', resourceId: 'default:history',

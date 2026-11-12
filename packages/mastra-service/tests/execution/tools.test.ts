@@ -6,7 +6,7 @@
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, writeFile, rm, readFile, access, rename, symlink } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, rm, readFile, access } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Agent } from '@mastra/core/agent'
@@ -18,7 +18,6 @@ import { createExecutionTools } from '../../src/execution/tools.ts'
 import { createModelGateway, modelId } from '../../src/model.ts'
 import { fixtureProvider, textReply, toolReply } from '../provider-fixture.ts'
 import { createApplication } from '../../src/application.ts'
-import { setSourceBinding } from '../../src/workspace/source.ts'
 
 test('沙箱代码直接执行，真实失败回灌模型并可修正，不产生审批挂起', { skip: process.platform !== 'darwin', timeout: 20000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), 'lumen-execution-tool-'))
@@ -57,39 +56,21 @@ test('正式应用自动执行技能脚本与二进制资源，包只读、显�
   const root = await mkdtemp(join(tmpdir(), 'lumen-sandbox-skill-'))
   const skill = join(root, 'skills', 'archive-helper')
   const script = join(skill, 'process.py')
-  const sourceSkill = join(root, 'source/.lumen/skills/source-helper')
-  const sourceScript = join(sourceSkill, 'process.py')
   let step = 0
   const fixture = fixtureProvider(() => {
     step++
-    if (step === 1) return toolReply('install_skill', { path: 'archive-source', scope: 'user' }, 'install-call')
+    if (step === 1) return toolReply('install_skill', { path: 'archive-source' }, 'install-call')
     if (step === 2) return toolReply('run_skill', { name: 'archive-helper' }, 'skill-call')
     if (step === 3) return toolReply('run_code', { language: 'python', code: `import runpy\nrunpy.run_path(${JSON.stringify(script)}, run_name='__main__')` }, 'code-call')
-    if (step === 4) return toolReply('run_skill', { name: 'source-helper' }, 'source-skill-call')
-    if (step === 5) return toolReply('run_code', { language: 'python', code: `import runpy\nrunpy.run_path(${JSON.stringify(sourceScript)}, run_name='__main__')` }, 'source-code-call')
-    if (step === 7) return toolReply('run_code', { language: 'node', code: "import fs from 'node:fs'; fs.writeFileSync('forbidden.txt', 'should-not-run')" }, 'denied-call')
+    if (step === 5) return toolReply('run_code', { language: 'node', code: "import fs from 'node:fs'; fs.writeFileSync('forbidden.txt', 'should-not-run')" }, 'denied-call')
     return textReply('处理完成')
   })
   const options = { dataRoot: root, model: { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixture.fetch } }
   let application = await createApplication(options)
   try {
     const session = await application.session('p', 'task')
-    await mkdir(sourceSkill, { recursive: true })
-    await writeFile(join(sourceSkill, 'SKILL.md'), '---\nname: source-helper\ndescription: 来源技能\n---\n运行 process.py。')
-    await writeFile(join(sourceSkill, 'asset.bin'), Buffer.from([255, 128, 0]))
-    await writeFile(sourceScript, `from pathlib import Path
-asset = Path(__file__).parent / 'asset.bin'
-Path('source-result.bin').write_bytes(asset.read_bytes())
-try:
-    asset.write_bytes(b'changed')
-    raise AssertionError('SOURCE_WRITABLE')
-except PermissionError:
-    pass
-print('SOURCE_READONLY')
-`)
-    await setSourceBinding(join(root, 'projects/p'), join(root, 'source'))
     // -------- 会话建立后安装，验证执行时重新解析技能可读根 --------
-    const source = join(root, 'projects/p/tasks/task/archive-source')
+    const source = join(root, 'topics/p/work/archive-source')
     await mkdir(source, { recursive: true })
     await writeFile(join(source, 'SKILL.md'), '---\nname: archive-helper\ndescription: 解压本地材料\n---\n运行 process.py。')
     await writeFile(join(source, 'asset.bin'), Buffer.from([0, 1, 128, 255]))
@@ -119,21 +100,18 @@ print('SANDBOX_UNPACKED')
     await session.sendMessage({ content: '运行已安装的 archive-helper 处理材料' })
     assert.deepEqual(approvals, [])
     assert.equal(session.displayState.get().pendingApprovals.size, 0)
-    assert.equal(await readFile(join(root, 'projects/p/tasks/task/library/extracted/result.txt'), 'utf8'), 'SANDBOX_UNPACKED')
+    assert.equal(await readFile(join(root, 'topics/p/work/library/extracted/result.txt'), 'utf8'), 'SANDBOX_UNPACKED')
     assert.deepEqual(await readFile(join(skill, 'asset.bin')), Buffer.from([0, 1, 128, 255]))
-    assert.deepEqual(await readFile(join(root, 'projects/p/tasks/task/source-result.bin')), Buffer.from([255, 128, 0]))
     const rules = session.permissions.getRules()
     assert.equal(rules.categories.execute, 'allow')
     assert.notEqual(rules.categories.other, 'allow')
     await session.permissions.setForTool({ toolName: 'run_code', policy: 'deny' })
     await (await application.session('p', 'task')).sendMessage({ content: '拒绝策略生效时不能运行代码' })
     assert.equal(session.permissions.getRules().tools.run_code, 'deny')
-    await assert.rejects(access(join(root, 'projects/p/tasks/task/forbidden.txt')))
+    await assert.rejects(access(join(root, 'topics/p/work/forbidden.txt')))
     await application.close(); application = await createApplication(options)
     const reopened = await application.session('p', 'task')
     assert.equal(reopened.permissions.getRules().categories.execute, 'allow')
-    await rename(join(root, 'source'), join(root, 'source-moved'))
-    await symlink(join(root, 'source-moved'), join(root, 'source'))
-    await assert.rejects(application.skillsFor('p', 'task'), /资料路径已变化/)
+    assert.deepEqual((await application.skillsFor('p').list()).map(skill => skill.name), ['archive-helper'])
   } finally { await application.close(); await rm(root, { recursive: true, force: true }) }
 })

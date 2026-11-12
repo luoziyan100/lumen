@@ -10,17 +10,17 @@ import { DiagnosticsError, type createDiagnostics } from '../diagnostics/index.t
 
 type Diagnostics = ReturnType<typeof createDiagnostics>
 const id = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/)
-const identity = z.object({ projectId: id, taskId: id })
+const identity = z.object({ topicId: id, taskId: id })
 const page = z.object({ page: z.coerce.number().int().min(0).max(100000).optional(), perPage: z.coerce.number().int().min(1).max(100).optional() })
 
-export function diagnosticsRoutes(diagnostics: Diagnostics, authorize: (projectId: string, taskId: string) => Promise<unknown>) {
+export function diagnosticsRoutes(diagnostics: Diagnostics, authorize: (topicId: string, taskId: string) => Promise<unknown>) {
   const app = new Hono()
   app.use('/diagnostics/*', async (c, next) => { c.header('Cache-Control', 'no-store'); await next() })
   async function resource(c: Context) {
     const parsed = identity.safeParse(c.req.query())
     if (!parsed.success) throw new DiagnosticsError('会话身份无效', 400)
-    await authorize(parsed.data.projectId, parsed.data.taskId)
-    return `${parsed.data.projectId}:${parsed.data.taskId}`
+    await authorize(parsed.data.topicId, parsed.data.taskId)
+    return `${parsed.data.topicId}:${parsed.data.taskId}`
   }
   function pagination(c: Context) {
     const parsed = page.safeParse(c.req.query())

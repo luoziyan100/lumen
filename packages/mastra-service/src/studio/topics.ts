@@ -32,8 +32,9 @@ export class TopicStore {
     return topic(row)
   }
 
-  create(title: string): Topic {
-    const id = randomUUID(), now = new Date().toISOString()
+  /** id 只供服务内部与测试指定；HTTP 新建一律由服务生成。 */
+  create(title: string, id: string = randomUUID()): Topic {
+    const now = new Date().toISOString()
     transaction(this.db, () => {
       this.db.prepare('INSERT INTO topics VALUES (?, ?, 0, ?, ?)').run(id, title, now, now)
       insertSheet(this.db, id, title, now)

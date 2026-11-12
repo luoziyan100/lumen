@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 显式角色根、全局启停文件、当前内建专家和能力收窄规则
- * [OUTPUT]: loadAgentCatalog：项目静态快照；project > workspace > builtin > user > plugin
+ * [OUTPUT]: loadAgentCatalog：全局静态快照；builtin > user > plugin
  * [POS]: 加载只读配置；配置错误保留诊断，损坏的开关文件阻止悄悄重新启用角色
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -10,14 +10,13 @@ import { constrainAgent } from './policy.ts'
 import { readAgentToggles } from './toggles.ts'
 import type { AgentCatalog, AgentDiagnostic, AgentLayer, AgentRoots, CatalogEntry } from './types.ts'
 
-const priority: Record<AgentLayer, number> = { plugin: 1, user: 2, builtin: 3, workspace: 4, project: 5 }
+const priority: Record<AgentLayer, number> = { plugin: 1, user: 2, builtin: 3 }
 
 export async function loadAgentCatalog(options: { roots: AgentRoots; togglesPath: string }): Promise<AgentCatalog> {
   const toggles = await readAgentToggles(options.togglesPath)
   const entries = new Map<string, CatalogEntry>(SPECIALIST_ROLES.map(role => [role.id, { role, layer: 'builtin', sourcePath: null, disabled: false }]))
   const diagnostics: AgentDiagnostic[] = []
-  const roots: Array<[AgentLayer, string | null | undefined]> = [['plugin', options.roots.pluginAgentsDir], ['user', options.roots.userAgentsDir],
-    ['workspace', options.roots.workspaceAgentsDir], ['project', options.roots.projectAgentsDir]]
+  const roots: Array<[AgentLayer, string | null | undefined]> = [['plugin', options.roots.pluginAgentsDir], ['user', options.roots.userAgentsDir]]
   for (const [layer, root] of roots) {
     const discovered = await discoverAgentFiles(root, layer)
     diagnostics.push(...discovered.diagnostics)

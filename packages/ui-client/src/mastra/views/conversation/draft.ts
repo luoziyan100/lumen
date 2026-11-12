@@ -19,7 +19,7 @@ function storedText(key: string): string {
 }
 
 function materials(content: string, uploaded: Upload[]): string {
-  return `${content}${uploaded.length ? `\n\n${C.uploadedMaterials}\n${uploaded.map(file => `- ${file.name}: ${file.path}`).join('\n')}` : ''}`
+  return `${content}${uploaded.length ? `\n\n${C.uploadedMaterials}\n${uploaded.map(file => `- ${file.name}: ${file.itemId}`).join('\n')}` : ''}`
 }
 
 class ConversationDraft {
@@ -63,7 +63,7 @@ class ConversationDraft {
   }
 
   private matches(feed: SendTarget) {
-    return feed.identity.projectId === this.identity.projectId && feed.identity.taskId === this.identity.taskId
+    return feed.identity.topicId === this.identity.topicId && feed.identity.taskId === this.identity.taskId
   }
 
   async send(api: Pick<LumenApi, 'upload'>, target: SendTarget | (() => Promise<SendTarget>), activePath?: string | null): Promise<boolean> {
@@ -71,8 +71,8 @@ class ConversationDraft {
     const { draft, files } = this.state
     if (this.staging || (!draft.trim() && !files.length)) return false
     const id = ++this.nextId, uploaded: Upload[] = []
-    const path = writableDocument(activePath ? { path: activePath, scope: 'task' } : null)
-    const prompt = path ? `${draft}\n\n当前稿（本会话工作区路径）：${path}\n用户正在查看这份稿件；若要求修改它，请先读取现有内容。` : draft
+    const path = writableDocument(activePath ? { path: activePath, scope: 'work' } : null)
+    const prompt = path ? `${draft}\n\n当前稿（主题工作区路径）：${path}\n用户正在查看这份稿件；若要求修改它，请先读取现有内容。` : draft
     this.staging = true
     this.publish({ draft: '', files: [], uploading: files.length > 0 })
     let feed: SendTarget
@@ -94,7 +94,7 @@ class ConversationDraft {
 const drafts = new Map<string, ConversationDraft>()
 
 export function conversationDraft(identity: Identity): ConversationDraft {
-  const key = `lumen:mastra:draft:v1:${JSON.stringify([identity.projectId, identity.taskId])}`
+  const key = `lumen:mastra:draft:v1:${JSON.stringify([identity.topicId, identity.taskId])}`
   let draft = drafts.get(key)
   if (!draft) { draft = new ConversationDraft(identity, key); drafts.set(key, draft) }
   return draft

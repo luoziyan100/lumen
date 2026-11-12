@@ -35,10 +35,10 @@ fn open_document(path: &Path) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn open_workspace_file(state: tauri::State<'_, ServiceConnection>, project_id: String, task_id: String, path: String, scope: String) -> Result<(), String> {
+pub async fn open_workspace_file(state: tauri::State<'_, ServiceConnection>, topic_id: String, task_id: String, path: String, scope: String) -> Result<(), String> {
     let (base, token) = state.endpoint()?;
     let mut url = tauri::Url::parse(&format!("{base}/lumen/files/location")).map_err(|_| "服务地址无效")?;
-    url.query_pairs_mut().extend_pairs([("projectId", project_id), ("taskId", task_id), ("path", path), ("scope", scope)]);
+    url.query_pairs_mut().extend_pairs([("topicId", topic_id), ("taskId", task_id), ("path", path), ("scope", scope)]);
     let client = reqwest::Client::builder().no_proxy().redirect(reqwest::redirect::Policy::none()).timeout(Duration::from_secs(5)).build().map_err(|_| "无法连接文件服务")?;
     let mut response = client.get(url).bearer_auth(token).send().await.map_err(|_| "文件服务连接失败")?;
     if !response.status().is_success() { return Err("文件不可访问，请刷新工作区后重试".into()); }

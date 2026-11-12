@@ -29,7 +29,7 @@ export function useSkillSlash({ api, identity, text, anchor, onManage, prepareSe
       .catch(error => { if (current === generation.current) setError(String(error)) })
       .finally(() => { if (current === generation.current) setLoading(false) })
     return () => { generation.current++ }
-  }, [api, identity.projectId, identity.taskId, open, prepareSession])
+  }, [api, identity.topicId, identity.taskId, open, prepareSession])
   useEffect(() => setHighlight(0), [filter, skills])
   useLayoutEffect(() => {
     if (!open) return

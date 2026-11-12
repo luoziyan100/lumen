@@ -5,7 +5,7 @@
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 export { createIngestionTools } from './tools.ts'
-export type { IngestionWorkspaceResolver } from './tools.ts'
+export type { IngestionWorkspaceResolver, LibraryReader } from './tools.ts'
 export { createImageToolResultProcessor } from './processor.ts'
 export { extractDocxText } from './docx.ts'
 export { imageInfo } from './images.ts'

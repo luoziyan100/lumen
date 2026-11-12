@@ -127,3 +127,11 @@
 .mw-body.mw-reading > .mw-files > .reader-resize { display: none; }
 .mw-body.mw-reading-solo > .mw-center { display: none; }
 @media (max-width: 850px) { .mw-body.mw-reading > .mw-center { flex: 1 1 0; border-left: 0; } .mw-body.mw-reading > .mw-center > .reader-resize { display: none; } }
+
+/* S2–S3 过渡入口：主题与对话列表，S4 随 TopicsEntry 一并退场 */
+.studio-entry-nav { flex: 0 0 260px; overflow-y: auto; padding: var(--s-3); border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: var(--s-2); }
+.studio-entry-nav form { display: flex; gap: var(--s-2); }
+.studio-entry-nav ul { list-style: none; margin: 0; padding: 0; }
+.studio-entry-nav ul ul { padding-left: var(--s-3); }
+.studio-entry-nav button { width: 100%; justify-content: flex-start; }
+.studio-entry-note { color: var(--text-muted); font-size: var(--t-caption); margin: 0; }

@@ -1,22 +1,26 @@
 /**
- * [INPUT]: Mastra provider prompt、可信 Workspace resolver 与带 SHA256 的图像引用
+ * [INPUT]: Mastra provider prompt、可信 Workspace resolver、可选资料库读取器与带 SHA256 的图像引用
  * [OUTPUT]: createImageToolResultProcessor：为当前模型请求加载工作区图像
  * [POS]: 请求独有的多模态边界；持久消息与展示事件只含引用，文件变化时显式要求重读
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import type { ProcessLLMRequestArgs, InputProcessor } from '@mastra/core/processors'
-import type { IngestionWorkspaceResolver } from './tools.ts'
+import type { IngestionWorkspaceResolver, LibraryReader } from './tools.ts'
 import { readWorkspaceBytes } from './files.ts'
 import { imageDigest, imageReferenceSchema, MAX_IMAGE_BYTES, type ImageReference } from './images.ts'
 
 type Prompt = ProcessLLMRequestArgs['prompt']
 type UserMessage = Extract<Prompt[number], { role: 'user' }>
 
-async function imageParts(reference: ImageReference, resolveWorkspace: IngestionWorkspaceResolver, context: ProcessLLMRequestArgs): Promise<UserMessage['content']> {
-  const source = `图像来源：${reference.path}（${reference.width}×${reference.height}）。${reference.focus ? `观察重点：${reference.focus}` : ''}`
+async function imageParts(reference: ImageReference, resolveWorkspace: IngestionWorkspaceResolver, context: ProcessLLMRequestArgs, readLibrary?: LibraryReader): Promise<UserMessage['content']> {
+  const source = `图像来源：${reference.itemId ? `资料库「${reference.path}」` : reference.path}（${reference.width}×${reference.height}）。${reference.focus ? `观察重点：${reference.focus}` : ''}`
   try {
-    const workspace = await resolveWorkspace(context)
-    const bytes = await readWorkspaceBytes(workspace, reference.path, MAX_IMAGE_BYTES, context.abortSignal)
+    let bytes: Uint8Array
+    if (reference.itemId) {
+      if (!readLibrary) throw new Error('Library unavailable')
+      bytes = (await readLibrary(context, reference.itemId)).bytes
+      if (bytes.length > MAX_IMAGE_BYTES) throw new Error('Image too large')
+    } else bytes = await readWorkspaceBytes(await resolveWorkspace(context), reference.path, MAX_IMAGE_BYTES, context.abortSignal)
     if (imageDigest(bytes) !== reference.sha256) throw new Error('Image changed')
     return [{ type: 'text', text: source }, { type: 'file', data: new Uint8Array(bytes), mediaType: reference.mediaType }]
   } catch {
@@ -25,7 +29,7 @@ async function imageParts(reference: ImageReference, resolveWorkspace: Ingestion
   }
 }
 
-export function createImageToolResultProcessor(resolveWorkspace: IngestionWorkspaceResolver) {
+export function createImageToolResultProcessor(resolveWorkspace: IngestionWorkspaceResolver, readLibrary?: LibraryReader) {
   return {
     id: 'lumen-image-tool-results',
     async processLLMRequest(context: ProcessLLMRequestArgs) {
@@ -42,7 +46,7 @@ export function createImageToolResultProcessor(resolveWorkspace: IngestionWorksp
           const reference = imageReferenceSchema.safeParse(part.output.value)
           if (!reference.success) continue
           changed = true
-          images.push(...await imageParts(reference.data, resolveWorkspace, context))
+          images.push(...await imageParts(reference.data, resolveWorkspace, context, readLibrary))
         }
         if (prompt[index + 1]?.role !== 'tool' && images.length) {
           output.push({ role: 'user', content: images })

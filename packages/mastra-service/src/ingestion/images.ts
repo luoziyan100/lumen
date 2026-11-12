@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 已受工作区权限和字节上限约束的图像字节
- * [OUTPUT]: imageInfo：真实媒体类型、宽高、内容指纹与可持久化图像引用
+ * [OUTPUT]: imageInfo：真实媒体类型、宽高、内容指纹与可持久化图像引用（工作区路径，或资料库 itemId）
  * [POS]: 当前模型多模态输入前的格式边界；不调用外部视觉服务或按扩展名猜测
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -12,7 +12,7 @@ export interface ImageInfo { mediaType: 'image/png' | 'image/jpeg' | 'image/gif'
 const MAX_PIXELS = 32_000_000
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 export const imageReferenceSchema = z.object({
-  path: z.string().min(1), focus: z.string().max(2000).optional(),
+  path: z.string().min(1), itemId: z.string().min(1).max(128).optional(), focus: z.string().max(2000).optional(),
   mediaType: z.enum(['image/png', 'image/jpeg', 'image/gif', 'image/webp']),
   width: z.number().int().positive(), height: z.number().int().positive(),
   bytes: z.number().int().positive().max(MAX_IMAGE_BYTES), sha256: z.string().regex(/^[a-f0-9]{64}$/),

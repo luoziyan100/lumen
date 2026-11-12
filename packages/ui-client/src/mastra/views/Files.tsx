@@ -1,7 +1,7 @@
 /**
- * [INPUT]: 带显式 scope 的文件与资料绑定 API、原生目录选择、既有 Markdown/PDF/HTML 沙箱查看器（PDF 直接消费认证 Blob）
- * [OUTPUT]: Files：原双卡工作区(右轨含专家协作目录)、完整文件/外部资料/记忆导航、只读资料绑定、相对引用与 PDF 页码阅读、复制源码/系统打开、宽度拖拽，以及文档居中开关与阅读器开合回报
- * [POS]: 列表和正文按身份/范围/路径绑定响应；绑定草稿独立保护迟到加载，上传限定 shared；成功阅读仅在导航变化时通知当前稿绑定，刷新不重复通知；运行时仅轮询打开正文，先用 ETag 判断版本再读取变化内容，上传整批锁定且首次失败停止
+ * [INPUT]: 带显式 scope 的文件 API 与资料库原件读取、既有 Markdown/PDF/HTML 沙箱查看器（PDF 直接消费认证 Blob）
+ * [OUTPUT]: Files：S2–S3 过渡的右轨与阅读器——主题工作区/两层记忆导航、资料库原件阅读、相对引用与 PDF 页码阅读、复制源码/系统打开、宽度拖拽，以及文档居中开关与阅读器开合回报
+ * [POS]: 列表和正文按身份/范围/路径绑定响应；上传进资料库并引用到当前主题；成功阅读仅在导航变化时通知当前稿绑定，刷新不重复通知；运行时仅轮询打开正文，先用 ETag 判断版本再读取变化内容，上传整批锁定且首次失败停止。S4 由新外壳的材料栏与阅读器取代
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { Specialists } from './conversation/Specialists'
@@ -15,71 +15,17 @@ export { useWorkspace } from './workspace/useWorkspace'
 import { useResizable } from './chrome/useResizable'
 import { Button } from '@cloudflare/kumo/components/button'
 import { Select } from '@cloudflare/kumo/components/select'
-import { Input } from '@cloudflare/kumo/components/input'
 import { Markdown } from '../../components/Markdown'
 import { PdfViewer } from '../../components/PdfViewer'
 import { HtmlViewer } from '../../components/HtmlViewer'
 import { MASTRA_COPY as C } from '../../copy/mastraCopy'
-import { pickFolder } from '../../shell/pickFolder'
-import { LumenApi, type Asset, type Identity, type FileScope, type ProjectSource } from '../data/client.ts'
+import { LumenApi, type Asset, type Identity, type ReadScope } from '../data/client.ts'
 import { workspaceLink, type FileTarget } from '../data/file-links'
 import { saveWorkspaceFile } from '../data/download'
 
-function SourceBinding({ api, projectId, onChanged }: { api: LumenApi; projectId: string; onChanged: () => void }) {
-  const [source, setSource] = useState<ProjectSource | undefined>(), [draft, setDraft] = useState('')
-  const [loading, setLoading] = useState(false), [busy, setBusy] = useState<'save' | 'pick' | null>(null), [error, setError] = useState('')
-  const generation = useRef(0), edits = useRef(0), dirty = useRef(false), working = useRef(false)
-  async function reload() {
-    const current = ++generation.current; setLoading(true); setError('')
-    try {
-      const next = await api.projectSource(projectId)
-      if (current !== generation.current) return
-      setSource(next); if (!dirty.current) setDraft(next.path ?? '')
-    } catch (error) { if (current === generation.current) setError(error instanceof Error ? error.message : String(error)) }
-    finally { if (current === generation.current) setLoading(false) }
-  }
-  useEffect(() => {
-    dirty.current = false; working.current = false; edits.current++; setSource(undefined); setDraft(''); setBusy(null)
-    void reload()
-    return () => { generation.current++ }
-  }, [api, projectId])
-  function edit(value: string) { edits.current++; dirty.current = true; setDraft(value) }
-  async function choose() {
-    if (working.current) return
-    const current = generation.current, revision = edits.current
-    working.current = true; setBusy('pick')
-    try { const path = await pickFolder(); if (path && current === generation.current && revision === edits.current) edit(path) }
-    finally { if (current === generation.current) { working.current = false; setBusy(null) } }
-  }
-  async function save(path: string | null) {
-    if (working.current) return
-    const current = ++generation.current
-    working.current = true; setBusy('save'); setLoading(false); setError('')
-    try {
-      const next = await api.updateProjectSource(projectId, path)
-      if (current !== generation.current) return
-      dirty.current = false; setSource(next); setDraft(next.path ?? ''); onChanged()
-    } catch (error) { if (current === generation.current) setError(error instanceof Error ? error.message : String(error)) }
-    finally { if (current === generation.current) { working.current = false; setBusy(null) } }
-  }
-  return <section className="mw-source" aria-label="外部资料绑定">
-    <p className="mw-file-hint">{C.sourceReadOnly}</p>
-    <p className="mw-file-hint">{source ? source.path ? `当前目录：${source.path}` : '尚未绑定资料目录' : loading ? '正在读取绑定…' : '无法读取当前绑定'}</p>
-    <form onSubmit={event => { event.preventDefault(); if (draft.trim()) void save(draft.trim()) }}>
-      <label>资料目录<Input aria-label="资料目录" placeholder="粘贴本机绝对路径" value={draft} disabled={busy === 'save'} onChange={event => edit(event.target.value)} /></label>
-      <div className="mw-file-actions">
-        {typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window && <Button type="button" variant="ghost" disabled={busy !== null} onClick={() => void choose()}>选择目录</Button>}
-        <Button type="submit" disabled={busy !== null || !draft.trim() || draft.trim() === source?.path}>{busy === 'save' ? '正在保存…' : '保存绑定'}</Button>
-        <Button type="button" variant="ghost" disabled={busy !== null || loading || source?.path === null} onClick={() => void save(null)}>解除绑定</Button>
-        <Button type="button" variant="ghost" disabled={busy !== null || loading} onClick={() => { void reload(); onChanged() }}>刷新绑定</Button>
-      </div>
-    </form>
-    {error && <p role="alert" className="mw-error">{error}</p>}
-  </section>
-}
-
 type Kind = 'pdf' | 'image' | 'html' | 'markdown' | 'text' | 'binary'
 interface Document { key: string; api: LumenApi; path: string; kind: Kind; url: string; text: string; blob: Blob; etag: string | null }
+const media: [RegExp, Kind][] = [[/^application\/pdf$/, 'pdf'], [/^image\//, 'image'], [/^text\/html$/, 'html'], [/^text\/markdown$/, 'markdown'], [/^(text\/|application\/json)/, 'text']]
 const formats: [RegExp, Kind][] = [[/\.pdf$/i, 'pdf'], [/\.(png|jpe?g|gif|webp|svg|avif|bmp)$/i, 'image'], [/\.html?$/i, 'html'], [/\.(md|markdown)$/i, 'markdown'], [/\.(txt|csv|json|ya?ml|ts|tsx|js|jsx|py|tex|bib|css|xml|log)$/i, 'text']]
 function Reader({ document, page }: { document: Document; page?: number }) {
   const render = {
@@ -111,9 +57,9 @@ export function Files({ api, identity, revision, target, onClose, workspace: sup
   const [saving, setSaving] = useState(false), [copied, setCopied] = useState(false)
   const { width, handleProps } = useResizable({ edge: 'left', min: 360, max: 820, fallback: 480, storageKey: 'lumen:readerWidth' })
   const [page, setPage] = useState<number | undefined>()
-  const [scope, setScope] = useState<FileScope>('task'), [refresh, setRefresh] = useState(0), [uploading, setUploading] = useState(false)
+  const [scope, setScope] = useState<ReadScope>('work'), [refresh, setRefresh] = useState(0), [uploading, setUploading] = useState(false)
   const input = useRef<HTMLInputElement>(null), generation = useRef(0)
-  const location = `${identity.projectId}:${identity.taskId}:${scope}`, listKey = `${location}:${folder}:${revision}:${refresh}`, readKey = `${location}:${path}`
+  const location = `${identity.topicId}:${identity.taskId}:${scope}`, listKey = `${location}:${folder}:${revision}:${refresh}`, readKey = `${location}:${path}`
   const assets = listing?.key === listKey && listing.api === api ? listing.entries : null
   const currentDocument = document?.key === readKey && document.api === api ? document : null
   useEffect(() => {
@@ -121,12 +67,13 @@ export function Files({ api, identity, revision, target, onClose, workspace: sup
     generation.current++; setScope(target.scope); setPath(target.path); setPage(target.page)
     setFolder(target.path.includes('/') ? target.path.slice(0, target.path.lastIndexOf('/')) : '.'); setError('')
   }, [target])
-  useEffect(() => () => { generation.current++ }, [api, identity.projectId, identity.taskId])
+  useEffect(() => () => { generation.current++ }, [api, identity.topicId, identity.taskId])
   useEffect(() => {
     let active = true; setError('')
+    if (scope === 'library') return
     void api.assets(identity, folder, scope).then(result => { if (active) setListing({ key: listKey, api, entries: result.entries }) }).catch(error => { if (active) setError(String(error)) })
     return () => { active = false }
-  }, [api, identity.projectId, identity.taskId, folder, scope, revision, refresh])
+  }, [api, identity.topicId, identity.taskId, folder, scope, revision, refresh])
   useEffect(() => {
     let active = true, pending = false
     if (!path) return
@@ -141,7 +88,7 @@ export function Files({ api, identity, revision, target, onClose, workspace: sup
           return
         }
         const blob = result.blob
-        const kind = formats.find(([pattern]) => pattern.test(path))?.[1] ?? 'binary'
+        const kind = formats.find(([pattern]) => pattern.test(path))?.[1] ?? media.find(([pattern]) => pattern.test(blob.type))?.[1] ?? 'binary'
         const text = ['markdown', 'text', 'html'].includes(kind) ? await blob.text() : ''
         if (!active) return
         const next = { key: readKey, api, path, kind, url: URL.createObjectURL(blob), text, blob, etag: result.etag }
@@ -154,11 +101,11 @@ export function Files({ api, identity, revision, target, onClose, workspace: sup
     void read()
     const timer = workspace.display?.isRunning ? window.setInterval(() => void read(), 5000) : undefined
     return () => { active = false; if (timer !== undefined) clearInterval(timer) }
-  }, [api, identity.projectId, identity.taskId, path, scope, revision, refresh, workspace.display?.isRunning])
+  }, [api, identity.topicId, identity.taskId, path, scope, revision, refresh, workspace.display?.isRunning])
   useEffect(() => { const url = document?.url; return () => { if (url) URL.revokeObjectURL(url) } }, [document?.url])
   function changeScope(value: string | null) {
     opened.current = ''
-    generation.current++; setScope(value === 'shared' || value === 'source' || value === 'memory' ? value : 'task'); setFolder('.'); setPath(null); setPage(undefined); setError('')
+    generation.current++; setScope(value === 'memory' || value === 'you' ? value : 'work'); setFolder('.'); setPath(null); setPage(undefined); setError('')
   }
   function navigate(nextFolder: string, nextPath: string | null = null, nextPage?: number) {
     if (!nextPath) opened.current = ''
@@ -169,7 +116,7 @@ export function Files({ api, identity, revision, target, onClose, workspace: sup
     const current = generation.current
     uploadBusy.current = true; setUploading(true); setUploadError('')
     try {
-      for (const file of files) await api.upload(identity, file, 'shared')
+      for (const file of files) await api.upload(identity, file)
       if (current === generation.current) { setFolder('.'); setPath(null) }
     } catch (error) { if (current === generation.current) setUploadError(String(error)) }
     finally {
@@ -193,7 +140,7 @@ export function Files({ api, identity, revision, target, onClose, workspace: sup
     if (!currentDocument || !path) return
     setSaving(true)
     try {
-      if (isTauri()) await invoke('open_workspace_file', { ...identity, path, scope })
+      if (isTauri() && scope !== 'library') await invoke('open_workspace_file', { ...identity, path, scope })
       else await saveWorkspaceFile(path.split('/').pop()!, currentDocument.blob)
     } catch (error) { setError(String(error)) } finally { setSaving(false) }
   }
@@ -215,10 +162,9 @@ export function Files({ api, identity, revision, target, onClose, workspace: sup
         <Button variant="ghost" disabled={saving} onClick={() => { setSaving(true); void saveWorkspaceFile(path.split('/').pop()!, currentDocument.blob).catch(error => setError(String(error))).finally(() => setSaving(false)) }}>{C.download}</Button>
       </>}{path && onCenter && <button className="icon-btn reader-action" aria-pressed={!!centered} aria-label={centered ? '恢复分屏' : '文档居中'} title={centered ? '恢复分屏' : '文档居中，对话靠右'} onClick={onCenter}><ExpandIcon /></button>}{onClose && <button className="icon-btn nav-icon-btn" aria-label="关闭工作区" onClick={onClose}><CloseIcon /></button>}</div>
     </header>
-    {!path && <><Select aria-label={C.fileScope} value={scope} items={{ task: C.taskFiles, shared: C.sharedFiles, source: C.sourceFiles, memory: C.projectMemory }} onValueChange={changeScope} />
-    {scope === 'source' && <SourceBinding api={api} projectId={identity.projectId} onChanged={() => { navigate('.'); setRefresh(value => value + 1) }} />}
+    {!path && <><Select aria-label={C.fileScope} value={scope === 'library' ? 'work' : scope} items={{ work: C.workFiles, memory: C.topicMemory, you: C.youMemory }} onValueChange={changeScope} />
     <div className="mw-file-actions"><Button variant="ghost" aria-label={C.refresh} onClick={() => setRefresh(value => value + 1)}>{C.refresh}</Button>
-      {scope === 'shared' && <><Button disabled={uploading} variant="ghost" onClick={() => input.current?.click()}>{uploading ? C.uploading : C.attach}</Button>{uploadInput}</>}
+      <Button disabled={uploading} variant="ghost" onClick={() => input.current?.click()}>{uploading ? C.uploading : C.addToLibrary}</Button>{uploadInput}
     </div></>}
     {(uploadError || error) && <p role="alert" className="mw-error">{uploadError || error}</p>}
     {path ? <>

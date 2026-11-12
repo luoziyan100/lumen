@@ -26,7 +26,7 @@ import { recordedAgentParts } from '../src/diagnostics/evaluation/recorded.ts'
 import { EvidenceUnavailable } from '../src/diagnostics/evaluation/types.ts'
 
 async function setup(outcome: 'success' | 'failed' | 'cancelled' = 'success') {
-  const root = await mkdtemp(join(tmpdir(), 'lumen-evaluation-')), resourceId = 'project:recorded'
+  const root = await mkdtemp(join(tmpdir(), 'lumen-evaluation-')), resourceId = 'topic:recorded'
   const storage = new LibSQLStore({ id: 'evaluation', url: `file:${join(root, 'memory.sqlite')}` })
   const memory = new Memory({ storage, options: { semanticRecall: false, workingMemory: { enabled: false } } })
   let toolCalls = 0, live: ModelSettings | null = null
@@ -55,7 +55,7 @@ async function setup(outcome: 'success' | 'failed' | 'cancelled' = 'success') {
   const traceId = (await diagnostics.listTraces(resourceId)).items[0]!.traceId
   const item = await diagnostics.markBadCase(resourceId, { traceId, actual: 'Observed response', expected: 'RECORDED_EXPECTED_OUTPUT' })
   const http = new Hono()
-  http.route('/lumen', diagnosticsRoutes(diagnostics, async (projectId, taskId) => options.authorize(`${projectId}:${taskId}`)))
+  http.route('/lumen', diagnosticsRoutes(diagnostics, async (topicId, taskId) => options.authorize(`${topicId}:${taskId}`)))
   http.onError((error, c) => c.json({ error: error.message }, error instanceof DiagnosticsError ? error.status : 500))
   return { root, resourceId, storage, memory, diagnostics, fixture, item, http, secrets,
     toolCalls: () => toolCalls, setLive(settings: ModelSettings | null) { live = settings },
@@ -67,7 +67,7 @@ test('真实 Controller 录制经独立 Mastra Agent 回放，模型/真实工�
   try {
     const before = await env.memory.recall({ threadId: env.resourceId, resourceId: env.resourceId, perPage: 100 })
     const requests = env.fixture.requests.length, calls = env.toolCalls(), original = await readFile(join(env.root, 'original.txt'), 'utf8')
-    const response = await env.http.request(`/lumen/diagnostics/cases/${env.item.id}/evaluate?projectId=project&taskId=recorded`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'recorded' }) })
+    const response = await env.http.request(`/lumen/diagnostics/cases/${env.item.id}/evaluate?topicId=topic&taskId=recorded`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'recorded' }) })
     assert.equal(response.status, 200)
     const result = await response.json()
     assert.equal(result.execution, 'completed', JSON.stringify(result)); assert.equal(result.executionPerformed, true)
@@ -80,8 +80,8 @@ test('真实 Controller 录制经独立 Mastra Agent 回放，模型/真实工�
     const exported = JSON.parse((await env.diagnostics.exportSession(env.resourceId)).content)
     assert.equal(exported.payload.badCases[0].lastEvaluation.execution, 'completed')
     assert.equal(env.diagnostics.readRecorded((await env.diagnostics.exportSession(env.resourceId)).content).executionPerformed, false)
-    await env.memory.createThread({ threadId: 'project:other', resourceId: 'project:other' })
-    await assert.rejects(env.diagnostics.evaluate('project:other', env.item.id, 'recorded'), { status: 404 })
+    await env.memory.createThread({ threadId: 'topic:other', resourceId: 'topic:other' })
+    await assert.rejects(env.diagnostics.evaluate('topic:other', env.item.id, 'recorded'), { status: 404 })
     const edited = await env.diagnostics.updateBadCase(env.resourceId, env.item.id, { expected: 'DIFFERENT_EXPECTATION' })
     assert.equal(edited.lastEvaluation, undefined)
     assert.equal((await env.diagnostics.evaluate(env.resourceId, env.item.id, 'recorded')).judgment, 'mismatched')

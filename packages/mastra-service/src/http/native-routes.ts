@@ -6,7 +6,7 @@
  */
 import type { MiddlewareHandler } from 'hono'
 
-type BindSession = (projectId: string, taskId: string) => Promise<unknown>
+type BindSession = (topicId: string, taskId: string) => Promise<unknown>
 const ID = '[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}'
 const RESOURCE = new RegExp(`^(${ID}):(${ID})$`)
 const SESSION = /^\/api\/agent-controller\/lumen\/sessions\/([^/]+)(.*)$/

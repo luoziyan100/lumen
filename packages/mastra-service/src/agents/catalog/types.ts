@@ -6,9 +6,9 @@
  */
 import type { BuiltinSpecialistId, SpecialistRole } from '../roles.ts'
 
-export type AgentLayer = 'plugin' | 'user' | 'builtin' | 'workspace' | 'project'
+export type AgentLayer = 'plugin' | 'user' | 'builtin'
 export type AgentCapability = 'read-only' | 'read-write' | 'execute' | 'all'
-export interface AgentRoots { userAgentsDir: string; workspaceAgentsDir: string; projectAgentsDir?: string | null; pluginAgentsDir?: string | null }
+export interface AgentRoots { userAgentsDir: string; pluginAgentsDir?: string | null }
 export interface AgentDefinition {
   name: string; description: string; instructions: string
   capability: AgentCapability; preset: BuiltinSpecialistId; maxSteps: number

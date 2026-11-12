@@ -65,7 +65,9 @@ export class LibraryStore {
     const file = safeName(input.name), id = randomUUID(), directory = join(this.root, id)
     const pdf = Buffer.from(input.bytes.subarray(0, 5)).toString('latin1') === '%PDF-'
     const kind: LibraryKind = input.kind ?? (pdf ? 'pdf' : input.sourceUrl ? 'web' : 'file')
-    const mediaType = pdf ? 'application/pdf' : input.mediaType?.split(';')[0]?.trim() || MEDIA[extname(file).toLowerCase()] || 'application/octet-stream'
+    // ---- 浏览器给不出类型时 multipart 会标成 octet-stream，此时以扩展名为准 ----
+    const declared = input.mediaType?.split(';')[0]?.trim().toLowerCase()
+    const mediaType = pdf ? 'application/pdf' : (declared && declared !== 'application/octet-stream' ? declared : MEDIA[extname(file).toLowerCase()]) || 'application/octet-stream'
     const title = (input.title?.trim() || file.replace(/\.[^.]+$/, '') || file).slice(0, 200)
     await mkdir(directory, { recursive: true, mode: 0o700 })
     try {

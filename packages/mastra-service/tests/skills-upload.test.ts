@@ -6,14 +6,15 @@
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHttpService } from '../src/server.ts'
+import { ensureTopic } from './topic-fixture.ts'
 
 const token = 'skill-package-upload-test-token-32-characters'
 const headers = { Authorization: `Bearer ${token}` }
-const query = 'projectId=p&taskId=t'
+const query = 'topicId=p&taskId=t'
 
 function packageForm(files: Array<{ path: string; content: string | Uint8Array; executable?: boolean; directory?: boolean }>) {
   const form = new FormData()
@@ -26,10 +27,10 @@ test('技能目录经HTTP完整安装，保留脚本/资源/执行位，非法�
   const dataRoot = await mkdtemp(join(tmpdir(), 'lumen-package-upload-'))
   const service = await createHttpService({ dataRoot, token })
   const json = (path: string, data: unknown) => service.app.request(`/lumen/${path}`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-  const upload = (files: Parameters<typeof packageForm>[0], task = 't') => service.app.request(`/lumen/skills/package?projectId=p&taskId=${task}&scope=project`, { method: 'POST', headers, body: packageForm(files) })
+  const upload = (files: Parameters<typeof packageForm>[0], task = 't') => service.app.request(`/lumen/skills/package?topicId=p&taskId=${task}`, { method: 'POST', headers, body: packageForm(files) })
   try {
-    assert.equal((await json('projects', { id: 'p', name: '研究' })).status, 201)
-    assert.equal((await json('sessions', { projectId: 'p', taskId: 't' })).status, 200)
+    ensureTopic(service, 'p', '研究')
+    assert.equal((await json('topics/p/sessions', { taskId: 't' })).status, 201)
     const files = [
       { path: 'research/SKILL.md', content: '---\nname: research\ndescription: Complete evidence\n---\nRead references/guide.md with $ARGUMENTS' },
       { path: 'research/references/guide.md', content: 'Evidence remains intact.' },
@@ -40,13 +41,15 @@ test('技能目录经HTTP完整安装，保留脚本/资源/执行位，非法�
     const installed = await upload(files)
     assert.equal(installed.status, 200, await installed.clone().text())
     assert.equal((await installed.json()).name, 'research')
-    const registry = await service.application.skillsFor('p', 't')
+    const registry = service.application.skillsFor('p')
     assert.match((await registry.readFile('research', 'references/guide.md')).content, /intact/)
     const skill = (await registry.list()).find(item => item.name === 'research')!
+    assert.equal(skill.layer, 'user')
+    assert.equal(skill.baseDir, join(await realpath(dataRoot), 'skills', 'research'))
     assert.deepEqual(await readFile(join(skill.baseDir, 'assets/source.bin')), Buffer.from([0, 128, 255]))
     assert.equal((await stat(join(skill.baseDir, 'scripts/read.py'))).mode & 0o100, 0o100)
     assert.equal((await stat(join(skill.baseDir, 'output/empty'))).isDirectory(), true)
-    assert.match((await (await json('skills/activate', { projectId: 'p', taskId: 't', name: 'research', args: 'papers' })).json()).content, /with papers/)
+    assert.match((await (await json('skills/activate', { topicId: 'p', taskId: 't', name: 'research', args: 'papers' })).json()).content, /with papers/)
     for (const invalid of [
       [...files, { path: 'research/../../escape', content: 'bad' }],
       [...files, { path: 'research/REFERENCES/guide.md', content: 'duplicate' }],
@@ -58,7 +61,7 @@ test('技能目录经HTTP完整安装，保留脚本/资源/执行位，非法�
     assert.equal((await upload(updated)).status, 200)
     assert.match((await registry.readFile('research', 'references/guide.md')).content, /Updated/)
     assert.equal((await upload(files, 'missing')).status, 404)
-    assert.equal((await readdir(join(dataRoot, 'projects/p/tasks/t'))).some(name => name.startsWith('.skill-upload-')), false)
+    assert.equal((await readdir(join(dataRoot, 'topics/p/work'))).some(name => name.startsWith('.skill-upload-')), false)
     const denied = await service.app.request(`/lumen/skills/package?${query}`, { method: 'POST', body: packageForm(files) })
     assert.equal(denied.status, 401)
   } finally { await service.close(); await rm(dataRoot, { recursive: true, force: true }) }
@@ -69,9 +72,9 @@ test('桌面文件位置只解析已授权会话与根内普通文件，拒绝�
   const service = await createHttpService({ dataRoot, token })
   const post = (path: string, body: unknown) => service.app.request(`/lumen/${path}`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
   try {
-    await post('projects', { id: 'p', name: 'project' }); await post('sessions', { projectId: 'p', taskId: 't' })
-    await post('files', { projectId: 'p', taskId: 't', path: 'notes/report.md', content: 'report' })
-    const get = (path: string, scope = 'task') => service.app.request(`/lumen/files/location?${query}&scope=${scope}&path=${encodeURIComponent(path)}`, { headers })
+    ensureTopic(service, 'p'); await post('topics/p/sessions', { taskId: 't' })
+    await post('files', { topicId: 'p', taskId: 't', path: 'notes/report.md', content: 'report' })
+    const get = (path: string, scope = 'work') => service.app.request(`/lumen/files/location?${query}&scope=${scope}&path=${encodeURIComponent(path)}`, { headers })
     const response = await get('notes/report.md')
     assert.equal(response.status, 200)
     const location = await response.json() as { root: string; path: string }
@@ -80,7 +83,7 @@ test('桌面文件位置只解析已授权会话与根内普通文件，拒绝�
     await writeFile(join(dataRoot, 'private.txt'), 'private')
     await symlink(join(dataRoot, 'private.txt'), join(location.root, 'escaped.md'))
     for (const path of ['escaped.md', '../../../../private.txt', '/etc/passwd', 'notes']) assert.equal((await get(path)).status, 400)
-    const unknown = await service.app.request('/lumen/files/location?projectId=other&taskId=t&path=notes/report.md', { headers })
+    const unknown = await service.app.request('/lumen/files/location?topicId=other&taskId=t&path=notes/report.md', { headers })
     assert.equal(unknown.status, 404)
   } finally { await service.close(); await rm(dataRoot, { recursive: true, force: true }) }
 })

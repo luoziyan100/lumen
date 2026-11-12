@@ -12,6 +12,7 @@ import { join } from 'node:path'
 import { serve } from '@hono/node-server'
 import { createHttpService } from '../src/server.ts'
 import { fixtureProvider, textReply, toolReply } from './provider-fixture.ts'
+import { ensureTopic } from './topic-fixture.ts'
 
 test('设置从空配置启动并延迟切换实际模型，挂起任务保持旧模型，清空凭证后禁止执行', { timeout: 25000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), 'lumen-settings-runtime-'))
@@ -31,7 +32,8 @@ test('设置从空配置启动并延迟切换实际模型，挂起任务保持�
   const request = (path: string, method = 'GET', body?: unknown) => service.app.request(path, { method, headers, ...(body ? { body: JSON.stringify(body) } : {}) })
   const update = (body: unknown) => request('/lumen/settings', 'PATCH', body)
   try {
-    assert.equal((await request('/lumen/sessions', 'POST', { projectId: 'default', taskId: 'settings' })).status, 200)
+    ensureTopic(service, 'default')
+    assert.equal((await request('/lumen/topics/default/sessions', 'POST', { taskId: 'settings' })).status, 201)
     assert.equal((await request('/api/agent-controller/lumen/sessions/default%3Asettings/messages', 'POST', { message: 'hello' })).status, 409)
     const initial = await update({ upsertProfile: { id: 'model', name: '模型', provider: 'openai', baseUrl: `${baseUrl}/a/v1`, apiKey: 'test-key', models: ['same', 'next'], activeModel: 'same' }, userInstructions: '引用要注明章节' })
     assert.equal(initial.status, 200)
@@ -54,10 +56,10 @@ test('设置从空配置启动并延迟切换实际模型，挂起任务保持�
     await service.close()
     service = await createHttpService({ dataRoot: root, token })
     assert.equal((await update({ upsertProfile: { id: 'model', baseUrl: `${baseUrl}/c/v1` } })).status, 409, '重启后未打开的挂起研究仍阻止完整配置修改')
-    const listed = async () => ((await (await request('/lumen/projects/default/sessions')).json()) as { items: Array<{ resourceId: string; running: boolean; waiting: boolean }> })
+    const listed = async () => ((await (await request('/lumen/topics/default/sessions')).json()) as { items: Array<{ resourceId: string; running: boolean; waiting: boolean }> })
       .items.find(item => item.resourceId === 'default:settings')
     assert.deepEqual(await listed().then(item => item && { running: item.running, waiting: item.waiting }), { running: false, waiting: true }, '挡住配置的未打开挂起必须在目录里显示为等待')
-    assert.equal((await request('/lumen/stop', 'POST', { projectId: 'default', taskId: 'settings' })).status, 200)
+    assert.equal((await request('/lumen/stop', 'POST', { topicId: 'default', taskId: 'settings' })).status, 200)
     assert.equal((await (await request('/lumen/settings')).json() as { busy: boolean }).busy, false)
     assert.equal((await listed())?.waiting, false, '停止后目录不再显示等待')
     ask = false

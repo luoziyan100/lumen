@@ -6,14 +6,14 @@ React 19 + TypeScript 5.9 + Vite 7 + Tauri 2。思考/过程视觉使用原gener
 
 ```text
 src/
-├── main.tsx                 # 发现 Mastra 服务并装配研究工作台
-├── mastra/                  # 连接、对话、项目、技能、角色、文件与诊断
+├── main.tsx                 # 发现 Mastra 服务并装配 TopicsEntry（S2–S3 过渡入口，S4 由 StudioApp 取代）
+├── mastra/                  # 连接、对话、主题入口、技能、角色、文件与诊断
 ├── components/              # Markdown、PDF、HTML、图表、外链与共享卷帘交互
 ├── appearance/              # 外观偏好解析、持久化与整窗应用
 ├── copy/                    # 产品文案
 ├── mermaid/                 # 图表语法、主题颜色、测量与缩放
 ├── scroll/                  # 阅读器与图表共享的滚动诊断
-├── shell/                   # 原生文件夹选择
+├── shell/                   # 原生文件夹选择（S2 起无调用方，S4 决定去留）
 ├── sourceCite.ts            # 引用 URL 解析与站点归并
 ├── openExternal.ts          # 确认后的外链交给系统浏览器
 ├── trustedHosts.ts          # 用户允许跳过确认的域名
@@ -25,17 +25,18 @@ tests/                      # 原生 HTTP/SSE 客户端与保留渲染算法回�
 
 ## 边界与配置
 
-- `mastra/data/` 消费服务接口；工作区文件和历史都从服务读取，不拼装旧目录或重放旧 WS 事件。
+- 入口：`mastra/views/TopicsEntry.tsx` 是 **S2–S3 过渡入口，S4 由 StudioApp 取代**——只列真实主题（`/lumen/topics`）、能新建主题、打开或新开一段对话，不画白板、不放假数据。旧 WorkspaceApp/侧栏/会话档案/⌘K/新建项目卡已在 S2 退场（管理者 Q3 批准，备份见 `~/Workspace/tmp/studio-retired/2026-11-12-S2/`）。
+- `mastra/data/` 消费服务接口（会话身份 `topicId:taskId`；附件上传进 `/lumen/library` 并引用到主题）；工作区文件和历史都从服务读取，不拼装旧目录或重放旧 WS 事件。
 - `components/` 保留与运行时无关的阅读能力；HTML 走隔离 widget iframe，Markdown 外链走统一确认出口。
 - `components/icons.tsx` 是业务图标唯一入口，几何与动效来自 `yan-design-system`(icons/glyphs.ts、icons/motion.css)：自绘纯线条、currentColor、悬停做物件动作(doc/ui-design.md §3.1)，16/18/20三档覆盖行内、按钮和主导航；管理三点与折叠箭头分工，文件类别用轮廓表达，禁止字符和 CSS 尺寸例外。
 - `main.tsx` / `vite.config.ts` / `src-tauri/src/mastra.rs` 负责发现服务。冷启动失败展示错误并进行有界退避发现；工作台已经打开后，短暂探测失败保留当前连接，不卸载界面。成功换端口/令牌时替换连接并补取历史，不启动另一个运行时。
 - `package.json` 声明浏览器与桌面命令；`tsconfig.json` 检查现役源码；`vite.config.ts` 提供本机开发发现；`index.html` 是网页宿主。
-- 服务发现默认读取 `~/.lumen-mastra`，参数或 `LUMEN_MASTRA_HOME` 保留隔离预览；旧入口和 WS 回退已删除。
+- 服务发现：浏览器开发读 `~/.lumen-studio`（vite），桌面 `mastra.rs` 仍默认 `~/.lumen-mastra`，S5 随新 bundle 改到 `~/.lumen-studio`；参数或 `LUMEN_MASTRA_HOME` 保留隔离预览；旧入口和 WS 回退已删除。
 - 通用语义变量(表面、墨色、强调、材质、字体、字阶、间距、圆角、阴影、动效)来自 `yan-design-system`(`~/Workspace/Projects/yan-design-system`，`file:` 依赖)，main.tsx 依次引入 fonts/tokens/base 与图标动效；本包 `tokens.css` 只放皮肤背景槽、炫光/aurora 装饰与布局尺寸；`theme-celadon.css` 让 Kumo 实色控件同源换肤并对齐内置 Select 图标，`kumo.css` 加载控件，`styles.css` 消费语义变量定义布局与图标对齐，不重缩放图标。
 - `styles.css` 只保留现役布局、卷帘、消息、输入卡、阅读器、工作区和 Mermaid/widget 样式；退役侧栏、附件抽屉、Todo/来源/诊断/HUD 规则已清除。
 - 默认外观「清透」：侧栏/标题栏为半透明窗框、正文与工作区为实色内容面，细线分隔不浮卡；桌面端 `data-vibrancy` 下整窗透明，窗框透出 macOS 系统毛玻璃。
 - 玻璃反光、边缘和背景饱和度统一随材质 token；纸面关闭面板模糊、按钮扫光及输入卡彩边，面板与浮动跳转按钮使用实色，保留静态表面层次。背景模糊仅处理画布伪层，不模糊正文；浅色遮罩提亮，深色遮罩压暗。
-- `components/disclosure/` 共用原卷帘时序与三层容器；`styles.css` 的开合/错峰只命中当前层，父项目展开不得覆盖已收起的子会话。
+- `components/disclosure/` 共用原卷帘时序与三层容器；`styles.css` 的开合/错峰只命中当前层，父级展开不得覆盖已收起的子会话。
 
 ## 开发纪律
 

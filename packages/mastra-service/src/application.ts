@@ -1,7 +1,7 @@
 /**
- * [INPUT]: Mastra Controller/Memory/Workspace、项目角色/技能只读根、原生步骤守卫与隔离诊断评估
- * [OUTPUT]: createApplication：独立存储、会话/后台活动投影、动态角色、父子预算/专家继续、诊断与排空关闭入口
- * [POS]: 新应用组合根；单一原生执行链，目录、工具和生命周期均绑定受信任务身份
+ * [INPUT]: Mastra Controller/Memory/Workspace、studio 存储（主题/资料库）、用户角色/技能根、原生步骤守卫与隔离诊断评估
+ * [OUTPUT]: createApplication：独立存储、会话/后台活动投影、全局专家组、父子预算/专家继续、诊断与排空关闭入口
+ * [POS]: 新应用组合根；单一原生执行链，身份是 topicId:taskId。同主题的对话共用一个主题工作区（按主题缓存、关闭时只销毁一次），材料只经引用清单触达
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { mkdir } from 'node:fs/promises'
@@ -26,17 +26,16 @@ import type { ModelSettings } from './model.ts'
 import { createConfiguredModels } from './settings/models.ts'
 import { SettingsError } from './settings/store.ts'
 import { RESEARCH_PERSONA } from './agents/persona.ts'
-import { taskWorkspace, projectFilesystem, type ProjectFileScope } from './workspace/workspace.ts'
-import { invalidateProjectSourceCache } from './workspace/cache.ts'
-import { readSourceBinding, sourcePath } from './workspace/source.ts'
+import { topicWorkspace, memoryFilesystem, type MemoryScope } from './workspace/workspace.ts'
 import { createMemoryTools, readMemoryIndex } from './workspace/memory.ts'
-import { createSharedTools } from './workspace/shared.ts'
+import { openStudio } from './studio/studio.ts'
+import { createMaterialAccess, createMaterialTools } from './studio/tools.ts'
 import { createExecutionTools } from './execution/tools.ts'
 import { ALWAYS_ALLOWED_TOOLS, toolCategory } from './permissions.ts'
 import { RESEARCH_DOMAINS } from './execution/domains.ts'
-import { createIngestionTools, createImageToolResultProcessor, type IngestionWorkspaceResolver } from './ingestion/index.ts'
+import { createIngestionTools, createImageToolResultProcessor, type IngestionWorkspaceResolver, type LibraryReader } from './ingestion/index.ts'
 import { createInputProcessors, modelTools } from './agents/context.ts'
-import { createProjectSpecialists } from './agents/catalog/projects.ts'
+import { createSpecialistGroup } from './agents/catalog/group.ts'
 import { createDiagnostics, DiagnosticsError } from './diagnostics/index.ts'
 import { createRunBudget } from './agents/guards/budget.ts'
 import { createEmptyActionProcessor } from './agents/guards/empty-action.ts'
@@ -49,7 +48,7 @@ import type { ResearchBudget, ModelPricing } from './settings/types.ts'
 export interface ApplicationOptions { dataRoot: string; researchBudget?: () => ResearchBudget; pricing?: (settings?: Readonly<ModelSettings>) => ModelPricing | undefined; model?: ModelSettings; userInstructions?: string; exclusiveStartup?: true; research?: { fetch?: typeof fetch; openAlexKey?: string; tavilyKey?: string }; diagnostics?: { enabled?: () => boolean; secrets?: () => readonly string[] } }
 
 function safeId(value: string): string {
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(value)) throw new Error('Invalid project or task ID')
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(value)) throw new Error('Invalid topic or task ID')
   return value
 }
 
@@ -63,73 +62,71 @@ export async function createApplication(options: ApplicationOptions) {
     const tasks = await storage.getStore('backgroundTasks')
     if (tasks) await recoverInterruptedChildren(tasks, { exclusiveStartup: true })
   }
+  const studio = openStudio(root)
   const memory = new Memory({ storage, options: {
     lastMessages: 100, semanticRecall: false, workingMemory: { enabled: false },
   } })
   const specialistHistory = createSpecialistHistory(storage, memory)
   const http = researchHttp(options.research?.fetch)
-  const researchTools = { ...createPaperTools(http, options.research?.openAlexKey), ...createWebTools(http, options.research?.tavilyKey), extract_pdf: createPdfTool(http) }
-  const workspaces = new Map<string, Workspace>()
-  const projectFilesystems = new Map<string, ReturnType<typeof projectFilesystem>>()
-  function projectFiles(project: string, scope: ProjectFileScope, readOnly = false) {
-    const projectId = safeId(project), key = `${projectId}:${scope}:${readOnly}`
-    let files = projectFilesystems.get(key)
+  // -------- 会话绑定：resourceId → 所在主题的共享工作区；只有已打开的受信会话能解析出主题 --------
+  const bound = new Map<string, Workspace>()
+  const topicWorkspaces = new Map<string, Promise<Workspace>>()
+  function workspaceFor(topic: string) {
+    const topicId = safeId(topic)
+    let pending = topicWorkspaces.get(topicId)
+    if (!pending) {
+      pending = topicWorkspace(root, topicId)
+      topicWorkspaces.set(topicId, pending)
+      void pending.catch(() => { if (topicWorkspaces.get(topicId) === pending) topicWorkspaces.delete(topicId) })
+    }
+    return pending
+  }
+  const memoryFilesystems = new Map<string, ReturnType<typeof memoryFilesystem>>()
+  function memoryFiles(topic: string, scope: MemoryScope) {
+    const topicId = safeId(topic), key = scope === 'you' ? 'you' : `topic:${topicId}`
+    let files = memoryFilesystems.get(key)
     if (!files) {
-      files = projectFilesystem(root, projectId, scope, readOnly)
-      projectFilesystems.set(key, files)
-      void files.catch(() => { if (projectFilesystems.get(key) === files) projectFilesystems.delete(key) })
+      files = memoryFilesystem(root, scope, topicId)
+      memoryFilesystems.set(key, files)
+      void files.catch(() => { if (memoryFilesystems.get(key) === files) memoryFilesystems.delete(key) })
     }
     return files
   }
-  async function invalidateProjectSource(project: string) {
-    const projectId = safeId(project)
-    await invalidateProjectSourceCache(projectFilesystems, projectId)
-    await specialistProjects.invalidate(projectId)
-  }
-  function projectFromContext(context: AgentControllerRequestContext | undefined) {
-    if (!context?.resourceId || !workspaces.has(context.resourceId)) throw new Error('Session workspace is required')
-    return context.resourceId.split(':')[0]!
-  }
-  async function skillsFor(project: string, task: string) {
-    const projectId = safeId(project), taskId = safeId(task)
-    const projectRoot = join(root, 'projects', projectId)
-    const source = await readSourceBinding(projectRoot)
-    const sourceRoot = source.path ? await sourcePath(projectRoot) : undefined
-    return createSkillRegistry({ workspaceDir: join(root, 'projects', projectId, 'tasks', taskId), roots: {
-      userSkillsDir: join(root, 'skills'), projectSkillsDir: join(root, 'projects', projectId, 'skills'),
-      sourceSkillsDir: sourceRoot ? join(sourceRoot, '.lumen', 'skills') : undefined,
-    } })
-  }
-  const skillTools = createSkillTools(context => {
+  function ownerOf(context: { requestContext?: RequestContext } | undefined) {
     const owner = context?.requestContext?.get<'controller', AgentControllerRequestContext>('controller')
-    if (!owner?.resourceId || !workspaces.has(owner.resourceId)) throw new Error('Session workspace is required')
-    const [project, task] = owner.resourceId.split(':')
-    return skillsFor(project!, task!)
-  })
-  const memoryTools = createMemoryTools(context => projectFiles(projectFromContext(context?.requestContext?.get<'controller', AgentControllerRequestContext>('controller')), 'memory'))
-  const sharedTools = createSharedTools((context, scope) => projectFiles(projectFromContext(context?.requestContext?.get<'controller', AgentControllerRequestContext>('controller')), scope, true))
+    if (!owner?.resourceId || !bound.has(owner.resourceId)) throw new Error('Session workspace is required')
+    return owner.resourceId
+  }
+  const topicOf = (context: { requestContext?: RequestContext } | undefined) => ownerOf(context).split(':')[0]!
+  const materials = createMaterialAccess(studio, topicOf)
+  const readLibrary: LibraryReader = async (context, itemId) => {
+    const { item, bytes } = await materials.open(context, itemId)
+    return { bytes, title: item.title }
+  }
+  const materialTools = createMaterialTools(materials, studio, topicOf)
+  const researchTools = { ...createPaperTools(http, options.research?.openAlexKey), ...createWebTools(http, options.research?.tavilyKey, materials.intake), extract_pdf: createPdfTool(http, materials.intake) }
+  function skillsFor(topic: string) {
+    const topicId = safeId(topic)
+    return createSkillRegistry({ workspaceDir: join(root, 'topics', topicId, 'work'), roots: { userSkillsDir: join(root, 'skills') } })
+  }
+  const skillTools = createSkillTools(context => skillsFor(topicOf(context)))
+  const memoryTools = createMemoryTools((context, scope) => memoryFiles(topicOf(context), scope))
   async function executionEnvironment(resourceId: string) {
-    if (!workspaces.has(resourceId)) throw new Error('Session workspace is required')
+    if (!bound.has(resourceId)) throw new Error('Session workspace is required')
     const session = await sessions.get(resourceId)
     if (!session || session.resolveToolApproval('run_code') === 'deny') throw new Error('当前会话已禁止运行代码，专家也不能绕过此限制')
-    const [project, task] = resourceId.split(':')
-    const skills = await (await skillsFor(project!, task!)).list()
+    const skills = await skillsFor(resourceId.split(':')[0]!).list()
     return { allowedDomains: RESEARCH_DOMAINS, readRoots: skills.map(skill => skill.baseDir) }
   }
   const executionTools = createExecutionTools(async context => {
-    const owner = context?.requestContext?.get<'controller', AgentControllerRequestContext>('controller')
-    const filesystem = owner?.resourceId ? workspaces.get(owner.resourceId)?.filesystem : undefined
-    if (!(filesystem instanceof LocalFilesystem)) throw new Error('Task local filesystem is required')
-    return { filesystem, ...await executionEnvironment(owner!.resourceId) }
+    const resourceId = ownerOf(context)
+    const filesystem = bound.get(resourceId)?.filesystem
+    if (!(filesystem instanceof LocalFilesystem)) throw new Error('Topic local filesystem is required')
+    return { filesystem, ...await executionEnvironment(resourceId) }
   })
-  const resolveWorkspace: IngestionWorkspaceResolver = context => {
-    const owner = context?.requestContext?.get<'controller', AgentControllerRequestContext>('controller')
-    const workspace = owner?.resourceId ? workspaces.get(owner.resourceId) : undefined
-    if (!workspace) throw new Error('Session workspace is required')
-    return workspace
-  }
-  const ingestionTools = createIngestionTools(resolveWorkspace)
-  const imageProcessor = createImageToolResultProcessor(resolveWorkspace)
+  const resolveWorkspace: IngestionWorkspaceResolver = context => bound.get(ownerOf(context))!
+  const ingestionTools = createIngestionTools(resolveWorkspace, readLibrary)
+  const imageProcessor = createImageToolResultProcessor(resolveWorkspace, readLibrary)
   const models = createConfiguredModels()
   let modelSettings = options.model
   let selectedModel = options.model ? models.select(options.model) : ''
@@ -159,9 +156,9 @@ export async function createApplication(options: ApplicationOptions) {
     contextWindow: resourceId => settingsForResource(resourceId)?.contextWindow ?? 128000,
     mainRunId: resourceId => activeMainRuns.get(resourceId) })
   const activeMainRuns = new Map<string, string>()
-  const budget = createRunBudget({ onTimeout: resourceId => { const [project, task] = resourceId.split(':'); return stopSession(project!, task!) } })
+  const budget = createRunBudget({ onTimeout: resourceId => { const [topic, task] = resourceId.split(':'); return stopSession(topic!, task!) } })
   const historyTools = createHistoryTools(memory, (resourceId, threadId) => {
-    if (resourceId !== threadId || !workspaces.has(resourceId)) throw new Error('当前会话未绑定')
+    if (resourceId !== threadId || !bound.has(resourceId)) throw new Error('当前会话未绑定')
   })
   const diagnostics = createDiagnostics({ dataRoot: root, storage, enabled: options.diagnostics?.enabled,
     liveModel: () => modelSettings ? { ...modelSettings } : null,
@@ -172,38 +169,42 @@ export async function createApplication(options: ApplicationOptions) {
       return { resourceId, threadId: thread.id }
     },
   })
-  const specialistProjects = createProjectSpecialists({ dataRoot: root, mastra: () => mastra, model: currentModel, memory, childUsage, familyBudget, specialistHistory,
-    tools: { ...researchTools, ...skillTools, ...sharedTools, ...memoryTools }, modelSettings: settingsFor,
+  const specialists = createSpecialistGroup({ dataRoot: root, mastra: () => mastra, model: currentModel, memory, childUsage, familyBudget, specialistHistory,
+    tools: { ...researchTools, ...skillTools, ...materialTools, ...memoryTools }, modelSettings: settingsFor, readLibrary,
     resolveExecutionEnvironment: executionEnvironment,
     resolveTaskFilesystem(resourceId) {
-      const filesystem = workspaces.get(resourceId)?.filesystem
-      if (!(filesystem instanceof LocalFilesystem)) throw new Error('Task local filesystem is required')
+      const filesystem = bound.get(resourceId)?.filesystem
+      if (!(filesystem instanceof LocalFilesystem)) throw new Error('Topic local filesystem is required')
       return filesystem
     },
   })
   const agent = new Agent({ id: 'research', name: 'Lumen', model: currentModel,
     instructions: async ({ requestContext }) => {
       const owner = requestContext.get<'controller', AgentControllerRequestContext>('controller')
-      // -------- 记忆索引只是提示词旁路；读取失败如实告知模型，不中断研究运行 --------
-      const index = owner?.resourceId ? await readMemoryIndex(await projectFiles(projectFromContext(owner), 'memory'))
-        .catch(error => `（MEMORY.md 暂时无法读取：${error instanceof Error ? error.message : String(error)}；需要时用 read_memory 检查。）`) : ''
-      return [RESEARCH_PERSONA, userInstructions && `用户研究偏好：\n${userInstructions}`, index && `项目记忆索引（按需读取，不视为外部证据）：\n${index}`].filter(Boolean).join('\n\n')
+      // -------- 两层记忆索引只是提示词旁路，各自有上限；读取失败如实告知模型，不中断研究运行 --------
+      const index = async (scope: MemoryScope) => owner?.resourceId && bound.has(owner.resourceId)
+        ? readMemoryIndex(await memoryFiles(owner.resourceId.split(':')[0]!, scope))
+          .catch(error => `（MEMORY.md 暂时无法读取：${error instanceof Error ? error.message : String(error)}；需要时用 read_memory 检查。）`) : ''
+      const [you, topic] = await Promise.all([index('you'), index('topic')])
+      return [RESEARCH_PERSONA, userInstructions && `用户研究偏好：\n${userInstructions}`,
+        you && `关于用户的记忆索引（scope=you，按需读取，不视为外部证据）：\n${you}`,
+        topic && `这个主题的记忆索引（scope=topic，按需读取，不视为外部证据）：\n${topic}`].filter(Boolean).join('\n\n')
     },
     memory,
-    tools: ({ requestContext }) => modelTools(settingsFor(requestContext), { ...researchTools, ...skillTools, ...memoryTools, ...sharedTools, ...executionTools, ...ingestionTools, ...historyTools }),
-    agents: async ({ requestContext }) => (await specialistProjects.get(projectFromContext(requestContext.get<'controller', AgentControllerRequestContext>('controller')))).agents,
+    tools: ({ requestContext }) => modelTools(settingsFor(requestContext), { ...researchTools, ...skillTools, ...memoryTools, ...materialTools, ...executionTools, ...ingestionTools, ...historyTools }),
+    agents: async () => (await specialists.get()).agents,
     inputProcessors: ({ requestContext }) => [budget.inputProcessor, ...createInputProcessors(settingsFor(requestContext), imageProcessor), familyBudget.inputProcessor],
     outputProcessors: [familyBudget.outputProcessor, createEmptyActionProcessor()], maxProcessorRetries: 1,
-    defaultOptions: { delegation: specialistProjects.delegation },
-    backgroundTasks: specialistProjects.backgroundTasks,
+    defaultOptions: { delegation: specialists.delegation },
+    backgroundTasks: specialists.backgroundTasks,
   })
   const drain = trackAgentDrain(agent)
-  const drainSpecialists = specialistProjects.drain
+  const drainSpecialists = specialists.drain
   const controller = new AgentController({
     id: 'lumen', agent, storage, memory,
     workspace: ({ requestContext }) => {
       const context = requestContext.get<'controller', AgentControllerRequestContext>('controller')
-      const workspace = workspaces.get(context?.resourceId)
+      const workspace = context?.resourceId ? bound.get(context.resourceId) : undefined
       if (!workspace) throw new Error('Session workspace is required')
       return workspace
     },
@@ -215,7 +216,7 @@ export async function createApplication(options: ApplicationOptions) {
   const mastra = new Mastra({ agents: { research: agent }, agentControllers: { lumen: controller }, storage, gateways: { lumen: models.gateway }, observability: diagnostics.observability,
     backgroundTasks: { enabled: true, recoverStaleTasksOnStart: false, defaultRetries: { maxRetries: 0 }, backpressure: 'reject', globalConcurrency: 4, perAgentConcurrency: 2, defaultTimeoutMs: 300000 },
   })
-  try { await controller.init() } catch (error) { await controller.destroy(); await mastra.shutdown(); await diagnostics.close(); await storage.close(); throw error }
+  try { await controller.init() } catch (error) { await controller.destroy(); await mastra.shutdown(); await diagnostics.close(); await storage.close(); studio.close(); throw error }
   const sessions = new Map<string, ReturnType<typeof controller.createSession>>()
   let closing: Promise<void> | undefined
 
@@ -234,11 +235,11 @@ export async function createApplication(options: ApplicationOptions) {
     for (const pending of sessions.values()) await applyModelToSession(await pending)
   }
 
-  async function openSession(resourceId: string, projectId: string, taskId: string) {
-    const workspace = await taskWorkspace(root, projectId, taskId)
-    workspaces.set(resourceId, workspace)
+  async function openSession(resourceId: string, topicId: string) {
+    const workspace = await workspaceFor(topicId)
+    bound.set(resourceId, workspace)
     try {
-      await specialistProjects.get(projectId)
+      await specialists.get()
       const session = await controller.createSession({ resourceId, threadId: resourceId, workspace })
       // 原生 tally 已从 thread 恢复；零增量事件只同步 DisplayState，不再次累计。
       session.emit({ type: 'usage_update', usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 } })
@@ -277,8 +278,7 @@ export async function createApplication(options: ApplicationOptions) {
     catch (error) {
       sessions.delete(resourceId)
       sessionModelIds.delete(resourceId)
-      workspaces.delete(resourceId)
-      await workspace.destroy()
+      bound.delete(resourceId)
       throw error
     }
   }
@@ -293,13 +293,13 @@ export async function createApplication(options: ApplicationOptions) {
     }
   }
 
-  async function getSession(project: string, task: string) {
+  async function getSession(topic: string, task: string) {
     if (closing) throw new Error('Application is closed')
-    const projectId = safeId(project), taskId = safeId(task)
-    const resourceId = `${projectId}:${taskId}`
+    const topicId = safeId(topic), taskId = safeId(task)
+    const resourceId = `${topicId}:${taskId}`
     let pending = sessions.get(resourceId)
     if (!pending) {
-      pending = openSession(resourceId, projectId, taskId)
+      pending = openSession(resourceId, topicId)
       sessions.set(resourceId, pending)
     }
     const session = await pending
@@ -329,15 +329,17 @@ export async function createApplication(options: ApplicationOptions) {
     for (const resourceId of sessions.keys()) await controller.deleteSession({ sessionId: resourceId })
     await controller.destroy()
     await mastra.shutdown({ drainTimeout: 10000 })
-    await specialistProjects.close()
+    await specialists.close()
     await diagnostics.close()
-    for (const workspace of workspaces.values()) await workspace.destroy()
-    for (const pending of projectFilesystems.values()) await (await pending).destroy()
+    // -------- 主题工作区被多段对话共用，只在这里销毁一次 --------
+    for (const pending of await Promise.allSettled(topicWorkspaces.values())) if (pending.status === 'fulfilled') await pending.value.destroy()
+    for (const pending of await Promise.allSettled(memoryFilesystems.values())) if (pending.status === 'fulfilled') await pending.value.destroy()
     await storage.close()
+    studio.close()
   }
 
   return {
-    controller, mastra, storage, memory, root, skillsFor, projectFiles, invalidateProjectSource, agent, diagnostics, specialistProjects, childUsage, familyBudget, specialistHistory,
+    controller, mastra, storage, memory, root, studio, skillsFor, workspaceFor, memoryFiles, agent, diagnostics, specialists, childUsage, familyBudget, specialistHistory,
     hasModel: () => !!selectedModel,
     async liveSessionStates() {
       const states = new Map<string, { running: boolean; waiting: boolean }>()
@@ -390,9 +392,9 @@ export async function createApplication(options: ApplicationOptions) {
     },
   }
 
-  async function stopSession(project: string, task: string) {
-    const resourceId = `${safeId(project)}:${safeId(task)}`
-    const session = await getSession(project, task)
+  async function stopSession(topic: string, task: string) {
+    const resourceId = `${safeId(topic)}:${safeId(task)}`
+    const session = await getSession(topic, task)
     session.abort()
     await cancelChildren(resourceId)
     await drain(resourceId)

@@ -50,15 +50,15 @@ test('PDF 摄取拒绝覆盖原件或已有产物，并在 stat/实际读取边�
   const context = { workspace, requestContext: new RequestContext(), observe: noopObserve }
   try {
     await workspace.filesystem!.writeFile('input.pdf', original)
-    await assert.rejects(tool.execute!({ source: 'input.pdf', save_as: './input.pdf', offset: 0, limit: 20000 }, context), /不得覆盖原始 PDF/)
+    await assert.rejects(tool.execute!({ source: 'input.pdf', save_as: './input.pdf', to_library: false, offset: 0, limit: 20000 }, context), /不得覆盖原始 PDF/)
     assert.deepEqual(await workspace.filesystem!.readFile('input.pdf'), original)
 
     await workspace.filesystem!.writeFile('notes.md', 'KEEP EXISTING OUTPUT')
-    await assert.rejects(tool.execute!({ source: 'input.pdf', save_as: 'notes.md', offset: 0, limit: 20000 }, context))
+    await assert.rejects(tool.execute!({ source: 'input.pdf', save_as: 'notes.md', to_library: false, offset: 0, limit: 20000 }, context))
     assert.equal(await workspace.filesystem!.readFile('notes.md', { encoding: 'utf8' }), 'KEEP EXISTING OUTPUT')
 
     await workspace.filesystem!.writeFile('oversized.pdf', Buffer.alloc(25 * 1024 * 1024 + 1))
-    await assert.rejects(tool.execute!({ source: 'oversized.pdf', offset: 0, limit: 20000 }, context), /25 MB|字节上限/)
+    await assert.rejects(tool.execute!({ source: 'oversized.pdf', to_library: false, offset: 0, limit: 20000 }, context), /25 MB|字节上限/)
 
     const lyingWorkspace = { filesystem: {
       readOnly: false,
@@ -66,7 +66,7 @@ test('PDF 摄取拒绝覆盖原件或已有产物，并在 stat/实际读取边�
       readFile: async () => Buffer.alloc(25 * 1024 * 1024 + 1),
       writeFile: async () => undefined,
     } } as unknown as Workspace
-    await assert.rejects(tool.execute!({ source: 'race.pdf', offset: 0, limit: 20000 }, { ...context, workspace: lyingWorkspace }), /25 MB|字节上限/)
+    await assert.rejects(tool.execute!({ source: 'race.pdf', to_library: false, offset: 0, limit: 20000 }, { ...context, workspace: lyingWorkspace }), /25 MB|字节上限/)
   } finally {
     await workspace.destroy()
     await rm(root, { recursive: true, force: true })
@@ -95,9 +95,9 @@ test('真实 PDF 经工具抽取后回灌模型并形成文件产物', { timeout
     })
     await session.sendMessage({ content: '读 PDF 并写带来源的笔记' })
     assert.ok(evidenceSeen)
-    assert.match(await readFile(join(root, 'projects/p/tasks/pdf/cache/input.md'), 'utf8'), /\[PDF page 1\]\nLUMEN PDF EVIDENCE 9\nSECOND LINE EVIDENCE/)
-    assert.match(await readFile(join(root, 'projects/p/tasks/pdf/cache/input.md'), 'utf8'), /LUMEN PDF EVIDENCE 9/)
-    assert.match(await readFile(join(root, 'projects/p/tasks/pdf/notes/result.md'), 'utf8'), /papers\/input.pdf/)
+    assert.match(await readFile(join(root, 'topics/p/work/cache/input.md'), 'utf8'), /\[PDF page 1\]\nLUMEN PDF EVIDENCE 9\nSECOND LINE EVIDENCE/)
+    assert.match(await readFile(join(root, 'topics/p/work/cache/input.md'), 'utf8'), /LUMEN PDF EVIDENCE 9/)
+    assert.match(await readFile(join(root, 'topics/p/work/notes/result.md'), 'utf8'), /papers\/input.pdf/)
   } finally { await app.close(); await rm(root, { recursive: true, force: true }) }
 })
 
@@ -147,6 +147,6 @@ test('网页保存被工作区拒绝时，模型收到失败而非成功路径',
     })
     await session.sendMessage({ content: '读取网页并保存' })
     assert.ok(failureSeen)
-    await assert.rejects(access(join(root, 'projects/p/tasks/escape.md')))
+    await assert.rejects(access(join(root, 'topics/p/escape.md')))
   } finally { await app.close(); await rm(root, { recursive: true, force: true }) }
 })

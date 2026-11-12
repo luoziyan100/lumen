@@ -1,5 +1,5 @@
 /**
- * [INPUT]: 真实 WorkspaceApp/Composer/Welcome与React DOM、HTTP/Mastra 服务及确定性模型响应
+ * [INPUT]: 真实 Composer/Welcome/Conversation与React DOM、HTTP/Mastra 服务及确定性模型响应
  * [OUTPUT]: 新对话入口/恢复旧空选择的延迟建会话、历史切换草稿保留、提交竞赛、斜杠技能与会话轮询时序的行为证据
  * [POS]: 组件级 Mastra 客户端回归；控制上传/提交与轮询网络时序，实际组件和服务处理消息；不宣称覆盖 WebKit
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -16,6 +16,7 @@ import { JSDOM } from 'jsdom'
 import { serve } from '@hono/node-server'
 import { createHttpService } from '../../mastra-service/src/server.ts'
 import { fixtureProvider, textReply } from '../../mastra-service/tests/provider-fixture.ts'
+import { ensureTopic } from '../../mastra-service/tests/topic-fixture.ts'
 import { LumenApi, type Identity } from '../src/mastra/data/client.ts'
 import { SessionFeed, messageText } from '../src/mastra/data/feed.ts'
 import { MASTRA_COPY as C } from '../src/copy/mastraCopy.ts'
@@ -35,7 +36,12 @@ const { Specialists } = await import('../src/mastra/views/conversation/Specialis
 const { Conversation } = await import('../src/mastra/views/Conversation.tsx')
 const { Composer } = await import('../src/mastra/views/conversation/Composer.tsx')
 const { Welcome } = await import('../src/mastra/views/conversation/welcome/Welcome.tsx')
-const { WorkspaceApp } = await import('../src/mastra/views/WorkspaceApp.tsx')
+
+/** 新会话打开请求：POST /lumen/topics/:topicId/sessions {taskId}，还原成会话身份；其余请求返回 undefined */
+async function opening(request: Request): Promise<Identity | undefined> {
+  const match = request.method === 'POST' ? /^\/lumen\/topics\/([^/]+)\/sessions$/.exec(new URL(request.url).pathname) : null
+  return match ? { topicId: decodeURIComponent(match[1]!), taskId: (await request.clone().json() as { taskId: string }).taskId } : undefined
+}
 
 function gate() {
   let resolve!: () => void
@@ -67,16 +73,16 @@ async function environment(prefix: string) {
   const network: { before?: (request: Request) => Promise<Response | void> } = {}
   const requests: Array<{ url: URL; method: string; identity?: Identity }> = []
   const server = serve({ hostname: '127.0.0.1', port: 0, fetch: async request => {
-    const url = new URL(request.url), identity = request.method === 'POST' && url.pathname === '/lumen/sessions' ? await request.clone().json() as Identity : undefined
+    const url = new URL(request.url), identity = await opening(request)
     requests.push({ url, method: request.method, identity })
     return await network.before?.(request.clone()) ?? service.app.fetch(request)
   } })
   if (!server.listening) await new Promise<void>(resolve => server.once('listening', resolve))
   const address = server.address(); assert.ok(address && typeof address !== 'string')
   const api = new LumenApi({ baseUrl: `http://127.0.0.1:${address.port}`, token })
-  const a = { projectId: prefix, taskId: 'a' }, b = { projectId: `${prefix}-other`, taskId: 'a' }
+  const a = { topicId: prefix, taskId: 'a' }, b = { topicId: `${prefix}-other`, taskId: 'a' }
   for (const identity of [a, b]) {
-    await api.request('/lumen/projects', 'POST', { id: identity.projectId, name: identity.projectId }); await api.open(identity)
+    ensureTopic(service, identity.topicId); await api.open(identity)
   }
   const element = document.createElement('div'); document.body.append(element)
   const root = createRoot(element)
@@ -85,18 +91,11 @@ async function environment(prefix: string) {
     async select(identity: Identity, activePath?: string) {
       feed?.close(); feed = new SessionFeed(api, identity)
       await act(async () => { root.render(createElement(StrictMode, {}, createElement(Composer, {
-        key: `${identity.projectId}:${identity.taskId}`, api, identity, feed: feed!, connected: true, canStop: false, queued: 0, activePath, onActivity() {},
+        key: `${identity.topicId}:${identity.taskId}`, api, identity, feed: feed!, connected: true, canStop: false, queued: 0, activePath, onActivity() {},
       }))) })
     },
-    async welcome(projectId: string, onSession: (identity: Identity) => void) {
-      await act(async () => root.render(createElement(Welcome, { key: projectId, api, projectId, onSession, onSettings() {} })))
-    },
-    async workspace(saved: Identity | null = null) {
-      localStorage.setItem('lumen.mastra.selection', JSON.stringify(saved))
-      if (!dom.window.HTMLElement.prototype.scrollTo) Object.defineProperty(dom.window.HTMLElement.prototype, 'scrollTo', {
-        configurable: true, value(this: HTMLElement, options: ScrollToOptions) { this.scrollTop = Number(options.top ?? 0) },
-      })
-      await act(async () => root.render(createElement(StrictMode, {}, createElement(WorkspaceApp, { connection: api.connection }))))
+    async welcome(topicId: string, onSession: (identity: Identity) => void) {
+      await act(async () => root.render(createElement(Welcome, { key: topicId, api, topicId, onSession, onSettings() {} })))
     },
     async click(name: string) {
       const button = [...element.querySelectorAll<HTMLButtonElement>('button')].find(item => !item.disabled && !item.closest('[aria-hidden="true"], [inert]') && (item.textContent?.trim() === name || item.getAttribute('aria-label') === name))
@@ -107,7 +106,7 @@ async function environment(prefix: string) {
     },
     async conversation(identity: Identity) {
       feed?.close()
-      await act(async () => root.render(createElement(Conversation, { key: `${identity.projectId}:${identity.taskId}`, api, identity, onActivity() {}, onOpenFile() {} })))
+      await act(async () => root.render(createElement(Conversation, { key: `${identity.topicId}:${identity.taskId}`, api, identity, onActivity() {}, onOpenFile() {} })))
     },
     async text(value: string) {
       const input = element.querySelector('textarea')!
@@ -133,7 +132,7 @@ async function environment(prefix: string) {
       const button = [...element.querySelectorAll('button')].find(button => button.textContent === C.restoreDraft)
       assert.ok(button); await act(async () => { button.click() })
     },
-    async messages(identity: Identity) { return (await api.session(identity).listMessages(`${identity.projectId}:${identity.taskId}`, { page: 0, perPage: 200 })).messages.map(messageText).join('\n') },
+    async messages(identity: Identity) { return (await api.session(identity).listMessages(`${identity.topicId}:${identity.taskId}`, { page: 0, perPage: 200 })).messages.map(messageText).join('\n') },
     async answer(identity: Identity) {
       let text = '', attempts = 0
       while (!text.includes('回复完成')) {
@@ -150,10 +149,10 @@ async function environment(prefix: string) {
   }
 }
 
-test('CT-MASTRA-COMPOSER-001: StrictMode 切项目与同名会话后草稿和附件仍各自保留', { timeout: 20000 }, async () => {
+test('CT-MASTRA-COMPOSER-001: StrictMode 切主题与同名会话后草稿和附件仍各自保留', { timeout: 20000 }, async () => {
   const env = await environment('draft-remount')
   try {
-    const saved = `lumen:mastra:draft:v1:${JSON.stringify([env.a.projectId, env.a.taskId])}`
+    const saved = `lumen:mastra:draft:v1:${JSON.stringify([env.a.topicId, env.a.taskId])}`
     localStorage.setItem(saved, '此前保存的草稿')
     await env.select(env.a); assert.equal(env.element.querySelector('textarea')!.value, '此前保存的草稿')
     await env.text('A 未发送的研究问题'); await env.attach([new File(['A'], 'a.txt')])
@@ -173,9 +172,9 @@ test('CT-MASTRA-COMPOSER-005: 斜杠过滤、上下键和回车只激活技能�
   try {
     for (const name of ['alpha', 'beta']) await env.api.installSkillPackage(env.a, [{
       path: `${name}/SKILL.md`, file: new File([`---\nname: ${name}\ndescription: ${name} 研究技能\n---\n${name} 的研究步骤`], 'SKILL.md'),
-    }], 'project')
+    }])
     await env.select(env.a); await env.text('/')
-    await until(() => document.querySelectorAll('[role=option]').length === 2, '斜杠未显示当前项目技能')
+    await until(() => document.querySelectorAll('[role=option]').length === 2, '斜杠未显示当前技能')
     await env.key('ArrowDown'); await env.key('Enter')
     await until(() => env.element.querySelector('textarea')!.value.includes('beta 的研究步骤'), '键盘选择未激活指定技能')
     assert.equal(env.requests.filter(item => item.method === 'POST' && item.url.pathname.endsWith('/messages')).length, 0)
@@ -194,7 +193,7 @@ test('CT-MASTRA-COMPOSER-005: 斜杠过滤、上下键和回车只激活技能�
 test('CT-MASTRA-COMPOSER-002: 上传中切走仍提交原会话一次，后来输入不被清空', { timeout: 25000 }, async () => {
   const env = await environment('draft-send'), started = gate(), release = gate()
   try {
-    env.network.before = async request => { if (new URL(request.url).pathname === '/lumen/uploads') { started.resolve(); await release.promise } }
+    env.network.before = async request => { if (new URL(request.url).pathname === '/lumen/library') { started.resolve(); await release.promise } }
     await env.select(env.a, 'notes/current-draft.md'); await env.text('A 已确认发送'); await env.attach([new File(['材料'], 'evidence.txt')]); await env.submit(2)
     await started.promise
     await env.text('A 后来输入'); await env.select(env.b); await env.text('B 不应被污染')
@@ -205,7 +204,7 @@ test('CT-MASTRA-COMPOSER-002: 上传中切走仍提交原会话一次，后来�
     assert.equal(env.element.querySelector('textarea')!.value, 'A 后来输入')
     const messages = await env.answer(env.a)
     assert.match(messages, /A 已确认发送/); assert.match(messages, /evidence\.txt/)
-    assert.match(messages, /当前稿（本会话工作区路径）：notes\/current-draft\.md/)
+    assert.match(messages, /当前稿（主题工作区路径）：notes\/current-draft\.md/)
     assert.doesNotMatch(await env.messages(env.b), /A 已确认发送|current-draft\.md/)
     assert.equal(env.requests.filter(item => item.method === 'POST' && item.url.pathname.endsWith('/messages')).length, 1)
     await env.select(env.b); assert.equal(env.element.querySelector('textarea')!.value, 'B 不应被污染')
@@ -217,7 +216,7 @@ test('CT-MASTRA-COMPOSER-003: 部分上传失败在原会话恢复剩余附件�
   const uploaded: string[] = []
   try {
     env.network.before = async request => {
-      if (new URL(request.url).pathname !== '/lumen/uploads') return
+      if (new URL(request.url).pathname !== '/lumen/library') return
       const file = (await request.formData()).get('file') as File; uploaded.push(file.name)
       if (uploaded.length === 2) { failed.resolve(); await release.promise; return Response.json({ error: 'test upload rejected' }, { status: 400 }) }
     }
@@ -260,7 +259,7 @@ test('CT-MASTRA-COMPOSER-004: 原生消息迟到拒绝不覆盖后来提交和�
     const content = env.element.querySelector('textarea')!.value
     assert.match(content, /先发的消息/); assert.match(content, /saved\.txt/); assert.match(content, /最后保留的草稿/)
     assert.equal(env.element.querySelectorAll('.mw-attachment').length, 0)
-    assert.equal(env.requests.filter(item => item.url.pathname === '/lumen/uploads').length, 1)
+    assert.equal(env.requests.filter(item => item.url.pathname === '/lumen/library').length, 1)
     assert.doesNotMatch(await env.messages(env.a), /先发的消息/)
     await env.select(env.b); assert.equal(env.element.querySelector('textarea')!.value, 'B 独立内容')
   } finally { release.resolve(); await env.close() }
@@ -286,7 +285,7 @@ test('滚动离开最新与轮次跳转显示回到底部，点击后恢复跟�
   const prototype = dom.window.HTMLElement.prototype
   Object.defineProperty(prototype, 'scrollTo', { configurable: true, value(this: HTMLElement, options: ScrollToOptions) { this.scrollTop = Number(options.top ?? 0) } })
   try {
-    const threadId = `${env.a.projectId}:${env.a.taskId}`
+    const threadId = `${env.a.topicId}:${env.a.taskId}`
     await env.memory.saveMessages({ messages: Array.from({ length: 8 }, (_, index) => ({ id: `scroll-${index}`, threadId, resourceId: threadId, role: index % 2 ? 'assistant' as const : 'user' as const, createdAt: new Date(Date.now() + index), content: { format: 2 as const, parts: [{ type: 'text' as const, text: `第${index}条研究内容` }] } })) })
     await env.conversation(env.a)
     await until(() => env.element.querySelectorAll('.mw-message').length >= 8, '对话历史未加载')
@@ -397,12 +396,12 @@ test('欢迎输入卡浏览不建会话；准备失败保留文本附件，重�
   let attempts = 0
   try {
     const initial = env.requests.length
-    await env.welcome(env.a.projectId, value => selected.push(value))
+    await env.welcome(env.a.topicId, value => selected.push(value))
     await env.text('研究欢迎草稿')
     await env.attach([new File(['source'], 'welcome.txt', { type: 'text/plain' })])
     assert.equal(env.requests.slice(initial).filter(request => request.method === 'POST').length, 0)
     env.network.before = async request => {
-      if (new URL(request.url).pathname === '/lumen/sessions' && request.method === 'POST' && ++attempts === 1) return Response.json({ error: '准备失败' }, { status: 503 })
+      if (await opening(request) && ++attempts === 1) return Response.json({ error: '准备失败' }, { status: 503 })
     }
     await env.submit()
     await until(() => env.element.textContent!.includes('准备失败'), '未显示会话准备失败')
@@ -418,23 +417,22 @@ test('欢迎输入卡浏览不建会话；准备失败保留文本附件，重�
   } finally { await env.close() }
 })
 
-test('欢迎准备期间切项目，已确认提交仍归原项目且不抢回选择', async () => {
+test('欢迎准备期间切主题，已确认提交仍归原主题且不抢回选择', async () => {
   const env = await environment('welcome-switch'), opened = gate(), release = gate()
   const selected: Identity[] = []
   let target: Identity | null = null
   try {
     env.network.before = async request => {
-      if (new URL(request.url).pathname === '/lumen/sessions' && request.method === 'POST') {
-        target = await request.json() as Identity; opened.resolve(); await release.promise
-      }
+      const identity = await opening(request)
+      if (identity) { target = identity; opened.resolve(); await release.promise }
     }
-    await env.welcome(env.a.projectId, value => selected.push(value)); await env.text('留在原项目的研究')
+    await env.welcome(env.a.topicId, value => selected.push(value)); await env.text('留在原主题的研究')
     await env.submit(); await opened.promise
     await env.select(env.b); release.resolve()
     await env.answer(target!)
     assert.equal(selected.length, 0)
-    assert.equal(target!.projectId, env.a.projectId)
-    assert.ok(!(await env.messages(env.b)).includes('留在原项目的研究'))
+    assert.equal(target!.topicId, env.a.topicId)
+    assert.ok(!(await env.messages(env.b)).includes('留在原主题的研究'))
   } finally { release.resolve(); await env.close() }
 })
 
@@ -444,9 +442,9 @@ test('欢迎斜杠技能先准备真实会话，只读取技能不发送研究',
   const selected: Identity[] = []
   try {
     env.network.before = async request => {
-      if (new URL(request.url).pathname === '/lumen/sessions' && request.method === 'POST') target = await request.json() as Identity
+      target = await opening(request) ?? target
     }
-    await env.welcome(env.a.projectId, value => selected.push(value)); await env.text('/')
+    await env.welcome(env.a.topicId, value => selected.push(value)); await env.text('/')
     await until(() => Boolean(target) && env.requests.some(request => request.url.pathname === '/lumen/skills'), '技能入口未准备真实会话')
     await until(() => !env.element.textContent!.includes('正在读取技能…'), '技能未加载')
     assert.equal(selected.length, 0)
@@ -460,9 +458,9 @@ test('欢迎准备期间新增输入不进入已确认快照，发送后仍留�
   const selected: Identity[] = []
   try {
     env.network.before = async request => {
-      if (new URL(request.url).pathname === '/lumen/sessions' && request.method === 'POST') { opened.resolve(); await release.promise }
+      if (await opening(request)) { opened.resolve(); await release.promise }
     }
-    await env.welcome(env.a.projectId, value => selected.push(value))
+    await env.welcome(env.a.topicId, value => selected.push(value))
     await env.text('已经确认的研究'); await env.attach([new File(['first'], 'confirmed.txt', { type: 'text/plain' })])
     await env.submit(); await opened.promise
     await env.text('下一条尚未确认'); await env.attach([new File(['later'], 'later.txt', { type: 'text/plain' })])
@@ -479,114 +477,14 @@ test('欢迎准备期间新增输入不进入已确认快照，发送后仍留�
   } finally { release.resolve(); await env.close() }
 })
 
-test('不同本地服务的同名项目欢迎草稿与附件隔离', async () => {
+test('不同本地服务的同名主题欢迎草稿与附件隔离', async () => {
   const first = await environment('welcome-endpoint'), second = await environment('welcome-endpoint')
   try {
-    await first.welcome(first.a.projectId, () => {})
+    await first.welcome(first.a.topicId, () => {})
     await first.text('只属于第一个服务'); await first.attach([new File(['private'], 'first-service.txt')])
-    await second.welcome(second.a.projectId, () => {})
+    await second.welcome(second.a.topicId, () => {})
     assert.equal(second.element.querySelector('textarea')!.value, '')
     assert.ok(!second.element.textContent!.includes('first-service.txt'))
     assert.equal(first.element.querySelector('textarea')!.value, '只属于第一个服务')
   } finally { await first.close(); await second.close() }
-})
-
-test('工作台新对话与项目加号只回欢迎态，首次重复提交只建一个目标项目会话并进入导航', { timeout: 30000 }, async () => {
-  const env = await environment('workspace-new'), started = gate(), release = gate()
-  const saved = () => JSON.parse(localStorage.getItem('lumen.mastra.selection') ?? 'null') as Identity | null
-  const creations = () => env.requests.filter(request => request.method === 'POST' && (request.url.pathname === '/lumen/sessions' || /^\/lumen\/projects\/[^/]+\/sessions$/.test(request.url.pathname)))
-  let target: Identity | null = null
-  try {
-    const threadId = `${env.a.projectId}:${env.a.taskId}`
-    await env.memory.saveMessages({ messages: [{ id: 'workspace-history', threadId, resourceId: threadId, role: 'user', createdAt: new Date(), content: { format: 2, parts: [{ type: 'text', text: '已有历史研究内容' }] } }] })
-    await env.api.updateSession(env.a, { title: '已有历史研究' })
-    const initialThreads = (await env.memory.listThreads({ perPage: false })).threads.map(thread => thread.id).sort()
-    env.requests.length = 0
-    await env.workspace(env.a)
-    await until(() => env.element.querySelector('.mw-message')?.textContent?.includes('已有历史研究内容') ?? false, '工作台未恢复已有消息会话')
-    await until(() => env.element.querySelector('aside')?.textContent?.includes('已有历史研究') ?? false, '历史会话未进入导航')
-    assert.deepEqual(saved(), env.a)
-    assert.ok(![...env.element.querySelectorAll('aside .sb-item')].some(item => item.textContent === '新研究'), '旧默认空会话仍出现在导航')
-    await env.click('搜索对话')
-    await until(() => [...document.querySelectorAll('[role=option]')].some(item => item.textContent?.includes('已有历史研究')), '历史会话未出现在搜索')
-    assert.ok(![...document.querySelectorAll('[role=option]')].some(item => item.textContent === '新研究'), '旧默认空会话仍出现在搜索')
-    await act(async () => [...document.querySelectorAll<HTMLElement>('[role=option]')].find(item => item.textContent?.includes('已有历史研究'))!.click())
-    env.requests.length = 0
-    for (let click = 0; click < 3; click++) {
-      await env.click('新对话'); assert.equal(saved(), null)
-    }
-    for (let click = 0; click < 2; click++) {
-      await env.click(`在${env.b.projectId}新建对话`); assert.equal(saved(), null)
-    }
-    assert.equal(env.element.querySelector('.sb-folder-main[aria-pressed="true"]')?.textContent, env.b.projectId)
-    await env.key('Enter'); await env.text('   '); await env.key('Enter')
-    await env.text('只在目标项目首次发送'); await env.attach([new File(['evidence'], 'first-send.txt', { type: 'text/plain' })])
-    assert.equal(saved(), null)
-    assert.equal(creations().length, 0, '浏览新对话、输入或附件提前发出了创建请求')
-    assert.deepEqual((await env.memory.listThreads({ perPage: false })).threads.map(thread => thread.id).sort(), initialThreads)
-    env.network.before = async request => {
-      if (request.method === 'POST' && new URL(request.url).pathname === '/lumen/sessions') { target = await request.json() as Identity; started.resolve(); await release.promise }
-    }
-    await env.submit(2); await started.promise
-    assert.equal(creations().length, 1, '创建在途时重复提交建了多个会话')
-    assert.equal(target!.projectId, env.b.projectId); assert.equal(saved(), null)
-    release.resolve()
-    await until(() => saved()?.taskId === target?.taskId, '首次发送后未选中已创建会话')
-    assert.deepEqual(saved(), target)
-    await until(() => env.element.querySelector('nav[aria-label="最近会话"] .sb-item[aria-current="page"]') !== null, '首次发送会话未进入导航')
-    const messages = await env.answer(target!)
-    assert.match(messages, /只在目标项目首次发送/); assert.match(messages, /first-send\.txt/)
-    assert.ok(creations().every(request => request.identity?.projectId === target!.projectId && request.identity.taskId === target!.taskId), '首次发送绑定了额外会话身份')
-    assert.equal(env.requests.filter(request => request.method === 'POST' && /^\/lumen\/projects\/[^/]+\/sessions$/.test(request.url.pathname)).length, 0)
-    assert.equal(env.requests.filter(request => request.method === 'POST' && request.url.pathname.endsWith('/messages')).length, 1)
-    const threads = (await env.memory.listThreads({ perPage: false })).threads
-    assert.equal(threads.length, initialThreads.length + 1)
-    assert.ok(threads.some(thread => thread.id === `${env.b.projectId}:${target!.taskId}`))
-    assert.ok((await env.api.sessions(env.b.projectId)).items.find(item => item.taskId === target!.taskId)?.lastMessageId)
-  } finally { release.resolve(); await env.close(); localStorage.removeItem('lumen.mastra.selection') }
-})
-
-test('工作台切历史再回新对话保留欢迎草稿和附件，重复新入口不会重新分配草稿', { timeout: 25000 }, async () => {
-  const env = await environment('workspace-draft')
-  try {
-    const threadId = `${env.a.projectId}:${env.a.taskId}`
-    await env.memory.saveMessages({ messages: [{ id: 'draft-history', threadId, resourceId: threadId, role: 'user', createdAt: new Date(), content: { format: 2, parts: [{ type: 'text', text: '可重新打开的历史内容' }] } }] })
-    await env.api.updateSession(env.a, { title: '草稿切换历史' })
-    env.requests.length = 0
-    await env.workspace(env.a)
-    await until(() => env.element.querySelector('.mw-message')?.textContent?.includes('可重新打开的历史内容') ?? false, '历史未恢复')
-    await until(() => env.element.querySelector('aside')?.textContent?.includes('草稿切换历史') ?? false, '历史未进入导航')
-    env.requests.length = 0
-    await env.click('新对话'); await env.text('尚未发送的欢迎草稿')
-    await env.attach([new File(['draft'], 'unsent.txt', { type: 'text/plain' })])
-    await env.click('草稿切换历史')
-    await until(() => env.element.querySelector('.mw-message')?.textContent?.includes('可重新打开的历史内容') ?? false, '点击历史未打开原会话')
-    assert.equal(env.element.querySelector('textarea')!.value, '')
-    assert.equal(env.element.querySelectorAll('.mw-attachment').length, 0)
-    await env.text('历史会话独立草稿'); await env.click('新对话')
-    assert.equal(env.element.querySelector('textarea')!.value, '尚未发送的欢迎草稿')
-    assert.ok(env.element.querySelector('.mw-attachment')?.textContent?.includes('unsent.txt'))
-    await env.click(`在${env.a.projectId}新建对话`)
-    assert.equal(env.element.querySelector('textarea')!.value, '尚未发送的欢迎草稿')
-    assert.ok(env.element.querySelector('.mw-attachment')?.textContent?.includes('unsent.txt'))
-    await env.click('草稿切换历史')
-    assert.equal(env.element.querySelector('textarea')!.value, '历史会话独立草稿')
-    assert.equal(env.requests.filter(request => request.method === 'POST' && /^\/lumen\/projects\/[^/]+\/sessions$/.test(request.url.pathname)).length, 0)
-    assert.ok(env.requests.filter(request => request.method === 'POST' && request.url.pathname === '/lumen/sessions').every(request => request.identity?.projectId === env.a.projectId && request.identity.taskId === env.a.taskId), '历史往返绑定了未发送的欢迎身份')
-    assert.equal((await env.memory.listThreads({ perPage: false })).threads.length, 2)
-  } finally { await env.close(); localStorage.removeItem('lumen.mastra.selection') }
-})
-
-test('工作台恢复旧默认空选择后回欢迎态，保留原线程且不会自动创建', { timeout: 20000 }, async () => {
-  const env = await environment('workspace-empty')
-  try {
-    env.requests.length = 0
-    await env.workspace(env.b)
-    await until(() => env.element.querySelector('.mw-center.chat-empty textarea') !== null && localStorage.getItem('lumen.mastra.selection') === 'null', '旧默认空选择未回到欢迎输入')
-    assert.equal(env.element.querySelector('.sb-folder-main[aria-pressed="true"]')?.textContent, env.b.projectId)
-    assert.equal(env.element.querySelectorAll('aside .sb-item').length, 0)
-    assert.equal((await env.memory.listThreads({ perPage: false })).threads.length, 2)
-    assert.equal((await env.api.sessions(env.b.projectId)).items.find(item => item.taskId === env.b.taskId)?.lastMessageId, null)
-    assert.equal(env.requests.filter(request => request.method === 'POST' && (request.url.pathname === '/lumen/sessions' || /^\/lumen\/projects\/[^/]+\/sessions$/.test(request.url.pathname))).length, 0)
-  } finally { await env.close(); localStorage.removeItem('lumen.mastra.selection') }
 })

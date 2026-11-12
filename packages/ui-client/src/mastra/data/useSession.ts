@@ -26,8 +26,8 @@ export function useSession(api: LumenApi, identity: Identity | null) {
     setState({ feed, view: feed.getSnapshot() })
     void feed.start()
     return () => { cancelRecovery?.(); unsubscribe(); feed.close() }
-  }, [api, identity?.projectId, identity?.taskId])
+  }, [api, identity?.topicId, identity?.taskId])
   const current = state.feed?.identity
-  if (current?.projectId !== identity?.projectId || current?.taskId !== identity?.taskId) return { feed: null, view: empty }
+  if (current?.topicId !== identity?.topicId || current?.taskId !== identity?.taskId) return { feed: null, view: empty }
   return state
 }

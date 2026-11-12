@@ -62,10 +62,10 @@ test('产品 HTTP 单子取消隔离另一任务，剩余子代完成并持久�
     assert.equal(tasks.tasks.length, 1)
     const id = tasks.tasks[0]!.id
     const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
-    const wrong = await service.app.request(`/lumen/children/${id}/cancel`, { method: 'POST', headers, body: JSON.stringify({ projectId: 'p', taskId: 'b' }) })
+    const wrong = await service.app.request(`/lumen/children/${id}/cancel`, { method: 'POST', headers, body: JSON.stringify({ topicId: 'p', taskId: 'b' }) })
     assert.equal(wrong.status, 404)
     assert.equal(aborted.size, 0)
-    const result = await service.app.request(`/lumen/children/${id}/cancel`, { method: 'POST', headers, body: JSON.stringify({ projectId: 'p', taskId: 'a' }) })
+    const result = await service.app.request(`/lumen/children/${id}/cancel`, { method: 'POST', headers, body: JSON.stringify({ topicId: 'p', taskId: 'a' }) })
     assert.equal(result.status, 200)
     assert.ok(aborted.has('A'))
     assert.ok(!aborted.has('B'))

@@ -1,7 +1,7 @@
 /**
- * [INPUT]: Mastra createTool、可信 Workspace resolver、DOCX/图像纯解析
- * [OUTPUT]: createIngestionTools：extract_docx/look_at_image
- * [POS]: 摄取原生工具组合；图片只保存带内容指纹的引用，像素由请求处理器加载
+ * [INPUT]: Mastra createTool、可信 Workspace resolver、可选的资料库读取器（只认本主题引用）、DOCX/图像纯解析
+ * [OUTPUT]: createIngestionTools / IngestionWorkspaceResolver / LibraryReader：extract_docx/look_at_image
+ * [POS]: 摄取原生工具组合；图片只保存带内容指纹的引用，像素由请求处理器加载。资料库图片按 itemId 读，边界检查在读取器里
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { createTool, type ToolExecutionContext } from '@mastra/core/tools'
@@ -12,9 +12,10 @@ import { imageInfo, imageDigest, imageReferenceSchema, MAX_IMAGE_BYTES } from '.
 import { readWorkspaceBytes, relativeFile, saveWorkspaceText } from './files.ts'
 
 export type IngestionWorkspaceResolver = (context: { requestContext?: ToolExecutionContext['requestContext'] } | undefined) => Workspace | Promise<Workspace>
+export type LibraryReader = (context: { requestContext?: ToolExecutionContext['requestContext'] } | undefined, itemId: string) => Promise<{ bytes: Uint8Array; title: string }>
 const MAX_DOCUMENT_BYTES = 25 * 1024 * 1024
 
-export function createIngestionTools(resolveWorkspace: IngestionWorkspaceResolver) {
+export function createIngestionTools(resolveWorkspace: IngestionWorkspaceResolver, readLibrary?: LibraryReader) {
   return {
     extract_docx: createTool({
       id: 'extract_docx', description: '抽取工作区 DOCX 主文档正文，保留段落与表格文字；不解析图片、独立脚注或版式。offset/limit 分段读取，save_as 可将完整正文保存到新文件。',
@@ -30,16 +31,24 @@ export function createIngestionTools(resolveWorkspace: IngestionWorkspaceResolve
       },
     }),
     look_at_image: createTool({
-      id: 'look_at_image', description: '查看工作区 PNG/JPEG/GIF/WebP 图片，将真实像素送给当前模型；当前模型需支持视觉。限制 5 MiB 和 3200 万像素。可给出要观察的 focus。',
-      inputSchema: z.object({ path: z.string().min(1), focus: z.string().max(2000).optional() }),
+      id: 'look_at_image', description: '查看 PNG/JPEG/GIF/WebP 图片，将真实像素送给当前模型；当前模型需支持视觉。工作区文件给 path，资料库材料给 itemId，二选一。限制 5 MiB 和 3200 万像素。可给出要观察的 focus。',
+      inputSchema: z.object({ path: z.string().min(1).optional(), itemId: z.string().min(1).max(128).optional(), focus: z.string().max(2000).optional() }),
       outputSchema: imageReferenceSchema,
-      execute: async ({ path, focus }, context) => {
+      execute: async ({ path, itemId, focus }, context) => {
         context?.abortSignal?.throwIfAborted()
+        if (!path === !itemId) throw new Error('look_at_image 需要 path 或 itemId 二选一')
+        if (itemId) {
+          if (!readLibrary) throw new Error('当前环境没有资料库')
+          const { bytes, title } = await readLibrary(context, itemId)
+          if (bytes.length > MAX_IMAGE_BYTES) throw new Error('图片超过 5 MiB')
+          const info = imageInfo(Buffer.from(bytes))
+          return { path: title, itemId, focus, ...info, bytes: bytes.length, sha256: imageDigest(bytes) }
+        }
         const workspace = await resolveWorkspace(context)
-        const bytes = await readWorkspaceBytes(workspace, path, MAX_IMAGE_BYTES, context?.abortSignal)
+        const bytes = await readWorkspaceBytes(workspace, path!, MAX_IMAGE_BYTES, context?.abortSignal)
         const info = imageInfo(bytes)
         context?.abortSignal?.throwIfAborted()
-        return { path: relativeFile(path), focus, ...info, bytes: bytes.length, sha256: imageDigest(bytes) }
+        return { path: relativeFile(path!), focus, ...info, bytes: bytes.length, sha256: imageDigest(bytes) }
       },
     }),
   }

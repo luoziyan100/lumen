@@ -37,7 +37,7 @@ async function resumeQuestion(context: QuestionContext, input: z.infer<typeof an
 }
 
 /** 放在认证和 nativeRoutePolicy 之后；截获这一条官方路径，其余原生端点继续交给 MastraServer。 */
-export function suspensionResponses(resolve: (projectId: string, taskId: string) => Promise<QuestionContext>): MiddlewareHandler {
+export function suspensionResponses(resolve: (topicId: string, taskId: string) => Promise<QuestionContext>): MiddlewareHandler {
   return async (c, next) => {
     const match = PATH.exec(new URL(c.req.url).pathname)
     if (c.req.method !== 'POST' || !match) return next()

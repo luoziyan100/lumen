@@ -12,36 +12,36 @@ import type { SpecialistHistory } from './index.ts'
 import type { FamilyBudget } from '../budget/index.ts'
 
 const id = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/)
-const identity = z.object({ projectId: id, taskId: id })
+const identity = z.object({ topicId: id, taskId: id })
 const continuation = identity.extend({ specialistId: id, prompt: z.string().trim().min(1).max(12000) }).strict()
 
 export function specialistRoutes(options: {
   history: SpecialistHistory; budget: FamilyBudget
-  session: (projectId: string, taskId: string) => Promise<Session>
+  session: (topicId: string, taskId: string) => Promise<Session>
   withExecution: <T>(work: () => Promise<T>) => Promise<T>
 }) {
   const app = new Hono()
   app.get('/specialists', async c => {
     const parsed = identity.safeParse(c.req.query())
     if (!parsed.success) return c.json({ error: 'Invalid task identity' }, 400)
-    const { projectId, taskId } = parsed.data
-    await options.session(projectId, taskId)
-    const specialists = await options.history.list(`${projectId}:${taskId}`)
+    const { topicId, taskId } = parsed.data
+    await options.session(topicId, taskId)
+    const specialists = await options.history.list(`${topicId}:${taskId}`)
     return c.json({ specialists: specialists.map(record => ({ ...record, canContinue: record.status !== 'running' && record.threads.length > 0 })) })
   })
   app.get('/budget', async c => {
     const parsed = identity.safeParse(c.req.query())
     if (!parsed.success) return c.json({ error: 'Invalid task identity' }, 400)
-    const { projectId, taskId } = parsed.data
-    await options.session(projectId, taskId)
-    return c.json(await options.budget.read(`${projectId}:${taskId}`))
+    const { topicId, taskId } = parsed.data
+    await options.session(topicId, taskId)
+    return c.json(await options.budget.read(`${topicId}:${taskId}`))
   })
   app.post('/specialists/continue', async c => {
     const parsed = continuation.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return c.json({ error: 'Invalid specialist continuation' }, 400)
     return options.withExecution(async () => {
-      const { projectId, taskId, specialistId, prompt } = parsed.data, parent = `${projectId}:${taskId}`
-      const session = await options.session(projectId, taskId)
+      const { topicId, taskId, specialistId, prompt } = parsed.data, parent = `${topicId}:${taskId}`
+      const session = await options.session(topicId, taskId)
       const state = session.displayState.get()
       if (state.isRunning || state.pendingApprovals.size || state.pendingSuspensions.size) return c.json({ error: '请先完成或停止当前研究，再继续专家' }, 409)
       let previous
