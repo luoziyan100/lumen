@@ -1,7 +1,7 @@
 /**
  * [INPUT]: tokens.css 与 appearance 提供的语义颜色、实色伴生表面和强调色上文字
  * [OUTPUT]: Kumo 颜色与 Select 图标尺寸合同；控件、弹窗与徽章同步宿主明暗配色
- * [POS]: Lumen → Kumo 单向桥；celadon 锚恒驻，Solid 槽使用实色表面，阴影与徽章使用语义色
+ * [POS]: Lumen → Kumo 单向桥；celadon 锚恒驻，Solid 槽使用实色表面，品牌实色填充走强调墨(托底文字可读)，阴影与徽章使用语义色
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
@@ -27,7 +27,7 @@
     --color-kumo-focus:    var(--focus-ring);
 
     /* ---- 品牌 Solid ---- */
-    --color-kumo-brand:       var(--accent);
+    --color-kumo-brand:       var(--accent-ink);
     --color-kumo-brand-hover: var(--accent-hover);
 
     /* ---- 语义 ---- */

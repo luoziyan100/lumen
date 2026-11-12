@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 外观解析/归一入口、明暗基线、皮肤注册表与原语白名单
- * [OUTPUT]: 真实明暗、默认清透取自设计系统、v1 偏好迁移、皮肤补丁隔离、玻璃/纸面材质与别名级联的纯函数回归
+ * [OUTPUT]: 真实明暗、默认清透取自设计系统(淡蓝强调为唯一有意覆盖且墨色可读)、v1 偏好迁移、皮肤补丁隔离、玻璃/纸面材质与别名级联的纯函数回归
  * [POS]: 外观状态到主题输出的合同；DOM 应用与用户点击由 mastra-appearance 覆盖
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -23,18 +23,43 @@ import {
   LEGACY_APPEARANCE_STORAGE_KEY,
 } from '../src/appearance/index.ts'
 import { THEMES } from 'yan-design-system/themes'
+import { CLEAR_SOFT_BLUE_DARK, CLEAR_SOFT_BLUE_LIGHT } from '../src/appearance/skins/light.ts'
+
+function luminance(hex: string): number {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+}
+function contrast(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+  return (hi! + 0.05) / (lo! + 0.05)
+}
 
 describe('默认「清透」', () => {
-  it('默认浅色，明暗两侧逐项取自设计系统主题值表', () => {
+  it('默认浅色，明暗两侧除淡蓝强调外逐项取自设计系统主题值表', () => {
     assert.equal(DEFAULT_APPEARANCE.mode, 'light')
     assert.equal(DEFAULT_APPEARANCE.skinId, SKIN_DEFAULT.id)
-    for (const [mode, theme] of [['light', 'yan-clear-light'], ['dark', 'yan-clear-dark']] as const) {
+    for (const [mode, theme, soft] of [['light', 'yan-clear-light', CLEAR_SOFT_BLUE_LIGHT], ['dark', 'yan-clear-dark', CLEAR_SOFT_BLUE_DARK]] as const) {
       const r = resolveTheme({ ...DEFAULT_APPEARANCE, mode }, mode)
       assert.equal(r.colorScheme, mode)
       assert.equal(r.aurora, false)
-      const primitives = Object.entries(THEMES[theme]!).filter(([k]) => !TOKEN_ALIASES[k] && APPEARANCE_TOKEN_SET.has(k))
-      assert.ok(primitives.length >= 40)
+      const primitives = Object.entries(THEMES[theme]!).filter(([k]) => !TOKEN_ALIASES[k] && APPEARANCE_TOKEN_SET.has(k) && !(k in soft))
+      assert.ok(primitives.length >= 30)
       for (const [k, v] of primitives) assert.equal(r.tokens[k], v, `${mode} ${k}`)
+      for (const [k, v] of Object.entries(soft)) assert.equal(r.tokens[k], v, `${mode} 淡蓝 ${k}`)
+    }
+  })
+
+  it('淡蓝强调的墨色可读：作文字与托底文字都不低于 4.5:1，其他皮肤不补墨色', () => {
+    for (const mode of ['light', 'dark'] as const) {
+      const t = resolveTheme({ ...DEFAULT_APPEARANCE, mode }, mode).tokens
+      const ink = t['--accent-ink']!
+      assert.ok(contrast(ink, t['--surface-base']!) >= 4.5, `${mode} 墨色作文字`)
+      assert.ok(contrast(ink, t['--surface-elevated']!) >= 4.5, `${mode} 墨色在浮层`)
+      assert.ok(contrast(ink, t['--text-on-accent']!) >= 4.5, `${mode} 墨色托底文字`)
+      assert.ok(contrast(t['--accent-hover']!, t['--text-on-accent']!) >= 4.5, `${mode} 悬停托底文字`)
+    }
+    for (const skin of listSkins().filter((s) => s.id !== 'yan-clear')) {
+      assert.equal(resolveTheme({ ...DEFAULT_APPEARANCE, skinId: skin.id }, skin.preferredScheme).tokens['--accent-ink'], undefined, skin.id)
     }
   })
 
@@ -82,7 +107,7 @@ describe('resolveTheme', () => {
   it('别名保持 var() 级联', () => {
     for (const mode of ['dark', 'light'] as const) {
       const r = resolveTheme({ ...DEFAULT_APPEARANCE, skinId: 'mist-forest', mode }, 'dark')
-      assert.equal(r.tokens['--code-keyword'], 'var(--accent)')
+      assert.equal(r.tokens['--code-keyword'], 'var(--accent-ink)')
       assert.equal(r.tokens['--surface-canvas'], 'var(--canvas)')
     }
   })
@@ -210,7 +235,7 @@ describe('normalizeAppearance', () => {
 
 describe('TOKEN_ALIASES', () => {
   it('含 code-keyword 与 surface-canvas；success 已是可 patch 原语', () => {
-    assert.equal(TOKEN_ALIASES['--code-keyword'], 'var(--accent)')
+    assert.equal(TOKEN_ALIASES['--code-keyword'], 'var(--accent-ink)', '代码关键字是文字，走可读墨色')
     assert.equal(TOKEN_ALIASES['--success'], undefined)
     assert.equal(TOKEN_ALIASES['--surface-canvas'], 'var(--canvas)')
   })

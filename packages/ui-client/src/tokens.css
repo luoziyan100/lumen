@@ -1,11 +1,14 @@
 /*
  * [INPUT]: yan-design-system 的 tokens/base(main.tsx 中先于本文件引入)；appearance 解析后的皮肤补丁
- * [OUTPUT]: Lumen 专属变量：皮肤背景槽、炫光边与画布 aurora 装饰色、应用布局尺寸
+ * [OUTPUT]: Lumen 专属变量：强调墨、皮肤背景槽、炫光边与画布 aurora 装饰色、应用布局尺寸
  * [POS]: 通用语义变量(表面、墨色、强调、字体、间距、圆角、阴影、动效)由设计系统提供，这里只放 Lumen 独有的部分
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
 :root {
+  /* ---- 强调墨：强调色作文字或托底文字的实色填充时用它；默认即强调色，淡强调皮肤另给深一档 ---- */
+  --accent-ink: var(--accent);
+
   /* ---- 皮肤背景层(applyTheme 写入)---- */
   --skin-bg-image: none;
   --skin-overlay: 0;

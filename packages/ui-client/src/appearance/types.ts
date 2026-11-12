@@ -63,6 +63,7 @@ export const APPEARANCE_TOKEN_WHITELIST = [
   // 强调原语
   '--accent',
   '--accent-hover',
+  '--accent-ink',
   '--accent-tint',
   '--success',
   '--success-bg',
@@ -103,7 +104,7 @@ export const APPEARANCE_TOKEN_SET = new Set<string>(APPEARANCE_TOKEN_WHITELIST)
 
 /** CSS 别名：禁皮肤 patch；baseline 保留 var(--原语) */
 export const TOKEN_ALIASES: Record<string, string> = {
-  '--code-keyword': 'var(--accent)',
+  '--code-keyword': 'var(--accent-ink)',
   '--code-number': 'var(--warning)',
   '--code-title': 'var(--info)',
   // R5：画布伴生跟随 canvas

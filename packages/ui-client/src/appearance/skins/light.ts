@@ -1,24 +1,42 @@
 /**
  * [INPUT]: define.ts 构造与设计系统「清透」主题
- * [OUTPUT]: 四套浅色推荐皮肤：清透(默认)、冰川液体玻璃、暖白纸面、海盐浅青玻璃
+ * [OUTPUT]: 四套浅色推荐皮肤：清透(默认，淡蓝强调覆盖 CLEAR_SOFT_BLUE_*)、冰川液体玻璃、暖白纸面、海盐浅青玻璃
  * [POS]: 浅色皮肤真源；各自附另一模式补丁，由 registry 汇总
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import type { SkinDefinition } from '../types.ts'
 import { fromDesignSystem, t } from './define.ts'
 
-/** 清透(默认)：近白实色内容面、半透明侧栏/标题栏(桌面端透出系统毛玻璃)、单一蓝强调；暗色为中性深灰对应版 */
+/**
+ * 清透的淡蓝(2026-11-11 用户确认「更淡」)：设计系统原蓝 #2E6BE6 太饱和。
+ * 面、线、光晕用淡蓝 --accent；文字和托底文字的实色填充用 --accent-ink 保证可读
+ * (浅色墨蓝配白字 5.75:1；暗色反过来用浅蓝底配深字)。
+ */
+export const CLEAR_SOFT_BLUE_LIGHT = {
+  '--accent': '#93ABD9', '--accent-ink': '#4A6699', '--accent-hover': '#3E5886',
+  '--accent-tint': 'rgba(147, 171, 217, 0.18)', '--info': '#4A6699', '--info-tint': 'rgba(147, 171, 217, 0.16)',
+  '--focus-ring': 'rgba(74, 102, 153, 0.3)',
+  '--beam-a': '#B7C7E6', '--beam-b': '#93ABD9', '--beam-c': '#DCE4F3',
+} as const
+export const CLEAR_SOFT_BLUE_DARK = {
+  '--accent': '#8BA6D9', '--accent-ink': '#A9BDE3', '--accent-hover': '#B9CAE8', '--text-on-accent': '#1C1C1F',
+  '--accent-tint': 'rgba(139, 166, 217, 0.16)', '--info': '#A9BDE3', '--info-tint': 'rgba(139, 166, 217, 0.14)',
+  '--focus-ring': 'rgba(139, 166, 217, 0.4)',
+  '--beam-a': '#A9BDE3', '--beam-b': '#8BA6D9', '--beam-c': '#2E3B55',
+} as const
+
+/** 清透(默认)：近白实色内容面、半透明侧栏/标题栏(桌面端透出系统毛玻璃)、单一淡蓝强调；暗色为中性深灰对应版 */
 export const SKIN_CLEAR: SkinDefinition = {
   id: 'yan-clear',
   name: '清透',
-  description: '近白内容面 + 透明侧栏，单一蓝色强调；暗色为中性深灰',
+  description: '近白内容面 + 透明侧栏，单一淡蓝强调；暗色为中性深灰',
   preview: 'linear-gradient(145deg, #F4F5F7 0%, #F4F5F7 34%, #FEFEFE 34%, #FEFEFE 100%)',
-  accents: ['#FEFEFE', '#2E6BE6', '#2B2D31'],
+  accents: ['#FEFEFE', '#93ABD9', '#2B2D31'],
   preferredScheme: 'light',
   material: 'glass',
   backgroundImage: null,
-  tokens: fromDesignSystem('yan-clear-light', { '--beam-a': '#8FB2F2', '--beam-b': '#2E6BE6', '--beam-c': '#C9D9F8' }),
-  alternateTokens: fromDesignSystem('yan-clear-dark', { '--beam-a': '#79A8F7', '--beam-b': '#5B93F5', '--beam-c': '#2A3F66' }),
+  tokens: fromDesignSystem('yan-clear-light', CLEAR_SOFT_BLUE_LIGHT),
+  alternateTokens: fromDesignSystem('yan-clear-dark', CLEAR_SOFT_BLUE_DARK),
   effects: { aurora: false, overlay: 0, blurPx: 0 },
 }
 
