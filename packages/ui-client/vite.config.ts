@@ -15,7 +15,7 @@ import { widgetReceiverPlugin } from './scripts/vite-widget-receiver'
 
 // --- 开发页面每次加载读取私有发现；生产桌面身份由原生层注入 ---
 function readConnection() {
-  const root = process.env.LUMEN_MASTRA_HOME ?? path.join(homedir(), '.lumen-mastra')
+  const root = process.env.LUMEN_MASTRA_HOME ?? path.join(homedir(), '.lumen-studio')
   let fd: number | undefined
   try {
     if (!path.isAbsolute(root)) throw new Error('Data root must be absolute')

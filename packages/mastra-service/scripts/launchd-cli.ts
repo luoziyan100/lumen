@@ -1,7 +1,7 @@
 /**
  * [INPUT]: install/status/uninstall 命令与显式 Node、工程、数据根绝对路径
  * [OUTPUT]: 无凭证的部署 JSON 状态或简洁失败原因
- * [POS]: 新服务部署入口；默认正式 com.lumen.mastra；预览部署须显式指定独立 label
+ * [POS]: 新服务部署入口；默认正式 com.lumen.studio，拒绝接管旧 com.lumen.mastra；预览部署须显式指定独立 label
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { parseArgs } from 'node:util'
@@ -14,7 +14,7 @@ try {
   } })
   const command = positionals[0]
   if (positionals.length !== 1 || !['install', 'status', 'uninstall'].includes(command!) || !values.node || !values['project-root'] || !values['data-root']) {
-    throw new Error('Usage: launchd-cli.ts <install|status|uninstall> --node /absolute/node --project-root /absolute/lumen --data-root /absolute/new-root [--label com.lumen.mastra] [--restart]')
+    throw new Error('Usage: launchd-cli.ts <install|status|uninstall> --node /absolute/node --project-root /absolute/lumen --data-root /absolute/new-root [--label com.lumen.studio] [--restart]')
   }
   if (values.restart && command !== 'install') throw new Error('--restart is only valid with install')
   const deployment = await createLaunchdDeployment({ nodePath: values.node, projectRoot: values['project-root'], dataRoot: values['data-root'], label: values.label })

@@ -1,6 +1,6 @@
 /**
  * [INPUT]: Mastra 官方 Hono 适配器、新应用组合根、产品目录/诊断脱敏、本机会话 token
- * [OUTPUT]: createHttpService：框架原生 HTTP/SSE + Lumen 产品入口，文件响应带版本校验
+ * [OUTPUT]: createHttpService：框架原生 HTTP/SSE + Lumen 产品入口（含 studio 主题/白板/资料库），文件与白板响应带版本校验
  * [POS]: 新应用服务边界；认证先于路由，归属校验与会话绑定分离，模型/角色/资料修改共用执行互斥，不继承旧 WS 协议
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -30,6 +30,10 @@ import { redactPayload } from './diagnostics/redact.ts'
 import { diagnosticsRoutes } from './http/diagnostics.ts'
 import { legacyDiagnosticsRoutes } from './http/legacy-diagnostics.ts'
 import { createLegacyDiagnostics } from './migration/legacy-diagnostics/reader.ts'
+import { researchHttp } from './research/http.ts'
+import { StudioError } from './studio/errors.ts'
+import { studioRoutes } from './studio/routes.ts'
+import { openStudio, type Studio } from './studio/studio.ts'
 
 const identity = z.object({ projectId: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/), taskId: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/) })
 const upload = identity.extend({ path: z.string().min(1), content: z.string() })
@@ -55,9 +59,11 @@ export async function createHttpService(options: ApplicationOptions & { token: s
     },
     diagnostics: { enabled: () => settings.toPublic().collectExecEvidence, secrets: () => [options.token, ...settings.secrets(), ...(options.diagnostics?.secrets?.() ?? [])] },
   })
-  let catalog: ReturnType<typeof createCatalog>
+  let catalog: ReturnType<typeof createCatalog>, studio: Studio
   try { catalog = createCatalog(application.root, application.memory) }
   catch (error) { await application.close(); throw error }
+  try { studio = openStudio(application.root) }
+  catch (error) { await catalog.close(); await application.close(); throw error }
   const app = new Hono<{ Bindings: HonoBindings; Variables: HonoVariables }>()
   let closing = false
   let reconfiguring = false
@@ -126,7 +132,7 @@ export async function createHttpService(options: ApplicationOptions & { token: s
     return workspace.filesystem
   }
   app.onError((error, c) => {
-    if (error instanceof CatalogError || error instanceof SettingsError || error instanceof DiagnosticsError) return c.json({ error: error.message }, error.status)
+    if (error instanceof CatalogError || error instanceof SettingsError || error instanceof DiagnosticsError || error instanceof StudioError) return c.json({ error: error.message }, error.status)
     if (error instanceof SourceUnavailable) return c.json({ error: error.message }, 404)
     const detail = redactPayload({ method: c.req.method, path: c.req.path, name: error.name, message: error.message,
       cause: error.cause instanceof Error ? { name: error.cause.name, message: error.cause.message } : undefined,
@@ -152,6 +158,7 @@ export async function createHttpService(options: ApplicationOptions & { token: s
     return c.json({ ok: true })
   })
   app.route('/lumen', catalogRoutes(catalog, application.liveSessionStates))
+  app.route('/lumen', studioRoutes({ studio, http: researchHttp(options.research?.fetch), activity: application.liveSessionStates }))
   app.route('/lumen', specialistRoutes({ history: application.specialistHistory, budget: application.familyBudget, session: bindSession,
     withExecution: async work => {
       if (reconfiguring) throw new SettingsError('配置正在保存，请稍后重试', 409)
@@ -294,6 +301,6 @@ export async function createHttpService(options: ApplicationOptions & { token: s
     return c.json({ cancelled: true })
   })
   const server = new MastraServer({ app, mastra: application.mastra })
-  try { await server.init() } catch (error) { await catalog.close(); await application.close(); throw error }
-  return { app, application, catalog, settings, close: async () => { closing = true; await settings.close(); await catalog.close(); await application.close() } }
+  try { await server.init() } catch (error) { studio.close(); await catalog.close(); await application.close(); throw error }
+  return { app, application, catalog, studio, settings, close: async () => { closing = true; await settings.close(); studio.close(); await catalog.close(); await application.close() } }
 }

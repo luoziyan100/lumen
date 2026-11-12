@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 
 if (Number(process.versions.node.split('.')[0]) < 24) throw new Error('Lumen requires Node 24 or later')
 const root = fileURLToPath(new URL('..', import.meta.url))
-const dataRoot = resolve(process.env.LUMEN_MASTRA_HOME ?? join(homedir(), '.lumen-mastra-dev'))
+const dataRoot = resolve(process.env.LUMEN_MASTRA_HOME ?? join(homedir(), '.lumen-studio-dev'))
 const env = { ...process.env, LUMEN_MASTRA_HOME: dataRoot, LUMEN_DEV_ORIGIN: 'http://localhost:5180' }
 const children = [
   spawn(process.execPath, ['--experimental-strip-types', 'packages/mastra-service/src/start.ts', '--data-root', dataRoot], { cwd: root, env, stdio: 'inherit' }),

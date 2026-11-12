@@ -2,7 +2,7 @@
 > L2 | 父级: ../CLAUDE.md
 
 - `types.ts`：显式本机部署配置与命令执行边界；公开状态不携带 discovery token。
-- `config.ts`：规范化 Node 24、工程及数据根绝对路径，生成默认 com.lumen.mastra 或显式隔离 label 的 launchd plist；研究 key 经 `--env-file-if-exists=<数据根>/.env` 读取，plist 不含凭证；`renderPreviousPlists` 是本部署历史 plist 白名单——**改 renderPlist 任何输出都必须把改动前的渲染追加进去**，否则已装机器会被判冲突而拒绝升级(形状快照测试强制)。
+- `config.ts`：规范化 Node 24、工程及数据根绝对路径，生成默认 com.lumen.studio 或显式隔离 label 的 launchd plist；拒绝接管旧 `com.lumen.mastra` 与旧形态数据根（`isLegacyDataRoot` 也供 start 使用）；研究 key 经 `--env-file-if-exists=<数据根>/.env` 读取，plist 不含凭证；`renderPreviousPlists` 是本部署历史 plist 白名单——**改 renderPlist 任何输出都必须把改动前的渲染追加进去**，否则已装机器会被判冲突而拒绝升级(形状快照测试强制)。
 - `files.ts`：私有目录/文件校验与同目录原子发布，拒绝符号链接和共享 inode；`assertPrivateIfPresent` 只 lstat 校验交给外部读取的私有文件(如 Node 读的 .env)。
 - `lock.ts`：稳定 inode 的 Darwin 内核独占锁；释放不删除文件，崩溃由内核释放。
 - `discovery.ts`：仅持锁实例可发布/清理私有发现文件，读取时验证本机地址与身份。

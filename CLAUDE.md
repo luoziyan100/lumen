@@ -19,7 +19,7 @@ scripts/             # 开发进程组合；旧测试矩阵脚本只保留历史
 
 ## 运行边界
 
-- `~/.lumen-mastra` 是正式数据根，`com.lumen.mastra` 是正式 LaunchAgent；旧 `~/.lumen` 保留为迁移来源，服务拒绝直接打开。
+- 新形态（studio 分支）正式数据根 `~/.lumen-studio`、LaunchAgent `com.lumen.studio`、开发根 `~/.lumen-studio-dev`；旧形态的 `~/.lumen-mastra`/`com.lumen.mastra` 与更早的 `~/.lumen` 原样保留，新服务与部署拒绝打开或接管。
 - 桌面默认发现新服务；缺服务可重试，任何失败都不回旧 WS。显式 `--mastra-data-root` 只选择独立根。
 - 会话身份固定 `projectId:taskId`。原生 Memory 是消息真源，SSE 断线后补取持久历史。
 - 项目和阅读游标在 `catalog.sqlite`；游标不改框架 thread 时间。设置/凭证只存私有文件，HTTP 只返回掩码。
@@ -31,7 +31,7 @@ scripts/             # 开发进程组合；旧测试矩阵脚本只保留历史
 
 ```sh
 npm install
-npm run dev          # 默认 ~/.lumen-mastra-dev；浏览器 localhost:5180
+npm run dev          # 默认 ~/.lumen-studio-dev；浏览器 localhost:5180
 npm run typecheck
 npm test
 npm run verify       # 当前两包行为验证 + 主题合同

@@ -1,30 +1,29 @@
 /**
  * [INPUT]: 显式独立数据根、模型档案路径、内核锁和原子发现文件，官方 Hono Node 服务
  * [OUTPUT]: 仅本机 HTTP/SSE 服务和 0600 discovery 文件
- * [POS]: 新应用启动入口；部署负责 launchd，服务禁止直接打开旧数据目录
+ * [POS]: 新应用启动入口；部署负责 launchd，服务禁止打开旧数据目录（~/.lumen、~/.lumen-mastra）
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
-import { mkdir, realpath } from 'node:fs/promises'
-import { homedir } from 'node:os'
-import { resolve, join } from 'node:path'
+import { mkdir } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { serve } from '@hono/node-server'
 import { createHttpService } from './server.ts'
 import { openSettingsStore } from './settings/store.ts'
 import { acquireServiceLock } from './deployment/lock.ts'
 import { publishDiscovery, removeDiscovery } from './deployment/discovery.ts'
+import { isLegacyDataRoot } from './deployment/config.ts'
 
 const { values } = parseArgs({ options: { 'data-root': { type: 'string' }, settings: { type: 'string' } } })
 if (!values['data-root']) throw new Error('Required: --data-root <data directory> [--settings <legacy settings.json>]')
 const root = resolve(values['data-root'])
-if (root === join(homedir(), '.lumen')) throw new Error('Mastra service cannot open the legacy data root')
+if (await isLegacyDataRoot(root)) throw new Error('Studio service cannot open a legacy data root')
 const devOrigin = process.env.LUMEN_DEV_ORIGIN
 if (devOrigin) {
   const url = new URL(devOrigin)
   if (url.origin !== devOrigin || url.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(url.hostname)) throw new Error('Invalid development origin')
 }
 await mkdir(root, { recursive: true, mode: 0o700 })
-if (await realpath(root) === await realpath(join(homedir(), '.lumen')).catch(() => '')) throw new Error('Mastra service cannot open the legacy data root')
 const lock = acquireServiceLock(root)
 const identity = lock.identity
 let service: Awaited<ReturnType<typeof createHttpService>> | undefined

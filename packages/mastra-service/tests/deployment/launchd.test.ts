@@ -1,13 +1,13 @@
 /**
  * [INPUT]: 合成 launchctl 调度、真实 Node 24 子进程和本机认证 HTTP
  * [OUTPUT]: 私有部署安装/重启/卸载、崩溃恢复、旧版 plist 原地升级、plist 形状快照(强制登记历史渲染)、
- *           凭证不进 plist 且 .env 必须为本人 0600 普通文件，以及所有权冲突行为证明
+ *           凭证不进 plist 且 .env 必须为本人 0600 普通文件，所有权冲突，以及拒绝旧 label/旧形态数据根的行为证明
  * [POS]: 只替换系统注册边界；不注册真实 LaunchAgent，不读取正式 Lumen 根
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import assert from 'node:assert/strict'
 import { chmod, link, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { test } from 'node:test'
@@ -32,7 +32,7 @@ test('install waits for authenticated health, explicit restart replaces only its
   const context = await setup(250)
   try {
     const { config, fixture, deployment } = context
-    assert.equal(config.label, 'com.lumen.mastra')
+    assert.equal(config.label, 'com.lumen.studio')
     const started = Date.now()
     const installed = await deployment.install()
     assert.equal(installed.state, 'ready')
@@ -199,4 +199,15 @@ test('install 拒绝非私有、软链或硬链的 .env，且不触碰现有部�
     const plist = await readFile(config.plistPath, 'utf8')
     assert.ok(!plist.includes('TAVILY_API_KEY=x'))
   } finally { await context.close() }
+})
+
+test('新形态部署不接管旧服务 label，也不部署到旧形态数据根', async () => {
+  const temporary = await mkdtemp(join(tmpdir(), 'studio-legacy-guard-'))
+  try {
+    const base = { nodePath: process.execPath, projectRoot, launchAgentsDir: join(temporary, 'LaunchAgents') }
+    await assert.rejects(deploymentConfig({ ...base, dataRoot: join(temporary, 'data'), label: 'com.lumen.mastra' }), /legacy com\.lumen\.mastra/)
+    for (const legacy of ['.lumen-mastra', '.lumen']) {
+      await assert.rejects(deploymentConfig({ ...base, dataRoot: join(homedir(), legacy) }), /independent data root/)
+    }
+  } finally { await rm(temporary, { recursive: true, force: true }) }
 })

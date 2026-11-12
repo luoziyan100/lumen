@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 显式绝对 Node/工程/数据根与可选 launchd label
- * [OUTPUT]: deploymentConfig、renderPlist、renderPreviousPlists、secretsPath、DEFAULT_LABEL
+ * [OUTPUT]: deploymentConfig、renderPlist、renderPreviousPlists、secretsPath、DEFAULT_LABEL、isLegacyDataRoot
  * [POS]: 部署配置的单一来源；plist 不继承 shell PATH、旧数据目录，也不写入任何凭证——
  *        研究 key 由 Node --env-file-if-exists 从数据根 0600 的 .env 读取，文件缺失时照常启动
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -10,7 +10,18 @@ import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { DeploymentError, type DeploymentConfig, type DeploymentOptions } from './types.ts'
 
-export const DEFAULT_LABEL = 'com.lumen.mastra'
+export const DEFAULT_LABEL = 'com.lumen.studio'
+// ---- 旧形态的正式根与 label：新形态的服务和部署一律不打开、不覆盖 ----
+const LEGACY_DATA_ROOTS = ['.lumen', '.lumen-mastra']
+const LEGACY_LABELS = new Set(['com.lumen.mastra'])
+
+/** 路径（存在时按真实路径）是否是旧形态的数据根；新形态的表不能建进旧根。 */
+export async function isLegacyDataRoot(path: string): Promise<boolean> {
+  const real = async (value: string) => realpath(value).catch(() => resolve(value))
+  const target = await real(path)
+  for (const name of LEGACY_DATA_ROOTS) if (target === await real(join(homedir(), name))) return true
+  return false
+}
 
 async function canonical(path: string): Promise<string> {
   if (!isAbsolute(path)) throw new DeploymentError('Node, project and data paths must be absolute')
@@ -26,8 +37,9 @@ async function canonical(path: string): Promise<string> {
 export async function deploymentConfig(options: DeploymentOptions): Promise<DeploymentConfig> {
   const label = options.label ?? DEFAULT_LABEL
   if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]{2,127}$/.test(label)) throw new DeploymentError('LaunchAgent label is invalid')
+  if (LEGACY_LABELS.has(label)) throw new DeploymentError('The legacy com.lumen.mastra service is not managed by this deployment')
   const [nodePath, projectRoot, dataRoot] = await Promise.all([canonical(options.nodePath), canonical(options.projectRoot), canonical(options.dataRoot)])
-  if (dataRoot === await canonical(join(homedir(), '.lumen'))) throw new DeploymentError('Mastra deployment requires an independent data root')
+  if (await isLegacyDataRoot(dataRoot)) throw new DeploymentError('Studio deployment requires an independent data root, not a legacy one')
   const launchAgentsDir = options.launchAgentsDir ?? join(homedir(), 'Library', 'LaunchAgents')
   if (!isAbsolute(launchAgentsDir)) throw new DeploymentError('LaunchAgents directory must be absolute')
   const uid = process.getuid?.()
