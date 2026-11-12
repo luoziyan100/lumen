@@ -1,5 +1,5 @@
 /**
- * [INPUT]: React、TopicsEntry（S2–S3 过渡入口）、唯一 Mastra 服务发现和皮肤
+ * [INPUT]: React、StudioApp（白板工作台外壳）、唯一 Mastra 服务发现和皮肤
  * [OUTPUT]: 桌面根渲染；冷启动失败有界退避，已连接后的探测失败保留工作台
  * [POS]: 应用唯一入口；未就绪或首次发现失败始终停留在 Mastra，不加载旧运行时
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -11,7 +11,7 @@ import type { Connection } from './mastra/data/client'
 import { MASTRA_COPY } from './copy/mastraCopy'
 import { keepLiveConnection, refreshConnection, retryConnection } from './mastra/data/connection'
 import { Button } from '@cloudflare/kumo/components/button'
-const MastraApp = lazy(() => import('./mastra/views/TopicsEntry').then(module => ({ default: module.TopicsEntry })))
+const MastraApp = lazy(() => import('./mastra/studio/StudioApp').then(module => ({ default: module.StudioApp })))
 const connection = (window as Window & { __LUMEN_MASTRA__?: Connection }).__LUMEN_MASTRA__ ?? { baseUrl: '', token: '', error: '未发现本机研究服务，请启动 Mastra 服务后重试。' }
 import { bootstrapAppearance } from './appearance'
 import 'yan-design-system/fonts.css'

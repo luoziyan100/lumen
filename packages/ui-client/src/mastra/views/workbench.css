@@ -87,13 +87,7 @@
 .mw-question-options button { height: auto; align-items: flex-start; flex-direction: column; white-space: normal; }
 .mw-question-options small { color: var(--text-soft); font-size: 11px; font-weight: 400; }
 
-/* --- 文件范围与原有沙箱阅读器 --- */
-.mw-files { display: flex; flex-direction: column; overflow: hidden; }
-.mw-files nav { min-height: 0; flex: 1; overflow-y: auto; }
-.mw-file-actions { display: flex; align-items: center; gap: 6px; padding: 8px 0; }
-.mw-file-hint { color: var(--text-soft); font-size: 11px; line-height: 1.6; margin: 8px 0 0; }
-
-.mw-file-title a { color: var(--info); flex: none; font-size: 11px; }
+/* --- 原有沙箱阅读器（studio/DocumentReader 复用） --- */
 .mw-reader { flex: 1; min-height: 0; height: auto; }
 .mw-reader pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; }
 .mw-reader-image img { display: block; height: auto; margin: auto; }
@@ -101,14 +95,6 @@
 .mw-reader-pdf .pdf-scroll { min-height: 0; min-width: 0; width: 100%; overscroll-behavior: contain; }
 .mw-reader-pdf .pdf-pages { width: max-content; min-width: 100%; }
 .mw-reader-pdf .pdf-page { flex: none; }
-
-/* --- 外部资料：显式绑定，原件只读 --- */
-.mw-source { flex: none; padding-bottom: 8px; border-bottom: 1px solid var(--border-strong); }
-.mw-source label { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; font-size: 11px; }
-.mw-source input { width: 100%; min-width: 0; }
-.mw-source .mw-file-hint { overflow-wrap: anywhere; }
-.mw-source .mw-file-actions { flex-wrap: wrap; padding-bottom: 0; }
-.mw-source .mw-error { margin-top: 8px; padding: 8px; font-size: 11px; }
 
 .mw-settings .settings-nav { flex-shrink: 0; }
 .mw-settings footer { display: flex; gap: var(--s-2); margin-top: var(--s-4); }
@@ -120,18 +106,3 @@
 .mw-specialists p { margin: var(--s-2) 0; }
 .mw-specialists small { overflow-wrap: anywhere; }
 .mw-specialists textarea { width: 100%; margin-block: var(--s-2); }
-
-/* --- 文档居中实验：阅读器占中，对话靠右可拖宽、可收起(只隐藏不卸载，订阅与草稿保留) --- */
-.mw-body.mw-reading > .mw-files { order: 1; flex: 1 1 0; min-width: 360px; }
-.mw-body.mw-reading > .mw-center { order: 2; flex: 0 0 var(--chat-side-w, 420px); min-width: 320px; border-left: 1px solid var(--border); }
-.mw-body.mw-reading > .mw-files > .reader-resize { display: none; }
-.mw-body.mw-reading-solo > .mw-center { display: none; }
-@media (max-width: 850px) { .mw-body.mw-reading > .mw-center { flex: 1 1 0; border-left: 0; } .mw-body.mw-reading > .mw-center > .reader-resize { display: none; } }
-
-/* S2–S3 过渡入口：主题与对话列表，S4 随 TopicsEntry 一并退场 */
-.studio-entry-nav { flex: 0 0 260px; overflow-y: auto; padding: var(--s-3); border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: var(--s-2); }
-.studio-entry-nav form { display: flex; gap: var(--s-2); }
-.studio-entry-nav ul { list-style: none; margin: 0; padding: 0; }
-.studio-entry-nav ul ul { padding-left: var(--s-3); }
-.studio-entry-nav button { width: 100%; justify-content: flex-start; }
-.studio-entry-note { color: var(--text-muted); font-size: var(--t-caption); margin: 0; }

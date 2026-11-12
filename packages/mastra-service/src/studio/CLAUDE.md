@@ -13,7 +13,7 @@
 - `studio.ts`：一条 catalog 连接上组合三个存储；server 与之后的白板工具共用同一实例。
 - `tools.ts`：资料库访问边界（R15）：`createMaterialAccess` 只放行受信会话所在主题引用的条目（未引用/不存在/越界同一句 404），PDF 分页缓存按 sha256；list_materials/read_material（按页或偏移读，推进阅读进度）；`intake` 供研究工具 to_library 收入并引用。
 - `board-tools.ts`：AI 写白板的唯一通道：board_view（专家也有）/board_draw/board_update/board_supersede，主题与运行从受信主会话推出；`topicState` 每次请求注入主题现状（白板每块一行 + 引用材料），按估算 token 硬上限 1500、新的优先，超出提示用 board_view 看全。
-- `routes.ts`：认证后的 HTTP。主题（状态灯由 `topicId:` 前缀汇总原生运行/等待）、白板（GET 带 ETag/304，＋ 新开一张）、资料库（multipart 上传或 JSON 链接，可顺手引用到主题）、原件（ETag=sha256）、主题引用增删。**没有区块写接口**：P0 白板对人只读。
+- `routes.ts`：认证后的 HTTP。主题（状态灯由 `topicId:` 前缀汇总原生运行/等待）、白板（列表的 writable 在没有进行中的那张时为 null，不报错；GET 带 ETag/304，＋ 新开一张）、资料库（multipart 上传或 JSON 链接，可顺手引用到主题）、原件（ETag=sha256）、主题引用增删。**没有区块写接口**：P0 白板对人只读。
 
 决策：
 - 白板存数据库不存文件：通用文件工具碰不到（R4），容量/rev/版本才能在一个事务里成立。

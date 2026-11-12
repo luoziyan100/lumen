@@ -1,0 +1,112 @@
+/**
+ * [INPUT]: LumenApi 带 ETag 的原件读取（资料库条目或主题工作区/记忆文件）、既有 Markdown/PDF/HTML 沙箱查看器
+ * [OUTPUT]: DocumentReader：单文档阅读器——类型标签、复制源码、下载/系统打开、关闭、相对链接与 PDF 页码；运行中按 ETag 低频检查版本
+ * [POS]: 新外壳中间分屏的阅读器（取代 S2 的 Files 目录轨，只保留阅读部分）；不列目录、不上传
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ */
+import { useEffect, useRef, useState } from 'react'
+import { invoke, isTauri } from '@tauri-apps/api/core'
+import { Button } from '@cloudflare/kumo/components/button'
+import { CheckIcon, CloseIcon, CopyIcon, OpenOutIcon } from '../../../components/icons'
+import { Markdown } from '../../../components/Markdown'
+import { PdfViewer } from '../../../components/PdfViewer'
+import { HtmlViewer } from '../../../components/HtmlViewer'
+import { MASTRA_COPY as C } from '../../../copy/mastraCopy'
+import type { LumenApi, Identity } from '../../data/client.ts'
+import { workspaceLink, type FileTarget } from '../../data/file-links'
+import { saveWorkspaceFile } from '../../data/download'
+
+export type DocumentKind = 'pdf' | 'image' | 'html' | 'markdown' | 'text' | 'binary'
+interface Loaded { key: string; kind: DocumentKind; url: string; text: string; blob: Blob; etag: string | null }
+const media: [RegExp, DocumentKind][] = [[/^application\/pdf$/, 'pdf'], [/^image\//, 'image'], [/^text\/html$/, 'html'], [/^text\/markdown$/, 'markdown'], [/^(text\/|application\/json)/, 'text']]
+const formats: [RegExp, DocumentKind][] = [[/\.pdf$/i, 'pdf'], [/\.(png|jpe?g|gif|webp|svg|avif|bmp)$/i, 'image'], [/\.html?$/i, 'html'], [/\.(md|markdown)$/i, 'markdown'], [/\.(txt|csv|json|ya?ml|ts|tsx|js|jsx|py|tex|bib|css|xml|log)$/i, 'text']]
+/** 先看名字的扩展名，再看原件的 media type；资料库条目的路径是 id，只能靠后者。 */
+export function documentKind(name: string, type: string): DocumentKind {
+  return formats.find(([pattern]) => pattern.test(name))?.[1] ?? media.find(([pattern]) => pattern.test(type))?.[1] ?? 'binary'
+}
+
+function View({ document, page, title }: { document: Loaded; page?: number; title: string }) {
+  const render = {
+    pdf: () => <PdfViewer blob={document.blob} page={page} />,
+    image: () => <img src={document.url} alt={title} />,
+    html: () => <HtmlViewer html={document.text} />,
+    markdown: () => document.text ? <Markdown>{document.text}</Markdown> : <p>{C.emptyFile}</p>,
+    text: () => document.text ? <pre>{document.text}</pre> : <p>{C.emptyFile}</p>,
+    binary: () => <p>{C.unsupported}</p>,
+  }
+  return render[document.kind]()
+}
+
+export function DocumentReader({ api, identity, target, title, live = false, onClose, onNavigate }: {
+  api: LumenApi
+  /** 读工作区/记忆文件需要会话身份；资料库条目不需要 */
+  identity: Identity | null
+  target: FileTarget
+  title?: string
+  /** 运行中：每 5 秒按 ETag 检查一次版本 */
+  live?: boolean
+  onClose: () => void
+  onNavigate?: (target: FileTarget) => void
+}) {
+  const [document, setDocument] = useState<Loaded | null>(null), [error, setError] = useState('')
+  const [copied, setCopied] = useState(false), [saving, setSaving] = useState(false)
+  const loaded = useRef<Loaded | null>(null)
+  const key = `${target.scope}:${target.path}:${identity?.topicId ?? ''}:${identity?.taskId ?? ''}`
+  const name = title ?? target.path.split('/').pop() ?? target.path
+  const current = document?.key === key ? document : null
+  useEffect(() => {
+    let active = true, pending = false
+    setError(''); setCopied(false)
+    const read = async () => {
+      if (pending) return
+      pending = true
+      try {
+        if (target.scope !== 'library' && !identity) throw new Error('需要先打开一段对话才能读工作区文件')
+        const previous = loaded.current?.key === key ? loaded.current : null
+        const result = await api.fileVersion(identity ?? { topicId: '', taskId: '' }, target.path, target.scope, previous?.etag ?? undefined)
+        if (!result.blob || !active) return
+        const blob = result.blob, kind = documentKind(name, blob.type)
+        const text = ['markdown', 'text', 'html'].includes(kind) ? await blob.text() : ''
+        if (!active) return
+        const next = { key, kind, url: URL.createObjectURL(blob), text, blob, etag: result.etag }
+        loaded.current = next; setDocument(next)
+      } catch (error) { if (active) setError(error instanceof Error ? error.message : String(error)) }
+      finally { pending = false }
+    }
+    void read()
+    const timer = live ? window.setInterval(() => void read(), 5000) : undefined
+    return () => { active = false; if (timer !== undefined) clearInterval(timer) }
+  }, [api, key, live])
+  useEffect(() => { const url = document?.url; return () => { if (url) URL.revokeObjectURL(url) } }, [document?.url])
+
+  async function copySource() {
+    if (!current?.text) return
+    try { await navigator.clipboard.writeText(current.text); setCopied(true) }
+    catch { setError('无法复制，请改用下载。') }
+  }
+  async function openOutside() {
+    if (!current) return
+    setSaving(true)
+    try {
+      if (isTauri() && target.scope !== 'library' && identity) await invoke('open_workspace_file', { ...identity, path: target.path, scope: target.scope })
+      else await saveWorkspaceFile(name, current.blob)
+    } catch (error) { setError(String(error)) } finally { setSaving(false) }
+  }
+  return <section className="studio-reader" aria-label={name}>
+    <header className="reader-head">
+      {current && <span className={`ws-tag ws-tag-${current.kind === 'pdf' ? 'pdf' : current.kind === 'html' ? 'html' : 'md'}`}>{current.kind === 'pdf' ? 'PDF' : current.kind === 'html' ? 'HTML' : current.kind === 'image' ? 'IMG' : 'MD'}</span>}
+      <strong className="reader-title" title={name}>{name}</strong>
+      <div className="reader-actions">
+        {current?.text && <button className="icon-btn reader-action" aria-label={copied ? '已复制' : '复制源码'} title={copied ? '已复制' : '复制源码'} onClick={() => void copySource()}>{copied ? <CheckIcon /> : <CopyIcon />}</button>}
+        {current && <button className="icon-btn reader-action" disabled={saving} aria-label="用系统打开" title="用系统打开" onClick={() => void openOutside()}><OpenOutIcon /></button>}
+        {current && <Button variant="ghost" disabled={saving} onClick={() => { setSaving(true); void saveWorkspaceFile(name, current.blob).catch(error => setError(String(error))).finally(() => setSaving(false)) }}>{C.download}</Button>}
+        <button className="icon-btn nav-icon-btn" aria-label="关闭阅读器" onClick={onClose}><CloseIcon /></button>
+      </div>
+    </header>
+    {error && <p role="alert" className="mw-error">{error}</p>}
+    {current ? <div className={`mw-reader mw-reader-${current.kind}`} onClickCapture={event => {
+      const link = (event.target as Element).closest('a[href]'), next = workspaceLink(link?.getAttribute('href') ?? '', target)
+      if (next && onNavigate && target.scope !== 'library') { event.preventDefault(); event.stopPropagation(); onNavigate(next) }
+    }}><View document={current} page={target.page} title={name} /></div> : !error && <p role="status">{C.loading}</p>}
+  </section>
+}

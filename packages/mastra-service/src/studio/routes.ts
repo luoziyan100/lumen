@@ -63,7 +63,10 @@ export function studioRoutes(options: { studio: Studio; http: ResearchHttp; acti
   app.get('/topics/:topicId/sheets', c => {
     const topicId = id.parse(c.req.param('topicId'))
     topics.get(topicId)
-    return c.json({ items: board.sheets(topicId), writable: board.writableSheet(topicId).id })
+    // ---- 没有进行中的白板（都收起了）不是错误：writable 为 null，界面提示用户点 ＋ ----
+    let writable: string | null = null
+    try { writable = board.writableSheet(topicId).id } catch (error) { if (!(error instanceof StudioError) || error.status !== 409) throw error }
+    return c.json({ items: board.sheets(topicId), writable })
   })
   app.post('/topics/:topicId/sheets', async c => {
     const topicId = id.parse(c.req.param('topicId'))

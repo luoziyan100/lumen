@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 真实 createHttpService、本机 HTTP、LibSQL/SQLite 与 library/ 文件；研究网络在 fetch 边界替换为本地夹具
- * [OUTPUT]: studio HTTP 证明：认证、主题与状态灯字段、白板 ETag/304、上传与链接入库去重、原件读取（nosniff + CSP sandbox）、引用增删与可读错误
+ * [OUTPUT]: studio HTTP 证明：认证、主题与状态灯字段、白板 ETag/304 与全部收起时 writable=null、上传与链接入库去重、原件读取（nosniff + CSP sandbox）、引用增删与可读错误
  * [POS]: S1 的 HTTP 验收；不经模型，白板没有对人的写接口（R4）
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -69,6 +69,15 @@ test('studio HTTP：主题、白板 ETag、资料库上传/链接去重、原件
     assert.equal(added.status, 201)
     assert.equal((await (await json(`/topics/${topic.id}/sheets`)).json() as { writable: string }).writable, (await added.json() as { id: string }).id)
     assert.equal((await json(`/sheets/${sheets.writable}/blocks`, 'POST', { kind: 'text' })).status, 404, '人没有区块写接口')
+    // ---- 全部收起时不是错误：writable 为 null，界面据此提示点 ＋（P0 没有收起接口，直接改真实库模拟历史数据） ----
+    const { DatabaseSync } = await import('node:sqlite')
+    const raw = new DatabaseSync(join(dataRoot, 'catalog.sqlite'))
+    raw.prepare("UPDATE sheets SET state = 'folded' WHERE topic_id = ?").run(topic.id); raw.close()
+    const folded = await json(`/topics/${topic.id}/sheets`)
+    assert.equal(folded.status, 200)
+    assert.equal((await folded.json() as { writable: string | null }).writable, null)
+    const reopened = await (await json(`/topics/${topic.id}/sheets`, 'POST', {})).json() as { id: string }
+    assert.equal((await (await json(`/topics/${topic.id}/sheets`)).json() as { writable: string }).writable, reopened.id)
 
     // ---- 资料库：上传（带主题即引用）、重复去重、原件读取 ----
     const uploaded = await upload('曾鸣：AI 产业.md', '# 技术扩散\n\n笔记正文', topic.id)

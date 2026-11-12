@@ -1,6 +1,6 @@
 /**
- * [INPUT]: 工作区引用解析、资产hook、真实Files/目录轨及HTTP文件响应
- * [OUTPUT]: 当前稿路径边界、身份隔离、新产物通知、卷帘交互、附件完整读取与批量上传失败保留
+ * [INPUT]: 工作区引用解析、真实 DocumentReader 及 HTTP 文件响应（含 ETag/304）
+ * [OUTPUT]: 当前稿路径边界、阅读器版本检查与资料库读取、附件完整读取与上传失败保留
  * [POS]: 文件预览路由边界，不替代原生阅读器验收
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -57,7 +57,7 @@ test('当前稿仅绑定主题工作区可写文本，资料与内部文件不�
   for (const path of ['library/report.md', 'cache/report.md', 'workers/report.md', 'report.html', 'paper.pdf', '../private.md', 'notes/../../private.md']) assert.equal(writableDocument({ scope: 'work', path }), null)
 })
 
-test('工作区隐藏仍读取主题工作区产物，只为新路径通知展开，内部目录不进产物列表', async () => {
+test('阅读器：运行中按 ETag 低频检查版本，未变不重建沙箱，变了才换内容；资料库条目不需要会话身份', async () => {
   const { register } = await import('node:module')
   const { JSDOM } = await import('jsdom')
   const { createServer } = await import('node:http')
@@ -67,88 +67,44 @@ test('工作区隐藏仍读取主题工作区产物，只为新路径通知展�
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   Object.defineProperty(window, 'matchMedia', { value: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }) })
   register('./helpers/tsx-loader.mjs', import.meta.url)
-  register('data:text/javascript,' + encodeURIComponent(`export async function resolve(specifier, context, next) { if (specifier.endsWith('?url')) return { url: 'data:text/javascript,export default \"test-worker-url\"', shortCircuit: true }; return next(specifier, context) } export async function load(url, context, next) { const result = await next(url, context); if(url.endsWith('/WidgetFrame.tsx')) return {...result, source: String(result.source).replaceAll('import.meta.env.BASE_URL', JSON.stringify('/'))}; return result }`), import.meta.url)
+  register('data:text/javascript,' + encodeURIComponent(`export async function resolve(specifier, context, next) { if (specifier.endsWith('?url')) return { url: 'data:text/javascript,export default \"test-worker-url\"', shortCircuit: true }; return next(specifier, context) } export async function load(url, context, next) { const result = await next(url, context); if (/\\/src\\/.*\\.tsx$/.test(url)) return { ...result, source: String(result.source).replaceAll('import.meta.env.BASE_URL', JSON.stringify('/')) }; return result }`), import.meta.url)
   const { createRoot } = await import('react-dom/client')
-  const { Files } = await import('../src/mastra/views/Files.tsx')
-  const { WorkspaceRail } = await import('../src/mastra/views/workspace/Rail.tsx')
-  const { useWorkspace } = await import('../src/mastra/views/workspace/useWorkspace.ts')
+  const { DocumentReader } = await import('../src/mastra/views/reader/DocumentReader.tsx')
   const { LumenApi } = await import('../src/mastra/data/client.ts')
-  let content = '<p>版本一</p>', reads = 0, uploads = 0, copied = ''
+  let content = '<p>版本一</p>', copied = ''
+  const reads: string[] = []
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { async writeText(text: string) { copied = text } } })
-  let added = false, current: ReturnType<typeof useWorkspace> | undefined
-  const visited: string[] = []
   const server = createServer((req, res) => {
-    const url = new URL(req.url!, 'http://localhost'), path = url.searchParams.get('path') ?? '.'
-    if (url.pathname === '/lumen/files') { reads++; res.setHeader('Content-Type', 'text/html'); res.end(content); return }
-    if (url.pathname === '/lumen/library') { uploads++; res.statusCode = 500; res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ error: '首个文件上传失败' })); return }
-    visited.push(path)
-    const entries = path === '.' ? [{ name: 'workers', type: 'directory' }, { name: 'output', type: 'directory' }, ...(added ? [{ name: 'new.md', type: 'file' }] : [])] : [{ name: 'report.md', type: 'file' }]
-    res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify(url.pathname.endsWith('snapshot') ? { displayState: { tasks: [], isRunning: false } } : { entries }))
+    const url = new URL(req.url!, 'http://localhost')
+    if (url.pathname === '/lumen/library/item-1/content') { reads.push('library'); res.setHeader('Content-Type', 'text/plain'); res.end('资料原文'); return }
+    const etag = `"${Buffer.from(content).toString('base64')}"`
+    reads.push(`${url.searchParams.get('topicId')}:${url.searchParams.get('scope')}:${url.searchParams.get('path')}`)
+    if (req.headers['if-none-match'] === etag) { res.writeHead(304, { ETag: etag }); res.end(); return }
+    res.writeHead(200, { 'Content-Type': 'text/html', ETag: etag }); res.end(content)
   })
   await new Promise<void>(done => server.listen(0, '127.0.0.1', done))
   const api = new LumenApi({ baseUrl: `http://127.0.0.1:${(server.address() as { port: number }).port}`, token: 'test' })
   const element = document.createElement('div'); document.body.append(element); const root = createRoot(element)
-  const frames: Array<{ task: string; assets: number; display: boolean }> = []
-  function Probe({ task = 't' }: { task?: string }) { current = useWorkspace(api, task ? { topicId: 'p', taskId: task } : null, 0); frames.push({ task, assets: current.assets.length, display: current.display !== null }); return null }
-  async function wait(check: () => boolean) { for (let i = 0; i < 100 && !check(); i++) await act(async () => { await new Promise(done => setTimeout(done, 10)) }); assert.ok(check()) }
+  async function wait(check: () => boolean) { for (let i = 0; i < 300 && !check(); i++) await act(async () => { await new Promise(done => setTimeout(done, 10)) }); assert.ok(check()) }
   try {
-    await act(async () => root.render(createElement(Probe)))
-    await wait(() => current?.assets.length === 1)
-    assert.equal(current!.revealVersion, 1); assert.ok(!visited.includes('workers'))
-    assert.deepEqual(current!.assets.map(file => `${file.scope}:${file.path}`), ['work:output/report.md'])
-    const requests = visited.length
-    await act(async () => current!.refresh()); await wait(() => visited.length > requests)
-    await act(async () => { await new Promise(done => setTimeout(done, 40)) })
-    assert.equal(current!.revealVersion, 1)
-    added = true; await act(async () => current!.refresh()); await wait(() => current!.assets.length === 2)
-    assert.equal(current!.revealVersion, 2)
-    await act(async () => root.render(createElement(Probe, { task: 'other' })))
-    assert.deepEqual(frames.find(frame => frame.task === 'other'), { task: 'other', assets: 0, display: false })
-    await wait(() => current!.assets.length === 2)
-    await act(async () => root.render(createElement(Probe, { task: '' })))
-    assert.deepEqual(frames.find(frame => frame.task === ''), { task: '', assets: 0, display: false })
-    await act(async () => root.render(createElement(Probe, { task: 't' })))
-    await wait(() => current!.assets.length === 2)
-    const state = current!
-    let opened = ''
-    await act(async () => root.render(createElement(WorkspaceRail, { workspace: state, onOpen: file => { opened = file.path }, onBrowse() {}, onUpload() {} })))
-    assert.equal(element.querySelectorAll('.rail-group').length, 1)
-    assert.match(element.querySelector('aside')!.getAttribute('style')!, /300px/)
-    const file = [...element.querySelectorAll<HTMLButtonElement>('.ws-item')].find(button => button.textContent === 'report.md')!
-    await act(async () => file.click()); assert.equal(opened, 'output/report.md')
-    await act(async () => element.querySelector<HTMLButtonElement>('.rail-toggle')!.click())
-    const fold = element.querySelector('.rail-dir-body')!.closest('[aria-hidden]')!
-    assert.equal(fold.getAttribute('aria-hidden'), 'true'); assert.ok(fold.hasAttribute('inert'))
-    let bound = 0
-    const running = { ...state, display: { ...state.display!, isRunning: true } }
+    await act(async () => root.render(createElement(DocumentReader, { api, identity: null, target: { scope: 'library', path: 'item-1' }, title: '资料', onClose() {} })))
+    await wait(() => /资料原文/.test(element.textContent!))
+    assert.deepEqual(reads, ['library'])
     const target = { scope: 'work' as const, path: 'report.html' }
-    await act(async () => root.render(createElement(Files, { api, identity: { topicId: 'p', taskId: 't' }, revision: 0, workspace: running, target, onOpenDocument() { bound++ } })))
+    await act(async () => root.render(createElement(DocumentReader, { api, identity: { topicId: 'p', taskId: 't' }, target, live: true, onClose() {} })))
     await wait(() => !!element.querySelector('iframe'))
-    const frame = element.querySelector('iframe')!, firstReads = reads
+    const frame = element.querySelector('iframe')!, first = reads.length
+    assert.equal(reads.at(-1), 'p:work:report.html')
     await act(async () => { await new Promise(done => setTimeout(done, 5100)) })
-    await wait(() => reads > firstReads)
-    assert.equal(element.querySelector('iframe'), frame); assert.equal(bound, 1)
-    assert.equal(element.querySelector('[role=status]'), null)
+    await wait(() => reads.length > first)
+    assert.equal(element.querySelector('iframe'), frame, '未变（304）时沙箱不能重建')
     content = '<p>版本二</p>'
-    await act(async () => { await new Promise(done => setTimeout(done, 5100)) })
-    await act(async () => { await new Promise(done => setTimeout(done, 200)) })
+    await act(async () => { await new Promise(done => setTimeout(done, 5300)) })
     await act(async () => element.querySelector<HTMLButtonElement>('[aria-label="复制源码"]')!.click())
     assert.match(copied, /版本二/)
-    assert.equal(bound, 1)
-    const reading: boolean[] = []; let centers = 0
-    await act(async () => root.render(createElement(Files, { key: 'reading', api, identity: { topicId: 'p', taskId: 't' }, revision: 0, workspace: state, target, centered: false, onCenter() { centers++ }, onReading(open: boolean) { reading.push(open) } })))
-    assert.equal(reading.at(-1), true, '打开正文须回报阅读器已开')
-    await act(async () => element.querySelector<HTMLButtonElement>('[aria-label="文档居中"]')!.click())
-    assert.equal(centers, 1)
-    await act(async () => element.querySelector<HTMLButtonElement>('[aria-label="返回工作目录"]')!.click())
-    assert.equal(reading.at(-1), false, '回到目录须回报阅读器已关，布局退回分屏')
-    const input = element.querySelector<HTMLInputElement>('input[type=file]')!
-    Object.defineProperty(input, 'files', { configurable: true, value: [new File(['one'], 'one.txt'), new File(['two'], 'two.txt')] })
-    await act(async () => input.dispatchEvent(new dom.window.Event('change', { bubbles: true })))
-    await wait(() => !!element.querySelector('[role=alert]'))
-    assert.match(element.querySelector('[role=alert]')!.textContent!, /上传失败/)
-    assert.equal(uploads, 1)
-
-
+    let closed = 0
+    await act(async () => root.render(createElement(DocumentReader, { api, identity: { topicId: 'p', taskId: 't' }, target, onClose() { closed++ } })))
+    await act(async () => element.querySelector<HTMLButtonElement>('[aria-label="关闭阅读器"]')!.click())
+    assert.equal(closed, 1)
   } finally { await act(async () => root.unmount()); element.remove(); dom.window.close(); await new Promise<void>(done => server.close(() => done())) }
 })

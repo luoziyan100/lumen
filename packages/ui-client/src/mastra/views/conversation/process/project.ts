@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 原生Mastra持久/流式消息parts、当前DisplayState与轮次摘要投影
- * [OUTPUT]: processTimeline 与 createConversationProjection：思考、工具叙事、正文和轮次导航的有序投影；流式更新复用稳定历史
+ * [OUTPUT]: processTimeline 与 createConversationProjection：思考、工具叙事、白板卡片（R6）、正文和轮次导航的有序投影；流式更新复用稳定历史
  * [POS]: 纯呈现投影，不保存第二份消息；只采用服务公开reasoning，工具按callId去重，中文文案沿原VERB；计时只采用本轮真实用户消息时间
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -9,10 +9,19 @@ import type { DisplayState } from '../../../data/client'
 import { messageRole } from '../../../data/feed'
 import { turnItems } from '../transcript/content'
 export interface Step { id: string; name: string; label: string; chip?: string; status: 'running' | 'completed' | 'failed' | 'stopped'; error?: string }
-export type Row = { kind: 'message'; id: string; message: MastraDBMessage } | { kind: 'thought'; id: string; text: string; running: boolean; startedAt: Date | null } | { kind: 'process'; id: string; steps: Step[]; running: boolean; startedAt: Date | null }
+/** 白板写入在对话里只留一张卡片（R6）：画了/改了/取代了哪一块，点它跳到那块。 */
+export interface BoardCard { kind: 'board'; id: string; action: 'draw' | 'update' | 'supersede'; title: string; blockId?: string; running: boolean; status: Step['status']; error?: string }
+export type Row = { kind: 'message'; id: string; message: MastraDBMessage } | { kind: 'thought'; id: string; text: string; running: boolean; startedAt: Date | null } | { kind: 'process'; id: string; steps: Step[]; running: boolean; startedAt: Date | null } | BoardCard
+const BOARD_ACTIONS: Record<string, BoardCard['action']> = { board_draw: 'draw', board_update: 'update', board_supersede: 'supersede' }
+function boardCard(id: string, name: string, args: Record<string, unknown>, result: Record<string, unknown>, status: Step['status'], error?: string): BoardCard {
+  const title = typeof result.title === 'string' ? result.title : typeof args.title === 'string' ? args.title : ''
+  const blockId = typeof result.blockId === 'string' ? result.blockId : typeof args.blockId === 'string' ? args.blockId : undefined
+  return { kind: 'board', id, action: BOARD_ACTIONS[name]!, title, blockId, running: status === 'running', status, error }
+}
 const labels: Record<string, string> = {
   search_papers: '检索文献', openalex_search: '检索文献', web_search: '网页搜索', search_web: '网页搜索',
   extract_pdf: '读取 PDF', fetch_url: '抓取网页', read_url: '抓取网页', web_fetch: '抓取网页',
+  board_view: '看白板', board_draw: '在白板上画', board_update: '改白板', board_supersede: '标为已取代',
   write_file: '写入文件', edit_file: '编辑文件', read_file: '读取文件', list_materials: '查看材料', read_material: '阅读材料',
   list_files: '浏览工作区', list_dir: '列目录', grep: '检索内文', glob: '查找文件',
   run_code: '运行代码', execute_command: '执行命令', todo_write: '更新进度', update_plan: '更新进度', ask_user: '询问用户',
@@ -53,6 +62,13 @@ export function processTimeline(messages: MastraDBMessage[], display: DisplaySta
         if (!thought) { thought = { kind: 'thought', id: `${turn}:thought`, text: '', running: false, startedAt }; rows.push(thought) }
         thought.text += `${thought.text ? '\n\n' : ''}${text}`
         thought.running = display?.isRunning === true && display.currentMessage?.id === message.id && !message.content.parts.some(item => item.type === 'text' && item.text.trim() || item.type === 'tool-invocation')
+      } else if (part.type === 'tool-invocation' && BOARD_ACTIONS[part.toolInvocation.toolName]) {
+        const call = part.toolInvocation, result = record('result' in call ? call.result : undefined), live = display?.activeTools[call.toolCallId]
+        const failed = live?.status === 'error' || result.isError === true || !!result.error, complete = 'result' in call || live?.status === 'completed'
+        const status: Step['status'] = failed ? 'failed' : complete ? 'completed' : turn === activeTurn && display?.isRunning === true ? 'running' : 'stopped'
+        const card = boardCard(call.toolCallId, call.toolName, record(call.args), result, status, failed ? (typeof result.error === 'string' ? result.error.slice(0, 180) : typeof result.message === 'string' ? result.message.slice(0, 180) : '没画上') : undefined)
+        const existing = rows.findIndex(row => row.kind === 'board' && row.id === card.id)
+        if (existing < 0) rows.push(card); else rows[existing] = card
       } else if (part.type === 'tool-invocation') {
         if (!process) { process = { kind: 'process', id: `${turn}:process`, steps: [], running: false, startedAt }; rows.push(process) }
         const call = part.toolInvocation, args = record(call.args), result = record('result' in call ? call.result : undefined)
@@ -79,7 +95,8 @@ export function processTimeline(messages: MastraDBMessage[], display: DisplaySta
   if (display?.isRunning) {
     for (const [id, tool] of Object.entries(display.activeTools)) {
       if (tool.status !== 'running' && tool.status !== 'streaming_input') continue
-      if (rows.some(row => row.kind === 'process' && row.steps.some(step => step.id === id))) continue
+      if (rows.some(row => (row.kind === 'process' && row.steps.some(step => step.id === id)) || (row.kind === 'board' && row.id === id))) continue
+      if (BOARD_ACTIONS[tool.name]) { rows.push(boardCard(id, tool.name, record(tool.args), {}, 'running')); continue }
       if (!process) { process = { kind: 'process', id: `${activeTurn}:process`, steps: [], running: true, startedAt: turnStartedAt(messages) }; rows.push(process) }
       const args = record(tool.args)
       process.steps.push({ id, name: tool.name, label: toolLabel(tool.name), chip: typeof args.path === 'string' ? args.path.split('/').pop() : undefined, status: 'running' })

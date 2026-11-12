@@ -60,11 +60,27 @@ export class LumenApi {
   topics(archived = false) { return this.request<{ items: Topic[] }>(`/lumen/topics?archived=${archived}`) }
   createTopic(title: string) { return this.request<Topic>('/lumen/topics', 'POST', { title }) }
   updateTopic(topicId: string, updates: { title?: string; archived?: boolean }) { return this.request<Topic>(`/lumen/topics/${encodeURIComponent(topicId)}`, 'PATCH', updates) }
-  sheets(topicId: string) { return this.request<{ items: Sheet[]; writable: string }>(`/lumen/topics/${encodeURIComponent(topicId)}/sheets`) }
+  sheets(topicId: string) { return this.request<{ items: Sheet[]; writable: string | null }>(`/lumen/topics/${encodeURIComponent(topicId)}/sheets`) }
   sheet(sheetId: string) { return this.request<SheetView>(`/lumen/sheets/${encodeURIComponent(sheetId)}`) }
+  /** 你点 ＋ 新开一张白板；AI 不会自己开。 */
+  createSheet(topicId: string, title?: string) { return this.request<Sheet>(`/lumen/topics/${encodeURIComponent(topicId)}/sheets`, 'POST', title ? { title } : {}) }
+  /** 带 ETag 读白板：没变时返回 view=null，不重新解析。 */
+  async sheetVersion(sheetId: string, etag?: string | null): Promise<{ view: SheetView | null; etag: string | null }> {
+    const response = await fetch(`${this.connection.baseUrl}/lumen/sheets/${encodeURIComponent(sheetId)}`, { headers: { ...this.headers(), ...(etag ? { 'If-None-Match': etag } : {}) } })
+    if (response.status === 304) return { view: null, etag: etag ?? null }
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null)
+      throw new Error(typeof detail?.error === 'string' ? detail.error : `请求失败 (${response.status})`)
+    }
+    return { view: await response.json() as SheetView, etag: response.headers.get('ETag') }
+  }
   library() { return this.request<{ items: LibraryItem[] }>('/lumen/library') }
   materials(topicId: string) { return this.request<{ items: TopicMaterial[] }>(`/lumen/topics/${encodeURIComponent(topicId)}/materials`) }
   reference(topicId: string, itemId: string) { return this.request<{ referenced: boolean }>(`/lumen/topics/${encodeURIComponent(topicId)}/materials`, 'POST', { itemId }) }
+  async unreference(topicId: string, itemId: string) {
+    const response = await fetch(`${this.connection.baseUrl}/lumen/topics/${encodeURIComponent(topicId)}/materials/${encodeURIComponent(itemId)}`, { method: 'DELETE', headers: this.headers() })
+    if (!response.ok && response.status !== 404) throw new Error(`取消引用失败 (${response.status})`)
+  }
   addLink(url: string, topicId?: string) { return this.request<{ item: LibraryItem; created: boolean; referenced: boolean }>('/lumen/library', 'POST', { url, ...(topicId ? { topicId } : {}) }) }
   libraryContentUrl(itemId: string) { return `${this.connection.baseUrl}/lumen/library/${encodeURIComponent(itemId)}/content` }
   sessions(topicId: string, page = 0, archived = false, search = '') { return this.request<Page<SessionInfo>>(`/lumen/topics/${encodeURIComponent(topicId)}/sessions?${new URLSearchParams({ page: String(page), archived: String(archived), search })}`) }
@@ -110,7 +126,7 @@ export class LumenApi {
   exportDiagnostics(identity: Identity, traceId?: string) { return this.request<DiagnosticExport>(`/lumen/diagnostics/export?${this.query(identity, traceId ? { traceId } : {})}`) }
   readRecorded(content: string) { return this.request<RecordedInspection>('/lumen/diagnostics/recorded', 'POST', { content }) }
   /** 附件进资料库并引用到当前主题；返回资料库条目 id，消息里按 id 提及，模型用 read_material 读。 */
-  async upload(identity: Identity, file: File): Promise<Upload> {
+  async upload(identity: Pick<Identity, 'topicId'>, file: File): Promise<Upload> {
     if (file.size >= 25 * 1024 * 1024) throw new Error(`附件「${file.name}」过大，请使用小于 25 MiB 的文件`)
     let bytes: ArrayBuffer
     try {

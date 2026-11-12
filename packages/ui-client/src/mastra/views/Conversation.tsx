@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 原生 SessionFeed/DisplayState、原生reasoning/工具轮次投影与真实用户消息计时、子任务轮询、当前会话稿件路径与已有 AssistantContent 沙箱
- * [OUTPUT]: Conversation：原消息舞台与输入坞、折叠思考和轮次导航；运行错误保留，连接错误可重试；审批/追问与进行中的专家任务固定在输入卡上方(专家目录在右轨，对话底部始终是最新消息)，消息按坞高度让位；子任务轮询同一世代串行；滚动只在用户停留底部时追新；widget 回调稳定以保留历史消息 memo
+ * [OUTPUT]: Conversation：原消息舞台与输入坞、折叠思考和轮次导航；白板写入只显示卡片（R6，点卡跳到那块）并把「正在画/已写完」通过 onBoard 交给外壳；运行错误保留，连接错误可重试；审批/追问与进行中的专家任务固定在输入卡上方(专家目录在右轨，对话底部始终是最新消息)，消息按坞高度让位；子任务轮询同一世代串行；滚动只在用户停留底部时追新；widget 回调稳定以保留历史消息 memo
  * [POS]: 新会话组合，不依赖旧 chat reducer；按身份 key 挂载以隔离草稿和迟到结果
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -17,7 +17,8 @@ import { TurnRail } from './conversation/transcript/TurnRail'
 import { messageAnchor, userContent } from './conversation/transcript/content'
 import './conversation/transcript/transcript.css'
 import { Composer } from './conversation/Composer'
-import { createConversationProjection, turnStartedAt } from './conversation/process/project'
+import { createConversationProjection, turnStartedAt, type BoardCard } from './conversation/process/project'
+import { STUDIO_COPY as S } from '../../copy/studioCopy'
 import { ProcessRow, ThoughtRow, Waiting } from './conversation/process/Rows'
 import { getTimeGreeting } from '../../copy/greeting'
 import { Question } from './conversation/question/Question'
@@ -31,7 +32,14 @@ function Approval({ approval, onReply }: { approval: DisplayState['pendingApprov
   const [busy, setBusy] = useState(false), [error, setError] = useState('')
   return <section className="mw-question"><strong>{C.approval}: {approval.toolName}</strong><pre>{stringify(approval.args)}</pre>{[true, false].map(approved => <Button disabled={busy} key={String(approved)} variant={approved ? 'primary' : 'ghost'} onClick={() => { setBusy(true); setError(''); void onReply(approved).catch(error => { setError(String(error)); setBusy(false) }) }}>{approved ? C.allow : C.deny}</Button>)}{error && <p role="alert">{error}</p>}</section>
 }
-export function Conversation({ api, identity, onActivity, onOpenFile, onSettings, activePath, onClearActivePath }: { api: LumenApi; identity: Identity; onActivity: () => void; onOpenFile: (target: FileTarget) => void; onSettings?: () => void; activePath?: string | null; onClearActivePath?: () => void }) {
+/** 白板动态：哪块正在画（新块为 'new'），以及已完成写入的签名——变了就该重新取白板。 */
+export interface BoardSignal { drawing: string | null; done: string }
+function BoardCardRow({ card, onFocus }: { card: BoardCard; onFocus?: (blockId: string) => void }) {
+  const verb = card.status === 'failed' ? S.card.failed : card.running ? S.card.running[card.action] : S.card.done[card.action]
+  const body = <><span className="board-card-verb">{verb}</span>{card.title && <> · <b>{card.title}</b></>}{card.error && <span className="board-card-error">：{card.error}</span>}</>
+  return <div className={`board-card board-card-${card.status}`}>{card.blockId && onFocus && card.status !== 'failed' ? <button type="button" onClick={() => onFocus(card.blockId!)}>{body}</button> : <span>{body}</span>}</div>
+}
+export function Conversation({ api, identity, onActivity, onOpenFile, onSettings, activePath, onClearActivePath, onFocusBlock, onBoard }: { api: LumenApi; identity: Identity; onActivity: () => void; onOpenFile: (target: FileTarget) => void; onSettings?: () => void; activePath?: string | null; onClearActivePath?: () => void; onFocusBlock?: (blockId: string) => void; onBoard?: (signal: BoardSignal) => void }) {
   const { feed, view } = useSession(api, identity)
   const [error, setError] = useState(''), [children, setChildren] = useState<ChildTask[]>([])
   const alive = useRef(true), priorRunning = useRef(false)
@@ -62,6 +70,11 @@ export function Conversation({ api, identity, onActivity, onOpenFile, onSettings
     return () => { cancelled = true; clearInterval(timer) }
   }, [api, identity.topicId, identity.taskId, feed])
   const stick = useTranscriptStick(empty)
+  // ---- 白板卡片的状态变化告诉外壳：开始画 → 显示「AI 正在画」；写完 → 重新取白板 ----
+  const boardCards = timeline.filter((row): row is BoardCard => row.kind === 'board')
+  const drawing = boardCards.find(card => card.running), drawingKey = drawing ? (drawing.blockId ?? 'new') : null
+  const doneKey = boardCards.filter(card => card.status === 'completed').map(card => card.id).join(',')
+  useEffect(() => { onBoard?.({ drawing: drawingKey, done: doneKey }) }, [drawingKey, doneKey, onBoard])
   useEffect(() => { if (priorRunning.current && !running) onActivity(); priorRunning.current = running }, [running, onActivity])
   const markVisibleRead = useCallback(() => {
     const id = view.lastStoredMessageId
@@ -91,6 +104,7 @@ export function Conversation({ api, identity, onActivity, onOpenFile, onSettings
       {timeline.map(row => {
         if (row.kind === 'thought') return <ThoughtRow key={row.id} row={row} />
         if (row.kind === 'process') return <ProcessRow key={row.id} row={row} />
+        if (row.kind === 'board') return <BoardCardRow key={row.id} card={row} onFocus={onFocusBlock} />
         const message = row.message
         return <article className={`msg-group msg-group-${messageRole(message)} mw-message mw-${messageRole(message)}`} key={row.id} id={messageAnchor(message.id)}>
         <div className={`bubble bubble-${messageRole(message)}`}>
