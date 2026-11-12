@@ -14,6 +14,7 @@ tmp/
 briefs/
 .claude/
 doc/CLAUDE.md
+doc/studio/
 doc/repo-diagnosis-*.md
 doc/ui-design.md
 doc/ui-frontend-plan.md
