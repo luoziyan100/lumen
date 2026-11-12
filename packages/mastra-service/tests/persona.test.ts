@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 完整应用 Controller 与模型 HTTP 夹具
- * [OUTPUT]: 主 Agent 实际 system 提示携带完整画图合同(闭合/分支/subgraph-end/sequence/规模/语义 class、不写颜色)与白板草稿纸信念/白板工具
+ * [OUTPUT]: 主 Agent 实际 system 提示携带完整画图合同(闭合/分支/subgraph-end/sequence/规模/语义 class、不写颜色)与白板草稿纸信念/白板工具；人格全文称「用户」
  * [POS]: 画图规则与界面宿主颜色裁决(ui-client mermaidTheme)的镜像回归;规则只劝说,渲染侧仍兜底
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -10,6 +10,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createApplication } from '../src/application.ts'
+import { RESEARCH_PERSONA } from '../src/agents/persona.ts'
 import { fixtureProvider, textReply } from './provider-fixture.ts'
 
 test('主 Agent 实际请求的 system 提示包含完整画图规则', { timeout: 20000 }, async () => {
@@ -30,4 +31,9 @@ test('主 Agent 实际请求的 system 提示包含完整画图规则', { timeou
       assert.ok(system.includes(belief), belief)
     }
   } finally { await application.close(); await rm(root, { recursive: true, force: true }) }
+})
+
+test('人格对用户一律称「用户」，不替用户假定性别（负责人决定 2026-11-12）', () => {
+  assert.doesNotMatch(RESEARCH_PERSONA, /(?<!其)[他她]/)
+  assert.match(RESEARCH_PERSONA, /# 你和用户/)
 })
