@@ -1,7 +1,7 @@
 /**
  * [INPUT]: 正式或显式数据根、私有 Mastra discovery、已注册 LaunchAgent 与 Tauri 生命周期
  * [OUTPUT]: ServiceConnection、可信页面连接注入、后台唤醒和用户选择的诊断/工作区文件保存
- * [POS]: 唯一服务发现边界；默认 ~/.lumen-mastra，隔离根只读，任何错误均不连接旧服务
+ * [POS]: 唯一服务发现边界；默认 ~/.lumen-studio（label com.lumen.studio，不连旧形态 ~/.lumen-mastra），隔离根只读，任何错误均不连接旧服务
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 use std::ffi::OsString;
@@ -13,7 +13,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::Manager;
 
-const SERVICE_LABEL: &str = "com.lumen.mastra";
+const SERVICE_LABEL: &str = "com.lumen.studio";
 #[derive(Default)]
 struct RefreshState { last: Option<Instant>, running: bool }
 pub struct ServiceConnection {
@@ -59,7 +59,7 @@ impl ServiceConnection {
             }
         }
         let wake_installed = selected.is_none();
-        let root = selected.or_else(|| home.map(|value| PathBuf::from(value).join(".lumen-mastra")));
+        let root = selected.or_else(|| home.map(|value| PathBuf::from(value).join(".lumen-studio")));
         let root = root.ok_or_else(|| "无法确定用户研究数据目录".into()).and_then(|value| {
             if value.is_absolute() { Ok(value) } else { Err("Mastra 数据根必须是绝对路径".into()) }
         });
@@ -296,7 +296,8 @@ mod tests {
     #[test]
     fn default_root_and_explicit_roots_have_separate_wake_policy() {
         let default = ServiceConnection::from_options(Vec::new().into_iter(), None, Some("/Users/test".into()));
-        assert_eq!(default.root.unwrap(), PathBuf::from("/Users/test/.lumen-mastra"));
+        assert_eq!(default.root.unwrap(), PathBuf::from("/Users/test/.lumen-studio"));
+        assert_ne!(SERVICE_LABEL, "com.lumen.mastra", "studio 桌面壳不得唤醒正式旧服务");
         assert!(default.wake_installed);
         let explicit = ServiceConnection::from_options(vec!["--mastra-data-root=/tmp/selected".into()].into_iter(), Some("/tmp/fallback".into()), None);
         assert_eq!(explicit.root.unwrap(), PathBuf::from("/tmp/selected"));
