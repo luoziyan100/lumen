@@ -1,6 +1,6 @@
 /**
  * [INPUT]: studio/db 的连接与事务、studio/content 的内容与出处合同、主题引用清单
- * [OUTPUT]: BoardStore：白板张的新建与列举、区块画/改/取代、自动排版、按运行收集改动与版本快照；insertSheet
+ * [OUTPUT]: BoardStore：白板张的新建与列举、区块画/改/取代、自动排版、按运行/按对话收集改动与版本快照；insertSheet
  * [POS]: 白板唯一写入口（R4）；主题由调用方从受信身份给出，容量（R11）、rev 并发、出处边界（R15）都在单个事务里裁决
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -146,6 +146,12 @@ export class BoardStore {
   /** 本次运行写过的白板（R7：有变化的才留版本）。 */
   changedSheets(runId: string): string[] {
     return this.db.prepare('SELECT DISTINCT sheet_id FROM blocks WHERE run_id = ? ORDER BY sheet_id').all(runId).map(row => String(row.sheet_id))
+  }
+
+  /** 这段对话自它上一个版本以来写过的白板；挂起后续跑会换 runId，按对话而不是按 runId 收，重启后也不丢。 */
+  pendingSheets(threadId: string): string[] {
+    return this.db.prepare(`SELECT DISTINCT sheet_id FROM blocks WHERE thread_id = ?
+      AND updated_at > COALESCE((SELECT MAX(created_at) FROM sheet_versions WHERE thread_id = ?), '') ORDER BY sheet_id`).all(threadId, threadId).map(row => String(row.sheet_id))
   }
 
   writeVersion(sheetId: string, origin: WriteOrigin): SheetVersion {

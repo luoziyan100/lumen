@@ -133,7 +133,7 @@ export async function createHttpService(options: ApplicationOptions & { token: s
     application.mastra.getLogger().error('HTTP request failed', { detail: detail.value })
     return c.json({ error: 'Request failed' }, 500)
   })
-  app.use('*', nativeRoutePolicy(bindSession, (topicId, taskId) => catalog.requireSession(topicId, taskId)))
+  app.use('*', nativeRoutePolicy(bindSession, (topicId, taskId) => catalog.requireSession(topicId, taskId), application.admitRun))
   app.use('*', suspensionResponses(async (topicId, taskId) => ({ session: await bindSession(topicId, taskId), agent: application.agent })))
   app.use('/api/agent-controller/lumen/sessions/:resourceId/messages', async (c, next) => {
     if (c.req.method !== 'POST') return next()
@@ -150,9 +150,9 @@ export async function createHttpService(options: ApplicationOptions & { token: s
     await application.stop(topicId!, taskId!)
     return c.json({ ok: true })
   })
-  app.route('/lumen', catalogRoutes(catalog, application.liveSessionStates))
+  app.route('/lumen', catalogRoutes(catalog, application.liveSessionStates, application.assertTopicIdle))
   app.route('/lumen', studioRoutes({ studio, http: researchHttp(options.research?.fetch), activity: application.liveSessionStates }))
-  app.route('/lumen', specialistRoutes({ history: application.specialistHistory, budget: application.familyBudget, session: bindSession,
+  app.route('/lumen', specialistRoutes({ history: application.specialistHistory, budget: application.familyBudget, session: bindSession, admit: application.admitRun,
     withExecution: async work => {
       if (reconfiguring) throw new SettingsError('配置正在保存，请稍后重试', 409)
       executionRequests++

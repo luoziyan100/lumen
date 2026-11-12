@@ -1,12 +1,13 @@
 /**
  * [INPUT]: Hono 路由、Zod 输入校验、主题会话目录用例与原生实时运行态投影
- * [OUTPUT]: catalogRoutes：主题下的原生 thread 目录与按持久消息 ID 确认已读及显式切换未读的 HTTP 接口
+ * [OUTPUT]: catalogRoutes：主题下的原生 thread 目录（新开对话受 R1 准入）与按持久消息 ID 确认已读及显式切换未读的 HTTP 接口
  * [POS]: 认证保护之后的产品路由，不代理 Controller 执行协议；主题本身的增改在 studio/routes
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { Hono } from 'hono'
 import { z } from 'zod'
 import { CatalogError, type Catalog } from './catalog.ts'
+import { StudioError } from '../studio/errors.ts'
 
 const id = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/)
 const title = z.string().trim().min(1).max(200)
@@ -21,10 +22,10 @@ const sessionPatch = z.object({ title: title.optional(), pinned: z.boolean().opt
   .strict().refine(value => Object.keys(value).length > 0)
 const readReceipt = z.object({ messageId: z.string().min(1).max(512) }).strict()
 
-export function catalogRoutes(catalog: Catalog, activity?: () => Promise<Map<string, { running: boolean; waiting: boolean }>>) {
+export function catalogRoutes(catalog: Catalog, activity?: () => Promise<Map<string, { running: boolean; waiting: boolean }>>, assertIdle?: (topicId: string, taskId?: string) => Promise<void>) {
   const app = new Hono()
   app.onError((error, c) => {
-    if (error instanceof CatalogError) return c.json({ error: error.message }, error.status)
+    if (error instanceof CatalogError || error instanceof StudioError) return c.json({ error: error.message }, error.status)
     if (error instanceof z.ZodError || error instanceof SyntaxError) return c.json({ error: 'Invalid catalog request' }, 400)
     return c.json({ error: 'Catalog operation failed' }, 500)
   })
@@ -34,8 +35,11 @@ export function catalogRoutes(catalog: Catalog, activity?: () => Promise<Map<str
     return c.json({ ...result, items: result.items.map(item => ({ ...item, running: false, waiting: false, ...states?.get(item.resourceId) })) })
   })
   app.post('/topics/:topicId/sessions', async c => {
-    const input = sessionCreate.parse(await c.req.json())
-    return c.json(await catalog.createSession(id.parse(c.req.param('topicId')), input.taskId, input.title), 201)
+    const input = sessionCreate.parse(await c.req.json()), topicId = id.parse(c.req.param('topicId'))
+    // ---- R1：主题里有对话在跑或在等时不开新对话；重新打开已有对话不受限 ----
+    const exists = input.taskId !== undefined && await catalog.requireSession(topicId, input.taskId).then(() => true, () => false)
+    if (!exists) await assertIdle?.(topicId)
+    return c.json(await catalog.createSession(topicId, input.taskId, input.title), 201)
   })
   app.get('/topics/:topicId/sessions/:taskId', async c => c.json(await catalog.getSession(
     id.parse(c.req.param('topicId')), id.parse(c.req.param('taskId')))))

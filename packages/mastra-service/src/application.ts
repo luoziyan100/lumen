@@ -30,6 +30,8 @@ import { topicWorkspace, memoryFilesystem, type MemoryScope } from './workspace/
 import { createMemoryTools, readMemoryIndex } from './workspace/memory.ts'
 import { openStudio } from './studio/studio.ts'
 import { createMaterialAccess, createMaterialTools } from './studio/tools.ts'
+import { createBoardTools, topicState } from './studio/board-tools.ts'
+import { StudioError } from './studio/errors.ts'
 import { createExecutionTools } from './execution/tools.ts'
 import { ALWAYS_ALLOWED_TOOLS, toolCategory } from './permissions.ts'
 import { RESEARCH_DOMAINS } from './execution/domains.ts'
@@ -104,6 +106,12 @@ export async function createApplication(options: ApplicationOptions) {
     return { bytes, title: item.title }
   }
   const materialTools = createMaterialTools(materials, studio, topicOf)
+  // -------- 白板写入只来自已打开的主会话；运行 ID 取自它当前的原生运行，版本在运行结束时按对话收 --------
+  const boardTools = createBoardTools(studio, async context => {
+    const resourceId = ownerOf(context)
+    const session = await sessions.get(resourceId)
+    return { topicId: resourceId.split(':')[0]!, threadId: resourceId, runId: session?.run.getRunId() ?? null }
+  }, topicOf)
   const researchTools = { ...createPaperTools(http, options.research?.openAlexKey), ...createWebTools(http, options.research?.tavilyKey, materials.intake), extract_pdf: createPdfTool(http, materials.intake) }
   function skillsFor(topic: string) {
     const topicId = safeId(topic)
@@ -170,7 +178,7 @@ export async function createApplication(options: ApplicationOptions) {
     },
   })
   const specialists = createSpecialistGroup({ dataRoot: root, mastra: () => mastra, model: currentModel, memory, childUsage, familyBudget, specialistHistory,
-    tools: { ...researchTools, ...skillTools, ...materialTools, ...memoryTools }, modelSettings: settingsFor, readLibrary,
+    tools: { ...researchTools, ...skillTools, ...materialTools, ...memoryTools, board_view: boardTools.board_view }, modelSettings: settingsFor, readLibrary,
     resolveExecutionEnvironment: executionEnvironment,
     resolveTaskFilesystem(resourceId) {
       const filesystem = bound.get(resourceId)?.filesystem
@@ -186,12 +194,14 @@ export async function createApplication(options: ApplicationOptions) {
         ? readMemoryIndex(await memoryFiles(owner.resourceId.split(':')[0]!, scope))
           .catch(error => `（MEMORY.md 暂时无法读取：${error instanceof Error ? error.message : String(error)}；需要时用 read_memory 检查。）`) : ''
       const [you, topic] = await Promise.all([index('you'), index('topic')])
-      return [RESEARCH_PERSONA, userInstructions && `用户研究偏好：\n${userInstructions}`,
+      // -------- 主题现状（白板 + 材料）每次请求现取，有硬上限；只进当次指令，不写进持久消息 --------
+      const state = owner?.resourceId && bound.has(owner.resourceId) ? topicState(studio, owner.resourceId.split(':')[0]!) : ''
+      return [RESEARCH_PERSONA, userInstructions && `用户研究偏好：\n${userInstructions}`, state,
         you && `关于用户的记忆索引（scope=you，按需读取，不视为外部证据）：\n${you}`,
         topic && `这个主题的记忆索引（scope=topic，按需读取，不视为外部证据）：\n${topic}`].filter(Boolean).join('\n\n')
     },
     memory,
-    tools: ({ requestContext }) => modelTools(settingsFor(requestContext), { ...researchTools, ...skillTools, ...memoryTools, ...materialTools, ...executionTools, ...ingestionTools, ...historyTools }),
+    tools: ({ requestContext }) => modelTools(settingsFor(requestContext), { ...researchTools, ...skillTools, ...memoryTools, ...materialTools, ...boardTools, ...executionTools, ...ingestionTools, ...historyTools }),
     agents: async () => (await specialists.get()).agents,
     inputProcessors: ({ requestContext }) => [budget.inputProcessor, ...createInputProcessors(settingsFor(requestContext), imageProcessor), familyBudget.inputProcessor],
     outputProcessors: [familyBudget.outputProcessor, createEmptyActionProcessor()], maxProcessorRetries: 1,
@@ -257,6 +267,9 @@ export async function createApplication(options: ApplicationOptions) {
         if (event.type === 'agent_end' && event.reason !== 'suspended') {
           const finishedRun = activeMainRuns.get(resourceId)
           void familyBudget.finish(resourceId, finishedRun, 'main').catch(error => session.emit({ type: 'error', error, errorType: 'budget_settlement' }))
+          // -------- R7：一次运行（含停下、出错）给它改过的每张白板留一个版本；挂起不算结束 --------
+          try { for (const sheetId of studio.board.pendingSheets(resourceId)) studio.board.writeVersion(sheetId, { threadId: resourceId, runId: finishedRun ?? null }) }
+          catch (error) { session.emit({ type: 'error', error: error instanceof Error ? error : new Error(String(error)), errorType: 'board_version' }) }
         }
       })
       const state = await storage.getStore('threadState')
@@ -338,30 +351,64 @@ export async function createApplication(options: ApplicationOptions) {
     studio.close()
   }
 
+  async function liveSessionStates() {
+    const states = new Map<string, { running: boolean; waiting: boolean }>()
+    for (const [resourceId, pending] of sessions) {
+      const state = (await pending).displayState.get()
+      states.set(resourceId, { running: state.isRunning, waiting: state.pendingApprovals.size > 0 || state.pendingSuspensions.size > 0 })
+    }
+    const children = await mastra.backgroundTaskManager?.listTasks({ status: ['pending', 'running', 'suspended'], perPage: 10000 })
+    for (const child of children?.tasks ?? []) {
+      if (!child.resourceId) continue
+      const state = states.get(child.resourceId) ?? { running: false, waiting: false }
+      if (child.status === 'suspended') state.waiting = true
+      else state.running = true
+      states.set(child.resourceId, state)
+    }
+    // -------- 未打开会话的持久挂起同样挡配置写闸(isBusy)，必须在目录里可见，否则界面无从解释 409 --------
+    for (const run of (await agent.listSuspendedRuns()).runs) {
+      if (!run.resourceId) continue
+      states.set(run.resourceId, { running: false, ...states.get(run.resourceId), waiting: true })
+    }
+    return states
+  }
+
+  // -------- R1：一个主题同一时刻只有一段对话在运行或等用户回应。准入在同步段里预留，避免两次请求同时通过检查 --------
+  const admitting = new Map<string, string>()
+  async function topicHolder(topicId: string, except: string) {
+    const other = admitting.get(topicId)
+    if (other && other !== except) return other
+    for (const [resourceId, state] of await liveSessionStates()) {
+      if (resourceId !== except && resourceId.startsWith(`${topicId}:`) && (state.running || state.waiting)) return resourceId
+    }
+    return null
+  }
+  function busy(holder: string) {
+    return new StudioError(`这个主题里另一段对话（${holder.split(':')[1]}）还在进行或在等用户回应；一个主题同一时刻只跑一段对话，先等它结束或把它停下`, 409)
+  }
+  /** 新开对话前检查；只检查不预留，真正开跑时由 admitRun 裁决。 */
+  async function assertTopicIdle(topic: string, task?: string) {
+    const topicId = safeId(topic), holder = await topicHolder(topicId, task ? `${topicId}:${safeId(task)}` : '')
+    if (holder) throw busy(holder)
+  }
+  /** 让一段对话开跑：同主题有别的对话在跑、在等或正被准入时 409；work 结束（运行已开始或失败）后释放预留。 */
+  async function admitRun<T>(topic: string, task: string, work: () => Promise<T>): Promise<T> {
+    const topicId = safeId(topic), resourceId = `${topicId}:${safeId(task)}`
+    const other = admitting.get(topicId)
+    if (other && other !== resourceId) throw busy(other)
+    const mine = !other
+    admitting.set(topicId, resourceId)
+    try {
+      const holder = await topicHolder(topicId, resourceId)
+      if (holder) throw busy(holder)
+      return await work()
+    } finally { if (mine && admitting.get(topicId) === resourceId) admitting.delete(topicId) }
+  }
+
   return {
     controller, mastra, storage, memory, root, studio, skillsFor, workspaceFor, memoryFiles, agent, diagnostics, specialists, childUsage, familyBudget, specialistHistory,
     hasModel: () => !!selectedModel,
-    async liveSessionStates() {
-      const states = new Map<string, { running: boolean; waiting: boolean }>()
-      for (const [resourceId, pending] of sessions) {
-        const state = (await pending).displayState.get()
-        states.set(resourceId, { running: state.isRunning, waiting: state.pendingApprovals.size > 0 || state.pendingSuspensions.size > 0 })
-      }
-      const children = await mastra.backgroundTaskManager?.listTasks({ status: ['pending', 'running', 'suspended'], perPage: 10000 })
-      for (const child of children?.tasks ?? []) {
-        if (!child.resourceId) continue
-        const state = states.get(child.resourceId) ?? { running: false, waiting: false }
-        if (child.status === 'suspended') state.waiting = true
-        else state.running = true
-        states.set(child.resourceId, state)
-      }
-      // -------- 未打开会话的持久挂起同样挡配置写闸(isBusy)，必须在目录里可见，否则界面无从解释 409 --------
-      for (const run of (await agent.listSuspendedRuns()).runs) {
-        if (!run.resourceId) continue
-        states.set(run.resourceId, { running: false, ...states.get(run.resourceId), waiting: true })
-      }
-      return states
-    },
+    liveSessionStates, admitRun, assertTopicIdle,
     async isBusy() {
       for (const pending of sessions.values()) {
         const session = await pending

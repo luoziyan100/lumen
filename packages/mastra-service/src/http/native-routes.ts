@@ -1,16 +1,19 @@
 /**
  * [INPUT]: 官方 Controller 路由、Lumen 归属验证/会话绑定入口与 Hono 请求
- * [OUTPUT]: nativeRoutePolicy：固定任务身份的原生 HTTP 白名单
+ * [OUTPUT]: nativeRoutePolicy：固定任务身份的原生 HTTP 白名单，开跑入口经主题准入（R1）
  * [POS]: 产品与框架边界；历史读取仅验证归属，执行/状态/订阅才绑定工作区，禁止框架另建身份或运行入口
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import type { MiddlewareHandler } from 'hono'
 
 type BindSession = (topicId: string, taskId: string) => Promise<unknown>
+type AdmitRun = <T>(topicId: string, taskId: string, work: () => Promise<T>) => Promise<T>
 const ID = '[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}'
 const RESOURCE = new RegExp(`^(${ID}):(${ID})$`)
 const SESSION = /^\/api\/agent-controller\/lumen\/sessions\/([^/]+)(.*)$/
 const ACTIONS = new Set(['/messages', '/abort', '/tool-approval', '/tool-suspension', '/steer'])
+/** 会让本段对话开跑的入口；回应审批/问答属于已在等待的那段对话自己，不再准入。 */
+const STARTS = new Set(['/messages', '/steer'])
 const MESSAGE_QUERY = new Set(['page', 'perPage', 'limit', 'orderBy'])
 
 function validQuery(url: URL, suffix: string, resourceId: string): boolean {
@@ -21,7 +24,7 @@ function validQuery(url: URL, suffix: string, resourceId: string): boolean {
   return true
 }
 
-export function nativeRoutePolicy(bindSession: BindSession, authorizeSession: BindSession): MiddlewareHandler {
+export function nativeRoutePolicy(bindSession: BindSession, authorizeSession: BindSession, admitRun?: AdmitRun): MiddlewareHandler {
   return async (c, next) => {
     const url = new URL(c.req.url)
     if (url.pathname !== '/api' && !url.pathname.startsWith('/api/')) return next()
@@ -38,6 +41,7 @@ export function nativeRoutePolicy(bindSession: BindSession, authorizeSession: Bi
     if (!validQuery(url, suffix, resourceId)) return c.json({ error: 'Unsupported session query' }, 400)
     const history = c.req.method === 'GET' && suffix === `/threads/${resourceId}/messages`
     await (history ? authorizeSession : bindSession)(identity[1]!, identity[2]!)
-    await next()
+    if (write && STARTS.has(suffix) && admitRun) await admitRun(identity[1]!, identity[2]!, () => next())
+    else await next()
   }
 }

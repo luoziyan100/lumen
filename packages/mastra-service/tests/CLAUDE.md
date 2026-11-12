@@ -11,7 +11,7 @@ P0 预注册：工具结果必须进入下一轮模型请求；两个会话不�
 - `http.test.ts`：官方客户端经真实本机 HTTP/SSE 完成执行和持久消息补取；超限附件返回 413、残缺附件包返回 400，两者均不落盘且保留先前成功材料。
 
 - `background.test.ts`：原生后台子代理的单子取消与父运行独立性。
-- `persona.test.ts`：完整应用主 Agent 实际 system 提示包含完整画图规则，与界面主题颜色裁决镜像。
+- `persona.test.ts`：完整应用主 Agent 实际 system 提示包含完整画图规则与白板草稿纸信念/白板工具，与界面主题颜色裁决镜像。
 - `permissions.test.ts`：完整应用主 Agent 实际请求中的每个工具都有权限类别或单独放行，防止漏登记触发人工审批。
 - `tool-pairing.test.ts`：并行后台委派后持久历史与下一轮实际请求的 toolCallId 唯一且配对；裸 Agent、纯原生 Controller 与完整应用均验证（1.67.0 重复 id 缺陷已随 1.82.0 关闭）；子专家 workspace 元数据进入父线程为 todo 子用例（台账 F2）。
 
@@ -27,7 +27,7 @@ P0 预注册：工具结果必须进入下一轮模型请求；两个会话不�
 - `native-routes.test.ts`：真实 HTTP/SDK 验证固定任务身份，拒绝 resource 重绑定、scope 旁路和跨任务读取；纯历史读取不创建 Session、不改 thread 排序与消息。
 - `lifecycle/`：真实子进程 SIGKILL 与 LibSQL 重开，验证遗留子任务结算及消息保留。
 - `catalog/`：实际消息未读游标/迟到确认/重开。
-- `studio/`：主题/资料库/白板存储与 HTTP、启动接线，以及 `materials.test.ts` 的资料库工具边界（R15、to_library、按页读、库内图片像素、只读专家 schema、主题工作区共享与单次销毁）。
+- `studio/`：主题/资料库/白板存储与 HTTP、启动接线，`board-tools.test.ts` 的白板工具 × 真实 Controller（两块 + 一个版本、第二段对话请求带摘要且守上限、专家只有 board_view、R4 文件碰不到白板、R1 409 含等待用户/继续专家/并发准入、R8 停下无半块且写版本），以及 `materials.test.ts` 的资料库工具边界（R15、to_library、按页读、库内图片像素、只读专家 schema、主题工作区共享与单次销毁）。
 - `studio/`：新形态存储与 HTTP——主题自带白板、资料库 sha256 去重与只读落盘、引用与进度、容量拒绝（R11）、rev 冲突、出处边界（R15）、取消引用不动区块（R10）、失败不留半块、按运行写版本；真实服务的 ETag/上传/链接；真实 start.ts 子进程的设置导入不泄凭证与旧形态数据根拒绝。
 - `deployment/`：替换 launchctl 调度、保留真实子进程/内核锁/HTTP，验证私有部署就绪、重启卸载、崩溃恢复、所有权拒绝及不接管旧 label/旧形态数据根；不调用真实 launchctl。
 

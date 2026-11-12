@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 完整应用 Controller 与模型 HTTP 夹具
- * [OUTPUT]: 主 Agent 实际 system 提示携带完整画图合同(闭合/分支/subgraph-end/sequence/规模/语义 class、不写颜色)
+ * [OUTPUT]: 主 Agent 实际 system 提示携带完整画图合同(闭合/分支/subgraph-end/sequence/规模/语义 class、不写颜色)与白板草稿纸信念/白板工具
  * [POS]: 画图规则与界面宿主颜色裁决(ui-client mermaidTheme)的镜像回归;规则只劝说,渲染侧仍兜底
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -24,6 +24,10 @@ test('主 Agent 实际请求的 system 提示包含完整画图规则', { timeou
     const system = (fixture.requests[0]?.messages ?? []).filter(message => message.role === 'system').map(message => String(message.content)).join('\n')
     for (const rule of ['先闭合节点再写边', 'flowchart TD', '-- "是" -->', 'subgraph 与 end 成对', 'A->>B: 消息', '15 个节点', '不写颜色、style 或 init', 'ok/warn/danger/accent/muted']) {
       assert.ok(system.includes(rule), rule)
+    }
+    // ---- 白板是两个人的草稿纸：信念层与工具层都要到达模型 ----
+    for (const belief of ['白板：你们俩的草稿纸', '先画，再说', '一块只讲一件事', '断在哪一级', '先收进资料库', 'board_draw', 'board_supersede', 'to_library: true']) {
+      assert.ok(system.includes(belief), belief)
     }
   } finally { await application.close(); await rm(root, { recursive: true, force: true }) }
 })

@@ -3,7 +3,7 @@
 
 框架 HTTP 能力由产品显式开放。Controller 仅消费已绑定的任务会话，不能通过原生管理路由改变 Lumen 的工作区归属。
 
-- `native-routes.ts`：白名单开放消息、状态、SSE 与交互恢复；历史读取只验证固定 topic:task 归属，状态/订阅/执行才绑定会话，避免读历史写配置或改排序时间；拒绝 scope、身份重绑定及其他执行入口。
+- `native-routes.ts`：白名单开放消息、状态、SSE 与交互恢复；历史读取只验证固定 topic:task 归属，状态/订阅/执行才绑定会话，避免读历史写配置或改排序时间；拒绝 scope、身份重绑定及其他执行入口；`/messages`、`/steer` 开跑前过主题准入（R1，409 原因可读），回应审批/问答不再准入。
 
 - `snapshot.ts`：读取原生 DisplayState 并转换 Map，以官方 SSE 的 wire 形状恢复 UI；独立附加专家累计 childTokenUsage，不改写原生主用量。
 - `suspensions.ts`：拦截官方问答回复路径，校验持久快照并只接收一次；未知、取消或重复回复明确返回 409 和可展示原因，模型执行仍交给原生 Session。

@@ -48,6 +48,10 @@ Mastra 持有模型循环、工具回灌、SSE、暂停/恢复、后台调度和
 
 会话目录使用原生 thread 元数据管理标题、归档、置顶。已读游标在产品库保存实际看过的最新持久消息 ID，手动未读使用明确的空游标；不触碰框架 thread 时间。客户端串行提交阅读状态，迟到自动确认不能覆盖手动未读；目录运行/等待灯只投影已有 Session 和原生后台任务。
 
+## 白板（studio S3）
+
+白板存 `catalog.sqlite`，没有对应文件（R4）；AI 只经 `board_view/draw/update/supersede` 写，容量、rev、出处边界在 BoardStore 单事务裁决。每次请求在指令里注入主题现状（硬上限约 1.5k token，不写进持久消息）。主运行 `agent_end`（非挂起，含停止/出错）给该对话自上个版本以来改过的白板写一个版本。一个主题同一时刻只有一段对话在运行或等用户（R1）：开跑入口（消息、steer、继续专家）经同步预留 + 原生运行/等待投影准入，新开对话同样受限，返回可读 409。
+
 ## 专家与用户决策
 
 内建 reader、searcher、verifier、explore、plan、general-purpose 六类角色。配置全局一组、按 内置 > 用户 > 插件 分层加载，公开工具名保持 `agent-<角色>`，内部 Agent ID 包含定义摘要，后台恢复不会混用同名角色。委派使用原生messageFilter隔离父会话历史，材料只经prompt/contextFromRefs显式传入，避免把父会话全部工具历史复制给每位专家。

@@ -4,7 +4,7 @@
  * [POS]: 专家能力白名单真源；写作与计算由 general-purpose 承担，不增加平行调度概念
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
-const referenceTools = ['list_skills', 'run_skill', 'read_skill_file', 'read_memory', 'list_materials', 'read_material']
+const referenceTools = ['list_skills', 'run_skill', 'read_skill_file', 'read_memory', 'list_materials', 'read_material', 'board_view']
 const researchTools = ['search_papers', 'get_citations', 'search_web', 'fetch_url', 'extract_pdf']
 const localTools = ['read_file', 'list_files', 'grep', 'extract_docx', 'look_at_image']
 const writableTools = ['write_file', 'edit_file', 'list_task_files', 'read_task_file', 'copy_task_file']

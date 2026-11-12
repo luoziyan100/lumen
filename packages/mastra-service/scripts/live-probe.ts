@@ -14,7 +14,7 @@ const settingsPath = process.argv[2]
 if (!settingsPath) throw new Error('Pass the explicit settings file path')
 const model = await readModelProfile(settingsPath)
 const root = await mkdtemp(join(tmpdir(), 'lumen-mastra-live-'))
-const workspace = join(root, 'projects/probe/tasks/research')
+const workspace = join(root, 'topics/probe/work')
 await mkdir(workspace, { recursive: true })
 await writeFile(join(workspace, 'source.md'), '# 实验材料\n样本为 12 篇论文，排除其中 3 篇，最终纳入 9 篇。核对码 LUMEN-P0-9。\n')
 const app = await createApplication({ dataRoot: root, model })

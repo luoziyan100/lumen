@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 认证后任务授权、原生父Session、专家历史索引与共享预算读取
- * [OUTPUT]: specialistRoutes：专家目录、显式继续和当前任务预算API
+ * [OUTPUT]: specialistRoutes：专家目录、显式继续（经主题准入）和当前任务预算API
  * [POS]: 只提交新的明确委派请求；不恢复旧工具快照、不绕过原生审批
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -19,6 +19,7 @@ export function specialistRoutes(options: {
   history: SpecialistHistory; budget: FamilyBudget
   session: (topicId: string, taskId: string) => Promise<Session>
   withExecution: <T>(work: () => Promise<T>) => Promise<T>
+  admit?: <T>(topicId: string, taskId: string, work: () => Promise<T>) => Promise<T>
 }) {
   const app = new Hono()
   app.get('/specialists', async c => {
@@ -39,7 +40,9 @@ export function specialistRoutes(options: {
   app.post('/specialists/continue', async c => {
     const parsed = continuation.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return c.json({ error: 'Invalid specialist continuation' }, 400)
-    return options.withExecution(async () => {
+    const admit = options.admit ?? ((_topic, _task, work) => work())
+    // ---- 继续专家同样是让这段对话开跑：走主题准入（R1） ----
+    return admit(parsed.data.topicId, parsed.data.taskId, () => options.withExecution(async () => {
       const { topicId, taskId, specialistId, prompt } = parsed.data, parent = `${topicId}:${taskId}`
       const session = await options.session(topicId, taskId)
       const state = session.displayState.get()
@@ -60,7 +63,7 @@ export function specialistRoutes(options: {
       if (awaitingApproval || after.pendingApprovals.size || after.pendingSuspensions.size) return c.json({ continued: record.continuations > previous.continuations, pendingApproval: true, record }, 202)
       if (record.continuations <= previous.continuations) return c.json({ error: '模型没有执行指定专家的继续请求；未将新专家冒充继续，请查看本轮反馈', continued: false, record }, 409)
       return c.json({ continued: true, record })
-    })
+    }))
   })
   return app
 }
