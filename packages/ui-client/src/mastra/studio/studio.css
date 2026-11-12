@@ -62,9 +62,11 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 .studio-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .studio-stage { position: relative; flex: 1; min-height: 0; display: flex; }
 .studio-later { margin: auto; max-width: 420px; text-align: center; color: var(--text-muted); font-size: var(--st-note); padding: 24px; }
-/* 视图分段控件（G6，原型 .seg）：属于白板段，分屏时不漂到阅读器上方 */
+/* 视图分段控件（G6，原型 .seg）：属于白板段，按所在段的中线居中（U1），分屏时不漂到阅读器上方 */
+.studio-center-head { position: relative; justify-content: center; }
+.studio-center-head .studio-seg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: max-content; max-width: calc(100% - 16px); }
 .studio-seg { flex: none; display: flex; gap: 2px; padding: 3px; box-sizing: border-box; height: var(--st-control); background: var(--surface-fill); border: 1px solid var(--border); border-radius: 10px; }
-.studio-seg button { height: 22px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: var(--text-muted); font-size: var(--st-body); line-height: 22px; cursor: pointer; }
+.studio-seg button { flex: none; white-space: nowrap; height: 22px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: var(--text-muted); font-size: var(--st-body); line-height: 22px; cursor: pointer; }
 .studio-seg button:hover { color: var(--text); }
 .studio-seg button.on { background: var(--surface-elevated); color: var(--text); box-shadow: var(--shadow-1); }
 .studio-split .studio-seg button { padding: 0 8px; }
@@ -77,13 +79,12 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 .board-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .board-frame { position: absolute; box-sizing: border-box; border: 1.5px dashed var(--border-strong); border-radius: var(--radius-lg); pointer-events: none; }
 .board-frame-label { position: absolute; top: -22px; right: 0; font-size: var(--st-note); color: var(--text-muted); white-space: nowrap; }
-/* 左上角浮层（G7）：多张时的张标签 · 已用 n / 8 · ＋ */
-.board-sheets { position: absolute; left: var(--st-inset); top: 12px; z-index: 5; display: flex; align-items: center; gap: 6px; box-sizing: border-box; height: var(--st-control); padding: 0 0 0 10px; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-1); }
-.board-tabs { display: flex; gap: 2px; }
+/* 左上角浮层（G7/U2）：多张时的张标签 · ＋；不显示已用块数 */
+.board-sheets { position: absolute; left: var(--st-inset); top: 12px; z-index: 5; display: flex; align-items: center; gap: 6px; box-sizing: border-box; height: var(--st-control); padding: 0; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-1); }
+.board-tabs { display: flex; gap: 2px; padding-left: 3px; }
 .board-tabs button { height: 22px; padding: 0 8px; border: 0; border-radius: 7px; background: none; color: var(--text-muted); font-size: var(--st-note); cursor: pointer; }
 .board-tabs button.on { background: var(--surface-fill); color: var(--text); }
 .board-tabs small { font-size: var(--st-label); color: var(--text-faint); }
-.board-used { font-size: var(--st-note); color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .board-sheets .icon-btn { width: 28px; height: 28px; }
 .board-empty { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); max-width: 360px; margin: 0; text-align: center; color: var(--text-muted); font-size: var(--st-note); pointer-events: none; }
 .board-hint { top: auto; bottom: 24px; transform: translateX(-50%); }
@@ -151,7 +152,7 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 
 /* ---- 右栏：材料（M1–M4） ---- */
 .materials-add { display: flex; gap: 4px; margin: 0 6px 4px; }
-.materials-group ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.materials-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
 .material { display: flex; align-items: center; margin: 0 6px; border-radius: 8px; }
 .material:hover, .material.on { background: var(--fill-subtle); }
 .material-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; border: 0; background: none; text-align: left; padding: 6px 8px; cursor: pointer; color: var(--text); }

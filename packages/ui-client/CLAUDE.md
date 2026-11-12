@@ -25,7 +25,7 @@ tests/                      # 原生 HTTP/SSE 客户端与保留渲染算法回�
 
 ## 边界与配置
 
-- 入口：`mastra/studio/StudioApp.tsx` 是桌面唯一工作台——照原型 v7 骨架的圆角面板（8px 外边距与间距、50px 同线头部、14px 同一左缘、四级字阶）：左栏主题与状态灯、中栏标题与居中分段视图（P0 只有白板可用，沉淀/概念图/灵感/全部如实占位）与同行头部的原件分屏、右栏「这个主题用到的」、白板区右下的对话精灵（可拖动/停靠成面板/收起）。白板对人只读；刷新靠对话里白板工具完成信号 + 运行中 ETag 兜底。S2 过渡入口 TopicsEntry、Files 目录轨与 workspace/ 已在 S4 退场（备份 `~/Workspace/tmp/studio-retired/2026-11-12-S4/`，含 SHA256SUMS）；旧 WorkspaceApp 等在 S2 退场（`…/2026-11-12-S2/`）。
+- 入口：`mastra/studio/StudioApp.tsx` 是桌面唯一工作台——照原型 v7 骨架的圆角面板（8px 外边距与间距、50px 同线头部、14px 同一左缘、四级字阶）：左栏主题与状态灯、中栏头部只有居中分段视图（主题名进窗口标题）（P0 只有白板可用，沉淀/概念图/灵感/全部如实占位）与同行头部的原件分屏、右栏「素材」、白板区右下的对话精灵（可拖动/停靠成面板/收起）。白板对人只读；刷新靠对话里白板工具完成信号 + 运行中 ETag 兜底。S2 过渡入口 TopicsEntry、Files 目录轨与 workspace/ 已在 S4 退场（备份 `~/Workspace/tmp/studio-retired/2026-11-12-S4/`，含 SHA256SUMS）；旧 WorkspaceApp 等在 S2 退场（`…/2026-11-12-S2/`）。
 - `mastra/data/` 消费服务接口（会话身份 `topicId:taskId`；附件上传进 `/lumen/library` 并引用到主题）；工作区文件和历史都从服务读取，不拼装旧目录或重放旧 WS 事件。
 - `components/` 保留与运行时无关的阅读能力；HTML 走隔离 widget iframe，Markdown 外链走统一确认出口。
 - `components/icons.tsx` 是业务图标唯一入口，几何与动效来自 `yan-design-system`(icons/glyphs.ts、icons/motion.css)：自绘纯线条、currentColor、悬停做物件动作(doc/ui-design.md §3.1)，16/18/20三档覆盖行内、按钮和主导航；管理三点与折叠箭头分工，文件类别用轮廓表达，禁止字符和 CSS 尺寸例外。

@@ -1,6 +1,6 @@
 /**
  * [INPUT]: useBoard 的白板张与视图、主题材料、精灵传来的「正在画/跳到某块」信号、layout.ts 的按宽排列
- * [OUTPUT]: Board：白板画布——左上角浮层（多张时的张标签、已用 n / 8、＋）、DOM + CSS transform 平移缩放（默认 100%，看全貌可缩小）、
+ * [OUTPUT]: Board：白板画布——左上角浮层（多张时的张标签、＋；不显示已用块数，上限与 R11 在服务端不变，写满时边框标签如实写「已经写满」）、DOM + CSS transform 平移缩放（默认 100%，看全貌可缩小）、
  *           按视口宽度 1–3 列重排、贴着内容的白板边框、AI 正在画提示、小部件同时运行名额、右下角缩放条
  * [POS]: 中间「白板」视图；P0 对人只读（不圈、不钉、不改）。列与位置只在显示层重排，服务端坐标不动
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -119,7 +119,7 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
     <div className="board-viewport" ref={viewport} onWheel={onWheel} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={() => { drag.current = null }} onPointerCancel={() => { drag.current = null }}>
       <div className="board-world" ref={world} style={{ transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.scale})` }}>
         {view && blocks.length > 0 && <div className="board-frame" style={{ width: layout.span + BOARD.PAD * 2, height: layout.height + BOARD.PAD * 2, left: -BOARD.PAD, top: -BOARD.PAD }}>
-          <span className="board-frame-label">{S.board.frameNote}</span>
+          <span className="board-frame-label">{view.sheet.used >= view.sheet.capacity ? S.board.frameFull : S.board.frameNote}</span>
         </div>}
         {positioned.map(block => <BlockCard key={block.id} block={block} materials={byId} supersededTitle={block.supersededBy ? titles.get(block.supersededBy) : undefined}
           widgetActive={widgets.includes(block.id)} onActivateWidget={activate} onOpenSource={onOpenSource} focused={focused === block.id} drawing={drawing === block.id} />)}
@@ -133,7 +133,6 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
     <nav className="board-sheets" aria-label="白板">
       {tabs && <span className="board-tabs">{board.sheets.map(sheet => <button type="button" key={sheet.id} className={sheet.id === board.selected ? 'on' : ''} aria-pressed={sheet.id === board.selected} onClick={() => board.select(sheet.id)}>
         {sheet.title}{sheet.state !== 'live' && <small> · {S.board.folded}</small>}</button>)}</span>}
-      {view && <span className="board-used">{S.board.frame(view.sheet.used, view.sheet.capacity)}</span>}
       <button type="button" className="icon-btn board-sheet-new" title={S.board.newSheet} aria-label={S.board.newSheet} onClick={() => void board.createSheet()}><PlusIcon /></button>
     </nav>
     <div className="board-zoom">

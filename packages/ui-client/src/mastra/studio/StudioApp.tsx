@@ -1,11 +1,12 @@
 /**
  * [INPUT]: 服务连接、主题/会话/白板/材料数据钩子、精灵与阅读器、设置与研究角色面板、外观订阅
  * [OUTPUT]: StudioApp：新形态外壳——原型 v7 骨架：canvas 底上 8px 间距的圆角面板（左栏主题、中栏、右栏材料、停靠的精灵），每个面板首行 50px 头部同线；
- *           中栏头部「主题标题 · 居中分段视图 」，分屏时阅读器头与白板头同一行；精灵球挂在白板区右下角
+ *           中栏头部只有按中线居中的分段视图（主题名进 aria-label 与窗口标题），分屏时阅读器头与白板头同一行；精灵球挂在白板区右下角
  * [POS]: 桌面唯一工作台（取代 S2 过渡入口）。白板刷新只靠对话里的白板工具完成信号 + 运行中 ETag 兜底，不另建事件协议
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { invoke, isTauri } from '@tauri-apps/api/core'
 import { ExternalLinkGate } from '../../components/ExternalLinkDialog'
 import { useAppearance } from '../../appearance'
 import { STUDIO_COPY as S } from '../../copy/studioCopy'
@@ -63,6 +64,13 @@ export function StudioApp({ connection }: { connection: Connection }) {
     if (active) setIdentity({ topicId: active.topicId, taskId: active.taskId })
   }, [identity, topic?.id, topic?.running, topic?.waiting, sessions])
 
+  // ---- 主题名不写在中栏头部（左栏选中项已经说明），留在 aria-label 与窗口标题 ----
+  useEffect(() => {
+    const title = topic ? `${topic.title} — ${S.app}` : S.app
+    document.title = title
+    if (isTauri()) void invoke('set_window_title', { title }).catch(() => {})
+  }, [topic?.title])
+
   const onBoard = useCallback((next: BoardSignal) => setSignal(previous => previous.drawing === next.drawing && previous.done === next.done ? previous : next), [])
   const onFocusBlock = useCallback((blockId: string) => { setView('board'); setFocus({ blockId, nonce: Date.now() }) }, [])
   const openMaterial = (item: TopicMaterial, page?: number) => setReading({ target: { scope: 'library', path: item.id, ...(page ? { page } : {}) }, title: item.title })
@@ -74,15 +82,12 @@ export function StudioApp({ connection }: { connection: Connection }) {
   return <ExternalLinkGate><main className={`app studio${docked ? ' studio-docked' : ''}${topic ? '' : ' studio-no-topic'}`}>
     <TopicPanel api={api} topics={topics} error={topicsError} selected={topic?.id ?? null} onSelect={setTopicId}
       onCreated={next => { created.current = next.id; setTopicId(next.id); activity() }} onSettings={() => setSettingsOpen(true)} onAgents={() => setAgentsOpen(true)} />
-    <section className={`studio-panel studio-center${reading ? ' studio-split' : ''}`}>
+    <section className={`studio-panel studio-center${reading ? ' studio-split' : ''}`} aria-label={topic?.title}>
       <div className="studio-pane studio-board-pane">
-        <header className="studio-head">
-          <h2 className="studio-head-title studio-topic-title" title={topic?.title}>{topic?.title ?? ''}</h2>
-          {topic && <><span className="studio-sp" />
-          <nav className="studio-seg studio-views" role="tablist" aria-label="视图">
+        <header className="studio-head studio-center-head">
+          {topic && <nav className="studio-seg studio-views" role="tablist" aria-label="视图">
             {(Object.keys(S.views) as View[]).map(key => <button type="button" role="tab" key={key} aria-selected={view === key} className={view === key ? 'on' : ''} onClick={() => setView(key)}>{S.views[key].label}</button>)}
-          </nav>
-          <span className="studio-sp" /></>}
+          </nav>}
         </header>
         <div className="studio-stage">
           {!topic ? <div className="studio-later studio-pick"><p>{S.pickTopic}</p></div>

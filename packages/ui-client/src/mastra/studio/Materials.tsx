@@ -1,7 +1,7 @@
 /**
  * [INPUT]: LumenApi 的主题材料（引用 + 读到哪 + 板上引用数）、上传与粘贴链接、取消引用；刷新信号
- * [OUTPUT]: Materials：右栏面板「这个主题用到的」——一行添加（粘贴链接回车 + 上传图标）、分「你带来的 / AI 找来的」（空组不显示）、来源进 meta 行、不再引用；点一条在中间分屏打开原件
- * [POS]: 材料只经主题引用进入（R15），原件留在资料库；这里不删原件，只断开本主题的引用
+ * [OUTPUT]: Materials：右栏面板「素材」——一行添加（粘贴链接回车 + 上传图标）、一个按加入时间倒序的列表（不分组、不计数）、meta 只放「AI 找来」·来源·读到哪，板上引用数进 title、不再引用；materialMeta；点一条在中间分屏打开原件
+ * [POS]: 界面叫「素材」，文档与代码里的对象仍叫材料。材料只经主题引用进入（R15），原件留在资料库；这里不删原件，只断开本主题的引用
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useEffect, useRef, useState, type FormEvent } from 'react'
@@ -21,9 +21,14 @@ export function useMaterials(api: LumenApi, topicId: string | null, signal: stri
   return { items, error, refresh: () => setTick(value => value + 1) }
 }
 
-/** 来源进 meta 行（M4：不再用悬停浮层挡住下面的条目） */
-function source(url?: string | null) {
-  try { return url ? `${new URL(url).host} · ` : '' } catch { return '' }
+/** 来源域名（M4：进 meta 行，不用悬停浮层挡住下面的条目） */
+function host(url?: string | null) {
+  try { return url ? new URL(url).host : '' } catch { return '' }
+}
+
+/** meta 只留最有用的两项：来源与读到哪；AI 找来的排在最前（淡色小字，不用徽标色）；板上引用数进 title 提示 */
+export function materialMeta(item: TopicMaterial) {
+  return [item.addedBy === 'ai' ? S.materials.foundByAi : '', host(item.sourceUrl), S.materials.progress(item.readProgress)].filter(Boolean).join(' · ')
 }
 
 function Row({ item, active, onOpen, onRemove }: { item: TopicMaterial; active: boolean; onOpen: () => void; onRemove: () => void }) {
@@ -31,7 +36,7 @@ function Row({ item, active, onOpen, onRemove }: { item: TopicMaterial; active: 
     <button type="button" className="material-open" onClick={onOpen}>
       <span className={`ws-tag ws-tag-${item.kind === 'pdf' ? 'pdf' : item.kind === 'web' ? 'html' : 'md'}`}>{item.kind === 'pdf' ? 'PDF' : item.kind === 'web' ? 'WEB' : 'FILE'}</span>
       <span className="material-text"><span className="material-title">{item.title}</span>
-        <small className="material-meta">{source(item.sourceUrl)}{S.materials.progress(item.readProgress)}{S.materials.cited(item.citedBy)}</small></span>
+        <small className="material-meta" data-added-by={item.addedBy} title={S.materials.cited(item.citedBy) || undefined}>{materialMeta(item)}</small></span>
     </button>
     <button type="button" className="icon-btn material-remove" aria-label={`${S.materials.remove}：${item.title}`} title={S.materials.remove} onClick={onRemove}><CloseIcon /></button>
   </li>
@@ -48,7 +53,8 @@ export function Materials({ api, topicId, items, error: loadError, activeId, onO
 }) {
   const [link, setLink] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState('')
   const input = useRef<HTMLInputElement>(null)
-  const yours = items.filter(item => item.addedBy === 'you'), found = items.filter(item => item.addedBy === 'ai')
+  // 一个列表，按加入本主题的时间倒序；added_by 只体现在 meta（P1 的「删除 / 转为你的」靠它）
+  const ordered = [...items].sort((a, b) => b.addedAt.localeCompare(a.addedAt) || a.id.localeCompare(b.id))
 
   async function act(work: () => Promise<unknown>) {
     setBusy(true); setError('')
@@ -59,11 +65,6 @@ export function Materials({ api, topicId, items, error: loadError, activeId, onO
     const url = link.trim()
     if (url) void act(async () => { await api.addLink(url, topicId); setLink('') })
   }
-  const group = (label: string, list: TopicMaterial[]) => list.length ? <section className="materials-group" aria-label={label}>
-    <h4 className="studio-label">{label}<span>{list.length}</span></h4>
-    <ul>{list.map(item => <Row key={item.id} item={item} active={item.id === activeId} onOpen={() => onOpen(item)} onRemove={() => void act(() => api.unreference(topicId, item.id))} />)}</ul>
-  </section> : null
-
   return <aside className="studio-panel studio-materials" aria-label={S.materials.title}>
     <header className="studio-head"><h2 className="studio-head-title">{S.materials.title}</h2></header>
     <div className="studio-scroll">
@@ -77,7 +78,8 @@ export function Materials({ api, topicId, items, error: loadError, activeId, onO
         }} />
       </form>
       {(error || loadError) && <p className="mw-error studio-note" role="alert">{error || loadError}</p>}
-      {!items.length && !loadError ? <p className="studio-note materials-none">{S.materials.none}</p> : <>{group(S.materials.yours, yours)}{group(S.materials.ai, found)}</>}
+      {!items.length && !loadError ? <p className="studio-note materials-none">{S.materials.none}</p>
+        : <ul className="materials-list" aria-label={S.materials.title}>{ordered.map(item => <Row key={item.id} item={item} active={item.id === activeId} onOpen={() => onOpen(item)} onRemove={() => void act(() => api.unreference(topicId, item.id))} />)}</ul>}
     </div>
   </aside>
 }

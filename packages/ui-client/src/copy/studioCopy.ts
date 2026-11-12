@@ -17,7 +17,7 @@ export const STUDIO_COPY = {
   pickTopic: '选一个主题，或新建一个。',
   light: { running: 'AI 在运行', waiting: '等你' },
   board: {
-    frame: (used: number, capacity: number) => `已用 ${used} / ${capacity} 块`, frameNote: '这张白板只放一个问题', folded: '已收起',
+    frameNote: '这张白板只放一个问题', frameFull: '这张白板已经写满', folded: '已收起',
     empty: '白板还是空的。和 AI 聊起来，它会把想清楚的东西画在这里。',
     noLive: '这个主题现在没有进行中的白板。点 ＋ 新开一张。',
     newSheet: '新开一张白板', drawing: 'AI 正在画', updating: 'AI 正在改这一块',
@@ -33,11 +33,11 @@ export const STUDIO_COPY = {
     failed: '没画上',
   },
   materials: {
-    title: '这个主题用到的',
-    yours: '你带来的', ai: 'AI 找来的', none: '还没有材料。粘贴链接或上传文件；原件放进资料库，这里只是这个主题的引用，同一份材料可以被几个主题引用。',
+    title: '素材',
+    foundByAi: 'AI 找来', none: '还没有素材。粘贴链接或上传文件。',
     upload: '上传文件', link: '粘贴链接，回车添加', remove: '不再引用',
     progress: (value: number) => value > 0 ? `读到 ${Math.round(value * 100)}%` : '未打开',
-    cited: (count: number) => count ? ` · 板上引用 ${count} 处` : '',
+    cited: (count: number) => count ? `板上引用 ${count} 处` : '',
     close: '关闭', loading: '正在打开…', unsupported: '这种格式还不能在这里预览。',
   },
   sprite: {
@@ -47,5 +47,5 @@ export const STUDIO_COPY = {
     hint: '换对话不会换白板：白板和材料属于整个主题，对话只是说话的记录。',
     untitled: '新对话', diagnostics: '诊断',
   },
-  settings: '设置', agents: '研究角色',
+  app: 'Lumen Studio', settings: '设置', agents: '研究角色',
 } as const

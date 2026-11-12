@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 真实 StudioApp（主题栏/白板/材料/精灵/阅读器）与 React DOM、真实 HTTP 服务与 Mastra Controller、确定性模型
- * [OUTPUT]: S4 外壳行为证据（含 S5 返工：单张不显示张标签、面板首行头部、梯子断点在两级之间、不重复「AI 画的」、主题 ＋ 回车建/Esc 取消）：四种区块经真实 board_draw 落库后渲染（梯子/表格/小部件/出处签与 AI 推断）、白板只靠工具完成信号刷新（ETag 轮询被截住）、
+ * [OUTPUT]: S4 外壳行为证据（含 S5 返工：单张不显示张标签、面板首行头部、梯子断点在两级之间、不重复「AI 画的」、主题 ＋ 回车建/Esc 取消；返工二：中栏头部无主题名、不显示已用块数、素材单列表倒序）：四种区块经真实 board_draw 落库后渲染（梯子/表格/小部件/出处签与 AI 推断）、白板只靠工具完成信号刷新（ETag 轮询被截住）、
  *           对话里只出现白板卡片且点卡跳到那块、主题运行时「新对话」禁用（R1）、材料分「你带来的 / AI 找来的」并在分屏打开原件、精灵收起/停靠/拖动并持久
  * [POS]: S4 组件级验收；可控模型只证明机制，不冒充真实模型研究验收；不宣称覆盖 WebKit
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -102,13 +102,17 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
   }
   try {
     await act(async () => root.render(createElement(StudioApp, { connection })))
-    await until(() => !!$('.board-used'), '白板没有出现')
-    assert.equal($('.studio-topic-title')!.textContent, '负反馈为什么能稳住系统')
-    assert.match($('.board-used')!.textContent!, /已用 0 \/ 8 块/)
+    await until(() => !!$('.board-sheet-new'), '白板没有出现')
+    // ---- U1：主题名不写在中栏头部，留在 aria-label 与窗口标题 ----
+    assert.equal($('.studio-center')!.getAttribute('aria-label'), '负反馈为什么能稳住系统')
+    assert.equal(document.title, '负反馈为什么能稳住系统 — Lumen Studio')
+    assert.ok(!$('.studio-center .studio-head')!.textContent!.includes('负反馈'))
+    // ---- U2：不显示已用块数（上限与 R11 在服务端不变） ----
+    assert.ok(!$('.studio-board')!.textContent!.includes('已用'))
     assert.ok($('.board-empty'), '空白板要说清楚')
-    // ---- G7：只有一张白板时不再显示和主题同名的张标签，中栏里主题标题只出现一次 ----
+    // ---- G7/U1：只有一张白板时不显示和主题同名的张标签，中栏里不再出现主题名 ----
     assert.equal($('.board-tabs'), null)
-    assert.equal($$('.studio-center *').filter(node => node.children.length === 0 && node.textContent === '负反馈为什么能稳住系统').length, 1)
+    assert.equal($$('.studio-center *').filter(node => node.children.length === 0 && node.textContent === '负反馈为什么能稳住系统').length, 0)
     // ---- G2：每个面板首行都是头部 ----
     assert.deepEqual($$('.studio-panel').map(panel => (panel.firstElementChild!.matches('.studio-head') || panel.firstElementChild!.firstElementChild!.matches('.studio-head'))), [true, true, true])
 
@@ -120,10 +124,14 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
 
     // ---- 材料：分「你带来的 / AI 找来的」，点开在中间分屏读原件 ----
     await until(() => $$('.material').length === 2, '材料没有列出')
-    const groups = $$('.materials-group')
-    assert.match(groups[0]!.textContent!, /你带来的.*水箱笔记/)
-    assert.match(groups[1]!.textContent!, /AI 找来的.*控制论导论/)
-    await act(async () => $$('.material-open')[0]!.click())
+    // ---- U3：右栏叫「素材」，一个列表按加入时间倒序，不分组不计数；AI 找来的在 meta 最前标一句 ----
+    assert.equal($('.studio-materials .studio-head-title')!.textContent, '素材')
+    assert.equal($$('.studio-materials .studio-label').length, 0)
+    assert.deepEqual($$('.material-title').map(node => node.textContent), ['控制论导论', '水箱笔记'])
+    const metas = $$('.material-meta')
+    assert.ok(metas[0]!.textContent!.startsWith(S.materials.foundByAi) && metas[0]!.dataset.addedBy === 'ai')
+    assert.ok(!metas[1]!.textContent!.includes(S.materials.foundByAi) && metas[1]!.dataset.addedBy === 'you')
+    await act(async () => $$('.material-open')[1]!.click())
     await until(() => /浮球把阀门顶上/.test($('.studio-reader')?.textContent ?? ''), '分屏没有读出原件')
     assert.ok($('.studio-center.studio-split'))
     await click('关闭阅读器')
@@ -155,7 +163,7 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
 
     // ---- 四块经真实工具落库 ----
     await until(() => $$('.board-block').length === 4, '四块没有出现在白板上', 30000)
-    await until(() => /已用 4 \/ 8 块/.test($('.board-used')!.textContent!), '白板没有计数到 4 块')
+    assert.ok(!$('.studio-board')!.textContent!.includes('已用'), '写了四块也不显示已用块数')
     const [text, ladder, table, widget] = ['text', 'ladder', 'table', 'widget'].map(kind => $(`.board-block[data-kind=${kind}]`)!)
     assert.match(text!.querySelector('.block-text')!.innerHTML, /<strong>压住<\/strong>/)
     assert.equal(text!.querySelector('.source-chip')!.textContent, '水箱笔记 · p.2')
@@ -214,7 +222,7 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
       named.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
     })
     await act(async () => { $('.topics-new')!.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })) })
-    await until(() => $('.studio-topic-title')?.textContent === '第二个问题', '回车没有创建并选中新主题')
+    await until(() => $('.studio-center')?.getAttribute('aria-label') === '第二个问题', '回车没有创建并选中新主题')
     assert.equal($('.topics-new'), null)
   } finally {
     window.setInterval = original
