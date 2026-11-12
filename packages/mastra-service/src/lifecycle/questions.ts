@@ -1,7 +1,7 @@
 /**
  * [INPUT]: Agent 公开的 suspended run 查询、Session 挂起登记与原生 workflow 存储
- * [OUTPUT]: restoreSuspendedQuestions / cancelSuspendedQuestions：恢复问题展示，持久化明确取消
- * [POS]: 问答跨进程边界；只恢复已获准并落盘的 ask_user，不自动运行模型或重放工具
+ * [OUTPUT]: restoreSuspendedQuestions / restoreSuspendedApprovals / cancelSuspendedQuestions：恢复问题与待审批卡展示，持久化明确取消
+ * [POS]: 问答与审批跨进程边界；只恢复已落盘的 ask_user 与待审批调用的展示，不自动运行模型、不替用户批准或重放工具
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import type { Agent, AgentRun } from '@mastra/core/agent'
@@ -32,6 +32,26 @@ export async function restoreSuspendedQuestions(context: QuestionContext): Promi
     if (context.session.suspensions.has({ toolCallId })) continue
     context.session.suspensions.register({ toolCallId, runId: run.runId, toolName: 'ask_user', threadId, resourceId })
     context.session.emit({ type: 'tool_suspended', toolCallId, toolName: 'ask_user', args: payload, suspendPayload: payload, resourceId, runId: run.runId })
+    restored++
+  }
+  return restored
+}
+
+/**
+ * 重启后把持久快照里待审批的工具调用重新登记到显示状态，否则界面没有审批卡，挂起永远无人处理。
+ * 只发显示事件；用户的批准/拒绝走官方 tool-approval 路由，它对未挂在本进程的审批调用 respondToPersistedToolApproval。
+ * 与 restoreSuspendedQuestions 同样只在新 Session 首次绑定时调用。
+ */
+export async function restoreSuspendedApprovals({ session, agent }: QuestionContext): Promise<number> {
+  const threadId = session.thread.getId()
+  if (!threadId) return 0
+  const { runs } = await agent.listSuspendedRuns({ threadId, resourceId: session.identity.getResourceId() })
+  const calls = runs.flatMap(run => run.toolCalls).filter(call => call.requiresApproval && call.toolCallId && call.toolName)
+  let restored = 0
+  for (const call of calls) {
+    if (calls.filter(other => other.toolCallId === call.toolCallId).length !== 1) continue
+    if (session.approval.isArmed({ toolCallId: call.toolCallId! })) continue
+    session.emit({ type: 'tool_approval_required', toolCallId: call.toolCallId!, toolName: call.toolName!, args: call.args })
     restored++
   }
   return restored

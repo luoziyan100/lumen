@@ -8,7 +8,7 @@ import { mkdir } from 'node:fs/promises'
 import { createSkillRegistry, createSkillTools } from './skills/index.ts'
 import { trackAgentDrain } from './drain.ts'
 import { recoverInterruptedChildren } from './lifecycle/recovery.ts'
-import { restoreSuspendedQuestions, cancelSuspendedQuestions } from './lifecycle/questions.ts'
+import { restoreSuspendedQuestions, restoreSuspendedApprovals, cancelSuspendedQuestions } from './lifecycle/questions.ts'
 import { researchHttp } from './research/http.ts'
 import { createPaperTools } from './research/papers.ts'
 import { createWebTools } from './research/web.ts'
@@ -271,6 +271,7 @@ export async function createApplication(options: ApplicationOptions) {
         if (!rules.tools[toolName]) await session.permissions.setForTool({ toolName, policy: 'allow' })
       }
       await restoreSuspendedQuestions({ session, agent })
+      await restoreSuspendedApprovals({ session, agent })
       return session
     }
     catch (error) {
