@@ -19,7 +19,7 @@ scripts/             # 开发进程组合；旧测试矩阵脚本只保留历史
 
 ## 运行边界
 
-- 正式数据根 `~/.lumen-studio`、LaunchAgent `com.lumen.studio`（运行本仓库 main 源码）、开发根 `~/.lumen-studio-dev`。旧形态的 `~/.lumen-mastra` 原样保留，`com.lumen.mastra` 自 2026-11-12 起改为运行冻结副本 `../lumen-legacy`（main@63f9707，detached worktree），与本仓库后续改动无关；更早的 `~/.lumen` 同样保留。新服务与部署拒绝打开或接管旧根和旧 label。
+- 正式数据根 `~/.lumen-studio`、LaunchAgent `com.lumen.studio`（运行本仓库 main 源码）、开发根 `~/.lumen-studio-dev`。旧形态的 `~/.lumen-mastra` 原样保留，`com.lumen.mastra` 已于 2026-11-12 停止并注销（旧形态源码在 git `63f9707`，需要时可检出后重新安装）；更早的 `~/.lumen` 同样保留。新服务与部署拒绝打开或接管旧根和旧 label。
 - 桌面默认发现新服务；缺服务可重试，任何失败都不回旧 WS。显式 `--mastra-data-root` 只选择独立根。
 - 会话身份固定 `topicId:taskId`；同主题的对话共用一个主题工作区。原生 Memory 是消息真源，SSE 断线后补取持久历史。
 - 主题、资料库、引用、白板和阅读游标在 `catalog.sqlite`；模型只经主题引用读资料库（R15）。游标不改框架 thread 时间。设置/凭证只存私有文件，HTTP 只返回掩码。
@@ -39,7 +39,7 @@ npm run verify       # 当前两包行为验证 + 主题合同
 npm run tauri:build -w packages/ui-client
 ```
 
-服务安装使用显式 Node/工程/数据根，见 `packages/mastra-service/scripts/CLAUDE.md`。正式常驻使用 launchd，禁止 nohup。桌面改动交付前必须重装并打开 `/Applications/Lumen.app`（bundle id `com.lumen.studio`；旧形态 com.lumen.research 包备份在 `~/Workspace/tmp/merge-2026-11-12/`），以构建日志实际 bundle 路径为准并比对二进制摘要。
+服务安装使用显式 Node/工程/数据根，见 `packages/mastra-service/scripts/CLAUDE.md`。正式常驻使用 launchd，禁止 nohup。桌面改动交付前必须重装并打开 `/Applications/Lumen.app`（bundle id `com.lumen.studio`；旧形态 com.lumen.research 包已删除），以构建日志实际 bundle 路径为准并比对二进制摘要。
 
 ## 维护法则
 
