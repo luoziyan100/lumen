@@ -8,6 +8,7 @@ React 19 + TypeScript 5.9 + Vite 7 + Tauri 2。思考/过程视觉使用原gener
 src/
 ├── main.tsx                 # 发现 Mastra 服务并装配 StudioApp（白板工作台外壳）
 ├── mastra/                  # 连接、studio 外壳（主题/白板/材料/精灵）、对话、阅读器、技能、角色与诊断
+├── assets/                  # 已定稿的精灵五表情 WebP 与来源记录（原图不变）
 ├── components/              # Markdown、PDF、HTML、图表、外链与共享卷帘交互
 ├── appearance/              # 外观偏好解析、持久化与整窗应用
 ├── copy/                    # 产品文案

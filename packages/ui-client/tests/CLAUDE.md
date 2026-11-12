@@ -2,7 +2,7 @@
 
 > L2 | 父级: ../CLAUDE.md
 
-`node:test` 验证真实 HTTP/SSE 消费与独立渲染算法。`npm test` 先检查类型；Node 通过不代表已装桌面应用的 WebKit 用户路径通过。
+`node:test` 验证真实 HTTP/SSE 消费与独立渲染算法。`tests/helpers/tsx-loader.mjs` 让真实组件测试解析本地扩展名与 TSX，并把图片导入折成文件 URL（Vite 里是构建产物 URL），组件源码不必为测试改写导入。`npm test` 先检查类型；Node 通过不代表已装桌面应用的 WebKit 用户路径通过。
 
 卷帘回归复用导航/长消息用例：收起保留同一 DOM、立即屏蔽焦点，长文本退出后恢复预览，快速反向操作撤销旧展开帧；实际动画仍由桌面安装后核对。
 
@@ -15,6 +15,9 @@ tests/
 ├── widget-*.test.ts         # 网页沙箱输入与主题
 ├── icons.test.ts            # 自绘图标结构合同
 ├── pdf-fit.test.ts          # PdfViewer 按宽适配（真实 pdf.js）
+├── sprite-face.test.ts      # 精灵表情节奏（眨眼/说话交替/降级）
+├── stream-pulse.test.ts     # 「正在说话」判定（增量/回落/换消息）
+├── sprite-view.test.ts      # 真实组件与 HTTP/SSE 接线、收起持续监听、展开不重复订阅
 ├── appearance-resolve.test.ts
 ├── source-cite.test.ts / scroll-debug.test.ts
 └── fixtures/               # 合成阅读材料

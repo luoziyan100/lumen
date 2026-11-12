@@ -1,6 +1,6 @@
 /**
  * [INPUT]: doc/studio/model.md 的功能命名（白板 · 沉淀 · 概念图 · 灵感 · 全部）与 P0 交互
- * [OUTPUT]: STUDIO_COPY：新外壳的词表——视图名、白板/区块/材料/精灵/状态灯、面板收放与阅读器文案
+ * [OUTPUT]: STUDIO_COPY：新外壳的词表——视图名、白板/区块/材料/精灵/状态灯、面板收放与阅读器文案；精灵打开说明带空闲/正在画/在等你/正在说状态
  * [POS]: 新形态文案单源。视图名集中在 views，P3 换世界观（书房 / 实验室 / 工坊）时只换这张表，不改结构
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -51,6 +51,7 @@ export const STUDIO_COPY = {
   },
   sprite: {
     open: '点开对话（可拖动）', collapse: '收回成球', dock: '停靠到右侧', float: '恢复浮动', conversations: '这个主题的对话',
+    openWith: { idle: '点开对话（可拖动）', running: '打开对话 · AI 正在画', waiting: '打开对话 · 在等你', speaking: '打开对话 · AI 正在说' },
     newConversation: '新对话', back: '回到对话',
     busy: 'AI 还在这个主题里运行或在等你回应——先等它画完，或者停下它，再开新对话。',
     hint: '换对话不会换白板：白板和材料属于整个主题，对话只是说话的记录。',

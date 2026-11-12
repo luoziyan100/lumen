@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 原生 SessionFeed/DisplayState、原生reasoning/工具轮次投影与真实用户消息计时、子任务轮询、当前会话稿件路径与已有 AssistantContent 沙箱
- * [OUTPUT]: Conversation：原消息舞台与输入坞、折叠思考和轮次导航；白板写入只显示卡片（R6，点卡跳到那块）并把「正在画/已写完」通过 onBoard 交给外壳；运行错误保留，连接错误可重试；审批/追问与进行中的专家任务固定在输入卡上方(专家目录在右轨，对话底部始终是最新消息)，消息按坞高度让位；子任务轮询同一世代串行；滚动只在用户停留底部时追新；widget 回调稳定以保留历史消息 memo
+ * [OUTPUT]: Conversation：原消息舞台与输入坞、折叠思考和轮次导航；白板写入只显示卡片（R6，点卡跳到那块）并把「正在画/已写完」通过 onBoard 交给外壳；可复用精灵持有的原生 session，收起不确认已读、展开不重复订阅；运行错误保留，连接错误可重试；审批/追问与进行中的专家任务固定在输入卡上方(专家目录在右轨，对话底部始终是最新消息)，消息按坞高度让位；子任务轮询同一世代串行；滚动只在用户停留底部时追新；widget 回调稳定以保留历史消息 memo
  * [POS]: 新会话组合，不依赖旧 chat reducer；按身份 key 挂载以隔离草稿和迟到结果
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -39,8 +39,9 @@ function BoardCardRow({ card, onFocus }: { card: BoardCard; onFocus?: (blockId: 
   const body = <><span className="board-card-verb">{verb}</span>{card.title && <> · <b>{card.title}</b></>}{card.error && <span className="board-card-error">：{card.error}</span>}</>
   return <div className={`board-card board-card-${card.status}`}>{card.blockId && onFocus && card.status !== 'failed' ? <button type="button" onClick={() => onFocus(card.blockId!)}>{body}</button> : <span>{body}</span>}</div>
 }
-export function Conversation({ api, identity, onActivity, onOpenFile, onSettings, activePath, onClearActivePath, onFocusBlock, onBoard }: { api: LumenApi; identity: Identity; onActivity: () => void; onOpenFile: (target: FileTarget) => void; onSettings?: () => void; activePath?: string | null; onClearActivePath?: () => void; onFocusBlock?: (blockId: string) => void; onBoard?: (signal: BoardSignal) => void }) {
-  const { feed, view } = useSession(api, identity)
+export function Conversation({ api, identity, onActivity, onOpenFile, onSettings, activePath, onClearActivePath, onFocusBlock, onBoard, session: sharedSession }: { api: LumenApi; identity: Identity; onActivity: () => void; onOpenFile: (target: FileTarget) => void; onSettings?: () => void; activePath?: string | null; onClearActivePath?: () => void; onFocusBlock?: (blockId: string) => void; onBoard?: (signal: BoardSignal) => void; session?: ReturnType<typeof useSession> }) {
+  const localSession = useSession(api, sharedSession ? null : identity)
+  const { feed, view } = sharedSession ?? localSession
   const [error, setError] = useState(''), [children, setChildren] = useState<ChildTask[]>([])
   const alive = useRef(true), priorRunning = useRef(false)
   const readAttempt = useRef<string | null>(null)

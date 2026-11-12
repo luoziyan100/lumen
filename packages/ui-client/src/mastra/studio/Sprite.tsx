@@ -1,13 +1,13 @@
 /**
- * [INPUT]: LumenApi 的主题会话目录、Welcome/Conversation/Specialists/Diagnostics 复用件、主题运行投影（R1）
- * [OUTPUT]: Sprite：对话精灵——收起是白板区右下角的球（运行时亮灯，经 portal 挂进中栏），点开是可拖动的浮窗或停靠右侧的栏；切换本主题的对话、开新对话（主题忙时禁用并说明）、专家目录与诊断入口；位置与形态存 localStorage
+ * [INPUT]: LumenApi 的主题会话目录、Welcome/Conversation/Specialists/Diagnostics、主题运行投影（R1）、useSession 的唯一订阅与 useSpeaking 的文字增量、sprite-face 的状态映射与 SpriteFace
+ * [OUTPUT]: Sprite：对话精灵——收起是白板区右下角的 52px 头像（主题/会话的 running、waiting 与说话折成 idle/running/waiting/speaking 一个状态，表情与光环跟它走，状态写进 aria-label），展开头部同脸；收起仍观察文字流，展开复用同一订阅，点开是可拖动的浮窗或停靠右侧的栏；切换本主题的对话、开新对话（主题忙时禁用并说明）、专家目录与诊断入口；位置与形态存 localStorage
  * [POS]: 对话从主角退成精灵：白板是主题的共同草稿，对话只是说话的记录。所有消息、审批、追问仍走原生 Conversation
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@cloudflare/kumo/components/button'
-import { BackIcon, ChatIcon, CloseIcon, PanelIcon, PlusIcon } from '../../components/icons'
+import { BackIcon, CloseIcon, PanelIcon, PlusIcon } from '../../components/icons'
 import { STUDIO_COPY as S } from '../../copy/studioCopy'
 import type { LumenApi, Identity, SessionInfo, Topic } from '../data/client.ts'
 import type { FileTarget } from '../data/file-links'
@@ -16,6 +16,11 @@ import { Welcome } from '../views/conversation/welcome/Welcome'
 import { Specialists } from '../views/conversation/Specialists'
 import { Diagnostics } from '../diagnostics/Diagnostics'
 import { Light } from './TopicPanel'
+import { SpriteFace } from './SpriteFace'
+import { spriteState } from './sprite-face'
+import { useSession } from '../data/useSession.ts'
+import { messageText } from '../data/feed.ts'
+import { useSpeaking } from './useSpeaking'
 
 const KEY = 'lumen.studio.sprite'
 interface Shape { open: boolean; docked: boolean; x: number; y: number; w: number; h: number }
@@ -70,10 +75,17 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
 }) {
   const [shape, setShape] = useState<Shape>(() => clampShape(loadShape(), window.innerWidth, window.innerHeight))
   const [listing, setListing] = useState(false), [diagnostics, setDiagnostics] = useState(false)
+  // ---- 收起也保留同一条原生订阅；展开时交给 Conversation，不重复连流 ----
+  const session = useSession(api, identity)
+  const activeMessage = session.view.display?.currentMessage
+  const message = activeMessage ? session.view.messages.find(item => item.id === activeMessage.id) : undefined
+  const streaming = useSpeaking(session.view.display?.isRunning ? activeMessage?.id ?? null : null, message ? messageText(message) : '')
   const drag = useRef<{ x: number; y: number; sx: number; sy: number } | null>(null)
   const busy = !!(topic.running || topic.waiting)
   const current = identity ? sessions.find(session => session.taskId === identity.taskId) : undefined
   const idle = !current?.running && !current?.waiting
+  // 表情只认这四个状态；等你优先于运行（审批挂起时 running 仍为真）
+  const state = spriteState({ waiting: !!(current?.waiting || topic.waiting), running: !!(current?.running || topic.running), streaming: streaming && !!identity })
 
   const update = useCallback((patch: Partial<Shape>) => setShape(previous => {
     const next = clampShape({ ...previous, ...patch }, window.innerWidth, window.innerHeight)
@@ -104,8 +116,9 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
   }
 
   if (!shape.open) {
-    const orb = <button type="button" className={`sprite-orb${orbHost ? ' sprite-orb-hosted' : ''}`} aria-label={S.sprite.open} title={S.sprite.open} onClick={() => update({ open: true })}>
-      <ChatIcon />{busy && <Light topic={topic} />}
+    const orb = <button type="button" className={`sprite-orb${orbHost ? ' sprite-orb-hosted' : ''}`} data-state={state} aria-label={S.sprite.openWith[state]} title={S.sprite.openWith[state]} onClick={() => update({ open: true })}>
+      <SpriteFace state={state} breathe />
+      {sessions.some(item => item.unread) && <span className="sprite-unread" aria-label="未读" />}
     </button>
     return orbHost ? createPortal(orb, orbHost) : orb
   }
@@ -113,6 +126,7 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
   const style = shape.docked ? undefined : { left: shape.x, top: shape.y, width: shape.w, height: shape.h }
   return <section className={`sprite${shape.docked ? ' sprite-docked studio-panel' : ' sprite-floating'}`} style={style} aria-label="对话">
     <header className="studio-head sprite-head" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
+      <SpriteFace state={state} className="sprite-face-head" />
       <button type="button" className="sprite-title" aria-expanded={listing} onClick={() => setListing(value => !value)} title={S.sprite.conversations}>
         {listing ? <BackIcon /> : null}<span>{listing ? S.sprite.conversations : current?.title ?? S.sprite.untitled}</span><Light topic={topic} />
       </button>
@@ -135,7 +149,7 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
         <Button variant="ghost" onClick={() => setDiagnostics(true)}>{S.sprite.diagnostics}</Button>
       </div>}
     </div>
-      : identity ? <Conversation key={`${identity.topicId}:${identity.taskId}`} api={api} identity={identity} onActivity={onActivity} onSettings={onSettings} onOpenFile={onOpenFile} onFocusBlock={onFocusBlock} onBoard={onBoard} />
+      : identity ? <Conversation key={`${identity.topicId}:${identity.taskId}`} api={api} identity={identity} onActivity={onActivity} onSettings={onSettings} onOpenFile={onOpenFile} onFocusBlock={onFocusBlock} onBoard={onBoard} session={session} />
       : busy ? null
       : <div className="sprite-welcome"><Welcome key={`${api.connection.baseUrl}:${topic.id}`} api={api} topicId={topic.id} onSettings={onSettings} onSession={next => { onIdentity(next); onActivity() }} /></div>}
     {diagnostics && identity && <Diagnostics api={api} identity={identity} onClose={() => setDiagnostics(false)} />}

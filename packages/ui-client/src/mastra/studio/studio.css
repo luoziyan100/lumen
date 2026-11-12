@@ -1,7 +1,7 @@
 /**
  * [INPUT]: tokens.css / yan-design-system tokens 与 appearance 皮肤变量（data-material 玻璃/纸面）
  * [OUTPUT]: 新外壳样式——原型 v7 骨架（canvas 底、8px 外边距与间距、圆角面板、50px 同线头部、14px 同一左缘、四级字阶、30px 控件）、
- *           左右栏收放（宽 0、--dur-base 过渡、减弱动效时瞬时）、白板画布与区块（文字/梯子/表格/小部件）、阅读器分屏（分隔条、两个下限）与铺满、材料栏、对话精灵
+ *           左右栏收放（宽 0、--dur-base 过渡、减弱动效时瞬时）、白板画布与区块（文字/梯子/表格/小部件）、阅读器分屏（分隔条、两个下限）与铺满、材料栏、对话精灵（52px 五表情、交叉淡入、外圈光环与空闲呼吸，减少动态关闭动效）
  * [POS]: 只用现有 tokens；控件与文档岛保持实色表面，玻璃/纸面皮肤走 appearance 管道。字号只引用下面四个变量（G4）
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -196,13 +196,31 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 .material:hover .material-remove, .material-remove:focus-visible { opacity: 1; }
 
 /* ---- 对话精灵 ---- */
-.sprite-orb { position: fixed; right: 24px; bottom: 24px; z-index: 20; width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface-elevated); color: var(--accent-ink); box-shadow: var(--shadow-3); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.sprite-orb { position: fixed; right: 24px; bottom: 24px; z-index: 20; width: 52px; height: 52px; padding: 0; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.45); background: var(--surface-elevated); box-shadow: var(--shadow-3); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; overflow: visible; }
 .sprite-orb.sprite-orb-hosted { position: relative; right: auto; bottom: auto; }
-.sprite-orb .topic-light { position: absolute; top: 4px; right: 4px; }
+/* 脸：五张叠放，只切透明度（200ms 交叉淡入），切换不重取图 */
+.sprite-face { position: relative; display: inline-flex; width: 100%; height: 100%; border-radius: 50%; }
+.sprite-face img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; opacity: 0; transition: opacity 200ms ease; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45); }
+.sprite-face img.on { opacity: 1; }
+/* 光环画在头像外圈，不画在图上：运行为旋转弧线，等你为琥珀呼吸 */
+.sprite-face::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity 0.3s; }
+.sprite-face:is([data-state='running'], [data-state='speaking'])::after { opacity: 1; background: conic-gradient(from 0deg, transparent 0 55%, var(--accent) 85%, transparent 100%); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px)); mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px)); filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 65%, transparent)); animation: sprite-spin 2.8s linear infinite; }
+.sprite-face[data-state='waiting']::after { opacity: 1; box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 80%, transparent), 0 0 14px 2px color-mix(in srgb, var(--warning) 50%, transparent); animation: sprite-pulse 1.8s ease-in-out infinite; }
+.sprite-breathe { transform-origin: 50% 60%; animation: sprite-breathe 5s ease-in-out infinite; }
+/* 展开态头部：28–32px，不呼吸 */
+.sprite-orb > .sprite-unread { position: absolute; top: 0; right: 0; box-shadow: 0 0 0 2px var(--surface-elevated); }
+.sprite-face-head { width: 32px; height: 32px; flex: none; }
+@keyframes sprite-spin { to { transform: rotate(360deg); } }
+@keyframes sprite-pulse { 50% { opacity: 0.45; } }
+@keyframes sprite-breathe { 50% { transform: scale(1.02); } }
+@media (prefers-reduced-motion: reduce) {
+  .sprite-breathe, .sprite-face::after { animation: none; }
+  .sprite-face img { transition: none; }
+}
 .sprite { z-index: 20; display: flex; flex-direction: column; min-height: 0; background: var(--surface-elevated); border: 1px solid var(--border-strong); overflow: hidden; }
 .sprite-floating { position: fixed; border-radius: var(--radius-lg); box-shadow: var(--shadow-3); }
 .sprite-docked { position: relative; grid-column: 4; grid-row: 1; }
-.sprite-head { cursor: move; user-select: none; padding-left: 6px; }
+.sprite-head { cursor: move; user-select: none; padding-left: var(--st-inset); }
 .sprite-docked .sprite-head { cursor: default; }
 .sprite-title { flex: 1; min-width: 0; height: var(--st-control); display: inline-flex; align-items: center; gap: 8px; border: 0; background: none; color: var(--text); font: 600 var(--st-title) var(--font-sans); cursor: pointer; padding: 0 8px; border-radius: 8px; }
 .sprite-title span:first-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
