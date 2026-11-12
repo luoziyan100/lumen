@@ -1,19 +1,20 @@
 /**
  * [INPUT]: 连接发现、新目录/会话 API、Conversation/Files、独立工作区投影与会话诊断
  * [OUTPUT]: WorkspaceApp：研究工作台与本地新对话草稿；首次提交后才选择真实会话
- * [POS]: 新应用前端组合根，恢复选择时校验当前数据根与可见目录；新建入口共用 Welcome，不预建空会话
+ * [POS]: 新应用前端组合根，恢复选择时校验当前数据根与可见目录；新建入口共用 Welcome，不预建空会话；文档居中实验：阅读器占中、对话靠右可拖宽/收起(CSS 隐藏不卸载)
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { flushSync } from 'react-dom'
 import { Button } from '@cloudflare/kumo/components/button'
 import { Dialog } from '@cloudflare/kumo/components/dialog'
-import { PanelIcon, RailIcon } from '../../components/icons'
+import { ChatIcon, PanelIcon, RailIcon } from '../../components/icons'
 import { CreateProjectModal } from './chrome/project/CreateProjectModal'
 import { Sidebar } from './chrome/Sidebar'
 import { SearchModal } from './chrome/SearchModal'
 import { SessionsIndex } from './chrome/SessionsIndex'
 import { loadCatalog } from './chrome/catalog'
+import { useResizable } from './chrome/useResizable'
 import { useAppearance } from '../../appearance'
 import { Input } from '@cloudflare/kumo/components/input'
 import { ExternalLinkGate } from '../../components/ExternalLinkDialog'
@@ -27,6 +28,10 @@ import { Settings } from './Settings'
 import { Diagnostics } from '../diagnostics/Diagnostics'
 import { Agents } from '../agents/Agents'
 import './workbench.css'
+
+function savedDocumentCenter(): boolean {
+  try { return localStorage.getItem('lumen:layout') === 'document' } catch { return false }
+}
 
 function lastSelection(): Identity | null {
   try {
@@ -54,6 +59,8 @@ export function WorkspaceApp({ connection }: { connection: Connection }) {
   const [searchOpen, setSearchOpen] = useState(false)
   const [renameProjectTarget, setRenameProjectTarget] = useState<string | null>(null), [renameSessionTarget, setRenameSessionTarget] = useState<Identity | null>(null)
   const [index, setIndex] = useState<{ projectId: string | null } | null>(null)
+  const [readerOpen, setReaderOpen] = useState(false), [documentCenter, setDocumentCenter] = useState(savedDocumentCenter), [chatHidden, setChatHidden] = useState(false)
+  const chatSide = useResizable({ edge: 'left', min: 320, max: 640, fallback: 420, storageKey: 'lumen:chatSideWidth' })
   const workspace = useWorkspace(api, selectionReady && !index ? identity : null, revision)
   const activePath = activeDocument?.projectId === identity?.projectId && activeDocument?.taskId === identity?.taskId ? writableDocument(activeDocument) : null
   useEffect(() => { setFilesOpen(false); setFileTarget(null); setActiveDocument(null) }, [api, identity?.projectId, identity?.taskId, !!index])
@@ -111,13 +118,19 @@ export function WorkspaceApp({ connection }: { connection: Connection }) {
   const copySession = (item: SessionInfo) => { void navigator.clipboard.writeText(item.taskId).catch(error => setError(String(error))) }
   const openFile = (target: FileTarget) => { if (identity) { setFileTarget({ ...identity, ...target }); setFilesOpen(true) } }
   const closeFiles = () => { setFilesOpen(false); setFileTarget(null) }
+  const reading = documentCenter && readerOpen && filesOpen && !!identity && !index
+  const toggleDocumentCenter = () => {
+    const next = !documentCenter
+    setDocumentCenter(next); setChatHidden(false)
+    try { localStorage.setItem('lumen:layout', next ? 'document' : 'chat') } catch { /* 无存储权限仍可切换。 */ }
+  }
   const openDocument = (target: FileTarget) => { if (identity && writableDocument(target)) setActiveDocument({ ...identity, ...target }) }
   if (!selectionReady) return <main className="mw-empty" role="status">{error ? <><p role="alert">{error}</p><Button onClick={activity}>{C.retry}</Button></> : '正在恢复研究工作台…'}</main>
   return <ExternalLinkGate><main className="app mw-app">
     <header className="titlebar"><div className="tb-left"><span className="brand">{C.brand}</span><button className="icon-btn nav-icon-btn" aria-label={sidebarOpen ? '收起侧栏' : '展开侧栏'} onClick={() => setSidebarOpen(value => !value)}><PanelIcon /></button></div>
-      <nav className="titlebar-actions"><button className="icon-btn nav-icon-btn" aria-label={filesOpen ? '收起工作区' : '展开工作区'} disabled={!identity || !!index} aria-expanded={filesOpen} onClick={() => filesOpen ? closeFiles() : setFilesOpen(true)}><RailIcon /></button></nav>
+      <nav className="titlebar-actions">{reading && <button className="icon-btn nav-icon-btn" aria-label={chatHidden ? '展开对话' : '收起对话'} aria-expanded={!chatHidden} onClick={() => setChatHidden(value => !value)}><ChatIcon /></button>}<button className="icon-btn nav-icon-btn" aria-label={filesOpen ? '收起工作区' : '展开工作区'} disabled={!identity || !!index} aria-expanded={filesOpen} onClick={() => filesOpen ? closeFiles() : setFilesOpen(true)}><RailIcon /></button></nav>
     </header>
-    <div className="body mw-body">
+    <div className={`body mw-body${reading ? ' mw-reading' : ''}${reading && chatHidden ? ' mw-reading-solo' : ''}`} style={reading ? { '--chat-side-w': `${chatSide.width}px` } as CSSProperties : undefined}>
       {sidebarOpen && <Sidebar projects={projects} sessions={sessions} projectId={projectId} identity={identity}
         onIndex={id => setIndex({ projectId: id })} onSearch={() => setSearchOpen(true)}
         archivedProjects={archivedProjects} archivedSessions={archivedSessions}
@@ -128,11 +141,12 @@ export function WorkspaceApp({ connection }: { connection: Connection }) {
         onCreateProject={() => setCreateProjectOpen(true)} onRenameProject={renameProject} onDiagnostics={setDiagnosticsTarget}
         onArchiveProject={item => mutateProject({ archived: !item.archived }, item.id)} onRenameSession={renameSession} onUpdateSession={(item, updates) => mutate(updates, item)} onCopySession={copySession} onToggleUnread={toggleUnread} onSettings={() => setSettingsOpen(true)} onAgents={() => setAgentsOpen(true)} />}
       <section className={`chat mw-center${filesOpen ? ' chat-with-reader' : ''}${index ? ' chat-sessions' : !identity ? ' chat-empty' : ''}`}>
+        {reading && <div className="reader-resize" role="separator" aria-orientation="vertical" aria-label="调整对话宽度（双击复位）" {...chatSide.handleProps} />}
         {error && <div className="mw-error" role="alert">{error}</div>}
         {index ? <SessionsIndex key={index.projectId ?? "all"} projects={projects} sessions={sessions} initialProject={index.projectId} onSession={selectSession} /> : identity ? <Conversation key={`${identity.projectId}:${identity.taskId}`} api={api} identity={identity} onActivity={activity} onOpenFile={openFile} onSettings={() => setSettingsOpen(true)} activePath={activePath} onClearActivePath={() => setActiveDocument(null)} />
           : project && !project.archived ? <Welcome key={`${api.connection.baseUrl}:${projectId}`} api={api} projectId={projectId} onSettings={() => setSettingsOpen(true)} onSession={next => { setIdentity(next); setIndex(null); activity() }} /> : null}
       </section>
-      {identity && !index && filesOpen && <Files key={`${identity.projectId}:${identity.taskId}`} api={api} identity={identity} revision={revision} workspace={workspace} target={fileTarget?.projectId === identity.projectId && fileTarget.taskId === identity.taskId ? fileTarget : null} onOpenDocument={openDocument} onClose={closeFiles} onActivity={activity} />}
+      {identity && !index && filesOpen && <Files key={`${identity.projectId}:${identity.taskId}`} api={api} identity={identity} revision={revision} workspace={workspace} target={fileTarget?.projectId === identity.projectId && fileTarget.taskId === identity.taskId ? fileTarget : null} onOpenDocument={openDocument} onClose={closeFiles} onActivity={activity} centered={documentCenter} onCenter={toggleDocumentCenter} onReading={setReaderOpen} />}
     </div>
     {createProjectOpen && <CreateProjectModal api={api} onClose={() => { setCreateProjectOpen(false); activity() }} onCreated={project => { setProjectId(project.id); setIdentity(null); setIndex(null) }} />}
     {(projectName !== null || renaming !== null) && <Dialog.Root open onOpenChange={open => { if (!open) { setProjectName(null); setRenaming(null) } }}><Dialog className="mw-dialog mw-rename-dialog" aria-label="重命名"><h2>重命名</h2><form onSubmit={event => {

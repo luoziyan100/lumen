@@ -135,8 +135,13 @@ test('工作区隐藏仍读取共享/本会话产物，只为新路径通知展�
     await act(async () => element.querySelector<HTMLButtonElement>('[aria-label="复制源码"]')!.click())
     assert.match(copied, /版本二/)
     assert.equal(bound, 1)
-    await act(async () => root.render(createElement(Files, { api, identity: { projectId: 'p', taskId: 't' }, revision: 0, workspace: state, target })))
+    const reading: boolean[] = []; let centers = 0
+    await act(async () => root.render(createElement(Files, { key: 'reading', api, identity: { projectId: 'p', taskId: 't' }, revision: 0, workspace: state, target, centered: false, onCenter() { centers++ }, onReading(open: boolean) { reading.push(open) } })))
+    assert.equal(reading.at(-1), true, '打开正文须回报阅读器已开')
+    await act(async () => element.querySelector<HTMLButtonElement>('[aria-label="文档居中"]')!.click())
+    assert.equal(centers, 1)
     await act(async () => element.querySelector<HTMLButtonElement>('[aria-label="返回工作目录"]')!.click())
+    assert.equal(reading.at(-1), false, '回到目录须回报阅读器已关，布局退回分屏')
     const input = element.querySelector<HTMLInputElement>('input[type=file]')!
     Object.defineProperty(input, 'files', { configurable: true, value: [new File(['one'], 'one.txt'), new File(['two'], 'two.txt')] })
     await act(async () => input.dispatchEvent(new dom.window.Event('change', { bubbles: true })))

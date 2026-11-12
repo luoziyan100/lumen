@@ -1,13 +1,13 @@
 /**
  * [INPUT]: 带显式 scope 的文件与资料绑定 API、原生目录选择、既有 Markdown/PDF/HTML 沙箱查看器（PDF 直接消费认证 Blob）
- * [OUTPUT]: Files：原双卡工作区(右轨含专家协作目录)、完整文件/外部资料/记忆导航、只读资料绑定、相对引用与 PDF 页码阅读、复制源码/系统打开和宽度拖拽
+ * [OUTPUT]: Files：原双卡工作区(右轨含专家协作目录)、完整文件/外部资料/记忆导航、只读资料绑定、相对引用与 PDF 页码阅读、复制源码/系统打开、宽度拖拽，以及文档居中开关与阅读器开合回报
  * [POS]: 列表和正文按身份/范围/路径绑定响应；绑定草稿独立保护迟到加载，上传限定 shared；成功阅读仅在导航变化时通知当前稿绑定，刷新不重复通知；运行时仅轮询打开正文，先用 ETag 判断版本再读取变化内容，上传整批锁定且首次失败停止
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { Specialists } from './conversation/Specialists'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { invoke, isTauri } from '@tauri-apps/api/core'
-import { BackIcon, CheckIcon, CloseIcon, CopyIcon, FileTypeIcon, FolderIcon, OpenOutIcon } from '../../components/icons'
+import { BackIcon, CheckIcon, CloseIcon, CopyIcon, ExpandIcon, FileTypeIcon, FolderIcon, OpenOutIcon } from '../../components/icons'
 import { WorkspaceRail } from './workspace/Rail'
 import { useWorkspace, type WorkspaceState } from './workspace/useWorkspace'
 import './workspace/workspace.css'
@@ -97,12 +97,14 @@ function Reader({ document, page }: { document: Document; page?: number }) {
 function specialistsIdle(display: WorkspaceState['display']) {
   return !!display && !display.isRunning && !Object.keys(display.pendingApprovals ?? {}).length && !Object.keys(display.pendingSuspensions ?? {}).length && !display.queuedFollowUps
 }
-export function Files({ api, identity, revision, target, onClose, workspace: suppliedWorkspace, onOpenDocument, onActivity }: { api: LumenApi; identity: Identity; revision: number; target?: FileTarget | null; onClose?: () => void; workspace?: WorkspaceState; onOpenDocument?: (target: FileTarget) => void; onActivity?: () => void }) {
+export function Files({ api, identity, revision, target, onClose, workspace: suppliedWorkspace, onOpenDocument, onActivity, centered, onCenter, onReading }: { api: LumenApi; identity: Identity; revision: number; target?: FileTarget | null; onClose?: () => void; workspace?: WorkspaceState; onOpenDocument?: (target: FileTarget) => void; onActivity?: () => void; centered?: boolean; onCenter?: () => void; onReading?: (open: boolean) => void }) {
   const localWorkspace = useWorkspace(api, suppliedWorkspace ? null : identity, revision)
   const workspace = suppliedWorkspace ?? localWorkspace
   const [browsing, setBrowsing] = useState(false)
   const openCallback = useRef(onOpenDocument), opened = useRef('')
   openCallback.current = onOpenDocument
+  const readingCallback = useRef(onReading)
+  readingCallback.current = onReading
   const [folder, setFolder] = useState('.'), [listing, setListing] = useState<{ key: string; api: LumenApi; entries: Asset[] } | null>(null), [path, setPath] = useState<string | null>(null)
   const [document, setDocument] = useState<Document | null>(null), [error, setError] = useState(''), [uploadError, setUploadError] = useState('')
   const loaded = useRef<Document | null>(null), uploadBusy = useRef(false)
@@ -196,6 +198,8 @@ export function Files({ api, identity, revision, target, onClose, workspace: sup
     } catch (error) { setError(String(error)) } finally { setSaving(false) }
   }
   useEffect(() => setCopied(false), [readKey])
+  useEffect(() => { readingCallback.current?.(!!path) }, [!!path])
+  useEffect(() => () => readingCallback.current?.(false), [])
   const filePath = (name: string) => folder === '.' ? name : `${folder}/${name}`
   const uploadInput = <input ref={input} hidden type="file" multiple onChange={event => { const files = Array.from(event.target.files ?? []); event.target.value = ''; void upload(files) }} />
   if (!path && !browsing) return <><WorkspaceRail workspace={{ ...workspace, error: uploadError || error || workspace.error }} onOpen={asset => { setScope(asset.scope); navigate(asset.path.includes('/') ? asset.path.slice(0, asset.path.lastIndexOf('/')) : '.', asset.path) }} onBrowse={scope => { changeScope(scope); setBrowsing(true) }} onUpload={() => input.current?.click()} uploading={uploading} specialists={<Specialists className="rail-card" api={api} identity={identity} idle={specialistsIdle(workspace.display)} onActivity={onActivity ?? workspace.refresh} />} />{uploadInput}</>
@@ -209,7 +213,7 @@ export function Files({ api, identity, revision, target, onClose, workspace: sup
         {currentDocument.text && <button className="icon-btn reader-action" aria-label={copied ? '已复制' : '复制源码'} title={copied ? '已复制' : '复制源码'} onClick={() => void copySource()}>{copied ? <CheckIcon /> : <CopyIcon />}</button>}
         <button className="icon-btn reader-action" disabled={saving} aria-label="用系统打开" title="用系统打开" onClick={() => void openFile()}><OpenOutIcon /></button>
         <Button variant="ghost" disabled={saving} onClick={() => { setSaving(true); void saveWorkspaceFile(path.split('/').pop()!, currentDocument.blob).catch(error => setError(String(error))).finally(() => setSaving(false)) }}>{C.download}</Button>
-      </>}{onClose && <button className="icon-btn nav-icon-btn" aria-label="关闭工作区" onClick={onClose}><CloseIcon /></button>}</div>
+      </>}{path && onCenter && <button className="icon-btn reader-action" aria-pressed={!!centered} aria-label={centered ? '恢复分屏' : '文档居中'} title={centered ? '恢复分屏' : '文档居中，对话靠右'} onClick={onCenter}><ExpandIcon /></button>}{onClose && <button className="icon-btn nav-icon-btn" aria-label="关闭工作区" onClick={onClose}><CloseIcon /></button>}</div>
     </header>
     {!path && <><Select aria-label={C.fileScope} value={scope} items={{ task: C.taskFiles, shared: C.sharedFiles, source: C.sourceFiles, memory: C.projectMemory }} onValueChange={changeScope} />
     {scope === 'source' && <SourceBinding api={api} projectId={identity.projectId} onChanged={() => { navigate('.'); setRefresh(value => value + 1) }} />}
