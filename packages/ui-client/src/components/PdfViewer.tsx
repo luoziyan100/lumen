@@ -1,6 +1,7 @@
 /**
  * [INPUT]: pdfjs-dist、文件 API 已认证的 PDF Blob 与统一 icons 缩放图标
- * [OUTPUT]: PdfViewer：连续页面、文本层、缩放、限定阅读容器的页码定位与加载错误
+ * [OUTPUT]: PdfViewer：连续页面、文本层、缩放、限定阅读容器的页码定位与加载错误；可选 fit：按第 1 页宽度适配容器内宽、随宽度变化重新适配，
+ *           手动缩放（按钮、捏合）后停止自动适配，工具条「适配宽度」回到适配。不传 fit 时初始 1.3、行为不变
  * [POS]: 旧阅读器与新工作台复用的 PDF 展示器，不处理后端协议
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -28,17 +29,22 @@ const MIN_SCALE = 0.6
 const MAX_SCALE = 3
 const STEP = 0.2
 const clampScale = (s: number): number => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(s * 100) / 100))
+/** 适配宽度可以比手动下限更小：窄分屏里也不出横向滚动 */
+const FIT_MIN = 0.3
+export const fitScale = (inner: number, pageWidth: number): number => Math.min(MAX_SCALE, Math.max(FIT_MIN, Math.floor(inner / pageWidth * 100) / 100))
 
-export function PdfViewer({ blob, page }: { blob: Blob; page?: number }) {
+export function PdfViewer({ blob, page, fit = false }: { blob: Blob; page?: number; fit?: boolean }) {
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null)
   const [error, setError] = useState('')
   const [scale, setScale] = useState(1.3)
+  const [fitting, setFitting] = useState(fit)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancelled = false
     setDoc(null)
     setError('')
+    setFitting(fit)
     let task: ReturnType<typeof pdfjs.getDocument> | undefined
     // 文件已通过认证 API 读取；直接传字节，避免 blob URL 二次 fetch 被桌面 CSP 拦截。
     void blob.arrayBuffer().then(async data => {
@@ -70,13 +76,30 @@ export function PdfViewer({ blob, page }: { blob: Blob; page?: number }) {
     const onWheel = (e: WheelEvent): void => {
       if (!e.ctrlKey) return
       e.preventDefault()
+      setFitting(false)
       setScale((s) => clampScale(Math.round((s - e.deltaY * 0.01) / 0.05) * 0.05))
     }
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
   }, [doc])
 
-  const zoom = (d: number): void => setScale((s) => clampScale(s + d))
+  // 适配宽度：第 1 页的宽度对齐滚动容器内宽；容器变宽变窄（分屏拖动、收放侧栏）都重新算，直到用户手动缩放
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!doc || !fitting || !el) return
+    let cancelled = false, pageWidth = 0
+    const apply = (): void => {
+      const style = getComputedStyle(el)
+      const inner = el.clientWidth - parseFloat(style.paddingLeft || '0') - parseFloat(style.paddingRight || '0')
+      if (pageWidth > 0 && inner > 0) setScale(fitScale(inner, pageWidth))
+    }
+    void doc.getPage(1).then((first) => { if (cancelled) return; pageWidth = first.getViewport({ scale: 1 }).width; apply() }).catch(() => {})
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(apply)
+    observer?.observe(el)
+    return () => { cancelled = true; observer?.disconnect() }
+  }, [doc, fitting])
+
+  const zoom = (d: number): void => { setFitting(false); setScale((s) => clampScale(s + d)) }
 
   if (!doc) return <div className="pdf-scroll pdf-loading" role={error ? 'alert' : 'status'}>{error || '载入中…'}</div>
   return (
@@ -85,6 +108,7 @@ export function PdfViewer({ blob, page }: { blob: Blob; page?: number }) {
         <button className="pdf-zoom-btn" onClick={() => zoom(-STEP)} aria-label="缩小" disabled={scale <= MIN_SCALE}><ZoomOutIcon /></button>
         <span className="pdf-zoom-val" aria-live="polite">{Math.round(scale * 100)}%</span>
         <button className="pdf-zoom-btn" onClick={() => zoom(STEP)} aria-label="放大" disabled={scale >= MAX_SCALE}><ZoomInIcon /></button>
+        {fit && <button className="pdf-fit-btn" onClick={() => setFitting(true)} aria-pressed={fitting} disabled={fitting}>适配宽度</button>}
       </div>
       <div className="pdf-pages">
         {Array.from({ length: doc.numPages }, (_, i) => (
@@ -102,7 +126,9 @@ function PdfPage({ doc, pageNumber, scale }: { doc: PDFDocumentProxy; pageNumber
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const textRef = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(pageNumber <= 2) // 前两页直接渲染,余下懒加载
-  const [size, setSize] = useState({ w: 612 * scale, h: 792 * scale }) // Letter 估值;渲染后更新为真实尺寸
+  // 页的 100% 尺寸(Letter 估值,渲染后换成真实值);显示尺寸 = 它 × scale,没渲染的页也跟着缩放,适配宽度时不撑出横向滚动
+  const [base, setBase] = useState({ w: 612, h: 792 })
+  const size = { w: base.w * scale, h: base.h * scale }
 
   useEffect(() => {
     if (visible) return
@@ -124,7 +150,7 @@ function PdfPage({ doc, pageNumber, scale }: { doc: PDFDocumentProxy; pageNumber
       if (cancelled) return
       const dpr = globalThis.devicePixelRatio || 1
       const viewport = pg.getViewport({ scale })
-      setSize({ w: viewport.width, h: viewport.height })
+      setBase({ w: viewport.width / scale, h: viewport.height / scale })
       const canvas = canvasRef.current
       const textDiv = textRef.current
       if (!canvas || !textDiv) return
@@ -133,12 +159,14 @@ function PdfPage({ doc, pageNumber, scale }: { doc: PDFDocumentProxy; pageNumber
       canvas.width = Math.floor(viewport.width * dpr)
       canvas.height = Math.floor(viewport.height * dpr)
       renderTask = pg.render({ canvasContext: ctx, viewport, transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined })
+      // 缩放或宽度变化会取消上一轮渲染;取消的拒绝在这里接住,不成为未处理的错误
+      const rendered = renderTask.promise.catch(() => {})
       textDiv.replaceChildren() // 缩放重渲时清掉上一档文本
       const textContent = await pg.getTextContent()
       if (cancelled) return
       textLayer = new TextLayer({ textContentSource: textContent, container: textDiv, viewport })
       await textLayer.render()
-      await renderTask.promise.catch(() => {})
+      await rendered
     }).catch(() => {})
     return () => { cancelled = true; renderTask?.cancel(); textLayer?.cancel() }
   }, [doc, pageNumber, visible, scale])
