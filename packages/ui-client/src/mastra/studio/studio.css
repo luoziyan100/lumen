@@ -1,7 +1,7 @@
 /**
  * [INPUT]: tokens.css / yan-design-system tokens 与 appearance 皮肤变量（data-material 玻璃/纸面）
  * [OUTPUT]: 新外壳样式——原型 v7 骨架（canvas 底、8px 外边距与间距、圆角面板、50px 同线头部、14px 同一左缘、四级字阶、30px 控件）、
- *           白板画布与区块（文字/梯子/表格/小部件）、阅读器分屏、材料栏、对话精灵
+ *           左右栏收放（宽 0、--dur-base 过渡、减弱动效时瞬时）、白板画布与区块（文字/梯子/表格/小部件）、阅读器分屏（分隔条、两个下限）与铺满、材料栏、对话精灵
  * [POS]: 只用现有 tokens；控件与文档岛保持实色表面，玻璃/纸面皮肤走 appearance 管道。字号只引用下面四个变量（G4）
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -15,12 +15,22 @@
   --st-inset: 14px;   /* 面板内容左右内边距（G3） */
   --st-head: 50px;    /* 面板头部高（G2） */
   --st-control: 30px; /* 输入框、按钮、图标按钮（G5） */
+  --st-left-w: 240px;  /* 左栏宽，收起为 0（K1） */
+  --st-right-w: 280px; /* 右栏宽，收起为 0（K2） */
 }
 
 /* ---- 外壳：canvas 底上的圆角面板（G1） ---- */
-.app.studio { display: grid; grid-template-columns: 240px minmax(0, 1fr) 280px; grid-template-rows: minmax(0, 1fr); gap: 8px; padding: 8px; box-sizing: border-box; height: 100vh; font-size: var(--st-body); }
-.app.studio.studio-docked { grid-template-columns: 240px minmax(0, 1fr) 280px var(--sprite-dock-w, 380px); }
-.app.studio.studio-no-topic { grid-template-columns: 240px minmax(0, 1fr); }
+.app.studio { display: grid; grid-template-columns: var(--st-left-w) minmax(0, 1fr) var(--st-right-w); grid-template-rows: minmax(0, 1fr); gap: 8px; padding: 8px; box-sizing: border-box; height: 100vh; font-size: var(--st-body); transition: grid-template-columns var(--dur-base) var(--ease-out); }
+.app.studio.studio-docked { grid-template-columns: var(--st-left-w) minmax(0, 1fr) var(--st-right-w) var(--sprite-dock-w, 380px); }
+.app.studio.studio-no-topic { grid-template-columns: var(--st-left-w) minmax(0, 1fr); }
+/* 收起（K1–K5）：栏宽 0、去掉边框；中栏吃掉那一侧的间距，外边距仍是 8px。过渡结束后才隐藏，inert 挡住焦点 */
+.app.studio.studio-left-collapsed { --st-left-w: 0px; }
+.app.studio.studio-right-collapsed { --st-right-w: 0px; }
+.studio .studio-center { transition: margin var(--dur-base) var(--ease-out); }
+.studio-left-collapsed .studio-center { margin-left: -8px; }
+.studio-right-collapsed:not(.studio-no-topic) .studio-center { margin-right: -8px; }
+.studio-panel.is-collapsed { border-width: 0; visibility: hidden; transition: visibility 0s linear var(--dur-base); }
+@media (prefers-reduced-motion: reduce) { .app.studio, .studio .studio-center, .studio-panel.is-collapsed { transition: none; } }
 .studio-panel { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--surface-elevated); border: 1px solid var(--border-strong); border-radius: var(--radius-lg); }
 html[data-material="glass"] .studio :is(.studio-topics, .studio-materials) { background: var(--paper); backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation)); }
 html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { background: var(--surface-base); }
@@ -57,8 +67,20 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 @media (prefers-reduced-motion: reduce) { .topic-light-running, .board-drawing-dot { animation: none; } }
 
 /* ---- 中栏：白板段 + 阅读器段，两段头部同一行 ---- */
-.studio-center { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
-.studio-center.studio-split { grid-template-columns: minmax(0, 1fr) minmax(320px, 1fr); }
+.studio-center { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+/* 分屏（R-d）：白板段按比例，夹在 [360, 总宽 − 420]，放不下时白板保 360、先压阅读器（与 Panes.splitBoardWidth 同一规则） */
+.studio-center.studio-split { --split-board: clamp(min(360px, 100%), calc(var(--split-ratio, .5) * 100%), calc(100% - 420px)); grid-template-columns: var(--split-board) minmax(0, 1fr); }
+.studio-splitter { position: absolute; z-index: 7; top: 0; bottom: 0; left: calc(var(--split-board) - 4px); width: 8px; cursor: col-resize; touch-action: none; outline: none; }
+.studio-splitter::after { content: ''; position: absolute; top: 0; bottom: 0; left: 3.5px; width: 1px; background: transparent; transition: background var(--dur-fast) var(--ease-out); }
+.studio-splitter:hover::after, .studio-splitter:focus-visible::after, .is-resizing > .studio-splitter::after { background: var(--accent); }
+.studio-center.is-resizing { user-select: none; cursor: col-resize; }
+.studio-center.is-resizing iframe { pointer-events: none; }
+/* 铺满（R-a/R-c）：白板段隐藏但保持挂载（相机与排列都留着），中栏头部只剩阅读器头 */
+.studio-center.studio-full .studio-board-pane { display: none; }
+.studio-center.studio-full .studio-reader { border-left: 0; }
+/* 收起后的展开按钮在中栏头部两端；图标按钮盒子贴 8px，与右侧按钮对称 */
+.studio-head .head-lead { margin-left: -6px; margin-right: auto; }
+.studio-head .head-trail { margin-left: auto; }
 .studio-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .studio-stage { position: relative; flex: 1; min-height: 0; display: flex; }
 .studio-later { margin: auto; max-width: 420px; text-align: center; color: var(--text-muted); font-size: var(--st-note); padding: 24px; }
@@ -71,6 +93,7 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 .studio-seg button.on { background: var(--surface-elevated); color: var(--text); box-shadow: var(--shadow-1); }
 .studio-split .studio-seg button { padding: 0 8px; }
 .studio-orb-host { position: absolute; right: var(--st-inset); bottom: 60px; z-index: 6; }
+.studio-orb-full { bottom: 14px; }
 
 /* ---- 白板 ---- */
 .studio-board { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; }
@@ -78,11 +101,13 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 .board-viewport:active { cursor: grabbing; }
 .board-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .board-frame { position: absolute; box-sizing: border-box; border: 1.5px dashed var(--border-strong); border-radius: var(--radius-lg); pointer-events: none; }
-.board-frame-label { position: absolute; top: -22px; right: 0; font-size: var(--st-note); color: var(--text-muted); white-space: nowrap; }
+.board-frame-label { position: absolute; top: -20px; right: 0; font-size: var(--st-note); color: var(--text-muted); white-space: nowrap; }
 /* 左上角浮层（G7/U2）：多张时的张标签 · ＋；不显示已用块数 */
-.board-sheets { position: absolute; left: var(--st-inset); top: 12px; z-index: 5; display: flex; align-items: center; gap: 6px; box-sizing: border-box; height: var(--st-control); padding: 0; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-1); }
-.board-tabs { display: flex; gap: 2px; padding-left: 3px; }
-.board-tabs button { height: 22px; padding: 0 8px; border: 0; border-radius: 7px; background: none; color: var(--text-muted); font-size: var(--st-note); cursor: pointer; }
+/* W1：张标签单行、每张最宽 160 省略、title 全名，放不下就在浮层里横向滚动，不换行（浮层高度恒为 30，W2 的画布起点据此留空） */
+.board-sheets { position: absolute; left: var(--st-inset); top: 12px; z-index: 5; display: flex; align-items: center; gap: 6px; box-sizing: border-box; height: var(--st-control); max-width: calc(100% - 2 * var(--st-inset)); padding: 0; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-1); }
+.board-tabs { display: flex; gap: 2px; min-width: 0; padding-left: 3px; overflow-x: auto; scrollbar-width: none; }
+.board-tabs::-webkit-scrollbar { display: none; }
+.board-tabs button { flex: none; max-width: 160px; height: 22px; padding: 0 8px; border: 0; border-radius: 7px; background: none; color: var(--text-muted); font-size: var(--st-note); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .board-tabs button.on { background: var(--surface-fill); color: var(--text); }
 .board-tabs small { font-size: var(--st-label); color: var(--text-faint); }
 .board-sheets .icon-btn { width: 28px; height: 28px; }
@@ -143,9 +168,16 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 
 /* ---- 阅读器：中栏右段，头部与白板头同线（D1）；缩放条在底部居中，不压在正文顶上（G8） ---- */
 .studio-reader { border-left: 1px solid var(--border); background: var(--surface-elevated); }
+/* R-b：类别轮廓 → 标题占满剩余宽度（真放不下才省略）→ 铺满/还原 → 系统打开 → 保存 → 关闭 */
+.reader-icon { flex: none; display: inline-flex; color: var(--text-soft); }
+.reader-title { flex: 1; }
 .reader-actions { display: flex; align-items: center; gap: 2px; flex: none; }
 .studio-reader .mw-reader-pdf { position: relative; }
-.studio-reader .pdf-scroll { padding-bottom: 64px; }
+/* R-e：适配宽度时内宽 = 阅读器宽 − 2×12，没有横向滚动 */
+.studio-reader .pdf-scroll { padding: 12px 12px 64px; }
+.studio-reader .pdf-fit-btn { height: 24px; padding: 0 8px; border: 0; border-radius: 7px; background: none; color: var(--text-soft); font: var(--st-note) var(--font-sans); cursor: pointer; }
+.studio-reader .pdf-fit-btn:hover:not(:disabled) { background: var(--surface-fill); color: var(--text); }
+.studio-reader .pdf-fit-btn:disabled { color: var(--text-faint); cursor: default; }
 .studio-reader .pdf-toolbar { position: absolute; background: var(--surface-elevated); top: auto; bottom: var(--st-inset); left: 50%; transform: translateX(-50%); margin: 0; height: var(--st-control); box-sizing: border-box; padding: 0 4px; gap: 2px; border-radius: 10px; box-shadow: var(--shadow-1); }
 .studio-reader .pdf-zoom-val { font-size: var(--st-note); }
 .studio-reader > .mw-error { margin: 8px var(--st-inset); }
@@ -156,12 +188,12 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 .material { display: flex; align-items: center; margin: 0 6px; border-radius: 8px; }
 .material:hover, .material.on { background: var(--fill-subtle); }
 .material-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; border: 0; background: none; text-align: left; padding: 6px 8px; cursor: pointer; color: var(--text); }
+.material-icon { flex: none; display: inline-flex; color: var(--text-soft); }
 .material-text { min-width: 0; display: flex; flex-direction: column; }
 .material-title { font-size: var(--st-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .material-meta { font-size: var(--st-note); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .material-remove { opacity: 0; }
 .material:hover .material-remove, .material-remove:focus-visible { opacity: 1; }
-.studio .ws-tag { font-size: var(--st-label); }
 
 /* ---- 对话精灵 ---- */
 .sprite-orb { position: fixed; right: 24px; bottom: 24px; z-index: 20; width: 48px; height: 48px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface-elevated); color: var(--accent-ink); box-shadow: var(--shadow-3); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
@@ -197,7 +229,7 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 .board-card-failed > span { color: var(--danger); border-style: dashed; }
 
 @media (max-width: 1100px) {
-  .app.studio { grid-template-columns: 200px minmax(0, 1fr) 240px; }
-  .app.studio.studio-docked { grid-template-columns: 200px minmax(0, 1fr) 0 var(--sprite-dock-w, 340px); }
+  .studio { --st-left-w: 200px; --st-right-w: 240px; }
+  .app.studio.studio-docked { grid-template-columns: var(--st-left-w) minmax(0, 1fr) 0 var(--sprite-dock-w, 340px); }
   .app.studio.studio-docked .studio-materials { display: none; }
 }

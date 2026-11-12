@@ -1,6 +1,6 @@
 /**
  * [INPUT]: doc/studio/model.md 的功能命名（白板 · 沉淀 · 概念图 · 灵感 · 全部）与 P0 交互
- * [OUTPUT]: STUDIO_COPY：新外壳的词表——视图名、白板/区块/材料/精灵/状态灯文案
+ * [OUTPUT]: STUDIO_COPY：新外壳的词表——视图名、白板/区块/材料/精灵/状态灯、面板收放与阅读器文案
  * [POS]: 新形态文案单源。视图名集中在 views，P3 换世界观（书房 / 实验室 / 工坊）时只换这张表，不改结构
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -38,7 +38,16 @@ export const STUDIO_COPY = {
     upload: '上传文件', link: '粘贴链接，回车添加', remove: '不再引用',
     progress: (value: number) => value > 0 ? `读到 ${Math.round(value * 100)}%` : '未打开',
     cited: (count: number) => count ? `板上引用 ${count} 处` : '',
+    format: { pdf: 'PDF', web: '网页' },
     close: '关闭', loading: '正在打开…', unsupported: '这种格式还不能在这里预览。',
+  },
+  panes: {
+    left: { collapse: '收起主题栏', expand: '展开主题栏', key: '⌘B', keys: 'Meta+B' },
+    right: { collapse: '收起素材栏', expand: '展开素材栏', key: '⌘⌥B', keys: 'Meta+Alt+B' },
+  },
+  reader: {
+    full: '铺满中栏', restore: '还原分屏 Esc', open: '用系统打开', close: '关闭阅读器', copy: '复制源码', copied: '已复制',
+    splitter: '拖动调整白板与原文的宽度，双击回到各一半',
   },
   sprite: {
     open: '点开对话（可拖动）', collapse: '收回成球', dock: '停靠到右侧', float: '恢复浮动', conversations: '这个主题的对话',

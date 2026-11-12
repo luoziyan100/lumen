@@ -1,6 +1,7 @@
 /**
  * [INPUT]: useBoard 的白板张与视图、主题材料、精灵传来的「正在画/跳到某块」信号、layout.ts 的按宽排列
- * [OUTPUT]: Board：白板画布——左上角浮层（多张时的张标签、＋；不显示已用块数，上限与 R11 在服务端不变，写满时边框标签如实写「已经写满」）、DOM + CSS transform 平移缩放（默认 100%，看全貌可缩小）、
+ * [OUTPUT]: Board：白板画布——左上角浮层（多张时的张标签，单行、过长省略、title 全名、放不下横向滚动；＋；不显示已用块数，上限与 R11 在服务端不变，写满时边框标签如实写「已经写满」）、
+ *           画布起点在浮层之下（BOARD.TOP ≥ 浮层顶 12 + 高 30 + 12，首屏不压区块标题）、DOM + CSS transform 平移缩放（默认 100%，看全貌可缩小）、
  *           按视口宽度 1–3 列重排、贴着内容的白板边框、AI 正在画提示、小部件同时运行名额、右下角缩放条
  * [POS]: 中间「白板」视图；P0 对人只读（不圈、不钉、不改）。列与位置只在显示层重排，服务端坐标不动
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -39,11 +40,11 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
   const selectedSheet = board.sheets.find(sheet => sheet.id === board.selected)
   const tabs = board.sheets.length > 1 || (selectedSheet && selectedSheet.state !== 'live')
 
-  // ---- 视口宽度决定列数；换一张白板回到左上角 100% ----
+  // ---- 视口宽度决定列数；换一张白板回到左上角 100%。阅读器铺满时白板隐藏（宽 0），保留原来的排列 ----
   useLayoutEffect(() => {
     const node = viewport.current
     if (!node) return
-    const measure = () => setWidth(node.clientWidth)
+    const measure = () => { if (node.clientWidth) setWidth(node.clientWidth) }
     measure()
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
     observer?.observe(node)
@@ -131,7 +132,7 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
       {board.error && <p className="mw-error board-error" role="alert">{board.error}</p>}
     </div>
     <nav className="board-sheets" aria-label="白板">
-      {tabs && <span className="board-tabs">{board.sheets.map(sheet => <button type="button" key={sheet.id} className={sheet.id === board.selected ? 'on' : ''} aria-pressed={sheet.id === board.selected} onClick={() => board.select(sheet.id)}>
+      {tabs && <span className="board-tabs">{board.sheets.map(sheet => <button type="button" key={sheet.id} className={sheet.id === board.selected ? 'on' : ''} aria-pressed={sheet.id === board.selected} title={sheet.state !== 'live' ? `${sheet.title} · ${S.board.folded}` : sheet.title} onClick={() => board.select(sheet.id)}>
         {sheet.title}{sheet.state !== 'live' && <small> · {S.board.folded}</small>}</button>)}</span>}
       <button type="button" className="icon-btn board-sheet-new" title={S.board.newSheet} aria-label={S.board.newSheet} onClick={() => void board.createSheet()}><PlusIcon /></button>
     </nav>

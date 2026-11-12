@@ -58,6 +58,9 @@ test('每个几何都被至少一个入口使用，且尺寸档与镜像生效',
 
   assert.match(render(icons.SearchIcon), /width="20" height="20"/)
   assert.match(render(icons.CopyIcon), /width="16" height="16"/)
+  // 铺满 ↔ 还原：collapse 与 expand 同尺寸档、同一对 m-in / m-out 动效部件
+  assert.match(render(icons.CollapseIcon), /width="16" height="16"[^>]*class="lumen-icon li li-collapse"/)
+  assert.deepEqual([...render(icons.CollapseIcon).matchAll(/class="(m-[a-z]+)"/g)].map(m => m[1]).sort(), [...render(icons.ExpandIcon).matchAll(/class="(m-[a-z]+)"/g)].map(m => m[1]).sort())
   assert.match(render(icons.GearIcon, { size: 18 }), /width="18" height="18"/)
   assert.match(render(icons.RailIcon), /transform:scaleX\(-1\)/)
 })

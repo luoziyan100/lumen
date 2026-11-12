@@ -1,16 +1,18 @@
 /**
  * [INPUT]: LumenApi 带 ETag 的原件读取（资料库条目或主题工作区/记忆文件）、既有 Markdown/PDF/HTML 沙箱查看器
- * [OUTPUT]: DocumentReader：单文档阅读器——50px 头部（类型标签、材料标题、复制源码/系统打开/保存到本机/关闭，全是图标按钮）、相对链接与 PDF 页码；运行中按 ETag 低频检查版本
+ * [OUTPUT]: DocumentReader：单文档阅读器——50px 头部（类别轮廓、材料标题占满剩余宽度真放不下才省略、铺满/还原、复制源码、系统打开、保存到本机、关闭，全是图标按钮；
+ *           头部两端可插入面板展开按钮）、PDF 按宽适配、相对链接与 PDF 页码；运行中按 ETag 低频检查版本
  * [POS]: 新外壳中间分屏的阅读器（取代 S2 的 Files 目录轨，只保留阅读部分）；不列目录、不上传
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { invoke, isTauri } from '@tauri-apps/api/core'
-import { ArrowDownIcon, CheckIcon, CloseIcon, CopyIcon, OpenOutIcon } from '../../../components/icons'
+import { ArrowDownIcon, CheckIcon, CloseIcon, CollapseIcon, CopyIcon, ExpandIcon, FileGlyph, FileTypeIcon, ICON_MD, OpenOutIcon } from '../../../components/icons'
 import { Markdown } from '../../../components/Markdown'
 import { PdfViewer } from '../../../components/PdfViewer'
 import { HtmlViewer } from '../../../components/HtmlViewer'
 import { MASTRA_COPY as C } from '../../../copy/mastraCopy'
+import { STUDIO_COPY as S } from '../../../copy/studioCopy'
 import type { LumenApi, Identity } from '../../data/client.ts'
 import { workspaceLink, type FileTarget } from '../../data/file-links'
 import { saveWorkspaceFile } from '../../data/download'
@@ -26,7 +28,7 @@ export function documentKind(name: string, type: string): DocumentKind {
 
 function View({ document, page, title }: { document: Loaded; page?: number; title: string }) {
   const render = {
-    pdf: () => <PdfViewer blob={document.blob} page={page} />,
+    pdf: () => <PdfViewer blob={document.blob} page={page} fit />,
     image: () => <img src={document.url} alt={title} />,
     html: () => <HtmlViewer html={document.text} />,
     markdown: () => document.text ? <Markdown>{document.text}</Markdown> : <p>{C.emptyFile}</p>,
@@ -36,7 +38,12 @@ function View({ document, page, title }: { document: Loaded; page?: number; titl
   return render[document.kind]()
 }
 
-export function DocumentReader({ api, identity, target, title, live = false, onClose, onNavigate }: {
+/** 类别轮廓（I1）：PDF/文档/网页用文档、图片用图片，认不出的用空白文件；格式不再做文字徽标 */
+function KindIcon({ kind }: { kind: DocumentKind }) {
+  return kind === 'binary' ? <FileGlyph size={ICON_MD} /> : <FileTypeIcon name={kind === 'image' ? 'x.png' : 'x.pdf'} size={ICON_MD} />
+}
+
+export function DocumentReader({ api, identity, target, title, live = false, full = false, onToggleFull, leading, trailing, onClose, onNavigate }: {
   api: LumenApi
   /** 读工作区/记忆文件需要会话身份；资料库条目不需要 */
   identity: Identity | null
@@ -44,6 +51,12 @@ export function DocumentReader({ api, identity, target, title, live = false, onC
   title?: string
   /** 运行中：每 5 秒按 ETag 检查一次版本 */
   live?: boolean
+  /** 铺满中栏（白板隐藏但保持挂载）；没有 onToggleFull 就不显示铺满按钮 */
+  full?: boolean
+  onToggleFull?: () => void
+  /** 头部最左 / 最右的插槽：面板收起时的展开按钮 */
+  leading?: ReactNode
+  trailing?: ReactNode
   onClose: () => void
   onNavigate?: (target: FileTarget) => void
 }) {
@@ -93,14 +106,17 @@ export function DocumentReader({ api, identity, target, title, live = false, onC
   }
   return <section className="studio-pane studio-reader" aria-label={name}>
     <header className="studio-head reader-head">
-      {current && <span className={`ws-tag ws-tag-${current.kind === 'pdf' ? 'pdf' : current.kind === 'html' ? 'html' : 'md'}`}>{current.kind === 'pdf' ? 'PDF' : current.kind === 'html' ? 'HTML' : current.kind === 'image' ? 'IMG' : 'MD'}</span>}
-      <h2 className="studio-head-title reader-title" title={name}>{name}</h2><span className="studio-sp" />
+      {leading}
+      {current && <span className="reader-icon"><KindIcon kind={current.kind} /></span>}
+      <h2 className="studio-head-title reader-title" title={name}>{name}</h2>
       <div className="reader-actions">
-        {current?.text && <button className="icon-btn reader-action" aria-label={copied ? '已复制' : '复制源码'} title={copied ? '已复制' : '复制源码'} onClick={() => void copySource()}>{copied ? <CheckIcon /> : <CopyIcon />}</button>}
-        {current && <button className="icon-btn reader-action" disabled={saving} aria-label="用系统打开" title="用系统打开" onClick={() => void openOutside()}><OpenOutIcon /></button>}
+        {onToggleFull && <button className="icon-btn reader-action reader-full" aria-label={full ? S.reader.restore : S.reader.full} aria-pressed={full} title={full ? S.reader.restore : S.reader.full} onClick={onToggleFull}>{full ? <CollapseIcon /> : <ExpandIcon />}</button>}
+        {current?.text && <button className="icon-btn reader-action" aria-label={copied ? S.reader.copied : S.reader.copy} title={copied ? S.reader.copied : S.reader.copy} onClick={() => void copySource()}>{copied ? <CheckIcon /> : <CopyIcon />}</button>}
+        {current && <button className="icon-btn reader-action" disabled={saving} aria-label={S.reader.open} title={S.reader.open} onClick={() => void openOutside()}><OpenOutIcon /></button>}
         {current && <button className="icon-btn reader-action" disabled={saving} aria-label={C.download} title={C.download} onClick={() => { setSaving(true); void saveWorkspaceFile(name, current.blob).catch(error => setError(String(error))).finally(() => setSaving(false)) }}><ArrowDownIcon /></button>}
-        <button className="icon-btn reader-action" aria-label="关闭阅读器" title="关闭阅读器" onClick={onClose}><CloseIcon /></button>
+        <button className="icon-btn reader-action" aria-label={S.reader.close} title={S.reader.close} onClick={onClose}><CloseIcon /></button>
       </div>
+      {trailing}
     </header>
     {error && <p role="alert" className="mw-error">{error}</p>}
     {current ? <div className={`mw-reader mw-reader-${current.kind}`} onClickCapture={event => {

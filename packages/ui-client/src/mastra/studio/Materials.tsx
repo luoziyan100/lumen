@@ -1,13 +1,15 @@
 /**
  * [INPUT]: LumenApi 的主题材料（引用 + 读到哪 + 板上引用数）、上传与粘贴链接、取消引用；刷新信号
- * [OUTPUT]: Materials：右栏面板「素材」——一行添加（粘贴链接回车 + 上传图标）、一个按加入时间倒序的列表（不分组、不计数）、meta 只放「AI 找来」·来源·读到哪，板上引用数进 title、不再引用；materialMeta；点一条在中间分屏打开原件
+ * [OUTPUT]: Materials：右栏面板「素材」——头部右侧收起（镜像 PanelIcon，收起后宽 0、inert）、一行添加（粘贴链接回车 + 上传图标）、一个按加入时间倒序的列表（不分组、不计数）；
+ *           每行按类别的文件轮廓（18，随文字色，不用文字徽标），meta 放「AI 找来」·格式·来源·读到哪，板上引用数进 title、不再引用；materialMeta；点一条在中间分屏打开原件
  * [POS]: 界面叫「素材」，文档与代码里的对象仍叫材料。材料只经主题引用进入（R15），原件留在资料库；这里不删原件，只断开本主题的引用
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { AttachIcon, CloseIcon } from '../../components/icons'
+import { AttachIcon, CloseIcon, FileTextIcon, FileTypeIcon, ICON_MD } from '../../components/icons'
 import { STUDIO_COPY as S } from '../../copy/studioCopy'
 import type { LumenApi, TopicMaterial } from '../data/client.ts'
+import { PaneToggle } from './Panes'
 
 export function useMaterials(api: LumenApi, topicId: string | null, signal: string) {
   const [items, setItems] = useState<TopicMaterial[]>([]), [error, setError] = useState(''), [tick, setTick] = useState(0)
@@ -26,15 +28,26 @@ function host(url?: string | null) {
   try { return url ? new URL(url).host : '' } catch { return '' }
 }
 
-/** meta 只留最有用的两项：来源与读到哪；AI 找来的排在最前（淡色小字，不用徽标色）；板上引用数进 title 提示 */
+/** 格式：PDF、网页，其余取文件扩展名（I2：格式进 meta，不做徽标） */
+function format(item: TopicMaterial) {
+  if (item.kind === 'pdf' || item.kind === 'web') return S.materials.format[item.kind]
+  return item.file.match(/\.([A-Za-z0-9]+)$/)?.[1]?.toUpperCase() ?? ''
+}
+
+/** meta：AI 找来的排在最前（淡色小字，不用徽标色）· 格式 · 来源 · 读到哪；板上引用数进 title 提示 */
 export function materialMeta(item: TopicMaterial) {
-  return [item.addedBy === 'ai' ? S.materials.foundByAi : '', host(item.sourceUrl), S.materials.progress(item.readProgress)].filter(Boolean).join(' · ')
+  return [item.addedBy === 'ai' ? S.materials.foundByAi : '', format(item), host(item.sourceUrl), S.materials.progress(item.readProgress)].filter(Boolean).join(' · ')
+}
+
+/** 类别轮廓：PDF 与文档用文档、网页复用文档轮廓、图片用图片；随文字色 */
+function KindIcon({ item }: { item: TopicMaterial }) {
+  return item.kind === 'web' ? <FileTextIcon size={ICON_MD} /> : <FileTypeIcon name={item.kind === 'pdf' ? 'x.pdf' : item.file} size={ICON_MD} />
 }
 
 function Row({ item, active, onOpen, onRemove }: { item: TopicMaterial; active: boolean; onOpen: () => void; onRemove: () => void }) {
   return <li className={`material${active ? ' on' : ''}`}>
     <button type="button" className="material-open" onClick={onOpen}>
-      <span className={`ws-tag ws-tag-${item.kind === 'pdf' ? 'pdf' : item.kind === 'web' ? 'html' : 'md'}`}>{item.kind === 'pdf' ? 'PDF' : item.kind === 'web' ? 'WEB' : 'FILE'}</span>
+      <span className="material-icon"><KindIcon item={item} /></span>
       <span className="material-text"><span className="material-title">{item.title}</span>
         <small className="material-meta" data-added-by={item.addedBy} title={S.materials.cited(item.citedBy) || undefined}>{materialMeta(item)}</small></span>
     </button>
@@ -42,12 +55,14 @@ function Row({ item, active, onOpen, onRemove }: { item: TopicMaterial; active: 
   </li>
 }
 
-export function Materials({ api, topicId, items, error: loadError, activeId, onOpen, onChanged }: {
+export function Materials({ api, topicId, items, error: loadError, activeId, collapsed, onToggle, onOpen, onChanged }: {
   api: LumenApi
   topicId: string
   items: TopicMaterial[]
   error: string
   activeId: string | null
+  collapsed: boolean
+  onToggle: () => void
   onOpen: (item: TopicMaterial) => void
   onChanged: () => void
 }) {
@@ -65,8 +80,8 @@ export function Materials({ api, topicId, items, error: loadError, activeId, onO
     const url = link.trim()
     if (url) void act(async () => { await api.addLink(url, topicId); setLink('') })
   }
-  return <aside className="studio-panel studio-materials" aria-label={S.materials.title}>
-    <header className="studio-head"><h2 className="studio-head-title">{S.materials.title}</h2></header>
+  return <aside className={`studio-panel studio-materials${collapsed ? ' is-collapsed' : ''}`} id="studio-materials" aria-label={S.materials.title} inert={collapsed}>
+    <header className="studio-head"><h2 className="studio-head-title">{S.materials.title}</h2><span className="studio-sp" /><PaneToggle side="right" open onToggle={onToggle} /></header>
     <div className="studio-scroll">
       <form className="materials-add" onSubmit={submitLink}>
         <input className="studio-field" aria-label={S.materials.link} placeholder={S.materials.link} value={link} disabled={busy} onChange={event => setLink(event.target.value)} />

@@ -14,6 +14,7 @@ tests/
 ├── mermaid-*.test.ts        # 图表算法与宿主
 ├── widget-*.test.ts         # 网页沙箱输入与主题
 ├── icons.test.ts            # 自绘图标结构合同
+├── pdf-fit.test.ts          # PdfViewer 按宽适配（真实 pdf.js）
 ├── appearance-resolve.test.ts
 ├── source-cite.test.ts / scroll-debug.test.ts
 └── fixtures/               # 合成阅读材料
@@ -22,7 +23,8 @@ tests/
 - `mastra-feed.test.ts`：真实 HTTP/SSE 的快照/流竞争、旧连接迟到、重连、原生用户消息与分页历史；过期选择不得创建线程，专家用量在原生 SSE 后保留，Progress 分列主/子/合计；真实原生快照中保留的 completed 工具不得显示执行中，失败工具也不冒充运行态；实际 HTTP 端口轮换后触发重新发现并恢复原会话，旧订阅迟到错误不能再次发起恢复；消息合并覆盖顺序稳定增量快路径与乱序历史排序；剥离 display_state_changed 后仅凭 1.82 message_update 增量仍拼出流式正文（004 为反向镜像）。
 - `mastra-diagnostics.test.ts`：真实 React/HTTP 的标注保存/评估互斥、失败留稿、切主题迟到隔离、持久结果和无工具模型请求；同时覆盖 trace、导出/离线查看、跨会话拒绝、有界文件与采集热关闭。
 - `mastra-files.test.ts`：文件引用/当前稿路径边界；真实 DocumentReader 读资料库条目（不需会话身份）与工作区文件，运行中按 ETag 检查、304 不重建沙箱、内容变了才换，关闭回调；不可读/残缺/超大附件不发送请求，完整上传保持字节和名称，失败展示服务原因。（S4 前的工作目录轨用例随 Files/workspace 退场，原文件备份于 studio-retired/2026-11-12-S4/partial/）
-- `studio-app.test.ts`：真实 StudioApp + 真实 HTTP 服务与 Controller：模型经真实 board_draw 画出文字/梯子/表格/小部件四块并渲染（雾线、你在这里、断点、留给你猜、出处签与 AI 推断、小部件名额）；ETag 兜底轮询被截住时，运行中第一块写完白板即刷新（证明靠工具完成信号）；对话里只有白板卡片、点卡跳块；主题运行时新对话禁用并说明（R1），结束后恢复；视图占位如实；材料分「你带来的 / AI 找来的」并分屏读原件，出处签打开原件；精灵停靠/拖动/收起写入 localStorage。
+- `studio-app.test.ts`：真实 StudioApp + 真实 HTTP 服务与 Controller：模型经真实 board_draw 画出文字/梯子/表格/小部件四块并渲染（雾线、你在这里、断点、留给你猜、出处签与 AI 推断、小部件名额）；ETag 兜底轮询被截住时，运行中第一块写完白板即刷新（证明靠工具完成信号）；对话里只有白板卡片、点卡跳块；主题运行时新对话禁用并说明（R1），结束后恢复；视图占位如实；材料分「你带来的 / AI 找来的」并分屏读原件，出处签打开原件；精灵停靠/拖动/收起写入 localStorage；面板与原文：⌘B / ⌘⌥B 收放并写入 localStorage、收起的栏 inert、展开按钮的 aria 与带快捷键的 title、分屏时展开按钮落在阅读器头、铺满时白板保持挂载、Esc 回分屏而输入框里的 Esc 不抢、关阅读器不留铺满、页面没有 ws-tag、格式进 meta。
+- `pdf-fit.test.ts`：真实 PdfViewer + pdf.js（Node 同进程 worker）读按规范拼的两页 Letter PDF：不传 fit 初始 130% 且宽度变化不改；传 fit 按宽适配、宽度变化重新适配、懒渲染的页也跟着缩放；手动放大后停止适配，「适配宽度」回到适配。
 - `mastra-transcript.test.ts`：真实消息组件的资料库附件（只认 itemId）受控打开、内嵌图片预览、长正文折叠、剪贴板回退与轮次焦点/跳转；不把 DOM 验证视为 WebKit 验收。
 - `mastra-process.test.ts`：原生reasoning与工具投影、定稿隐藏成功过程、未完成保留、六步窗口与流式手动开合；不展示redacted数据和原始JSON。
 - `mastra-composer.test.ts`：（以主题身份；旧 WorkspaceApp 导航用例随外壳在 S2 退场）欢迎页准备失败留稿并重试，切主题后已确认提交不改目标或抢回页面，斜杠技能准备真实会话但不发送研究，准备期间新增文本/附件不进入已确认快照、不同服务同名主题草稿隔离；输入高度增长/上限/收缩与草稿恢复重算，真实Conversation的松开跟随/近底上滑/轮次跳转/回到最新；真实 React Composer 与 HTTP/Mastra 验证草稿/上传竞赛恢复、提交期间当前稿冻结且不串会话、StrictMode 重挂载、斜杠技能过滤和键盘激活；选择技能或空结果回车不误发模型请求；Conversation/Specialists 轮询不重叠且完成后显示最新状态；进行中专家任务挂输入坞上方、完成即移除，专家目录不在对话流内。
@@ -30,7 +32,7 @@ tests/
 - `connection-hold.test.ts`：已连接后的发现失败保留连接，冷启动失败和成功的新令牌仍替换。
 - `mastra-appearance.test.ts`：真实设置窗口与外观宿主验证系统变化切换实际明暗基线，纸面/玻璃皮肤的颜色与材质经本机保存恢复；设置仅有模型、研究偏好和外观三个分类，服务返回预算也不产生编辑入口；研究忙碌时分类可切换、配置写入仍受限、浅色换肤不提交服务；另覆盖卸载订阅、模型ID逐行增减不提交、保存保留活动模型/凭证、删除只发送删除请求。
 - `appearance-resolve.test.ts`：默认清透明暗除淡蓝强调外逐项等于设计系统主题值表，强调墨作文字/托底文字不低于 4.5:1 且其他皮肤不补墨色、v1 偏好迁移、真实明暗与系统模式基线、浅色皮肤/玻璃纸面材质、跨明暗补丁隔离、原语白名单及别名级联。
-- `icons.test.ts`：全部导出图标、文件类别与技能图标的24网格、currentColor 描边、无填充、几何不出画布，几何均有入口、尺寸档与镜像生效。
+- `icons.test.ts`：全部导出图标、文件类别与技能图标的24网格、currentColor 描边、无填充、几何不出画布，几何均有入口、尺寸档与镜像生效；CollapseIcon 与 ExpandIcon 同尺寸档、同一对动效部件。
 - `markdown-cache.test.ts`：禁止跨会话共享携带回调的 Markdown React 树缓存。
 - `markdown-math.test.ts`：数学定界符归一与真实 KaTeX SSR，代码区阻止跨区配对。
 - `mermaid-layout.test.ts`：固有尺寸政策与真实 Mermaid ELK 配置。

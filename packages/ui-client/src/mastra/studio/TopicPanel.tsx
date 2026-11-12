@@ -1,12 +1,13 @@
 /**
  * [INPUT]: LumenApi 的主题目录（含运行/等你投影）、外部刷新信号
- * [OUTPUT]: useTopics：主题列表与 3 秒轮询（状态灯要跟上后台运行）；TopicPanel：左栏面板——头部「主题 ＋」（点＋在列表顶出输入框，回车建、Esc 取消）、状态灯、底部同一行的研究角色与设置
+ * [OUTPUT]: useTopics：主题列表与 3 秒轮询（状态灯要跟上后台运行）；TopicPanel：左栏面板——头部「主题 ＋ 收起」（点＋在列表顶出输入框，回车建、Esc 取消；收起后宽 0、inert）、状态灯、底部同一行的研究角色与设置
  * [POS]: 新外壳的左栏；主题是唯一的入口，对话在精灵里切换
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useEffect, useState, type FormEvent } from 'react'
 import { AccountIcon, GearIcon, PlusIcon } from '../../components/icons'
 import { STUDIO_COPY as S } from '../../copy/studioCopy'
+import { PaneToggle } from './Panes'
 import { MASTRA_COPY as C } from '../../copy/mastraCopy'
 import type { LumenApi, Topic } from '../data/client.ts'
 
@@ -34,11 +35,13 @@ export function Light({ topic }: { topic: Pick<Topic, 'running' | 'waiting'> }) 
   return null
 }
 
-export function TopicPanel({ api, topics, error, selected, onSelect, onCreated, onSettings, onAgents }: {
+export function TopicPanel({ api, topics, error, selected, collapsed, onToggle, onSelect, onCreated, onSettings, onAgents }: {
   api: LumenApi
   topics: Topic[] | null
   error: string
   selected: string | null
+  collapsed: boolean
+  onToggle: () => void
   onSelect: (topicId: string) => void
   onCreated: (topic: Topic) => void
   onSettings: () => void
@@ -54,9 +57,10 @@ export function TopicPanel({ api, topics, error, selected, onSelect, onCreated, 
     catch (error) { setCreateError(error instanceof Error ? error.message : String(error)) }
     finally { setBusy(false) }
   }
-  return <nav className="studio-panel studio-topics" aria-label={S.topics}>
+  return <nav className={`studio-panel studio-topics${collapsed ? ' is-collapsed' : ''}`} id="studio-topics" aria-label={S.topics} inert={collapsed}>
     <header className="studio-head"><h2 className="studio-head-title">{S.topics}</h2><span className="studio-sp" />
       <button type="button" className="icon-btn" aria-label={S.newTopic} title={S.newTopic} aria-expanded={adding} onClick={() => adding ? close() : setAdding(true)}><PlusIcon /></button>
+      <PaneToggle side="left" open onToggle={onToggle} />
     </header>
     <div className="studio-scroll">
       {adding && <form className="topics-new" onSubmit={event => void create(event)}>

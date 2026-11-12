@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 真实 StudioApp（主题栏/白板/材料/精灵/阅读器）与 React DOM、真实 HTTP 服务与 Mastra Controller、确定性模型
- * [OUTPUT]: S4 外壳行为证据（含 S5 返工：单张不显示张标签、面板首行头部、梯子断点在两级之间、不重复「AI 画的」、主题 ＋ 回车建/Esc 取消；返工二：中栏头部无主题名、不显示已用块数、素材单列表倒序）：四种区块经真实 board_draw 落库后渲染（梯子/表格/小部件/出处签与 AI 推断）、白板只靠工具完成信号刷新（ETag 轮询被截住）、
+ * [OUTPUT]: S4 外壳行为证据（含 S5 返工：单张不显示张标签、面板首行头部、梯子断点在两级之间、不重复「AI 画的」、主题 ＋ 回车建/Esc 取消；返工二：中栏头部无主题名、不显示已用块数、素材单列表倒序；P0 后续：⌘B/⌘⌥B 收放与 localStorage、铺满/Esc、无 ws-tag）：四种区块经真实 board_draw 落库后渲染（梯子/表格/小部件/出处签与 AI 推断）、白板只靠工具完成信号刷新（ETag 轮询被截住）、
  *           对话里只出现白板卡片且点卡跳到那块、主题运行时「新对话」禁用（R1）、材料分「你带来的 / AI 找来的」并在分屏打开原件、精灵收起/停靠/拖动并持久
  * [POS]: S4 组件级验收；可控模型只证明机制，不冒充真实模型研究验收；不宣称覆盖 WebKit
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -134,8 +134,41 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     await act(async () => $$('.material-open')[1]!.click())
     await until(() => /浮球把阀门顶上/.test($('.studio-reader')?.textContent ?? ''), '分屏没有读出原件')
     assert.ok($('.studio-center.studio-split'))
+    assert.equal($$('.ws-tag').length, 0, 'I1：素材与阅读器头部不用文字徽标')
+    assert.ok($('.studio-reader .reader-icon svg') && $$('.material-icon svg').length === 2)
+    assert.match($$('.material-meta')[1]!.textContent!, /^TXT · /, 'I2：格式进 meta')
+
+    // ---- K：⌘B 收主题栏、⌘⌥B 收素材栏，状态进 localStorage；收起的栏 inert，展开按钮在中栏头部两端 ----
+    const key = (init: KeyboardEventInit) => act(async () => { window.dispatchEvent(new dom.window.KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })) })
+    const panes = () => JSON.parse(localStorage.getItem('lumen.studio.panes')!) as { left: boolean; right: boolean; ratio: number }
+    await key({ key: 'b', code: 'KeyB', metaKey: true })
+    assert.ok($('main.studio.studio-left-collapsed') && $('.studio-topics')!.hasAttribute('inert'))
+    assert.equal(panes().left, true)
+    const reopen = $('.studio-board-pane .studio-head .pane-toggle[data-pane="left"]')!
+    assert.deepEqual([reopen.getAttribute('aria-expanded'), reopen.title], ['false', `${S.panes.left.expand} ⌘B`])
+    await key({ key: '∫', code: 'KeyB', metaKey: true, altKey: true })
+    assert.ok($('main.studio.studio-right-collapsed') && $('.studio-materials')!.hasAttribute('inert'))
+    assert.deepEqual([panes().left, panes().right], [true, true])
+    assert.ok($('.studio-reader .studio-head > .pane-toggle[data-pane="right"]'), '分屏时素材栏的展开按钮在阅读器头最右')
+    await act(async () => reopen.click())
+    await key({ key: 'b', code: 'KeyB', ctrlKey: true, altKey: true })
+    assert.deepEqual([panes().left, panes().right], [false, false])
+    assert.ok(!$('main.studio.studio-left-collapsed') && !$('.studio-topics')!.hasAttribute('inert'))
+
+    // ---- R：分屏 → 铺满（白板隐藏但仍挂载）→ Esc 回分屏；输入框里的 Esc 不抢 ----
+    assert.ok($('.studio-splitter[role="separator"]'))
+    await click(S.reader.full)
+    assert.ok($('.studio-center.studio-full') && $('.studio-board'), '铺满时白板保持挂载')
+    assert.equal($('.studio-splitter'), null)
+    assert.ok(button(S.reader.restore))
+    await act(async () => { $('.studio-materials input')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
+    assert.ok($('.studio-center.studio-full'), '输入框里的 Esc 留给输入框')
+    await key({ key: 'Escape' })
+    assert.ok($('.studio-center.studio-split') && !$('.studio-center.studio-full'))
+    await click(S.reader.full)
     await click('关闭阅读器')
     assert.equal($('.studio-reader'), null)
+    assert.ok(!$('.studio-center.studio-full'), '关掉阅读器不留铺满状态')
 
     // ---- 精灵：球 → 浮窗；Welcome 发第一句，模型被闸住时主题在运行 ----
     await click(S.sprite.open)
