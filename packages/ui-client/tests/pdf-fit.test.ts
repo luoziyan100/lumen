@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 真实 PdfViewer 与 pdf.js 4.10.38（Node 下走同进程 worker）、按规范拼出的单页 PDF、jsdom 与可触发的 ResizeObserver
- * [OUTPUT]: R-e 证据——不传 fit 时初始仍是 130%；传 fit 时按第 1 页宽度适配容器内宽，容器宽度变化重新适配；手动缩放后不再自动适配，「适配宽度」回到适配；没渲染的页也跟着缩放
+ * [OUTPUT]: R-e 证据——不传 fit 时初始仍是 130%；传 fit 时按第 1 页宽度适配容器内宽（显示宽度封顶 960，1400 宽容器只到 156%），容器宽度变化重新适配；手动缩放后不再自动适配，「适配宽度」回到适配；没渲染的页也跟着缩放
  * [POS]: PdfViewer 的组件级验收；jsdom 没有 canvas，只验缩放与页尺寸，像素由浏览器断言脚本核对
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -74,7 +74,9 @@ test('fitScale：内宽 ÷ 页宽向下取整到 1%，可以低于手动下限 6
   assert.equal(fitScale(612, 612), 1)
   assert.equal(fitScale(342, 612), 0.55)
   assert.equal(fitScale(100, 612), 0.3)
-  assert.equal(fitScale(5000, 612), 3)
+  // 960px 封顶：再宽的容器也只放到 960 / 612 ≈ 156%
+  assert.equal(fitScale(1400, 612), 1.56)
+  assert.equal(fitScale(5000, 612), 1.56)
 })
 
 test('不传 fit：初始仍是 130%，没有「适配宽度」按钮，宽度变化不改缩放', { timeout: 30000 }, async () => {
@@ -110,5 +112,10 @@ test('传 fit：按宽适配并随宽度重新适配；手动缩放后停止，�
 
     await act(async () => view.button('适配宽度')!.click())
     await until(() => view.zoom() === '130%', `「适配宽度」没有回到适配：${view.zoom()}`)
+
+    // ---- 很宽的容器（铺满 + 两侧收起）：页面显示宽度封顶 960，不撑满 ----
+    await resize(1400)
+    await until(() => view.zoom() === '156%', `宽容器下没有封顶：${view.zoom()}`)
+    assert.ok(view.pages().every(w => w <= 960), `页宽超过 960：${view.pages()}`)
   } finally { await view.unmount() }
 })

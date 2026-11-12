@@ -19,7 +19,7 @@ components/
 - `markdownMath.ts`：感知围栏与代码片段的数学定界符归一，避免跨代码区配对。
 - `MermaidBlock.tsx`：官方 Mermaid/ELK 渲染与箱外测量，颜色随当前外观、换皮肤重画，渲染串行，缓存 LRU 64 条；外层 figure、SVG 层 role=img(按钮与错误对读屏可达)；失败显示源码并可「请模型修正」(会话内普通消息，同会话同图只发一次)。
 - `MermaidLightbox.tsx`：流程图放大层的缩放/拖移/Esc 交互。
-- `PdfViewer.tsx`：pdf.js 直接读取已认证 Blob 字节，避免桌面 CSP 阻挡二次 blob URL fetch；连续页渲染与受控页码定位只滚 PDF 容器，缩放沿统一图标入口；可选 `fit`（默认关，其他调用方仍从 130% 起）按第 1 页宽度适配容器内宽、随宽度变化重新适配，手动缩放后停止，工具条「适配宽度」回到适配；没渲染的页尺寸也跟着缩放；被取消的渲染不成为未处理错误；加载失败显示具体原因。
+- `PdfViewer.tsx`：pdf.js 直接读取已认证 Blob 字节，避免桌面 CSP 阻挡二次 blob URL fetch；连续页渲染与受控页码定位只滚 PDF 容器，缩放沿统一图标入口；可选 `fit`（默认关，其他调用方仍从 130% 起）按第 1 页宽度适配容器内宽（页面显示宽度封顶 960px，更宽时居中）、随宽度变化重新适配，手动缩放后停止，工具条「适配宽度」回到适配；没渲染的页尺寸也跟着缩放；被取消的渲染不成为未处理错误；加载失败显示具体原因。
 - `HtmlViewer.tsx`：复用 widget iframe 呈现 HTML，保留脚本能力但隔离同源权限。
 - `ExternalLinkDialog.tsx`：由用户确认外链并保存受信域名，实际打开统一走 openExternalUrl。
 - `icons.tsx`：业务图标唯一入口，统一16/18/20尺寸与导航/菜单 ref 合同(兼容 Kumo 的 Phosphor Icon 类型)；文件按类别使用简洁轮廓，附件不冒充 PDF。

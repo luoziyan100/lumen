@@ -1,6 +1,6 @@
 /**
  * [INPUT]: pdfjs-dist、文件 API 已认证的 PDF Blob 与统一 icons 缩放图标
- * [OUTPUT]: PdfViewer：连续页面、文本层、缩放、限定阅读容器的页码定位与加载错误；可选 fit：按第 1 页宽度适配容器内宽、随宽度变化重新适配，
+ * [OUTPUT]: PdfViewer：连续页面、文本层、缩放、限定阅读容器的页码定位与加载错误；可选 fit：按第 1 页宽度适配容器内宽（页面显示宽度封顶 960px，更宽时居中）、随宽度变化重新适配，
  *           手动缩放（按钮、捏合）后停止自动适配，工具条「适配宽度」回到适配。不传 fit 时初始 1.3、行为不变
  * [POS]: 旧阅读器与新工作台复用的 PDF 展示器，不处理后端协议
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -31,7 +31,9 @@ const STEP = 0.2
 const clampScale = (s: number): number => Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.round(s * 100) / 100))
 /** 适配宽度可以比手动下限更小：窄分屏里也不出横向滚动 */
 const FIT_MIN = 0.3
-export const fitScale = (inner: number, pageWidth: number): number => Math.min(MAX_SCALE, Math.max(FIT_MIN, Math.floor(inner / pageWidth * 100) / 100))
+/** 适配时页面显示宽度封顶：再宽行长就超出可读范围（铺满 + 两侧收起时曾放到 228%）；更宽的容器里页面居中 */
+export const FIT_MAX_WIDTH = 960
+export const fitScale = (inner: number, pageWidth: number): number => Math.min(MAX_SCALE, Math.max(FIT_MIN, Math.floor(Math.min(inner, FIT_MAX_WIDTH) / pageWidth * 100) / 100))
 
 export function PdfViewer({ blob, page, fit = false }: { blob: Blob; page?: number; fit?: boolean }) {
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null)
