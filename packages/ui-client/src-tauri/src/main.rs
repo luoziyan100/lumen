@@ -154,7 +154,7 @@ fn main() {
                 })
                 .initialization_script("document.documentElement.dataset.vibrancy = 'sidebar'");
             builder
-                .title("Lumen Studio")
+                .title("Lumen")
                 .inner_size(1160.0, 800.0)
                 .min_inner_size(720.0, 480.0)
                 .disable_drag_drop_handler()

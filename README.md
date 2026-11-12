@@ -38,7 +38,7 @@ npm run verify
 
 ## macOS 桌面
 
-桌面应用 `Lumen Studio.app`（bundle id `com.lumen.studio`）默认连接 `~/.lumen-studio` 中发现的 `com.lumen.studio` 服务；不连旧形态的 `~/.lumen-mastra` / `com.lumen.mastra`，两者可以并存。
+桌面应用 `Lumen.app`（bundle id `com.lumen.studio`；2026-11-12 前叫 Lumen Studio.app）默认连接 `~/.lumen-studio` 中发现的 `com.lumen.studio` 服务；不连旧形态的 `~/.lumen-mastra` / `com.lumen.mastra`。
 
 ```sh
 npm run launchd:install -w @lumen/mastra-service -- \
@@ -48,7 +48,7 @@ npm run launchd:install -w @lumen/mastra-service -- \
 npm run tauri:build -w packages/ui-client
 ```
 
-安装产物位置以构建日志为准（`…/bundle/macos/Lumen Studio.app`）。当前桌面仍需要本机 Node 和项目目录；不是包含运行时与公证签名的独立安装包。
+安装产物位置以构建日志为准（`…/bundle/macos/Lumen.app`）。当前桌面仍需要本机 Node 和项目目录；不是包含运行时与公证签名的独立安装包。
 
 新根的模型档案可用 `start.ts --settings <旧根>/settings.json` 一次性导入（只允许导入到未初始化的根，旧根只读）。预览部署使用独立 label（`com.lumen.studio.preview`）和数据根，不与正式服务共享数据库。详见 `packages/mastra-service/scripts/CLAUDE.md`。
 

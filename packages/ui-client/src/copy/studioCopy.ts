@@ -47,5 +47,5 @@ export const STUDIO_COPY = {
     hint: '换对话不会换白板：白板和材料属于整个主题，对话只是说话的记录。',
     untitled: '新对话', diagnostics: '诊断',
   },
-  app: 'Lumen Studio', settings: '设置', agents: '研究角色',
+  app: 'Lumen', settings: '设置', agents: '研究角色',
 } as const

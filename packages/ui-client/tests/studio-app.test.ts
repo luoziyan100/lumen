@@ -105,7 +105,7 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     await until(() => !!$('.board-sheet-new'), '白板没有出现')
     // ---- U1：主题名不写在中栏头部，留在 aria-label 与窗口标题 ----
     assert.equal($('.studio-center')!.getAttribute('aria-label'), '负反馈为什么能稳住系统')
-    assert.equal(document.title, '负反馈为什么能稳住系统 — Lumen Studio')
+    assert.equal(document.title, '负反馈为什么能稳住系统 — Lumen')
     assert.ok(!$('.studio-center .studio-head')!.textContent!.includes('负反馈'))
     // ---- U2：不显示已用块数（上限与 R11 在服务端不变） ----
     assert.ok(!$('.studio-board')!.textContent!.includes('已用'))
