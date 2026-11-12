@@ -13,7 +13,7 @@
 - `../../scripts/vite-widget-receiver.ts` — Vite 插件产出 `/widget-receiver.html`(dev 中间件 + build asset)
 - `parseShowWidget.ts` — 围栏分段解析与 partial JSON 提取
 - `height.ts` — `nextWidgetHeight`:流式 ratchet、终态可收缩
-- `WidgetFrame.tsx` — iframe.src=`/widget-receiver.html`(禁 srcdoc);finalize 走 hoistInlineScripts;同代同内容只推送一次并携带世代 token;阅读器 `fillHeight`;WIDGET_DIAG 常挂 `data-widget-diag`,可见条默认隐藏(走查开 `localStorage lumen:widgetDiag=1`)
+- `WidgetFrame.tsx` — iframe.src=`/widget-receiver.html`(禁 srcdoc);finalize 走 hoistInlineScripts;同代同内容只推送一次并携带世代 token;阅读器 `fillHeight`;白板区块 `light` 固定浅档(不随系统暗色变黑);WIDGET_DIAG 常挂 `data-widget-diag`,可见条默认隐藏(走查开 `localStorage lumen:widgetDiag=1`)
 - `AssistantContent.tsx` — 文本 Markdown(含 mermaid)+ widget 交错;流式 `deferMath`;气泡入口;终稿把失败图的修正请求经 onSendMessage 发回会话;memo 包一层
 - `../HtmlViewer.tsx` — 工作区 HTML 预览入口(`fillHeight`)
 

@@ -1,13 +1,12 @@
 /**
  * [INPUT]: LumenApi 带 ETag 的原件读取（资料库条目或主题工作区/记忆文件）、既有 Markdown/PDF/HTML 沙箱查看器
- * [OUTPUT]: DocumentReader：单文档阅读器——类型标签、复制源码、下载/系统打开、关闭、相对链接与 PDF 页码；运行中按 ETag 低频检查版本
+ * [OUTPUT]: DocumentReader：单文档阅读器——50px 头部（类型标签、材料标题、复制源码/系统打开/保存到本机/关闭，全是图标按钮）、相对链接与 PDF 页码；运行中按 ETag 低频检查版本
  * [POS]: 新外壳中间分屏的阅读器（取代 S2 的 Files 目录轨，只保留阅读部分）；不列目录、不上传
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useEffect, useRef, useState } from 'react'
 import { invoke, isTauri } from '@tauri-apps/api/core'
-import { Button } from '@cloudflare/kumo/components/button'
-import { CheckIcon, CloseIcon, CopyIcon, OpenOutIcon } from '../../../components/icons'
+import { ArrowDownIcon, CheckIcon, CloseIcon, CopyIcon, OpenOutIcon } from '../../../components/icons'
 import { Markdown } from '../../../components/Markdown'
 import { PdfViewer } from '../../../components/PdfViewer'
 import { HtmlViewer } from '../../../components/HtmlViewer'
@@ -92,15 +91,15 @@ export function DocumentReader({ api, identity, target, title, live = false, onC
       else await saveWorkspaceFile(name, current.blob)
     } catch (error) { setError(String(error)) } finally { setSaving(false) }
   }
-  return <section className="studio-reader" aria-label={name}>
-    <header className="reader-head">
+  return <section className="studio-pane studio-reader" aria-label={name}>
+    <header className="studio-head reader-head">
       {current && <span className={`ws-tag ws-tag-${current.kind === 'pdf' ? 'pdf' : current.kind === 'html' ? 'html' : 'md'}`}>{current.kind === 'pdf' ? 'PDF' : current.kind === 'html' ? 'HTML' : current.kind === 'image' ? 'IMG' : 'MD'}</span>}
-      <strong className="reader-title" title={name}>{name}</strong>
+      <h2 className="studio-head-title reader-title" title={name}>{name}</h2><span className="studio-sp" />
       <div className="reader-actions">
         {current?.text && <button className="icon-btn reader-action" aria-label={copied ? '已复制' : '复制源码'} title={copied ? '已复制' : '复制源码'} onClick={() => void copySource()}>{copied ? <CheckIcon /> : <CopyIcon />}</button>}
         {current && <button className="icon-btn reader-action" disabled={saving} aria-label="用系统打开" title="用系统打开" onClick={() => void openOutside()}><OpenOutIcon /></button>}
-        {current && <Button variant="ghost" disabled={saving} onClick={() => { setSaving(true); void saveWorkspaceFile(name, current.blob).catch(error => setError(String(error))).finally(() => setSaving(false)) }}>{C.download}</Button>}
-        <button className="icon-btn nav-icon-btn" aria-label="关闭阅读器" onClick={onClose}><CloseIcon /></button>
+        {current && <button className="icon-btn reader-action" disabled={saving} aria-label={C.download} title={C.download} onClick={() => { setSaving(true); void saveWorkspaceFile(name, current.blob).catch(error => setError(String(error))).finally(() => setSaving(false)) }}><ArrowDownIcon /></button>}
+        <button className="icon-btn reader-action" aria-label="关闭阅读器" title="关闭阅读器" onClick={onClose}><CloseIcon /></button>
       </div>
     </header>
     {error && <p role="alert" className="mw-error">{error}</p>}

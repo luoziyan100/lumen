@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 真实 StudioApp（主题栏/白板/材料/精灵/阅读器）与 React DOM、真实 HTTP 服务与 Mastra Controller、确定性模型
- * [OUTPUT]: S4 外壳行为证据：四种区块经真实 board_draw 落库后渲染（梯子/表格/小部件/出处签与 AI 推断）、白板只靠工具完成信号刷新（ETag 轮询被截住）、
+ * [OUTPUT]: S4 外壳行为证据（含 S5 返工：单张不显示张标签、面板首行头部、梯子断点在两级之间、不重复「AI 画的」、主题 ＋ 回车建/Esc 取消）：四种区块经真实 board_draw 落库后渲染（梯子/表格/小部件/出处签与 AI 推断）、白板只靠工具完成信号刷新（ETag 轮询被截住）、
  *           对话里只出现白板卡片且点卡跳到那块、主题运行时「新对话」禁用（R1）、材料分「你带来的 / AI 找来的」并在分屏打开原件、精灵收起/停靠/拖动并持久
  * [POS]: S4 组件级验收；可控模型只证明机制，不冒充真实模型研究验收；不宣称覆盖 WebKit
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -102,10 +102,15 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
   }
   try {
     await act(async () => root.render(createElement(StudioApp, { connection })))
-    await until(() => !!$('.board-frame-label'), '白板没有出现')
+    await until(() => !!$('.board-used'), '白板没有出现')
     assert.equal($('.studio-topic-title')!.textContent, '负反馈为什么能稳住系统')
-    assert.match($('.board-frame-label')!.textContent!, /已用 0 \/ 8 块/)
+    assert.match($('.board-used')!.textContent!, /已用 0 \/ 8 块/)
     assert.ok($('.board-empty'), '空白板要说清楚')
+    // ---- G7：只有一张白板时不再显示和主题同名的张标签，中栏里主题标题只出现一次 ----
+    assert.equal($('.board-tabs'), null)
+    assert.equal($$('.studio-center *').filter(node => node.children.length === 0 && node.textContent === '负反馈为什么能稳住系统').length, 1)
+    // ---- G2：每个面板首行都是头部 ----
+    assert.deepEqual($$('.studio-panel').map(panel => (panel.firstElementChild!.matches('.studio-head') || panel.firstElementChild!.firstElementChild!.matches('.studio-head'))), [true, true, true])
 
     // ---- 视图标签：只有白板可用，其余如实占位 ----
     assert.deepEqual($$('.studio-views [role=tab]').map(tab => tab.textContent), ['白板', '沉淀', '概念图', '灵感', '全部'])
@@ -120,7 +125,7 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     assert.match(groups[1]!.textContent!, /AI 找来的.*控制论导论/)
     await act(async () => $$('.material-open')[0]!.click())
     await until(() => /浮球把阀门顶上/.test($('.studio-reader')?.textContent ?? ''), '分屏没有读出原件')
-    assert.ok($('.studio-stage.studio-split'))
+    assert.ok($('.studio-center.studio-split'))
     await click('关闭阅读器')
     assert.equal($('.studio-reader'), null)
 
@@ -150,7 +155,7 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
 
     // ---- 四块经真实工具落库 ----
     await until(() => $$('.board-block').length === 4, '四块没有出现在白板上', 30000)
-    await until(() => /已用 4 \/ 8 块/.test($('.board-frame-label')!.textContent!), '白板没有计数到 4 块')
+    await until(() => /已用 4 \/ 8 块/.test($('.board-used')!.textContent!), '白板没有计数到 4 块')
     const [text, ladder, table, widget] = ['text', 'ladder', 'table', 'widget'].map(kind => $(`.board-block[data-kind=${kind}]`)!)
     assert.match(text!.querySelector('.block-text')!.innerHTML, /<strong>压住<\/strong>/)
     assert.equal(text!.querySelector('.source-chip')!.textContent, '水箱笔记 · p.2')
@@ -158,11 +163,18 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     assert.ok(ladder!.querySelector('.rung[data-level="3"].rung-fog'), '高于雾线的梯级要遮住')
     assert.equal(ladder!.querySelector('.rung[data-level="3"] .rung-text')!.textContent, S.board.fog)
     assert.ok(ladder!.querySelector('.rung[data-level="2"] .rung-here-tag'))
-    assert.ok(ladder!.querySelector('.rung[data-level="2"] .rung-break'))
+    // ---- 断点画在 breakAt 那级与上一级之间（R3/B5），不贴在某一级里 ----
+    const broken = ladder!.querySelector('.rung-break')!
+    assert.equal(broken.textContent, S.board.broken)
+    assert.equal(broken.previousElementSibling!.getAttribute('data-level'), '3')
+    assert.equal(broken.nextElementSibling!.getAttribute('data-level'), '2')
+    assert.equal(ladder!.querySelector('.rung .rung-break'), null)
+    // ---- B2：不在每块上重复「AI 画的」，署名留在 aria-label ----
+    assert.ok($$('.board-block').every(block => !block.textContent!.includes(S.board.by) && block.getAttribute('aria-label')!.startsWith(S.board.by)))
     assert.equal(ladder!.querySelector('.source-chip-inferred')!.textContent, S.board.inferred)
     assert.equal(table!.querySelector('.guess-cell')!.textContent, S.board.guess)
     assert.equal(table!.querySelectorAll('tbody tr').length, 2)
-    assert.ok(widget!.querySelector('iframe'), '唯一的小部件应在运行名额内')
+    assert.ok(widget!.querySelector('.block-widget iframe'), '唯一的小部件应在运行名额内')
 
     // ---- 对话里只有白板卡片，点卡跳到那块；出处签在分屏打开原件 ----
     await until(() => $$('.sprite .board-card').length === 4, '对话里没有四张白板卡片')
@@ -188,6 +200,22 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     assert.ok($('.sprite-orb') && !$('.sprite'))
     assert.equal(JSON.parse(localStorage.getItem('lumen.studio.sprite')!).open, false)
     assert.ok(fixture.requests.length > 0)
+
+    // ---- T1：左栏头部「主题 ＋」，＋ 在列表顶出输入框，Esc 取消、回车创建 ----
+    await click(S.newTopic)
+    const field = $<HTMLInputElement>('.topics-new input')!
+    assert.ok(field)
+    await act(async () => { field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
+    assert.equal($('.topics-new'), null, 'Esc 取消')
+    await click(S.newTopic)
+    const named = $<HTMLInputElement>('.topics-new input')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!.call(named, '第二个问题')
+      named.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
+    })
+    await act(async () => { $('.topics-new')!.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })) })
+    await until(() => $('.studio-topic-title')?.textContent === '第二个问题', '回车没有创建并选中新主题')
+    assert.equal($('.topics-new'), null)
   } finally {
     window.setInterval = original
     await act(async () => root.unmount()); element.remove()

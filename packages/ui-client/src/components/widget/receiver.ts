@@ -4,7 +4,8 @@
  *           WIDGET_DIAG 走查打点(csp/error/finalize/appended);
  *           finalize 吃 src(CDN + lumenwidget:);同内容幂等且拒绝旧世代异步脚本
  * [POS]: widget/ 沙箱壳 —— CSP + 高度同步 + 链接拦截 + __widgetSendMessage;
- *       主题变量见 themeVars.ts;THEME.fillHeight 切岛内滚动(阅读器)vs hidden(对话跟高)
+ *       主题变量见 themeVars.ts;THEME.fillHeight 切岛内滚动(阅读器)vs hidden(对话跟高);
+ *       控件去系统外观以吃 inline 背景,滑块/勾选/单选保留系统外观(否则浅档连轨道都看不见)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * 为何不 srcdoc:父页 CSP(script-src 'self')会继承进 srcdoc,掐死本页内联 bootstrap,
@@ -186,6 +187,8 @@ body{
 }
 /* 让 button 吃得下 inline background(WK 在 appearance:auto 时会忽略) */
 button,input,select,textarea{-webkit-appearance:none;appearance:none;}
+/* 滑块、勾选不需要 inline 背景，去掉外观后浅档里连轨道都看不见：还给系统外观 */
+input[type=range],input[type=checkbox],input[type=radio]{-webkit-appearance:auto;appearance:auto;}
 #__root{min-height:1px;}
 ${styleBlock}
 </style>

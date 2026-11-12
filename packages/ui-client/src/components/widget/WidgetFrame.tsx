@@ -5,7 +5,8 @@
  *           finalize 前 hoistInlineScripts(内联→lumenwidget: src);同代同内容只推送一次
  * [POS]: widget/ 渲染核心;被 AssistantContent 与 HtmlViewer 消费;
  *       暗壳内容岛浅档 + color-scheme:light,防 WKWebView 洗灰;
- *       fillHeight(阅读器)经 THEME.fillHeight 开岛内滚动,对话跟高仍 overflow:hidden
+ *       fillHeight(阅读器)经 THEME.fillHeight 开岛内滚动,对话跟高仍 overflow:hidden;
+ *       light(白板区块)固定浅档,不吃系统暗色
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
  * 高度铁律见 height.ts:终态可收缩,否则进出阅读器后底部留白。
@@ -64,6 +65,7 @@ export function WidgetFrame({
   showOverlay,
   onSendMessage,
   fillHeight,
+  light,
 }: {
   widgetCode: string
   title?: string
@@ -72,6 +74,8 @@ export function WidgetFrame({
   onSendMessage?: (text: string) => void
   /** 阅读器等满高场景:iframe 吃满容器,不跟内容高度收缩 */
   fillHeight?: boolean
+  /** 白板区块：岛始终浅档，不随系统暗色变黑（浅色白板里黑底小部件读不清） */
+  light?: boolean
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const readyRef = useRef(false)
@@ -88,7 +92,7 @@ export function WidgetFrame({
 
   // 内容岛永不跟系统/玻璃壳走暗色——暗 isDark 会触发 WK 换皮,inline 颜色丢失。
   // 宿主暗壳时强制浅档;仅暖纸浅壳且系统暗色时才给 .dark(旧 widget)。
-  const isDark = typeof window !== 'undefined'
+  const isDark = !light && typeof window !== 'undefined'
     && !hostChromeIsDark(document.documentElement)
     && window.matchMedia('(prefers-color-scheme: dark)').matches
 
