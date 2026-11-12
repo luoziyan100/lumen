@@ -39,7 +39,7 @@ npm run verify       # 当前两包行为验证 + 主题合同
 npm run tauri:build -w packages/ui-client
 ```
 
-服务安装使用显式 Node/工程/数据根，见 `packages/mastra-service/scripts/CLAUDE.md`。正式常驻使用 launchd，禁止 nohup。桌面改动交付前必须重装并打开 `/Applications/Lumen.app`，以构建日志实际 bundle 路径为准并比对二进制摘要。
+服务安装使用显式 Node/工程/数据根，见 `packages/mastra-service/scripts/CLAUDE.md`。正式常驻使用 launchd，禁止 nohup。桌面改动交付前必须重装并打开 `/Applications/Lumen Studio.app`（studio 分支；旧形态是 `/Applications/Lumen.app`，不覆盖），以构建日志实际 bundle 路径为准并比对二进制摘要。
 
 ## 维护法则
 
@@ -50,7 +50,7 @@ npm run tauri:build -w packages/ui-client
 - 测试经过实际 Controller、存储、文件和 HTTP；可控模型网络用来验证机制，不能冒充真实模型研究验收。
 - 旧 WS/core/runtime 与旧测试已退役，原用户基线的删除前文件有逐项 SHA256 备份；S2 起项目模型、旧导入/legacy 诊断与旧工作台外壳也已退场（备份见 `~/Workspace/tmp/studio-retired/2026-11-12-S2/`）。历史设计文档不作为当前执行合同。
 
-新形态（主题 + 白板学习工作台）：产品宪法 `doc/studio/`，P0 执行合同 `briefs/active/studio-p0/`，实现前以现行架构为准。
+新形态（主题 + 白板学习工作台）：产品宪法 `doc/studio/`；P0 已在 studio 分支验收，执行合同与验收记录归档于 `briefs/archive/studio-p0/`。
 
 当前架构：`doc/mastra/architecture.md`；迁移状态与切换证据：`briefs/archive/mastra/plan.md`。正式切换和真实专家停止/继续/重启/修订证据见计划第9节；2026-09-20用户复核发现的输入菜单与工作目录恢复缺口单列第10节，不能以此前验收替代本次修正。
 
