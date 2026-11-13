@@ -2,12 +2,13 @@
  * [INPUT]: 显式数据根下的 studio 存储、研究网络（arXiv PDF 与 API）、titles 的回退链
  * [OUTPUT]: backfillLibrary：对现有条目按 L2 重算标题与论文元数据；来源是 arXiv 论文页的 kind=web 条目按 L1 换成 PDF 原件（同一条目，id/引用/阅读进度/出处都不动）；
  *           dryRun 只出计划；backupLibrary：VACUUM INTO 备份 catalog.sqlite、复制受影响的 library/<id>/、记录 SHA256 清单；命令行入口（只在显式运行时执行，启动时不跑）
- * [POS]: 旧数据的一次性补齐（L4）。标题只升不降（arxiv > info > heading > file），所以重跑结果相同、API 暂时失败也不会把好标题改坏
+ * [POS]: 旧数据的一次性补齐（L4）。标题只升不降（arxiv > info > heading > file），所以重跑结果相同、API 暂时失败也不会把好标题改坏；API 请求按约定间隔 3 秒
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { createHash } from 'node:crypto'
 import { cp, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { join, relative, resolve } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { arxivAbsUrl, arxivId, arxivPdfUrl, fetchArxivMeta } from '../research/arxiv.ts'
 import { researchHttp, type ResearchHttp } from '../research/http.ts'
@@ -30,9 +31,19 @@ const snapshot = (item: LibraryItem) => ({ kind: item.kind, title: item.title, t
 const rank = (source: TitleSource | null) => source ? TITLE_RANK[source] : 0
 const isPdf = (bytes: Uint8Array) => Buffer.from(bytes.subarray(0, 5)).toString('latin1') === '%PDF-'
 
+/** arXiv API 使用约定：连续请求间隔 3 秒；补取一次连发多条，入库只发一条不需要 */
+export const ARXIV_API_GAP_MS = 3000
+
 /** 计划或执行补取；dryRun 时不写数据库也不写文件，返回的 after 是将要变成的样子 */
-export async function backfillLibrary(studio: Studio, http: ResearchHttp, options: { dryRun?: boolean; signal?: AbortSignal } = {}): Promise<BackfillRow[]> {
+export async function backfillLibrary(studio: Studio, http: ResearchHttp, options: { dryRun?: boolean; signal?: AbortSignal; apiGapMs?: number } = {}): Promise<BackfillRow[]> {
   const rows: BackfillRow[] = []
+  const gap = options.apiGapMs ?? ARXIV_API_GAP_MS
+  let lastApi = -Infinity
+  const meta = async (paper: string) => {
+    const wait = lastApi + gap - Date.now()
+    if (wait > 0) await delay(wait, undefined, { signal: options.signal })
+    try { return await fetchArxivMeta(http, paper, options.signal) } finally { lastApi = Date.now() }
+  }
   for (const original of [...studio.library.list()].reverse()) {
     let item = original, action: BackfillAction = 'unchanged', reason: string | undefined
     const paper = item.arxivId ?? arxivId(item.sourceUrl)
@@ -53,14 +64,14 @@ export async function backfillLibrary(studio: Studio, http: ResearchHttp, option
     }
     // ---- L2：只给 PDF 重算标题；网页标题与其他文件保持原样 ----
     if (item.kind === 'pdf' || item.mediaType === 'application/pdf') {
-      const meta = paper ? await fetchArxivMeta(http, paper, options.signal) : null
+      const found = paper ? await meta(paper) : null
       let candidate: { title: string; source: TitleSource }
-      if (meta) candidate = { title: meta.title, source: 'arxiv' }
+      if (found) candidate = { title: found.title, source: 'arxiv' }
       else {
         bytes ??= await studio.library.read(item)
         candidate = await resolveTitle({ bytes }, item.file)
       }
-      const nextMeta: PaperMeta = { arxivId: paper ?? item.arxivId, authors: meta?.authors || item.authors, year: meta?.year ?? item.year }
+      const nextMeta: PaperMeta = { arxivId: paper ?? item.arxivId, authors: found?.authors || item.authors, year: found?.year ?? item.year }
       const upgrade = rank(candidate.source) >= rank(item.titleSource)
       const title = upgrade ? candidate.title : item.title, titleSource: TitleSource = upgrade ? candidate.source : item.titleSource ?? candidate.source
       const changed = title !== item.title || titleSource !== item.titleSource || nextMeta.arxivId !== item.arxivId || nextMeta.authors !== item.authors || nextMeta.year !== item.year
@@ -68,7 +79,7 @@ export async function backfillLibrary(studio: Studio, http: ResearchHttp, option
         item = options.dryRun ? { ...item, title, titleSource, authors: nextMeta.authors ?? null, year: nextMeta.year ?? null, arxivId: nextMeta.arxivId ?? null } : studio.library.refresh(item.id, { title, titleSource, meta: nextMeta })
         if (action === 'unchanged') action = 'retitled'
       }
-      if (paper && !meta) reason = 'arXiv API 没有返回，标题按 PDF 规则；稍后可重跑补取'
+      if (paper && !found) reason = 'arXiv API 没有返回，标题按 PDF 规则；稍后可重跑补取'
     }
     rows.push({ id: item.id, action, ...(reason ? { reason } : {}), before: snapshot(original),
       after: { ...snapshot(item), authors: item.authors, year: item.year, arxivId: item.arxivId } })

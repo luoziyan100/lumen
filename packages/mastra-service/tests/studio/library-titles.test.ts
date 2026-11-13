@@ -95,11 +95,11 @@ test('旧库升级：缺列的 library_items 打开后补齐四列，旧行读�
 
 /** 可控 arXiv 网络：PDF 与 API 分别计数；apiDown 时 API 返回 503 */
 function arxivNetwork(papers: Record<string, { pdf: Buffer; title: string; authors: string[]; published?: string }>) {
-  const state = { apiDown: false, pdf: 0, api: 0, other: 0 }
+  const state = { apiDown: false, pdf: 0, api: 0, other: 0, apiAt: [] as number[] }
   const fetch: typeof globalThis.fetch = async input => {
     const url = new URL(String(input))
     if (url.hostname === 'export.arxiv.org' && url.pathname === '/api/query') {
-      state.api++
+      state.api++; state.apiAt.push(Date.now())
       if (state.apiDown) return new Response('down', { status: 404 })
       const id = url.searchParams.get('id_list')!, paper = papers[id.replace(/v\d+$/, '')]
       return new Response(paper ? atom(id, paper.title, paper.authors, paper.published) : '<feed></feed>', { headers: { 'content-type': 'application/atom+xml' } })
@@ -137,13 +137,13 @@ test('L4 补取：arXiv 网页条目换成 PDF（同 id、引用与进度不动�
     const order = [attention.id, web.id, upload.id]
 
     // ---- 计划：不写库、不写文件 ----
-    const plan = await backfillLibrary(studio, http, { dryRun: true })
+    const plan = await backfillLibrary(studio, http, { dryRun: true, apiGapMs: 0 })
     assert.deepEqual(by(plan, order).map(row => row.action), ['retitled', 'converted', 'unchanged'])
     assert.equal(studio.library.get(web.id).kind, 'web', 'dry-run 不改库')
     assert.deepEqual(await readdir(join(root, 'library', web.id)), ['_2611.txt'])
 
     // ---- 执行 ----
-    const first = await backfillLibrary(studio, http)
+    const first = await backfillLibrary(studio, http, { apiGapMs: 0 })
     assert.deepEqual(by(first, order).map(row => [row.action, row.after.title]), [['retitled', 'Attention Is All You Need'], ['converted', 'Banding instabilities in poroelastic media under flow-driven compaction'], ['unchanged', 'notes']])
     const converted = studio.library.get(web.id)
     assert.deepEqual([converted.id, converted.kind, converted.file, converted.mediaType, converted.sourceUrl, converted.arxivId, converted.year, converted.titleSource],
@@ -158,12 +158,12 @@ test('L4 补取：arXiv 网页条目换成 PDF（同 id、引用与进度不动�
 
     // ---- 幂等：再跑一次结果相同、什么都不改 ----
     const before = JSON.stringify(studio.library.list())
-    const second = await backfillLibrary(studio, http)
+    const second = await backfillLibrary(studio, http, { apiGapMs: 0 })
     assert.deepEqual(second.map(row => row.action), ['unchanged', 'unchanged', 'unchanged'])
     assert.equal(JSON.stringify(studio.library.list()), before)
     // ---- API 暂时失败：标题按 PDF 规则只会更差，不降级 ----
     state.apiDown = true
-    const third = await backfillLibrary(studio, http)
+    const third = await backfillLibrary(studio, http, { apiGapMs: 0 })
     assert.deepEqual(third.map(row => row.action), ['unchanged', 'unchanged', 'unchanged'])
     assert.equal(JSON.stringify(studio.library.list()), before)
     assert.match(by(third, order)[0]!.reason ?? '', /稍后可重跑/)
@@ -172,7 +172,7 @@ test('L4 补取：arXiv 网页条目换成 PDF（同 id、引用与进度不动�
     // ---- 重复原件：arXiv 网页条目要换成的 PDF 已在库里 → 跳过、不动 ----
     const dupWeb = (await studio.library.add({ name: 'rope.txt', bytes: Buffer.from('rope abstract'), addedBy: 'ai', sourceUrl: 'https://arxiv.org/abs/2104.09864', kind: 'web', mediaType: 'text/plain' })).item
     await studio.library.add({ name: '2104.09864.pdf', bytes: papers['2104.09864'].pdf, addedBy: 'ai', sourceUrl: 'https://arxiv.org/pdf/2104.09864', kind: 'pdf' })
-    const fourth = await backfillLibrary(studio, http)
+    const fourth = await backfillLibrary(studio, http, { apiGapMs: 0 })
     const skipped = fourth.find(row => row.id === dupWeb.id)!
     assert.equal(skipped.action, 'skipped')
     assert.match(skipped.reason!, /相同/)
@@ -206,5 +206,20 @@ test('L5 原件位置：返回 library/<id>/ 下的真实普通文件；符号�
     // 不存在
     await unlink(directory)
     await assert.rejects(studio.library.location(item), /不存在/)
+  } finally { studio.close(); await rm(root, { recursive: true, force: true }) }
+})
+
+test('L4 补取按 arXiv 约定给 API 请求留间隔（入库只发一条不受影响）', { timeout: 30000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), 'lumen-backfill-gap-'))
+  const studio = openStudio(root)
+  try {
+    const papers = Object.fromEntries(['1706.03762', '2104.09864', '2611.14235'].map(id => [id, { pdf: titledPdf({ lines: [[17, `Heading ${id}`]] }), title: `Paper ${id}`, authors: ['A'] }]))
+    for (const id of Object.keys(papers)) await studio.library.add({ name: `${id}.pdf`, bytes: papers[id]!.pdf, addedBy: 'you', sourceUrl: `https://arxiv.org/pdf/${id}`, kind: 'pdf' })
+    const { state, http } = arxivNetwork(papers)
+    const rows = await backfillLibrary(studio, http, { dryRun: true, apiGapMs: 200 })
+    assert.deepEqual(rows.map(row => row.after.titleSource), ['arxiv', 'arxiv', 'arxiv'])
+    const gaps = state.apiAt.slice(1).map((at, index) => at - state.apiAt[index]!)
+    assert.equal(gaps.length, 2)
+    assert.ok(gaps.every(gap => gap >= 190), `间隔 ${gaps.join(',')}ms`)
   } finally { studio.close(); await rm(root, { recursive: true, force: true }) }
 })

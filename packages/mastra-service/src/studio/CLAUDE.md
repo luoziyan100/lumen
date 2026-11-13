@@ -11,7 +11,7 @@
 - `topics.ts`：主题增改（新主题同事务建第一张进行中白板）与主题引用：引用/取消引用/阅读进度/被当前区块引用数。取消引用不动区块（R10）。
 - `library.ts`：全局资料库。按 sha256 去重（并发同内容由唯一约束裁决），原件落 `library/<id>/` 后 chmod 0400；链接收入时 PDF 存原件，网页存抽出的正文与来源 URL；arXiv 任何写法都取 `arxiv.org/pdf/<id>` 存 PDF、出处记摘要页，标题按 `resolveTitle`（给定 → API → PDF 信息 → 首页大字 → 文件名）；`location` 给原生「系统打开」核对后的真实路径（只认 `library/<id>/` 下的普通文件）；`refresh`/`replaceOriginal` 只给补取用。
 - `titles.ts`：标题回退链里与 PDF 有关的纯规则：清洗（空白/`[编号] `前缀/≤200 字）、Info Title 排除（空、乱码、文件名、软件名）、首页最大字号横排行；`TITLE_RANK` 让补取只升不降。
-- `backfill.ts`：显式补取命令（不在启动时跑）：先出计划，再 VACUUM INTO 备份 catalog 与受影响的 `library/<id>/` 并写 SHA256 清单，最后按同一条目换原件/重算标题；对正式数据须先经负责人确认。
+- `backfill.ts`：显式补取命令（不在启动时跑）：先出计划，再 VACUUM INTO 备份 catalog 与受影响的 `library/<id>/` 并写 SHA256 清单，最后按同一条目换原件/重算标题；arXiv API 请求间隔 3 秒；对正式数据须先经负责人确认，且正式服务须已运行含本迁移的代码（旧代码按位置插入 10 列，补列后会失败）。
 - `studio.ts`：一条 catalog 连接上组合三个存储（也暴露连接给补取备份）；server 与之后的白板工具共用同一实例。
 - `tools.ts`：资料库访问边界（R15）：`createMaterialAccess`（研究网络必传，arXiv 收入用） 只放行受信会话所在主题引用的条目（未引用/不存在/越界同一句 404），PDF 分页缓存按 sha256；list_materials/read_material（按页或偏移读，推进阅读进度）；`intake` 供研究工具 to_library 收入并引用，arXiv 链接一律收 PDF（已取到的字节直接复用）。
 - `board-tools.ts`：AI 写白板的唯一通道：board_view（专家也有）/board_draw/board_update/board_supersede，主题与运行从受信主会话推出；`topicState` 每次请求注入主题现状（白板每块一行 + 引用材料），按估算 token 硬上限 1500、新的优先，超出提示用 board_view 看全。
