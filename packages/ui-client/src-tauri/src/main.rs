@@ -126,7 +126,7 @@ fn main() {
             sprite_trace::record_sprite_trace,
             sprite::set_desktop_sprite_enabled, sprite::sprite_ready, sprite::sprite_action, sprite::show_sprite_menu,
             mastra::refresh_mastra_connection, mastra::save_diagnostic_file, mastra::save_workspace_file,
-            files::open_workspace_file, skills::pick_skill_package
+            files::open_workspace_file, files::open_library_item, skills::pick_skill_package
         ])
         .register_uri_scheme_protocol("lumenwidget", |ctx, request| {
             let path = request.uri().path().trim_start_matches('/');
