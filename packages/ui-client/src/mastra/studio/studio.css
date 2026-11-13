@@ -1,7 +1,7 @@
 /**
  * [INPUT]: tokens.css / yan-design-system tokens 与 appearance 皮肤变量（data-material 玻璃/纸面）
  * [OUTPUT]: 新外壳样式——原型 v7 骨架（canvas 底、8px 外边距与间距、圆角面板、50px 同线头部、14px 同一左缘、四级字阶、30px 控件）、
- *           左右栏收放（宽 0、--dur-base 过渡、减弱动效时瞬时）、白板画布与区块（文字/梯子/表格/小部件）、阅读器分屏（分隔条、两个下限）与铺满、材料栏、对话精灵（52px 五表情、交叉淡入、外圈光环与空闲呼吸，减少动态关闭动效）
+ *           左右栏收放（宽 0、--dur-base 过渡、减弱动效时瞬时）、材料副行最多两行且只在「·」处折行、白板画布与区块（文字/梯子/表格/小部件）、阅读器分屏（分隔条、两个下限）与铺满、材料栏、对话精灵（52px 五表情、交叉淡入、外圈光环与空闲呼吸，减少动态关闭动效）
  * [POS]: 只用现有 tokens；控件与文档岛保持实色表面，玻璃/纸面皮肤走 appearance 管道。字号只引用下面四个变量（G4）
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -191,7 +191,10 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 .material-icon { flex: none; display: inline-flex; color: var(--text-soft); }
 .material-text { min-width: 0; display: flex; flex-direction: column; }
 .material-title { font-size: var(--st-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.material-meta { font-size: var(--st-note); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 副行最多两行，只在「·」后折行（段内 nowrap，站点段可断）；超过两行才省略。行仍 align-items: center，单行条目几何不变 */
+.material-meta { font-size: var(--st-note); color: var(--text-muted); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
+.material-seg { white-space: nowrap; }
+.material-seg.is-breakable { white-space: normal; }
 .material-remove { opacity: 0; }
 .material:hover .material-remove, .material-remove:focus-visible { opacity: 1; }
 

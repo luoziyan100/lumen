@@ -42,7 +42,7 @@ register('data:text/javascript,' + encodeURIComponent(`export async function res
 const { createRoot } = await import('react-dom/client')
 const { StudioApp } = await import('../src/mastra/studio/StudioApp.tsx')
 const { saveName } = await import('../src/mastra/views/reader/DocumentReader.tsx')
-const { materialMeta, materialMetaTitle } = await import('../src/mastra/studio/Materials.tsx')
+const { materialMeta, materialMetaParts, materialMetaTitle } = await import('../src/mastra/studio/Materials.tsx')
 
 async function until(check: () => boolean, message: string, ms = 15000) {
   const limit = Date.now() + ms
@@ -64,6 +64,9 @@ test('素材副行（Q3）：[AI 找来 ·]（扩展名）· 来源（arXiv 编�
   assert.equal(materialMeta(web), `a-very-long-subdomain.example-research-site.org · ${S.materials.progress(0)}`)
   assert.equal(materialMetaTitle(web), materialMeta(web))
   assert.equal(materialMeta({ ...base, kind: 'file', file: 'notes.txt' }), `TXT · ${S.materials.progress(0)}`)
+  // Q4：分段渲染，只有站点段可以断开；arXiv 编号、年份、读到哪不拆
+  assert.deepEqual(materialMetaParts(ai).map(part => [part.text, part.breakable]), [[S.materials.foundByAi, false], ['arXiv 2104.09864', false], ['2021', false], [S.materials.progress(0.42), false]])
+  assert.deepEqual(materialMetaParts(web).map(part => part.breakable), [true, false])
 })
 
 test('saveName：没有扩展名按原件类型补，已有的不重复', () => {
@@ -110,10 +113,13 @@ test('素材与阅读器：arXiv 链接收成 PDF，主行 API 标题、副行�
     // ---- L3：主行是 API 标题，悬停 title 给全名；副行 arXiv 编号 · 年份 · 读到哪 ----
     const title = $('.material-title')!
     assert.deepEqual([title.textContent, title.getAttribute('title')], [TITLE, TITLE])
-    // Q3：去冗余保持单行——不写 PDF/网页字样（图标已表达），arXiv 编号代替站点；副行 title 是全文
-    const meta = $('.material-meta')!
-    assert.deepEqual([meta.textContent, meta.getAttribute('title')], [`arXiv 2611.14235v1 · 2026 · ${S.materials.progress(0)}`, `arXiv 2611.14235v1 · 2026 · ${S.materials.progress(0)}`])
     const css = await readFile(new URL('../src/mastra/studio/studio.css', import.meta.url), 'utf8')
+    // Q3：去冗余——不写 PDF/网页字样（图标已表达），arXiv 编号代替站点；副行 title 是全文
+    const meta = $('.material-meta')!
+    assert.deepEqual([...meta.querySelectorAll('.material-seg')].map(seg => seg.textContent), ['arXiv 2611.14235v1 ·', '2026 ·', S.materials.progress(0)])
+    assert.match(css, /\.material-meta \{[^}]*-webkit-line-clamp: 2;/, 'Q4：副行最多两行')
+    assert.match(css, /\.material-seg \{ white-space: nowrap; \}/, 'Q4：段内不折行')
+    assert.deepEqual([meta.textContent, meta.getAttribute('title')], [`arXiv 2611.14235v1 · 2026 · ${S.materials.progress(0)}`, `arXiv 2611.14235v1 · 2026 · ${S.materials.progress(0)}`])
     assert.match(css, /\.material-title \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/, '主行单行省略')
 
     // ---- 阅读器头部用新标题 ----
