@@ -63,7 +63,7 @@ test('资料库工具只认本主题引用：to_library 收入并引用、按页
   const service = await createHttpService({ dataRoot, token, research: { fetch: network },
     model: { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixture.fetch } })
   const headers = { Authorization: `Bearer ${token}` }
-  const materials = async (topic: string) => (await (await service.app.request(`/lumen/topics/${topic}/materials`, { headers })).json()).items as Array<{ id: string; kind: string; addedBy: string; sourceUrl: string | null; readProgress: number; title: string }>
+  const materials = async (topic: string) => (await (await service.app.request(`/lumen/topics/${topic}/materials`, { headers })).json()).items as Array<{ id: string; kind: string; addedBy: string; sourceUrl: string | null; readProgress: number; title: string; titleSource: string | null }>
   const upload = async (name: string, bytes: Uint8Array<ArrayBuffer>, topicId?: string) => {
     const form = new FormData()
     form.set('file', new File([bytes], name))
@@ -86,6 +86,8 @@ test('资料库工具只认本主题引用：to_library 收入并引用、按页
     assert.deepEqual(listed.map(item => [item.kind, item.addedBy]).sort(), [['pdf', 'ai'], ['web', 'ai']])
     assert.equal(listed.find(item => item.kind === 'web')?.title, 'Evidence Page')
     assert.equal(listed.find(item => item.kind === 'pdf')?.sourceUrl, 'https://paper.example/files/study.pdf')
+    // L2 ③：夹具 PDF 没有文档信息 Title，标题取首页最大字号的那行
+    assert.deepEqual([listed.find(item => item.kind === 'pdf')?.title, listed.find(item => item.kind === 'pdf')?.titleSource], ['FIRST PAGE EVIDENCE', 'heading'])
     assert.deepEqual(await materials('q'), [])
     ids.pdf = listed.find(item => item.kind === 'pdf')!.id
     await session.sendMessage({ content: '本地入库' })
@@ -95,7 +97,8 @@ test('资料库工具只认本主题引用：to_library 收入并引用、按页
     await session.sendMessage({ content: '读第二页' })
     assert.match(lastTool(), /\[PDF page 2\]/)
     assert.match(lastTool(), /SECOND PAGE EVIDENCE 42/)
-    assert.doesNotMatch(lastTool(), /FIRST PAGE EVIDENCE/)
+    // 只看读到的正文：标题字段本身就是首页大字（L2 ③）
+    assert.doesNotMatch(JSON.parse(JSON.parse(lastTool()).content).content, /FIRST PAGE EVIDENCE/)
     assert.equal((await materials('p')).find(item => item.id === ids.pdf)?.readProgress, 1)
 
     // ---- R15：资料库里有、但本主题没引用的，与不存在的、越界的给同一句话 ----

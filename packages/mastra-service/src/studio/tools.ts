@@ -1,12 +1,14 @@
 /**
- * [INPUT]: studio 存储、受信主题解析、research/pdf 的逐页抽取、ingestion 的 DOCX 正文抽取
- * [OUTPUT]: createMaterialAccess（只认本主题引用的原件读取与资料库收入）、createMaterialTools：list_materials/read_material
+ * [INPUT]: studio 存储、受信主题解析、research/pdf 的逐页抽取、research/arxiv 的链接识别、研究网络（arXiv 收入用）、ingestion 的 DOCX 正文抽取
+ * [OUTPUT]: createMaterialAccess（只认本主题引用的原件读取与资料库收入；arXiv 来源一律收 PDF 并带元数据）、createMaterialTools：list_materials/read_material
  * [POS]: 模型触达资料库的唯一通道；主题一律从会话身份推出，参数里没有主题。引用清单就是边界（R15），读完推进本主题的阅读进度
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { createTool, type ToolExecutionContext } from '@mastra/core/tools'
 import { z } from 'zod'
 import { extractDocxText } from '../ingestion/docx.ts'
+import { arxivId } from '../research/arxiv.ts'
+import type { ResearchHttp } from '../research/http.ts'
 import type { LibraryIntake } from '../research/intake.ts'
 import { extractPdfPages, pdfText } from '../research/pdf.ts'
 import { StudioError } from './errors.ts'
@@ -19,7 +21,7 @@ const DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.doc
 const TEXT = /^(text\/|application\/(json|xml|x-yaml|yaml|csv))/
 const IMAGE = /^image\/(png|jpeg|gif|webp)$/
 
-export function createMaterialAccess(studio: Studio, topicOf: TopicResolver) {
+export function createMaterialAccess(studio: Studio, topicOf: TopicResolver, http: ResearchHttp) {
   // ---- 同一份 PDF 反复分页读：按内容指纹缓存抽取结果，最多留 8 份 ----
   const pdfCache = new Map<string, Promise<string[]>>()
   function pages(item: LibraryItem, bytes: Uint8Array, signal?: AbortSignal) {
@@ -41,9 +43,14 @@ export function createMaterialAccess(studio: Studio, topicOf: TopicResolver) {
     return { topicId, item, bytes: await studio.library.read(item) }
   }
 
+  /** 研究工具收入：arXiv 论文（模型传 abs/html 页或 PDF 链接）一律收 PDF——已取到的 PDF 字节直接用，网页正文丢弃改取 PDF（L1） */
   const intake: LibraryIntake = async (context, input) => {
     const topicId = topicOf(context)
-    const { item, created } = await studio.library.add({ ...input, addedBy: 'ai' })
+    const paper = arxivId(input.sourceUrl)
+    const pdfBytes = input.kind === 'pdf' && Buffer.from(input.bytes.subarray(0, 5)).toString('latin1') === '%PDF-' ? input.bytes : undefined
+    const { item, created } = paper
+      ? await studio.library.addArxiv(paper, http, 'ai', context?.abortSignal, pdfBytes)
+      : await studio.library.add({ ...input, addedBy: 'ai' })
     studio.topics.reference(topicId, item.id)
     return { itemId: item.id, title: item.title, created }
   }

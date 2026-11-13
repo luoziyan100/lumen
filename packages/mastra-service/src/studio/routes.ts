@@ -1,6 +1,6 @@
 /**
  * [INPUT]: Hono、zod、studio 存储组合、研究网络、原生运行/等待状态投影
- * [OUTPUT]: studioRoutes：主题、白板（带 ETag）、资料库上传/链接/原件、主题引用的 HTTP 接口
+ * [OUTPUT]: studioRoutes：主题、白板（带 ETag）、资料库上传/链接（arXiv 链接收 PDF）/原件/原件本机位置（只给原生「系统打开」核对用）、主题引用的 HTTP 接口
  * [POS]: 认证之后的产品路由；P0 白板对人只读，这里没有区块写接口——区块只经白板工具写（R4）
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -109,6 +109,9 @@ export function studioRoutes(options: { studio: Studio; http: ResearchHttp; acti
     c.header('Content-Security-Policy', 'sandbox')
     return c.body(new Uint8Array(await library.read(item)))
   })
+
+  // ---- 原件在本机的位置：只按条目 id 查，路径由服务给、原生层再核对一次在 library/ 里且是普通文件，页面传不进任意路径（L5） ----
+  app.get('/library/:itemId/location', async c => c.json(await library.location(library.get(z.string().min(1).max(128).parse(c.req.param('itemId'))))))
 
   // ---- 主题引用：原件不动，只增删引用 ----
   app.get('/topics/:topicId/materials', c => c.json({ items: topics.materials(id.parse(c.req.param('topicId'))) }))
