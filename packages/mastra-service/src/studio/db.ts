@@ -1,10 +1,12 @@
 /**
  * [INPUT]: Node SQLite、显式数据根
- * [OUTPUT]: openStudioDb：catalog.sqlite 中主题/资料/引用/白板/区块/版本表；transaction：同步立即事务
+ * [OUTPUT]: openStudioDb：catalog.sqlite 中主题/资料/引用/白板/区块/版本表，旧库按需加列（资料的作者/年份/arXiv 编号/标题来源，只在服务启动这条路径上做）；
+ *           schema=false 时只打开不建表不加列，表结构不全就拒绝（补取等只填数据的工具用）；schemaGaps；transaction：同步立即事务
  * [POS]: studio 存储的唯一建表处；与 catalog/ 的阅读游标共用文件，不碰 Mastra 的 mastra.sqlite
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { DatabaseSync } from 'node:sqlite'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 // ---------------------------------------------------------------------------
@@ -48,11 +50,36 @@ CREATE TABLE IF NOT EXISTS sheet_versions (
 ) STRICT;
 `
 
-export function openStudioDb(root: string): DatabaseSync {
-  const db = new DatabaseSync(join(root, 'catalog.sqlite'))
+// ---------------------------------------------------------------------------
+// 加列迁移：旧库缺哪列补哪列（与 diagnostics/notes 同一做法），只加可空列，旧行读出为 null，向前兼容
+// ---------------------------------------------------------------------------
+const COLUMNS: [table: string, column: string, type: string][] = [
+  ['library_items', 'authors', 'TEXT'], ['library_items', 'year', 'INTEGER'], ['library_items', 'arxiv_id', 'TEXT'], ['library_items', 'title_source', 'TEXT'],
+]
+
+function migrate(db: DatabaseSync) {
+  for (const [table, column, type] of COLUMNS)
+    if (!db.prepare(`PRAGMA table_info(${table})`).all().some(row => row.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`)
+}
+
+/** 当前代码需要而库里还没有的列（表不存在时整张表的列都算缺） */
+export function schemaGaps(db: DatabaseSync): string[] {
+  const needed: [string, string][] = [['library_items', 'id'], ['topic_materials', 'item_id'], ...COLUMNS.map(([table, column]) => [table, column] as [string, string])]
+  return needed.filter(([table, column]) => !db.prepare(`PRAGMA table_info(${table})`).all().some(row => row.name === column)).map(([table, column]) => `${table}.${column}`)
+}
+
+/** 服务启动：建表并补列（幂等，旧库首次启动即补齐）。schema=false：只打开已由服务建好的库，不改表结构，结构不全就拒绝 */
+export function openStudioDb(root: string, options: { schema?: boolean } = {}): DatabaseSync {
+  const schema = options.schema ?? true, path = join(root, 'catalog.sqlite')
+  if (!schema && !existsSync(path)) throw new Error(`没有 ${path}：先用服务启动一次这个数据根`)
+  const db = new DatabaseSync(path)
   try {
     db.exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;')
-    db.exec(SCHEMA)
+    if (schema) { db.exec(SCHEMA); migrate(db) }
+    else {
+      const gaps = schemaGaps(db)
+      if (gaps.length) throw new Error(`catalog.sqlite 还没被含本次迁移的服务打开过（缺 ${gaps.join('、')}）：先让服务用新代码启动一次（启动时自动补列），这里不改表结构`)
+    }
     return db
   } catch (error) { db.close(); throw error }
 }

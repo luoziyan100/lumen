@@ -20,7 +20,7 @@ src-tauri/
 
 - `src/main.rs`：1160×800 原生窗口(macOS 透明窗口 + 系统侧栏毛玻璃，注入 `data-vibrancy`；只有主题声明透明的区域才透出)、外观明暗同步、窗口标题跟当前主题（`set_window_title`，截 120 字）、文件夹选择、系统浏览器外链、widget 脚本注册与 URI 协议；macOS 关窗隐藏、Dock 重开显示，Cmd+Q 只退出窗口进程。
 - `src/mastra.rs`：默认 `~/.lumen-studio`（只唤醒 `com.lumen.studio`），参数 `--mastra-data-root` 优先于 `LUMEN_MASTRA_HOME`；私有发现验证后只向可信顶层页面注入 HTTP 身份，失败显示重试入口。
-- `src/files.rs`：系统文档打开先向受信服务验证主题工作区文件归属（topicId/taskId），二次确认实际路径，禁止页面传入任意宿主路径。
+- `src/files.rs`：系统文档打开先向受信服务验证主题工作区文件归属（topicId/taskId），二次确认实际路径，禁止页面传入任意宿主路径；资料库原件（`open_library_item`）页面只传条目 id，服务按 id 给真实路径，原生层再核对根是 `library/`、路径正好是 `library/<id>/<文件>`、无 `..`、非符号链接的普通文件。
 - `src/skills.rs`：原生选择完整技能包，保留脚本、资源和空目录相对结构，32 MiB/4096项/32层限制且拒绝符号链接。
 - `src/sprite*.rs`：纯模型判定唯一形态，动作层执行透明置顶窗口、位置记忆与单订阅投影，macOS 通知适配只报告生命周期事实。
 - `src/CLAUDE.md`：原生职责与依赖地图。

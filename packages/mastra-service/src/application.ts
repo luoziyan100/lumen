@@ -100,7 +100,7 @@ export async function createApplication(options: ApplicationOptions) {
     return owner.resourceId
   }
   const topicOf = (context: { requestContext?: RequestContext } | undefined) => ownerOf(context).split(':')[0]!
-  const materials = createMaterialAccess(studio, topicOf)
+  const materials = createMaterialAccess(studio, topicOf, http)
   const readLibrary: LibraryReader = async (context, itemId) => {
     const { item, bytes } = await materials.open(context, itemId)
     return { bytes, title: item.title }

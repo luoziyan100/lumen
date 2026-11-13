@@ -7,6 +7,7 @@
 - `records.ts`：论文记录、S2 转换和来源格式化，供检索与引用共用。
 - `openalex.ts`：OpenAlex 请求参数与倒排摘要重建。
 - `journal-ranks.ts`：沿用期刊分级表；旗舰名称精确匹配，细分/家族关键词按明确规则匹配，避免泛子串遮蔽细分等级。
+- `arxiv.ts`：arXiv 链接识别（纯函数：abs/pdf/html、版本号、旧式编号、www/export 变体）、PDF/摘要页地址、API 元数据（标题、前 3 位作者 + et al.、年份；≤5s，失败返回 null 不阻塞入库）。
 - `papers.ts`：原生 search_papers/get_citations，返回可引用的结构化论文。
 - `intake.ts`：`LibraryIntake` 回调类型；研究工具不知道主题和数据库，主题由应用从受信身份推出。
 - `web.ts`：原生 fetch_url/search_web，保存失败不得伪报成功；`to_library=true` 把网页正文收进资料库并引用到主题。

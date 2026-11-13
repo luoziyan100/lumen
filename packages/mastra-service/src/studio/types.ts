@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 无运行时依赖；产品模型 doc/studio/model.md 的对象与状态
- * [OUTPUT]: 主题、资料、引用、白板、区块、出处与版本 DTO，以及 BlockKind/BlockState 字面量
+ * [OUTPUT]: 主题、资料（含作者/年份/arXiv 编号/标题来源）、引用、白板、区块、出处与版本 DTO，以及 BlockKind/BlockState 字面量
  * [POS]: studio 服务与桌面的纯类型边界，不携带数据库或框架对象
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -28,6 +28,12 @@ export interface LibraryItem {
   size: number
   addedBy: AddedBy
   createdAt: string
+  /** 论文元数据（L2）：作者前 3 位 + et al.、年份、arXiv 编号；旧库与非论文为 null */
+  authors: string | null
+  year: number | null
+  arxivId: string | null
+  /** 标题从哪来：arxiv > info（PDF 文档信息）> heading（首页大字）> file；page 是网页标题、given 是调用方给的；旧库为 null */
+  titleSource: 'arxiv' | 'info' | 'heading' | 'file' | 'page' | 'given' | null
 }
 
 /** 主题视角的材料：原件信息 + 这个主题读到哪、被当前区块引用几处。 */
