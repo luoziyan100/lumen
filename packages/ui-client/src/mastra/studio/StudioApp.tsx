@@ -1,5 +1,5 @@
 /**
- * [INPUT]: 服务连接、主题/会话/白板/材料数据钩子、精灵与阅读器、设置与研究角色面板、外观订阅、桌面精灵生命周期桥
+ * [INPUT]: 服务连接、主题/会话/白板/材料数据钩子、精灵与阅读器、设置与研究角色面板、外观订阅
  * [OUTPUT]: StudioApp：新形态外壳——原型 v7 骨架：canvas 底上 8px 间距的圆角面板（左栏主题、中栏、右栏材料、停靠的精灵），每个面板首行 50px 头部同线；
  *           中栏头部只有按中线居中的分段视图（主题名进 aria-label 与窗口标题），分屏时阅读器头与白板头同一行；精灵自己定位在整个窗口上（不再挂进白板区）；
  *           左右栏可收起（宽 0，展开按钮在中栏头部两端，⌘B / ⌘⌥B）；阅读器三态：关闭 / 分屏（可拖分隔条）/ 铺满中栏（白板隐藏但保持挂载与相机，Esc 还原）
@@ -20,8 +20,6 @@ import { Agents } from '../agents/Agents'
 import { Board } from './Board'
 import { Materials, useMaterials } from './Materials'
 import { Sprite, useSessions } from './Sprite'
-import { useDesktopSprite, useSpriteDesktopOpenBridge } from './sprite-desktop/bridge'
-import type { SpriteState } from './sprite-face'
 import { TopicPanel, useTopics } from './TopicPanel'
 import { useBoard } from './useBoard'
 import { PaneToggle, Splitter, usePanes, type Side } from './Panes'
@@ -46,18 +44,11 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const [focus, setFocus] = useState<{ blockId: string; nonce: number } | null>(null)
   const [reading, setReading] = useState<{ target: FileTarget; title?: string } | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false), [agentsOpen, setAgentsOpen] = useState(false), [docked, setDocked] = useState(false)
-  const [spriteProjection, setSpriteState] = useState<SpriteState>('idle')
   const [full, setFull] = useState(false), [center, setCenter] = useState<HTMLElement | null>(null)
   const panes = usePanes()
   const live = !!topic?.running
   const board = useBoard(api, topic?.id ?? null, `${signal.done}|${revision}`, live)
   const materials = useMaterials(api, topic?.id ?? null, `${signal.done}|${revision}`)
-
-  const openSpriteDesktop = useCallback(() => {
-    window.dispatchEvent(new Event('lumen-sprite-open'))
-  }, [])
-  useDesktopSprite(spriteProjection)
-  useSpriteDesktopOpenBridge(openSpriteDesktop)
 
   // ---- 选主题：记住上次的；没选或已不存在就选第一个 ----
   // 刚建的主题要等下一次目录刷新才出现，期间不能被「选第一个」顶掉
@@ -143,7 +134,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
       collapsed={panes.right} onToggle={() => flip('right')}
       onOpen={item => openMaterial(item)} onChanged={materials.refresh} />}
     {topic && <Sprite api={api} topic={topic} identity={identity} sessions={sessions} onIdentity={setIdentity} onActivity={activity}
-      onOpenFile={target => setReading({ target })} onFocusBlock={onFocusBlock} onBoard={onBoard} onSettings={() => setSettingsOpen(true)} onDocked={setDocked} onSpriteState={setSpriteState} />}
+      onOpenFile={target => setReading({ target })} onFocusBlock={onFocusBlock} onBoard={onBoard} onSettings={() => setSettingsOpen(true)} onDocked={setDocked} />}
     {settingsOpen && <Settings api={api} appearance={appearance} onClose={() => setSettingsOpen(false)} />}
     {agentsOpen && <Agents api={api} onClose={() => setAgentsOpen(false)} />}
   </main></ExternalLinkGate>

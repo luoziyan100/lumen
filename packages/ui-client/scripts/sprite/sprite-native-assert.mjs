@@ -34,7 +34,7 @@ const center = () => { const b = desktop().bounds; return [b.X + b.Width / 2, b.
 const reopen = async () => { execFileSync('open', ['-a', bundle]); await until(() => main() && !desktop(), 'main did not reopen'); await delay(500) }
 const closeMain = async () => { native('close'); await delay(650) }
 async function launch() {
-  child = spawn(`${bundle}/Contents/MacOS/Lumen`, ['--mastra-data-root', root], { env: { ...process.env, LUMEN_SPRITE_LOG: log }, stdio: ['ignore', openSync(`${out}/native-app.log`, 'a'), openSync(`${out}/native-app.log`, 'a')] })
+  child = spawn(`${bundle}/Contents/MacOS/Lumen`, ['--mastra-data-root', root], { env: { ...process.env, LUMEN_SPRITE_TRACE: log }, stdio: ['ignore', openSync(`${out}/native-app.log`, 'a'), openSync(`${out}/native-app.log`, 'a')] })
   pid = child.pid
   await until(() => main(), 'main did not launch'); await delay(2500)
 }
@@ -60,7 +60,7 @@ try {
   await launch()
   check('P1 主窗可见时桌面形态不在屏上', !!main() && !desktop())
   execFileSync('osascript', ['-e', 'tell application "Finder" to activate'])
-  await delay(500)
+  await until(() => native('front').pid !== pid, '前台切换未生效，无法验证失焦与不抢焦点')
   check('P1 失焦不切换', !!main() && !desktop())
   const foreground = native('front').pid
   await closeMain()
@@ -73,12 +73,22 @@ try {
   native('drag', x, y, x - 180, y - 90); await delay(500)
   const moved = desktop()?.bounds
   check('P3 合成拖动实际移动且未打开', !!moved && !main() && Math.abs(moved.X - first.bounds.X) > 100)
-  const remembered = { ...moved }
+  // 原生拖动的最后一批 Moved 可能晚于鼠标释放；等几何与落盘位置连续稳定后再重启。
+  let stable = 0, previous = ''
+  await until(() => {
+    const bounds = desktop()?.bounds, savedPosition = JSON.parse(readFileSync(saved, 'utf8'))
+    const current = JSON.stringify(bounds)
+    stable = bounds && savedPosition.x === bounds.X && savedPosition.y === bounds.Y && current === previous ? stable + 1 : 0
+    previous = current
+    return stable >= 3
+  }, '拖动结束后几何与位置文件未稳定')
+  const remembered = { ...desktop().bounds }
   await quit()
   check('P6 ⌘Q 后窗口和进程全部退出', !live() && !list().length)
   await launch(); await closeMain()
   const restored = desktop().bounds
-  check('P3 重启后位置记忆', restored.X === remembered.X && restored.Y === remembered.Y, JSON.stringify(restored))
+  const expected = { X: Math.max(area.x, Math.min(remembered.X, area.x + area.w - 156)), Y: Math.max(area.y, Math.min(remembered.Y, area.y + area.h - 238)) }
+  check('P3 重启后记忆位置，越界按工作区夹取', restored.X === expected.X && restored.Y === expected.Y, JSON.stringify({remembered, expected, restored}))
   ;[x, y] = center()
   native('drag', x, y, x + 2, y + 1); await until(() => main() && !desktop(), 'jitter click did not open')
   check('P3/P4 2px/1px抖动视为点击并唤回', !!main() && native('front').pid === pid)
@@ -119,7 +129,7 @@ try {
   await api.session(identity).sendMessage('请逐段回答，用于验证状态投影。')
   await until(async () => (await fixture()).streaming, 'model stream not opened')
   const projections = () => readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)).filter(row => row.at >= begin)
-  const projected = state => projections().some(row => row.kind === 'project' && row.value.state === state)
+  const projected = state => projections().some(row => row.kind === 'projected' && row.window === 'main' && row.state === state)
   await until(() => projected('running'), 'hidden main did not project running')
   await fixture({ content: '主窗口隐藏后仍收到文字。' })
   await until(() => projected('speaking'), 'hidden main did not project speaking')
@@ -129,16 +139,17 @@ try {
   await api.stop(identity)
   await until(() => projected('idle'), 'hidden main did not project idle')
   const after = await fixture(), rows = projections()
-  const sent = rows.filter(r => r.kind === 'project')
-  const received = rows.filter(r => r.kind === 'received' && !r.value.detail)
-  const paired = sent.map(row => ({ ...row.value, receivedAt: received.find(r => r.value.sequence === row.value.sequence)?.value.receivedAt }))
+  const sent = rows.filter(r => r.kind === 'projected' && r.window === 'main')
+  const rendered = rows.filter(r => r.kind === 'rendered' && r.window === 'sprite-desktop')
+  const paired = sent.map((row, index) => ({ state: row.state, sourceAt: row.at, renderedAt: rendered[index]?.at }))
+  check('P7 桌面真实DOM提交序列与主窗状态序列一致', JSON.stringify(sent.map(r => r.state)) === JSON.stringify(rendered.map(r => r.state)))
   const path = `/api/agent-controller/lumen/sessions/${encodeURIComponent(`${topic.id}:${identity.taskId}`)}/stream`
   const subscriptions = (after.streams[path] ?? 0) - (before.streams[path] ?? 0)
   check('P7 隐藏期间仅增加一条会话订阅', subscriptions === 1, `${subscriptions}`)
-  check('P7 主窗与桌面序列完全一致，逐项延迟≤1s', paired.every(p => p.receivedAt !== undefined && p.receivedAt - p.sentAt >= 0 && p.receivedAt - p.sentAt <= 1000), JSON.stringify(paired))
+  check('P7 主窗与桌面序列完全一致，逐项延迟≤1s', paired.every(p => p.renderedAt !== undefined && p.renderedAt - p.sourceAt >= 0 && p.renderedAt - p.sourceAt <= 1000), JSON.stringify(paired))
   check('P7 四态均来自真实订阅', ['idle', 'running', 'waiting', 'speaking'].every(state => paired.some(p => p.state === state)))
   check('P7 全程主窗仍隐藏，桌面形态可见', !main() && !!desktop())
-  writeFileSync(`${out}/p7.json`, JSON.stringify({ subscriptions, paired }, null, 2))
+  writeFileSync(`${out}/p7.json`, JSON.stringify({ subscriptions, paired, measurement: '调试构建记录主窗状态进入原生转发与桌面React DOM提交；不等同屏幕像素绘制时间' }, null, 2))
   await menu(2); await until(() => !live(), 'menu quit did not terminate')
   check('P6 原生菜单退出后两个窗口和进程消失', !live() && !list().length)
   writeFileSync(`${out}/native-results.log`, results.join('\n') + '\n')

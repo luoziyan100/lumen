@@ -39,4 +39,4 @@ src-tauri/
 
 2026-09-20：应用图标替换为用户提供的水彩飞鸟与金色星芒，去除展示稿外围白底；系统合成验证后改为不透明全幅母版，避免重复圆角底板与内缩。应用身份保持com.lumen.research。2026-11-12（studio S5）：新形态独立应用 `Lumen Studio.app`，bundle id `com.lumen.studio`、窗口标题 Lumen Studio，与旧 `Lumen.app`（com.lumen.research）并存，WebKit 存储互不相干。2026-11-12 合入 main 后显示名改回 `Lumen.app`、窗口标题 Lumen，bundle id 仍为 com.lumen.studio；旧 com.lumen.research 包已移出 /Applications。
 
-2026-11-12：应用内 60×92 全身精灵与 156×238 桌面精灵共享显示层；原生判定关窗/最小化/恢复与 ⌘H，退出不阻止系统终止。隔离数据根使用独立 WebKit 存储。
+2026-11-12：应用内 60×92 全身精灵与 156×238 桌面精灵共享显示层；原生判定关窗/最小化/恢复与 ⌘H，退出不阻止系统终止。隔离数据根使用独立 WebKit 存储，避免正式外观、锚点和开关进入测试或被测试覆盖。仅调试构建引入 scripts/sprite/trace 的取证命令与初始化脚本。

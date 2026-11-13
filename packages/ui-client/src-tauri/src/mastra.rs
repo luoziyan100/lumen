@@ -198,7 +198,7 @@ pub fn trusted_origin(url: &tauri::Url) -> bool {
     match (url.scheme(), url.host_str(), url.port()) {
         ("tauri", Some("localhost"), None) => true,
         ("http" | "https", Some("tauri.localhost"), None) => true,
-        ("http", Some("localhost" | "127.0.0.1"), Some(5180 | 5183)) => cfg!(debug_assertions),
+        ("http", Some("localhost" | "127.0.0.1"), Some(5180)) => cfg!(debug_assertions),
         _ => false,
     }
 }

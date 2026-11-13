@@ -1,7 +1,7 @@
 /**
  * [INPUT]: sprite_model 的原生形态、主窗口唯一订阅投影、Tauri 窗口与本机位置文件
- * [OUTPUT]: 桌面精灵窗口、原生菜单、显示切换和带序号的单向状态投影
- * [POS]: 原生动作层；不读取服务身份、不创建 HTTP/SSE，系统通知由 sprite_macos 接入
+ * [OUTPUT]: 桌面精灵窗口、原生菜单、显示切换和仅含四态的单向投影
+ * [POS]: 原生动作层；不读取服务身份、不创建 HTTP/SSE，系统通知由 sprite_macos 接入；隔离根同时隔离 WebKit 存储，防止测试复用正式外观、锚点与开关
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 use crate::sprite_model::{self, Action, Event, Form, Model, Position, WorkArea};
@@ -18,26 +18,10 @@ pub const HEIGHT: f64 = 238.0;
 #[serde(rename_all = "lowercase")]
 pub enum SpriteState { #[default] Idle, Running, Waiting, Speaking }
 
-#[derive(Clone, Default, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Projection { state: SpriteState, sequence: u64, sent_at: u64 }
-
 #[derive(Default)]
 pub struct Runtime { inner: Mutex<Inner> }
 #[derive(Default)]
-struct Inner { model: Model, ready: bool, projection: Projection, generation: u64 }
-
-pub fn diagnostic(app: &AppHandle, kind: &str, value: serde_json::Value) {
-    #[cfg(debug_assertions)]
-    if let Some(path) = std::env::var_os("LUMEN_SPRITE_LOG") {
-        use std::io::Write;
-        let line = serde_json::json!({"at": std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis(), "kind": kind, "value": value});
-        if let Ok(mut file) = std::fs::OpenOptions::new().append(true).create(true).open(path) {
-            let _ = writeln!(file, "{line}");
-        }
-    }
-    let _ = (app, kind, value);
-}
+struct Inner { model: Model, ready: bool, state: SpriteState, generation: u64 }
 
 fn desktop(app: &AppHandle) -> Option<WebviewWindow> { app.get_webview_window(LABEL) }
 
@@ -51,7 +35,6 @@ pub fn transition(app: &AppHandle, event: Event) {
         (before, after, inner.ready, inner.generation)
     };
     if before == after { return; }
-    diagnostic(app, "form", serde_json::json!({"event": format!("{event:?}"), "form": after}));
     let _ = app.emit_to("main", "sprite-main-visible", false);
     if after == Form::Desktop && ready {
         restore_position(app);
@@ -69,7 +52,7 @@ pub fn transition(app: &AppHandle, event: Event) {
     }
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        tokio_free_delay().await;
+        wait_for_desktop_fade().await;
         let runtime = app.state::<Runtime>();
         let current = runtime.inner.lock().unwrap();
         if current.generation != generation { return; }
@@ -78,8 +61,8 @@ pub fn transition(app: &AppHandle, event: Event) {
     });
 }
 
-async fn tokio_free_delay() {
-    // 最长 180ms 淡出后再隐藏原生窗口；不占用 AppKit 主线程。
+async fn wait_for_desktop_fade() {
+    // 最长 180ms 淡出后再隐藏；短等待交给 Tauri blocking pool，不阻塞 AppKit，也不新增计时依赖。
     let _ = tauri::async_runtime::spawn_blocking(|| std::thread::sleep(Duration::from_millis(200))).await;
 }
 
@@ -127,28 +110,17 @@ pub fn set_desktop_sprite_enabled(window: WebviewWindow, enabled: bool) {
 }
 
 #[tauri::command]
-pub fn publish_sprite_state(window: WebviewWindow, state: SpriteState, sent_at: u64) -> Result<(), String> {
+pub fn publish_sprite_state(window: WebviewWindow, state: SpriteState) -> Result<(), String> {
     if window.label() != "main" { return Err("main projection required".into()); }
     let app = window.app_handle();
-    let projection = {
-        let runtime = app.state::<Runtime>();
-        let mut inner = runtime.inner.lock().unwrap();
-        inner.projection = Projection { state, sequence: inner.projection.sequence + 1, sent_at };
-        inner.projection.clone()
-    };
-    diagnostic(app, "project", serde_json::to_value(&projection).unwrap());
-    app.emit_to(LABEL, "sprite-state", projection).map_err(|error| error.to_string())
+    app.state::<Runtime>().inner.lock().unwrap().state = state;
+    #[cfg(debug_assertions)]
+    crate::sprite_trace::projected(state);
+    app.emit_to(LABEL, "sprite-state", state).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub fn sprite_snapshot(app: AppHandle) -> Projection { app.state::<Runtime>().inner.lock().unwrap().projection.clone() }
-
-#[cfg(debug_assertions)]
-#[tauri::command]
-pub fn sprite_received(window: WebviewWindow, sequence: u64, received_at: u64, detail: Option<String>) {
-    if window.label() != LABEL { return; }
-    diagnostic(window.app_handle(), "received", serde_json::json!({"sequence": sequence, "receivedAt": received_at, "detail": detail}));
-}
+pub fn sprite_snapshot(app: AppHandle) -> SpriteState { app.state::<Runtime>().inner.lock().unwrap().state }
 
 #[tauri::command]
 pub fn sprite_ready(window: WebviewWindow) {
@@ -179,7 +151,8 @@ pub fn window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
 }
 
 fn position_path(app: &AppHandle) -> Option<PathBuf> {
-    let dir = crate::mastra::isolated_root(app).unwrap_or_else(|| app.path().app_local_data_dir().unwrap()).join("desktop-ui");
+    let root = crate::mastra::isolated_root(app).or_else(|| app.path().app_local_data_dir().ok())?;
+    let dir = root.join("desktop-ui");
     std::fs::create_dir_all(&dir).ok()?;
     Some(dir.join("sprite-position.json"))
 }
@@ -224,6 +197,8 @@ pub fn setup(app: &mut tauri::App) -> tauri::Result<()> {
         .visible_on_all_workspaces(true).skip_taskbar(true).shadow(false)
         .focused(false).focusable(true).accept_first_mouse(true).visible(false)
         .initialization_script("document.documentElement.dataset.spriteDesktop = 'true'");
+    #[cfg(debug_assertions)]
+    let builder = crate::sprite_trace::instrument(builder);
     isolate(builder, app.handle()).build()?;
     restore_position(app.handle());
     #[cfg(target_os = "macos")]
@@ -234,12 +209,12 @@ pub fn setup(app: &mut tauri::App) -> tauri::Result<()> {
 pub fn isolate<'a, M: Manager<tauri::Wry>>(builder: WebviewWindowBuilder<'a, tauri::Wry, M>, app: &AppHandle) -> WebviewWindowBuilder<'a, tauri::Wry, M> {
     if let Some(root) = crate::mastra::isolated_root(app) {
         use std::hash::{Hash, Hasher};
-        let mut a = std::collections::hash_map::DefaultHasher::new();
-        root.hash(&mut a);
+        let mut storage_hasher = std::collections::hash_map::DefaultHasher::new();
+        root.hash(&mut storage_hasher);
         let mut id = [0u8; 16];
-        id[..8].copy_from_slice(&a.finish().to_be_bytes());
-        "sprite-ui".hash(&mut a);
-        id[8..].copy_from_slice(&a.finish().to_be_bytes());
+        id[..8].copy_from_slice(&storage_hasher.finish().to_be_bytes());
+        "sprite-ui".hash(&mut storage_hasher);
+        id[8..].copy_from_slice(&storage_hasher.finish().to_be_bytes());
         builder.data_store_identifier(id)
     } else { builder }
 }

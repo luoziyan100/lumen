@@ -1,14 +1,10 @@
 /**
  * [INPUT]: SpriteFigure 的状态属性、两张派生 WebP 与现有 appearance tokens
- * [OUTPUT]: 应用内缩小版与独立桌面版的透明舞台、四态轻量动效和原生拖动命中区
+ * [OUTPUT]: 两种尺寸共用的四态轻量动效；文档隐藏时暂停循环
  * [POS]: 形象显示层样式；只动 transform/opacity，不决定位置、订阅或窗口生命周期
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
-html[data-sprite-desktop], html[data-sprite-desktop] body, html[data-sprite-desktop] #root { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
-.sprite-root { position: relative; width: 100%; height: 100%; display: grid; place-items: center; user-select: none; }
-.sprite-art-button { position: relative; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; cursor: grab; -webkit-app-region: no-drag; }
-.sprite-art-button:active { cursor: grabbing; }
 .sprite-visual { position: relative; display: inline-block; width: 100%; height: 100%; pointer-events: none; }
 .sprite-visual img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; transform-origin: 50% 76%; animation: sprite-float 5.2s ease-in-out infinite; filter: drop-shadow(0 12px 12px color-mix(in srgb, var(--accent, #7894ff) 22%, transparent)); }
 .sprite-visual-glow { position: absolute; left: 24%; right: 24%; bottom: 5%; height: 12%; border-radius: 50%; background: color-mix(in srgb, var(--accent, #7894ff) 35%, transparent); filter: blur(10px); opacity: .28; pointer-events: none; animation: sprite-ground 5.2s ease-in-out infinite; }
@@ -33,11 +29,7 @@ html[data-sprite-desktop], html[data-sprite-desktop] body, html[data-sprite-desk
   .sprite-visual img, .sprite-visual-glow { animation: none !important; }
 }
 
-/* --- 原生可见性与浏览器可见性只控制绘制，不断开唯一订阅 --- */
-.sprite-root { opacity: 0; transform-origin: center; }
-.sprite-root[data-visible='false'] .sprite-visual *,
-html[data-sprite-main-visible='false'] .sprite-visual *,
-html[data-sprite-document-hidden='true'] .sprite-visual * { animation-play-state: paused !important; }
-html[data-sprite-main-visible='false'] .sprite-orb { visibility: hidden; }
+/* --- 不可见时只暂停绘制，唯一订阅仍由 Sprite 持有 --- */
+.sprite-visual[data-document-hidden='true'] * { animation-play-state: paused !important; }
 
 .sprite-visual-desktop img { inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); }

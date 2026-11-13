@@ -3,7 +3,7 @@
  * [OUTPUT]: Sprite：对话精灵——收起是 60×92px 全身缩小版（主题/会话的 running、waiting 与说话折成 idle/running/waiting/speaking 一个状态，动效与光环跟它走，状态写进 aria-label），
  *           可拖到整个窗口任意位置、放哪停哪；展开时浮窗从头像中心柔和长出、收起缩回头像（useSpriteMove），浮窗贴着头像那一侧、拖标题栏带着锚点走，或停靠右侧的栏；
  *           展开头部同脸；收起仍观察文字流，展开复用同一订阅；切换本主题的对话、开新对话（主题忙时禁用并说明）、专家目录与诊断入口；锚点、大小与形态存 localStorage（sprite-place）
- * [POS]: 对话从主角退成精灵：白板是主题的共同草稿，对话只是说话的记录。所有消息、审批、追问仍走原生 Conversation
+ * [POS]: 直接投影四态到桌面、接回打开动作，可见性只控制本地绘制；对话从主角退成精灵：白板是主题的共同草稿，对话只是说话的记录。所有消息、审批、追问仍走原生 Conversation
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useState } from 'react'
@@ -17,7 +17,8 @@ import { Welcome } from '../views/conversation/welcome/Welcome'
 import { Specialists } from '../views/conversation/Specialists'
 import { Diagnostics } from '../diagnostics/Diagnostics'
 import { Light } from './TopicPanel'
-import { SpriteFigure } from './sprite-desktop/Visual'
+import { SpriteFigure } from './SpriteFigure'
+import { useDesktopSprite, useSpriteDesktopOpenBridge } from './sprite-desktop/bridge'
 import { SpriteFace } from './SpriteFace'
 import { spriteState, useReducedMotion } from './sprite-face'
 import { loadShape, saveShape, type Shape } from './sprite-place'
@@ -46,7 +47,7 @@ export function useSessions(api: LumenApi, topicId: string | null, signal: numbe
   return { sessions, error }
 }
 
-export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity, onOpenFile, onFocusBlock, onBoard, onSettings, onSpriteState, onDocked }: {
+export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity, onOpenFile, onFocusBlock, onBoard, onSettings, onDocked }: {
   api: LumenApi
   topic: Topic
   identity: Identity | null
@@ -57,8 +58,6 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
   onFocusBlock: (blockId: string) => void
   onBoard: (signal: BoardSignal) => void
   onSettings: () => void
-  /** 将唯一会话订阅投影给桌面精灵窗 */
-  onSpriteState?: (state: ReturnType<typeof spriteState>) => void
   /** 停靠时外壳给右侧让出位置 */
   onDocked?: (docked: boolean) => void
 }) {
@@ -80,18 +79,15 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
   const move = useSpriteMove(shape, update, useReducedMotion())
   useEffect(() => { setListing(false); setDiagnostics(false) }, [topic.id])
   useEffect(() => { onDocked?.(shape.open && shape.docked) }, [shape.open, shape.docked, onDocked])
-  useEffect(() => { onSpriteState?.(state) }, [onSpriteState, state])
-  useEffect(() => {
-    const open = () => move.setOpen(true)
-    window.addEventListener('lumen-sprite-open', open)
-    return () => window.removeEventListener('lumen-sprite-open', open)
-  }, [move.setOpen])
+  const mainVisible = useDesktopSprite(state)
+  const openFromDesktop = useCallback(() => move.setOpen(true), [move.setOpen])
+  useSpriteDesktopOpenBridge(openFromDesktop)
 
   // ---- 停靠且展开时只有右侧一栏；否则头像在锚点上（展开动画期间与浮窗同在，交叉淡出淡入）。
   //      展开中头像 inert、收起中浮窗 inert：不改计算样式（M8），点另一个即从当前进度倒放（M7） ----
   const docked = shape.docked && shape.open
   const showOrb = !docked && move.phase !== 'open', showWindow = docked || move.phase !== 'closed'
-  const orb = showOrb && <button ref={move.orbRef} type="button" className="sprite-orb" data-state={state} data-phase={move.phase} inert={move.phase === 'opening'} aria-label={S.sprite.openWith[state]} title={S.sprite.openWith[state]}
+  const orb = showOrb && <button ref={move.orbRef} type="button" className="sprite-orb" data-visible={mainVisible} data-state={state} data-phase={move.phase} inert={move.phase === 'opening'} aria-label={S.sprite.openWith[state]} title={S.sprite.openWith[state]}
     style={{ left: move.orb.x, top: move.orb.y }} {...move.orbHandlers}>
     <SpriteFigure state={state} size="compact" />
     {sessions.some(item => item.unread) && <span className="sprite-unread" aria-label="未读" />}

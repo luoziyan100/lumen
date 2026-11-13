@@ -11,13 +11,10 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { SpriteState } from '../sprite-face'
 import { useReducedMotion } from '../sprite-face'
 import { isDrag } from '../sprite-place'
-import { isSpriteStatePayload } from './state'
+import { isSpriteState } from './state'
 import { desktopMotion } from './motion'
-import { SpriteFigure } from './Visual'
-
-function dragDiagnostic(detail: string) {
-  if (import.meta.env.DEV && isTauri()) void invoke('sprite_received', { sequence: 0, receivedAt: Date.now(), detail }).catch(() => {})
-}
+import { SpriteFigure } from '../SpriteFigure'
+import './desktop.css'
 
 const COPY: Record<SpriteState, string> = {
   idle: '打开 Lumen 对话 · 空闲', running: '打开 Lumen 对话 · 正在思考',
@@ -27,19 +24,17 @@ const COPY: Record<SpriteState, string> = {
 export function SpriteDesktopApp() {
   const [state, setState] = useState<SpriteState>('idle')
   const [visible, setVisible] = useState(!isTauri())
-  const root = useRef<HTMLElement>(null), sequence = useRef(-1)
+  const root = useRef<HTMLElement>(null)
   const position = useRef<{ x: number; y: number }>({ x: 0, y: 0 }), scale = useRef(1)
   const gesture = useRef<{ x: number; y: number } | null>(null)
   const reduced = useReducedMotion()
 
   useEffect(() => {
     if (!isTauri()) return
-    let stopped = false
+    let stopped = false, receivedLiveState = false
     const stops: (() => void)[] = []
     const receive = (payload: unknown) => {
-      if (!isSpriteStatePayload(payload) || payload.sequence <= sequence.current) return
-      sequence.current = payload.sequence; setState(payload.state)
-      if (import.meta.env.DEV) void invoke('sprite_received', { sequence: payload.sequence, receivedAt: Date.now() }).catch(() => {})
+      if (!stopped && isSpriteState(payload)) setState(payload)
     }
     void (async () => {
       const window = getCurrentWindow()
@@ -47,12 +42,16 @@ export function SpriteDesktopApp() {
       position.current = initial; scale.current = await window.scaleFactor()
       const registered = await Promise.all([
         window.onMoved(event => { position.current = event.payload }),
-        listen<unknown>('sprite-state', event => receive(event.payload)),
+        listen<unknown>('sprite-state', event => {
+          if (isSpriteState(event.payload)) { receivedLiveState = true; receive(event.payload) }
+        }),
         listen<boolean>('sprite-presence', event => setVisible(event.payload === true)),
       ])
       if (stopped) { registered.forEach(stop => stop()); return }
       stops.push(...registered)
-      receive(await invoke('sprite_snapshot'))
+      const snapshot = await invoke('sprite_snapshot')
+      // 注册后收到实时状态，就不再让迟到的初始快照覆盖它。
+      if (!receivedLiveState) receive(snapshot)
       if (!stopped) await invoke('sprite_ready')
     })().catch(() => {})
     return () => { stopped = true; stops.forEach(stop => stop()) }
@@ -70,17 +69,14 @@ export function SpriteDesktopApp() {
   const start = (event: React.PointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0 || !isTauri()) return
     gesture.current = { ...position.current }
-    dragDiagnostic('pointer-down')
-    void getCurrentWindow().startDragging().catch(error => dragDiagnostic(String(error)))
+    void getCurrentWindow().startDragging().catch(() => {})
   }
   const finish = () => {
     const initial = gesture.current
     if (!initial || !isTauri()) return
     gesture.current = null
-    dragDiagnostic('pointer-up')
     void getCurrentWindow().outerPosition().then(async end => {
       const dragged = isDrag((end.x - initial.x) / scale.current, (end.y - initial.y) / scale.current)
-      dragDiagnostic(`native-drag-ended:${end.x - initial.x},${end.y - initial.y}`)
       if (!dragged) await invoke('sprite_action', { action: 'open' })
     })
   }

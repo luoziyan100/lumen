@@ -253,3 +253,7 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
   .app.studio.studio-docked { grid-template-columns: var(--st-left-w) minmax(0, 1fr) 0 var(--sprite-dock-w, 340px); }
   .app.studio.studio-docked .studio-materials { display: none; }
 }
+
+/* --- 原生淡出完成前不重复绘制应用内形象，隐藏不暂停会话 --- */
+.sprite-orb[data-visible='false'] { visibility: hidden; }
+.sprite-orb[data-visible='false'] .sprite-visual * { animation-play-state: paused !important; }

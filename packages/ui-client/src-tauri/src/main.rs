@@ -9,6 +9,9 @@ mod files;
 mod skills;
 mod sprite;
 mod sprite_model;
+#[cfg(debug_assertions)]
+#[path = "../../scripts/sprite/trace/native.rs"]
+mod sprite_trace;
 #[cfg(target_os = "macos")]
 mod sprite_macos;
 
@@ -120,7 +123,7 @@ fn main() {
             pick_folder, open_external_url, widget_put_script, set_window_theme, set_window_title,
             sprite::sprite_snapshot, sprite::publish_sprite_state,
             #[cfg(debug_assertions)]
-            sprite::sprite_received,
+            sprite_trace::record_sprite_trace,
             sprite::set_desktop_sprite_enabled, sprite::sprite_ready, sprite::sprite_action, sprite::show_sprite_menu,
             mastra::refresh_mastra_connection, mastra::save_diagnostic_file, mastra::save_workspace_file,
             files::open_workspace_file, skills::pick_skill_package

@@ -1,7 +1,7 @@
 /**
  * [INPUT]: React、StudioApp（白板工作台外壳）、唯一 Mastra 服务发现、皮肤与独立桌面 SpriteDesktopApp
  * [OUTPUT]: 主窗口或 ?sprite-desktop=1 桌面窗口的根渲染；桌面窗口不读取 Mastra 连接、不创建会话订阅
- * [POS]: 应用唯一入口；桌面精灵分支在服务发现之前短路，主窗口仍保留原有冷启动与重试行为
+ * [POS]: 应用唯一入口；入口选择两个独立根，桌面精灵不挂载服务发现钩子，主窗口仍保留原有冷启动与重试行为
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { StrictMode } from 'react'
@@ -25,12 +25,10 @@ import 'yan-design-system/icons/motion.css'
 import './styles.css'
 import './mastra/views/workbench.css'
 import './appearance/fonts.css'
-import './mastra/studio/sprite-desktop/figure.css'
 
 const isSpriteDesktopWindow = new URLSearchParams(window.location.search).get('sprite-desktop') === '1'
 
-function AppRoot() {
-  if (isSpriteDesktopWindow) return <SpriteDesktopApp />
+function MainAppRoot() {
   useDesktopSpritePreference()
   const [current, setCurrent] = useState(connection)
   useEffect(() => {
@@ -49,12 +47,10 @@ function AppRoot() {
 }
 
 bootstrapAppearance()
-const reflectVisibility = () => { document.documentElement.dataset.spriteDocumentHidden = String(document.hidden) }
-document.addEventListener('visibilitychange', reflectVisibility)
-reflectVisibility()
+const Root = isSpriteDesktopWindow ? SpriteDesktopApp : MainAppRoot
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AppRoot />
+    <Root />
   </StrictMode>,
 )
