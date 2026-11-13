@@ -7,8 +7,7 @@
 - `warm.webp`：256px 微笑脸，审批或追问等待用户时显示。
 - `speaking.webp`：256px 说话脸，仅在可见文字流入时交替显示。
 - `body-neutral.png`：全身中性母版，逐字节保留来源；不参与运行时加载。
-- `body-compact@2x.webp`：120×184，应用内 60×92 形象。
-- `body-desktop@2x.webp`：312×476，桌面 156×238 形象。
+- `runtime/`：全身母版的两档透明 WebP 派生，仅此子目录被共享全身显示层加载。
 - `SOURCE.md`：定稿来源、参考图、模型与逐张生成时间，供核查素材未变。
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

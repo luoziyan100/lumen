@@ -23,5 +23,25 @@
 | 文件 | SHA256 |
 |---|---|
 | body-neutral.png | 0a8c7f27ff8212a36d1c04029c68078f688ca2ed5cb23650962ddddf4fccc463 |
-| body-compact@2x.webp | daeff2732added4233e186723aabce7682656977a780d0060891d836de9c5b8e |
-| body-desktop@2x.webp | 657b05ed39c93b33456c0ff38cdf2343b1ccb8625fe0a13f17b22354bb886be5 |
+| runtime/body-compact@2x.webp | daeff2732added4233e186723aabce7682656977a780d0060891d836de9c5b8e |
+| runtime/body-desktop@2x.webp | 657b05ed39c93b33456c0ff38cdf2343b1ccb8625fe0a13f17b22354bb886be5 |
+
+在仓库根执行以下命令复现派生，需要 Pillow 与 `cwebp`：
+
+```sh
+python3 - <<'PY'
+from pathlib import Path
+from subprocess import run
+from tempfile import TemporaryDirectory
+from PIL import Image
+
+root = Path('packages/ui-client/src/assets/sprite')
+body = Image.open(root / 'body-neutral.png').crop((306, 6, 1485, 1786))
+with TemporaryDirectory() as temporary:
+    for name, size in [('compact', (120, 184)), ('desktop', (312, 476))]:
+        source = Path(temporary) / (name + '.png')
+        body.resize(size, Image.Resampling.LANCZOS).save(source)
+        run(['cwebp', '-quiet', '-q', '82', str(source), '-o',
+             str(root / 'runtime' / ('body-' + name + '@2x.webp'))], check=True)
+PY
+```

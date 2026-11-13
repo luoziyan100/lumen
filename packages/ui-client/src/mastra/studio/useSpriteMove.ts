@@ -1,7 +1,7 @@
 /**
  * [INPUT]: Sprite 的 Shape（锚点、开合、停靠、大小）与写回函数、视口尺寸、prefers-reduced-motion、sprite-place 的纯函数
  * [OUTPUT]: useSpriteMove：头像与浮窗的位置（由锚点算出）、展开阶段（closed/opening/open/closing）与 setOpen；
- *           头像拖动（>4px 才算拖、拖完紧随的 click 不打开且标记只留一轮、键盘激活从不吞、pointer capture、cancel 停在最后位置、Alt+方向键 16px）、浮窗标题栏拖动（带着锚点走）；
+ *           头像拖动（>4px 才算拖、拖后 click 不打开且下一次按下清标记、键盘激活从不吞、pointer capture、cancel 停在最后位置、Alt+方向键 16px）、浮窗标题栏拖动（带着锚点走）；
  *           展开/收起用 Web Animations 只动 transform 与 opacity，原点在头像中心，中途反向从当前进度倒放，不叠第二层
  * [POS]: Sprite 的交互层。拖动中只用 ref 写 transform，不触发 React 重渲染；松手才写状态与 localStorage。展开的挂载走 transition，不在点击里形成长任务。没有 Element.animate（jsdom）时直接到终态
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -93,7 +93,7 @@ export function useSpriteMove(shape: Shape, commit: (patch: Partial<Shape>) => v
     onPointerUp(event: ReactPointerEvent<HTMLButtonElement>) { endOrbDrag(event.currentTarget, true) },
     /** 系统取消（切走窗口等）：停在最后的位置；取消之后不会有 click，不必吞 */
     onPointerCancel(event: ReactPointerEvent<HTMLButtonElement>) { endOrbDrag(event.currentTarget, false) },
-    /** 键盘激活（detail 0）从不吞；鼠标的 click 只在拖动松手的同一轮里被吞 */
+    /** 键盘激活（detail 0）从不吞；拖后鼠标 click 按手势归属判定，不依赖调度时机 */
     onClick(event: ReactMouseEvent<HTMLButtonElement>) {
       const swallow = swallowClick.current && event.detail !== 0
       swallowClick.current = false
@@ -112,8 +112,8 @@ export function useSpriteMove(shape: Shape, commit: (patch: Partial<Shape>) => v
     orbDrag.current = null
     element.classList.remove('is-dragging')
     if (!drag?.moved) return
-    // 松手后浏览器紧接着派发的 click 不算打开；没派发（WebKit 在头像外松手）也只留到这一轮结束
-    if (released) { swallowClick.current = true; setTimeout(() => { swallowClick.current = false }, 0) }
+    // 拖后迟到的 click 仍属这次手势；没派发时由下次 pointerdown 或键盘激活清除
+    if (released) swallowClick.current = true
     const { vw, vh } = latest.current
     commit({ anchor: anchorAt(drag.last, vw, vh) })
   }

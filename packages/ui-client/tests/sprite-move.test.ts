@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 真实 useSpriteMove（React 19 + jsdom）、假 Element.animate（按 node:test 假计时器推进，可 reverse）
- * [OUTPUT]: M2/M5/M6/M7/M8/M11/M12 的交互证据——≤4px 是点、打开；>4px 是拖、不打开、只写 transform 不重渲染、松手才写锚点；拖完紧随的 click 被吞而标记只留一轮、pointercancel 后与键盘激活从不被吞（复核 R1）；
+ * [OUTPUT]: M2/M5/M6/M7/M8/M11/M12 的交互证据——≤4px 是点、打开；>4px 是拖、不打开、只写 transform 不重渲染、松手才写锚点；拖后 click 即使迟到也被吞、下一次按下清标记、pointercancel 后与键盘激活从不被吞（复核 R1）；
  *           pointercancel 停在最后位置；拖浮窗标题栏带着锚点走；Alt+方向键 16px；展开中途收起是倒放同一组动画、不叠第二层；减弱动效只淡 120ms；没有 animate 时直接到终态
  * [POS]: 精灵交互层的单元验收；纯几何在 sprite-place.test.ts，真实动画帧与长任务在浏览器断言脚本
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -152,7 +152,7 @@ test('拖动以 pointercancel 结束（之后没有 click）：下一次 Enter �
   await view.unmount()
 })
 
-test('拖动松手后紧随的 click 被吞；没派发 click（WebKit 在头像外松手）时标记只留一轮，之后的点击与 Enter 都照常打开', async () => {
+test('拖动松手后紧随的 click 被吞；没派发 click（WebKit 在头像外松手）时下一次按下清标记，之后的点击与 Enter 都照常打开', async () => {
   const view = await mount()
   // 展开时头像卸载、收起后重挂：每次现取
   const orb = () => view.$('.orb')!, start = orbPoint(DEFAULT_SHAPE.anchor, VW, VH)
@@ -164,7 +164,7 @@ test('拖动松手后紧随的 click 被吞；没派发 click（WebKit 在头像
   await drag(-120); await activate(orb())
   assert.equal(view.count('.win'), 1, '键盘激活不被吞')
   await act(async () => view.$('.close')!.click())
-  // 松手后没有 click：这一轮过去后标记清掉，下一次鼠标点击与 Enter 都打开
+  // 松手后没有 click：下一次按下或键盘激活清掉标记，照常打开
   await drag(-180); await advance(16)
   await fire(orb(), 'pointerdown', 10, 10); await fire(orb(), 'pointerup', 10, 10); await fire(orb(), 'click', 10, 10)
   assert.equal(view.count('.win'), 1, '标记没留到下一次点击')
@@ -230,4 +230,19 @@ test('卸载时取消进行中的动画', async () => {
   await advance(32)
   await view.unmount()
   assert.ok(created.every(anim => anim.playState === 'idle'))
+})
+
+
+test('拖动迟到的鼠标click仍被吞，下一次完整点击照常打开', async () => {
+  const view = await mount()
+  const orb = view.$('.orb')!, start = orbPoint(DEFAULT_SHAPE.anchor, VW, VH)
+  await fire(orb, 'pointerdown', start.x, start.y)
+  await fire(orb, 'pointermove', start.x - 80, start.y)
+  await fire(orb, 'pointerup', start.x - 80, start.y)
+  await advance(32)
+  await fire(orb, 'click', start.x - 80, start.y)
+  assert.equal(view.count('.win'), 0, '一次拖动生成的click不因调度延迟变成打开')
+  await fire(orb, 'pointerdown', 100, 100); await fire(orb, 'pointerup', 100, 100); await fire(orb, 'click', 100, 100)
+  assert.equal(view.count('.win'), 1, '下一次完整手势清除标记')
+  await view.unmount()
 })
