@@ -1,6 +1,6 @@
 /**
  * [INPUT]: LumenApi 带 ETag 的原件读取（资料库条目或主题工作区/记忆文件）、既有 Markdown/PDF/HTML 沙箱查看器
- * [OUTPUT]: DocumentReader：单文档阅读器——50px 头部（类别轮廓、材料标题占满剩余宽度真放不下才省略、铺满/还原、复制源码、系统打开、保存到本机、关闭，全是图标按钮；
+ * [OUTPUT]: DocumentReader：单文档阅读器——50px 头部（类别轮廓、材料标题占满剩余宽度真放不下才省略、铺满/还原、复制源码、系统打开（资料库条目只传 id 给原生）、保存到本机（无扩展名时按原件类型补）、关闭，全是图标按钮；
  *           头部两端可插入面板展开按钮）、PDF 按宽适配、相对链接与 PDF 页码；运行中按 ETag 低频检查版本
  * [POS]: 新外壳中间分屏的阅读器（取代 S2 的 Files 目录轨，只保留阅读部分）；不列目录、不上传
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -24,6 +24,13 @@ const formats: [RegExp, DocumentKind][] = [[/\.pdf$/i, 'pdf'], [/\.(png|jpe?g|gi
 /** 先看名字的扩展名，再看原件的 media type；资料库条目的路径是 id，只能靠后者。 */
 export function documentKind(name: string, type: string): DocumentKind {
   return formats.find(([pattern]) => pattern.test(name))?.[1] ?? media.find(([pattern]) => pattern.test(type))?.[1] ?? 'binary'
+}
+
+const extensions: Record<string, string> = { 'application/pdf': 'pdf', 'text/plain': 'txt', 'text/markdown': 'md', 'text/html': 'html', 'application/json': 'json', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg' }
+/** 保存时的文件名：资料库条目显示的是论文标题，没有扩展名就按原件类型补上，免得存出无后缀文件 */
+export function saveName(name: string, type: string): string {
+  const extension = extensions[type.split(';')[0]!.trim().toLowerCase()]
+  return extension && !name.toLowerCase().endsWith(`.${extension}`) ? `${name}.${extension}` : name
 }
 
 function View({ document, page, title }: { document: Loaded; page?: number; title: string }) {
@@ -100,8 +107,10 @@ export function DocumentReader({ api, identity, target, title, live = false, ful
     if (!current) return
     setSaving(true)
     try {
-      if (isTauri() && target.scope !== 'library' && identity) await invoke('open_workspace_file', { ...identity, path: target.path, scope: target.scope })
-      else await saveWorkspaceFile(name, current.blob)
+      // 桌面里交给系统默认应用：资料库条目只给 id，路径由服务查、原生再核对；浏览器里没有系统打开，退回保存
+      if (isTauri() && target.scope === 'library') await invoke('open_library_item', { itemId: target.path })
+      else if (isTauri() && identity) await invoke('open_workspace_file', { ...identity, path: target.path, scope: target.scope })
+      else await saveWorkspaceFile(saveName(name, current.blob.type), current.blob)
     } catch (error) { setError(String(error)) } finally { setSaving(false) }
   }
   return <section className="studio-pane studio-reader" aria-label={name}>
@@ -113,7 +122,7 @@ export function DocumentReader({ api, identity, target, title, live = false, ful
         {onToggleFull && <button className="icon-btn reader-action reader-full" aria-label={full ? S.reader.restore : S.reader.full} aria-pressed={full} title={full ? S.reader.restore : S.reader.full} onClick={onToggleFull}>{full ? <CollapseIcon /> : <ExpandIcon />}</button>}
         {current?.text && <button className="icon-btn reader-action" aria-label={copied ? S.reader.copied : S.reader.copy} title={copied ? S.reader.copied : S.reader.copy} onClick={() => void copySource()}>{copied ? <CheckIcon /> : <CopyIcon />}</button>}
         {current && <button className="icon-btn reader-action" disabled={saving} aria-label={S.reader.open} title={S.reader.open} onClick={() => void openOutside()}><OpenOutIcon /></button>}
-        {current && <button className="icon-btn reader-action" disabled={saving} aria-label={C.download} title={C.download} onClick={() => { setSaving(true); void saveWorkspaceFile(name, current.blob).catch(error => setError(String(error))).finally(() => setSaving(false)) }}><ArrowDownIcon /></button>}
+        {current && <button className="icon-btn reader-action" disabled={saving} aria-label={C.download} title={C.download} onClick={() => { setSaving(true); void saveWorkspaceFile(saveName(name, current.blob.type), current.blob).catch(error => setError(String(error))).finally(() => setSaving(false)) }}><ArrowDownIcon /></button>}
         <button className="icon-btn reader-action" aria-label={S.reader.close} title={S.reader.close} onClick={onClose}><CloseIcon /></button>
       </div>
       {trailing}

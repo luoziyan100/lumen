@@ -1,7 +1,7 @@
 /**
  * [INPUT]: LumenApi 的主题材料（引用 + 读到哪 + 板上引用数）、上传与粘贴链接、取消引用；刷新信号
  * [OUTPUT]: Materials：右栏面板「素材」——头部右侧收起（镜像 PanelIcon，收起后宽 0、inert）、一行添加（粘贴链接回车 + 上传图标）、一个按加入时间倒序的列表（不分组、不计数）；
- *           每行按类别的文件轮廓（18，随文字色，不用文字徽标），meta 放「AI 找来」·格式·来源·读到哪，板上引用数进 title、不再引用；materialMeta；点一条在中间分屏打开原件
+ *           每行按类别的文件轮廓（18，随文字色，不用文字徽标），标题单行省略、悬停看全名，meta 放「AI 找来」·格式·来源·（arXiv 编号·年份）·读到哪，板上引用数进 title、不再引用；materialMeta；点一条在中间分屏打开原件
  * [POS]: 界面叫「素材」，文档与代码里的对象仍叫材料。材料只经主题引用进入（R15），原件留在资料库；这里不删原件，只断开本主题的引用
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -34,9 +34,10 @@ function format(item: TopicMaterial) {
   return item.file.match(/\.([A-Za-z0-9]+)$/)?.[1]?.toUpperCase() ?? ''
 }
 
-/** meta：AI 找来的排在最前（淡色小字，不用徽标色）· 格式 · 来源 · 读到哪；板上引用数进 title 提示 */
+/** meta：AI 找来的排在最前（淡色小字，不用徽标色）· 格式 · 来源 ·（arXiv 编号 · 年份）· 读到哪；板上引用数进 title 提示 */
 export function materialMeta(item: TopicMaterial) {
-  return [item.addedBy === 'ai' ? S.materials.foundByAi : '', format(item), host(item.sourceUrl), S.materials.progress(item.readProgress)].filter(Boolean).join(' · ')
+  return [item.addedBy === 'ai' ? S.materials.foundByAi : '', format(item), host(item.sourceUrl), item.arxivId ? `arXiv ${item.arxivId}` : '', item.year ? String(item.year) : '',
+    S.materials.progress(item.readProgress)].filter(Boolean).join(' · ')
 }
 
 /** 类别轮廓：PDF 与文档用文档、网页复用文档轮廓、图片用图片；随文字色 */
@@ -48,7 +49,7 @@ function Row({ item, active, onOpen, onRemove }: { item: TopicMaterial; active: 
   return <li className={`material${active ? ' on' : ''}`}>
     <button type="button" className="material-open" onClick={onOpen}>
       <span className="material-icon"><KindIcon item={item} /></span>
-      <span className="material-text"><span className="material-title">{item.title}</span>
+      <span className="material-text"><span className="material-title" title={item.title}>{item.title}</span>
         <small className="material-meta" data-added-by={item.addedBy} title={S.materials.cited(item.citedBy) || undefined}>{materialMeta(item)}</small></span>
     </button>
     <button type="button" className="icon-btn material-remove" aria-label={`${S.materials.remove}：${item.title}`} title={S.materials.remove} onClick={onRemove}><CloseIcon /></button>
