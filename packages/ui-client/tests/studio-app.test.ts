@@ -252,7 +252,8 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     // ---- 头像：拖超过 4px 不打开，松手停在那里（M2/M3） ----
     const ball = $('.sprite-orb')!
     await pointer(ball, 'pointerdown', orb.x + 26, orb.y + 26); await pointer(ball, 'pointermove', 200, 150); await pointer(ball, 'pointerup', 200, 150)
-    await act(async () => ball.click())
+    // 松手后浏览器紧随派发的鼠标 click（detail 1）；element.click() 的 detail 是 0，等同键盘激活，不会被吞
+    await act(async () => { ball.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })) })
     assert.ok(!$('.sprite'), '拖完的 click 不打开')
     assert.deepEqual(orbPoint(stored().anchor, vw, vh), { x: 200 - 26, y: 150 - 26 })
     assert.ok(fixture.requests.length > 0)

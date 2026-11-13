@@ -15,7 +15,7 @@
 - `SpriteFace.tsx`：装饰头像，五图叠放预加载与交叉淡入；FaceDriver 独占节奏，运行/说话和等待光环画在外圈，只有空闲球呼吸。
 - `sprite-face.ts`：状态到表情与单计时器节奏；状态切换/卸载立即撤销上一节奏，减少动态时只给静态表情。
 - `sprite-place.ts`：精灵唯一位置的纯函数——锚点存「离左或离右、离上或离下」取松手时更近的一边（窗口缩小只在显示时夹 8px，放大回原位）、旧 x/y/w/h 迁移与非法回退、按头像象限决定浮窗往哪长并夹取、拖浮窗反算锚点、Alt+方向键 16px、4px 拖点阈值、展开 260ms 缓出/收起 200ms 缓入/减弱动效 120ms 淡入淡出的关键帧。
-- `useSpriteMove.ts`：精灵交互——拖动中只用 ref 写 transform（不重渲染），松手才写锚点与 localStorage；pointer capture、cancel 停在最后位置、拖完不打开；Web Animations 只动 transform/opacity，原点在头像中心，中途反向倒放同一组动画、不叠第二层；展开时挂载浮窗放进 transition（输入框自动聚焦的强制布局不在点击里堵成长任务）；没有 animate 时直接到终态。展开中头像、收起中浮窗用 inert 让点击穿过（不改计算样式）。
+- `useSpriteMove.ts`：精灵交互——拖动中只用 ref 写 transform（不重渲染），松手才写锚点与 localStorage；pointer capture、cancel 停在最后位置、拖完紧随的 click 不打开（标记只留一轮；pointercancel 不设标记，键盘激活 detail 0 从不吞）；Web Animations 只动 transform/opacity，原点在头像中心，中途反向倒放同一组动画、不叠第二层；展开时挂载浮窗放进 transition（输入框自动聚焦的强制布局不在点击里堵成长任务）；没有 animate 时直接到终态。展开中头像、收起中浮窗用 inert 让点击穿过（不改计算样式）。
 - `useSpeaking.ts`：把原生当前助手消息交给 stream-pulse 投影；组件收起不丢文字增量，展开不另开订阅。
 - `studio.css`：骨架变量在顶部——四级字阶（14/600、13.5、11、12）、14px 内边距、50px 头部、30px 控件、左右栏宽（收起为 0，`--dur-base` 过渡，减弱动效时瞬时；中栏用负外边距吃掉那一侧间距，外边距仍 8px），全文件只引用它们；只用现有 tokens；控件与文档岛实色。
 

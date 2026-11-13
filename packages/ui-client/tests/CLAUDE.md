@@ -30,7 +30,7 @@ tests/
 - `mastra-files.test.ts`：文件引用/当前稿路径边界；真实 DocumentReader 读资料库条目（不需会话身份）与工作区文件，运行中按 ETag 检查、304 不重建沙箱、内容变了才换，关闭回调；不可读/残缺/超大附件不发送请求，完整上传保持字节和名称，失败展示服务原因。（S4 前的工作目录轨用例随 Files/workspace 退场，原文件备份于 studio-retired/2026-11-12-S4/partial/）
 - `studio-app.test.ts`：真实 StudioApp + 真实 HTTP 服务与 Controller：模型经真实 board_draw 画出文字/梯子/表格/小部件四块并渲染（雾线、你在这里、断点、留给你猜、出处签与 AI 推断、小部件名额）；ETag 兜底轮询被截住时，运行中第一块写完白板即刷新（证明靠工具完成信号）；对话里只有白板卡片、点卡跳块；主题运行时新对话禁用并说明（R1），结束后恢复；视图占位如实；材料分「你带来的 / AI 找来的」并分屏读原件，出处签打开原件；精灵停靠/拖动/收起写入 localStorage；面板与原文：⌘B / ⌘⌥B 收放并写入 localStorage、收起的栏 inert、展开按钮的 aria 与带快捷键的 title、分屏时展开按钮落在阅读器头、铺满时白板保持挂载、Esc 回分屏而输入框里的 Esc 不抢、关阅读器不留铺满、页面没有 ws-tag、格式进 meta。
 - `sprite-place.test.ts`：精灵位置纯函数——最近边选择与来回换算不漂、松手先夹进 8px、窗口缩小夹取/放大回原位、旧 x/y/w/h 迁移与非法字段回退、默认位置与上一版一致、4px 阈值、象限决定浮窗方向与夹取、拖浮窗反算锚点再展开得到同一个浮窗、Alt+方向键 16px 夹取、展开/收起/减弱动效参数只有 transform 与 opacity。
-- `sprite-move.test.ts`：真实 useSpriteMove + 假 Element.animate（假计时器逐帧推进）：≤4px 打开、>4px 拖动只写 transform 且不重渲染、拖完 click 不打开、松手才写锚点；pointercancel 停在最后位置与视口夹取；拖浮窗标题栏带着锚点走；Alt+方向键；展开中途收起倒放同一组动画不叠第二层、收起中点头像又倒回；减弱动效 120ms 只淡；卸载取消动画。
+- `sprite-move.test.ts`：真实 useSpriteMove + 假 Element.animate（假计时器逐帧推进）：≤4px 打开、>4px 拖动只写 transform 且不重渲染、拖完紧随的 click 不打开（标记只留一轮）、pointercancel 后与键盘激活从不被吞（复核 R1）、松手才写锚点；pointercancel 停在最后位置与视口夹取；拖浮窗标题栏带着锚点走；Alt+方向键；展开中途收起倒放同一组动画不叠第二层、收起中点头像又倒回；减弱动效 120ms 只淡；卸载取消动画。
 - `pdf-fit.test.ts`：真实 PdfViewer + pdf.js（Node 同进程 worker）读按规范拼的两页 Letter PDF：不传 fit 初始 130% 且宽度变化不改；传 fit 按宽适配（显示宽度封顶 960）、宽度变化重新适配、懒渲染的页也跟着缩放；手动放大后停止适配，「适配宽度」回到适配。
 - `mastra-transcript.test.ts`：真实消息组件的资料库附件（只认 itemId）受控打开、内嵌图片预览、长正文折叠、剪贴板回退与轮次焦点/跳转；不把 DOM 验证视为 WebKit 验收。
 - `mastra-process.test.ts`：原生reasoning与工具投影、定稿隐藏成功过程、未完成保留、六步窗口与流式手动开合；不展示redacted数据和原始JSON。
