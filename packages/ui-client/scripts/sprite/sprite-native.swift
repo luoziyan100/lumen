@@ -99,6 +99,15 @@ case "press":
         target = parent as! AXUIElement; attempts += 1
     }
     output(["result": AXUIElementPerformAction(target, kAXPressAction as CFString).rawValue, "label": label(target)])
+case "dockquit":
+    guard let dockProcess = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == "com.apple.dock" }) else { exit(4) }
+    let dock = AXUIElementCreateApplication(dockProcess.processIdentifier)
+    guard let icon = find(dock, "Lumen") else { output(["missing": "Dock Lumen"]); exit(4) }
+    let shown = AXUIElementPerformAction(icon, kAXShowMenuAction as CFString)
+    guard shown == .success else { output(["result": shown.rawValue]); exit(4) }
+    Thread.sleep(forTimeInterval: 0.4)
+    guard let quit = find(dock, "Quit") ?? find(dock, "退出") else { output(["missing": "Dock Quit"]); exit(4) }
+    output(["result": AXUIElementPerformAction(quit, kAXPressAction as CFString).rawValue])
 case "front": output(["pid": NSWorkspace.shared.frontmostApplication?.processIdentifier ?? 0])
 case "type":
     var queue = [app], index = 0
