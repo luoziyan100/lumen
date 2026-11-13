@@ -1,4 +1,8 @@
 /**
+ * [INPUT]: Vite 插件生命周期与唯一 widget 文档生成器
+ * [OUTPUT]: 开发中间件与构建文档资源
+ * [POS]: widget 文档入口适配层，不维护第二份模板
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  * Vite 插件:提供 /widget-receiver.html(开发中间件 + 构建产物)。
  * 单源 = receiver.ts 的 buildReceiverSrcdoc;iframe 必须同源导航,禁止 srcdoc。
  */
