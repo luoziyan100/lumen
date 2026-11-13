@@ -78,10 +78,11 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
   useEffect(() => { setListing(false); setDiagnostics(false) }, [topic.id])
   useEffect(() => { onDocked?.(shape.open && shape.docked) }, [shape.open, shape.docked, onDocked])
 
-  // ---- 停靠且展开时只有右侧一栏；否则头像在锚点上（展开动画期间与浮窗同在，交叉淡出淡入） ----
+  // ---- 停靠且展开时只有右侧一栏；否则头像在锚点上（展开动画期间与浮窗同在，交叉淡出淡入）。
+  //      展开中头像 inert、收起中浮窗 inert：不改计算样式（M8），点另一个即从当前进度倒放（M7） ----
   const docked = shape.docked && shape.open
   const showOrb = !docked && move.phase !== 'open', showWindow = docked || move.phase !== 'closed'
-  const orb = showOrb && <button ref={move.orbRef} type="button" className="sprite-orb" data-state={state} data-phase={move.phase} aria-label={S.sprite.openWith[state]} title={S.sprite.openWith[state]}
+  const orb = showOrb && <button ref={move.orbRef} type="button" className="sprite-orb" data-state={state} data-phase={move.phase} inert={move.phase === 'opening'} aria-label={S.sprite.openWith[state]} title={S.sprite.openWith[state]}
     style={{ left: move.orb.x, top: move.orb.y }} {...move.orbHandlers}>
     <SpriteFace state={state} breathe />
     {sessions.some(item => item.unread) && <span className="sprite-unread" aria-label="未读" />}
@@ -90,7 +91,7 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
   if (!showWindow) return <>{orb}{null}</>
 
   const style = docked ? undefined : { left: move.frame.x, top: move.frame.y, width: move.frame.w, height: move.frame.h }
-  return <>{orb}<section ref={move.winRef} className={`sprite${docked ? ' sprite-docked studio-panel' : ' sprite-floating'}`} data-phase={docked ? 'open' : move.phase} style={style} aria-label="对话">
+  return <>{orb}<section ref={move.winRef} className={`sprite${docked ? ' sprite-docked studio-panel' : ' sprite-floating'}`} data-phase={docked ? 'open' : move.phase} inert={!docked && move.phase === 'closing'} style={style} aria-label="对话">
     <header className="studio-head sprite-head" {...move.headHandlers}>
       <SpriteFace state={state} className="sprite-face-head" />
       <button type="button" className="sprite-title" aria-expanded={listing} onClick={() => setListing(value => !value)} title={S.sprite.conversations}>

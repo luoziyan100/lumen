@@ -3,10 +3,10 @@
  * [OUTPUT]: useSpriteMove：头像与浮窗的位置（由锚点算出）、展开阶段（closed/opening/open/closing）与 setOpen；
  *           头像拖动（>4px 才算拖、拖完不打开、pointer capture、cancel 停在最后位置、Alt+方向键 16px）、浮窗标题栏拖动（带着锚点走）；
  *           展开/收起用 Web Animations 只动 transform 与 opacity，原点在头像中心，中途反向从当前进度倒放，不叠第二层
- * [POS]: Sprite 的交互层。拖动中只用 ref 写 transform，不触发 React 重渲染；松手才写状态与 localStorage。没有 Element.animate（jsdom）时直接到终态
+ * [POS]: Sprite 的交互层。拖动中只用 ref 写 transform，不触发 React 重渲染；松手才写状态与 localStorage。展开的挂载走 transition，不在点击里形成长任务。没有 Element.animate（jsdom）时直接到终态
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { startTransition, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { anchorAt, anchorOfWindow, clampOrb, clampWindow, isDrag, nudge, orbPoint, originOf, spriteMotion, windowAt, type Point, type Shape } from './sprite-place'
 
 export type Phase = 'closed' | 'opening' | 'open' | 'closing'
@@ -41,7 +41,8 @@ export function useSpriteMove(shape: Shape, commit: (patch: Partial<Shape>) => v
       return
     }
     if (latest.current.docked) { setPhase(next ? 'open' : 'closed'); return }
-    setPhase(previous => next ? (previous === 'open' ? 'open' : 'opening') : (previous === 'closed' ? 'closed' : 'closing'))
+    // 挂载浮窗（对话、输入框自动聚焦）放进 transition：渲染分片，不在点击里堵成长任务；动画在提交后的布局效应里开始，首帧仍是终态布局
+    startTransition(() => setPhase(previous => next ? (previous === 'open' ? 'open' : 'opening') : (previous === 'closed' ? 'closed' : 'closing')))
   }, [commit])
 
   useLayoutEffect(() => {

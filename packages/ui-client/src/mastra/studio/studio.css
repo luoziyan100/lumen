@@ -199,8 +199,6 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 /* 头像：left/top 由锚点算出（sprite-place），拖动中只写 transform；悬停 pointer、拖动 grabbing */
 .sprite-orb { position: fixed; z-index: var(--st-z-sprite); touch-action: none; user-select: none; -webkit-user-select: none; width: 52px; height: 52px; padding: 0; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.45); background: var(--surface-elevated); box-shadow: var(--shadow-3); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; overflow: visible; }
 .sprite-orb.is-dragging { cursor: grabbing; }
-/* 展开中头像在淡出，不接点击；收起中浮窗不接点击，点头像即从当前进度倒放（M7） */
-.sprite-orb[data-phase='opening'], .sprite-floating[data-phase='closing'] { pointer-events: none; }
 /* 脸：五张叠放，只切透明度（200ms 交叉淡入），切换不重取图 */
 .sprite-face { position: relative; display: inline-flex; width: 100%; height: 100%; border-radius: 50%; }
 .sprite-face img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; opacity: 0; transition: opacity 200ms ease; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45); }
