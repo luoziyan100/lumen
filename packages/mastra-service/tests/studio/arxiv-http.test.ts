@@ -1,18 +1,25 @@
 /**
  * [INPUT]: 真实 createHttpService（本机 TCP）、真实 catalog.sqlite 与 library/ 文件、Mastra Controller 工具循环与确定性模型；arXiv 与网页在 fetch 边界换成可控桩，不打真网
  * [OUTPUT]: HTTP 链接入库：abs/html/pdf 各写法都收 PDF、标题与作者/年份来自 arXiv API、同一论文去重；API 失败回退到 PDF 文档信息或首页大字；
- *           模型工具 fetch_url/extract_pdf 的 to_library 遇 arXiv 同样收 PDF；原件本机位置接口；旧库（缺新列）升级后照常读与收入
+ *           模型工具 fetch_url/extract_pdf 的 to_library 遇 arXiv 同样收 PDF；原件本机位置接口；旧库（缺新列）升级后照常读与收入；
+ *           迁移只归服务启动：补取命令（子进程）遇未迁移旧库拒绝且不改表，新服务首启补列、再启幂等，之后补取以 schema=false 打开只填数据
  * [POS]: L1/L2/L3 服务端入口的行为证据；纯函数与补取在 library-titles.test.ts
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { mkdtemp, realpath, rm } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { DatabaseSync } from 'node:sqlite'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { serve } from '@hono/node-server'
 import { createHttpService } from '../../src/server.ts'
+import { researchHttp } from '../../src/research/http.ts'
+import { backfillLibrary } from '../../src/studio/backfill.ts'
+import { openStudio } from '../../src/studio/studio.ts'
 import { fixtureProvider, textReply, toolReply, type ProviderRequest } from '../provider-fixture.ts'
 import { ensureTopic } from '../topic-fixture.ts'
 import { atom, titledPdf } from './library-fixtures.ts'
@@ -160,4 +167,45 @@ test('旧库升级：缺新列的 catalog.sqlite 由服务打开后照常列出�
     const added = await (await service.app.request('/lumen/library', { method: 'POST', headers, body: JSON.stringify({ url: 'https://arxiv.org/abs/1706.03762' }) })).json()
     assert.equal(added.item.title, 'Attention Is All You Need')
   } finally { await service.close(); await rm(dataRoot, { recursive: true, force: true }) }
+})
+
+const columns = (path: string) => { const db = new DatabaseSync(path, { readOnly: true }); try { return db.prepare('PRAGMA table_info(library_items)').all().map(row => String(row.name)) } finally { db.close() } }
+const backfillCli = fileURLToPath(new URL('../../src/studio/backfill.ts', import.meta.url))
+
+test('迁移归服务启动：补取命令遇未迁移的旧库拒绝且不改表；新服务首启补列、再启幂等，两次都能读写；之后补取以只填数据方式打开可运行', { timeout: 120000 }, async () => {
+  const dataRoot = await mkdtemp(join(tmpdir(), 'lumen-arxiv-migrate-')), catalog = join(dataRoot, 'catalog.sqlite')
+  const old = new DatabaseSync(catalog)
+  old.exec(`CREATE TABLE library_items (id TEXT PRIMARY KEY, kind TEXT NOT NULL CHECK (kind IN ('file','pdf','web')), title TEXT NOT NULL, file TEXT NOT NULL, source_url TEXT,
+    sha256 TEXT NOT NULL UNIQUE, media_type TEXT NOT NULL, size INTEGER NOT NULL, added_by TEXT NOT NULL CHECK (added_by IN ('you','ai')), created_at TEXT NOT NULL) STRICT`)
+  old.prepare('INSERT INTO library_items VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run('legacy-1', 'pdf', '1706.03762', '1706.03762.pdf', 'https://arxiv.org/pdf/1706.03762', 'aa', 'application/pdf', 3, 'you', '2026-11-01T00:00:00.000Z')
+  old.close()
+  const before = columns(catalog)
+  const run = (...argv: string[]) => promisify(execFile)(process.execPath, ['--experimental-strip-types', '--no-warnings', backfillCli, '--data-root', dataRoot, ...argv]).then(() => ({ ok: true, stderr: '' }), (error: { stderr: string }) => ({ ok: false, stderr: error.stderr }))
+  try {
+    // ---- 旧库：补取命令拒绝，表结构一列不动 ----
+    const refused = await run('--dry-run')
+    assert.equal(refused.ok, false)
+    assert.match(refused.stderr, /还没被含本次迁移的服务打开过.*library_items\.authors/)
+    assert.deepEqual(columns(catalog), before)
+    // ---- 新服务首次启动补齐四列，旧行可读、新条目可写（具名列 INSERT） ----
+    const net = network(), token = 'arxiv-migrate-token-at-least-24-characters', headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+    for (const round of [1, 2]) {
+      const service = await createHttpService({ dataRoot, token, research: { fetch: net.fetch } })
+      try {
+        assert.deepEqual(columns(catalog), [...before, 'authors', 'year', 'arxiv_id', 'title_source'], `第 ${round} 次启动`)
+        const listed = (await (await service.app.request('/lumen/library', { headers })).json()).items
+        assert.ok(listed.some((item: { id: string; title: string }) => item.id === 'legacy-1' && item.title === '1706.03762'))
+        const url = round === 1 ? 'https://arxiv.org/abs/2611.14235' : 'https://arxiv.org/abs/2104.09864'
+        const added = await service.app.request('/lumen/library', { method: 'POST', headers, body: JSON.stringify({ url }) })
+        assert.equal(added.status, 201, `第 ${round} 次启动后收入`)
+      } finally { await service.close() }
+    }
+    // ---- 服务启动过之后，补取按 schema=false 打开（与命令行同一路径）只填数据；网络用桩，不打真网 ----
+    const studio = openStudio(dataRoot, { schema: false })
+    try {
+      const plan = await backfillLibrary(studio, researchHttp(net.fetch), { dryRun: true, apiGapMs: 0 })
+      assert.equal(plan.find(row => row.id === 'legacy-1')?.after.title, 'Attention Is All You Need')
+    } finally { studio.close() }
+    assert.deepEqual(columns(catalog), [...before, 'authors', 'year', 'arxiv_id', 'title_source'])
+  } finally { await rm(dataRoot, { recursive: true, force: true }) }
 })

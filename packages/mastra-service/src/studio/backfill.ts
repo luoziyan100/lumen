@@ -1,7 +1,7 @@
 /**
  * [INPUT]: 显式数据根下的 studio 存储、研究网络（arXiv PDF 与 API）、titles 的回退链
  * [OUTPUT]: backfillLibrary：对现有条目按 L2 重算标题与论文元数据；来源是 arXiv 论文页的 kind=web 条目按 L1 换成 PDF 原件（同一条目，id/引用/阅读进度/出处都不动）；
- *           dryRun 只出计划；backupLibrary：VACUUM INTO 备份 catalog.sqlite、复制受影响的 library/<id>/、记录 SHA256 清单；命令行入口（只在显式运行时执行，启动时不跑）
+ *           dryRun 只出计划；backupLibrary：VACUUM INTO 备份 catalog.sqlite、复制受影响的 library/<id>/、记录 SHA256 清单；命令行入口（只在显式运行时执行，启动时不跑；只填数据，表结构未由服务补齐就拒绝）
  * [POS]: 旧数据的一次性补齐（L4）。标题只升不降（arxiv > info > heading > file），所以重跑结果相同、API 暂时失败也不会把好标题改坏；API 请求按约定间隔 3 秒
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -112,13 +112,14 @@ export async function backupLibrary(studio: Studio, dataRoot: string, itemIds: r
 
 // ---------------------------------------------------------------------------
 // 命令行：node --experimental-strip-types src/studio/backfill.ts --data-root <dir> (--dry-run | --backup <空目录>) [--report <file>]
-// 不在服务启动时跑；对正式数据执行前须经负责人确认
+// 不在服务启动时跑；只填数据不改表结构（数据根须先被含迁移的服务启动过）；对正式数据执行前须经负责人确认
 // ---------------------------------------------------------------------------
 async function main(argv: string[]) {
   const flag = (name: string) => { const index = argv.indexOf(name); return index >= 0 ? argv[index + 1] : undefined }
   const dataRoot = flag('--data-root'), dryRun = argv.includes('--dry-run'), backup = flag('--backup'), report = flag('--report')
   if (!dataRoot || (!dryRun && !backup)) throw new Error('用法：backfill.ts --data-root <dir> (--dry-run | --backup <空目录>) [--report <file>]')
-  const studio = openStudio(resolve(dataRoot))
+  // 补取只填数据：表结构（加列）归服务启动；库还没被新服务打开过就拒绝，不在这里改表
+  const studio = openStudio(resolve(dataRoot), { schema: false })
   try {
     const http = researchHttp()
     const plan = await backfillLibrary(studio, http, { dryRun: true })

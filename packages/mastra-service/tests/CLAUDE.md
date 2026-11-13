@@ -27,7 +27,7 @@ P0 预注册：工具结果必须进入下一轮模型请求；两个会话不�
 - `native-routes.test.ts`：真实 HTTP/SDK 验证固定任务身份，拒绝 resource 重绑定、scope 旁路和跨任务读取；纯历史读取不创建 Session、不改 thread 排序与消息。
 - `lifecycle/`：真实子进程 SIGKILL 与 LibSQL 重开，验证遗留子任务结算及消息保留。
 - `catalog/`：实际消息未读游标/迟到确认/重开。
-- `studio/`：主题/资料库/白板存储与 HTTP、启动接线，`board-tools.test.ts` 的白板工具 × 真实 Controller（两块 + 一个版本、第二段对话请求带摘要且守上限、专家只有 board_view、R4 文件碰不到白板、R1 409 含等待用户/继续专家/并发准入、R8 停下无半块且写版本），以及 `materials.test.ts` 的资料库工具边界（R15、to_library、按页读、库内图片像素、只读专家 schema、主题工作区共享与单次销毁）；`library-titles.test.ts` 的 arXiv 识别表、API 解析/超时、标题清洗与回退链、旧库补列、补取（计划/换原件/幂等/只升不降/重复跳过、API 请求间隔）与原件位置拒绝（软链/越界/非普通文件），`arxiv-http.test.ts` 的真实 HTTP 链接入库（各写法收 PDF、去重、API 失败回退）、模型工具 to_library 收 arXiv 与旧库升级；`library-fixtures.ts` 造带 Info/首页字号的 PDF 与 Atom。
+- `studio/`：主题/资料库/白板存储与 HTTP、启动接线，`board-tools.test.ts` 的白板工具 × 真实 Controller（两块 + 一个版本、第二段对话请求带摘要且守上限、专家只有 board_view、R4 文件碰不到白板、R1 409 含等待用户/继续专家/并发准入、R8 停下无半块且写版本），以及 `materials.test.ts` 的资料库工具边界（R15、to_library、按页读、库内图片像素、只读专家 schema、主题工作区共享与单次销毁）；`library-titles.test.ts` 的 arXiv 识别表、API 解析/超时、标题清洗与回退链、旧库补列、补取（计划/换原件/幂等/只升不降/重复跳过、API 请求间隔）与原件位置拒绝（软链/越界/非普通文件），`arxiv-http.test.ts` 的真实 HTTP 链接入库（各写法收 PDF、去重、API 失败回退）、模型工具 to_library 收 arXiv、旧库升级，以及迁移只归服务启动（补取命令子进程遇未迁移旧库拒绝且不改表、新服务首启补列再启幂等）；`library-fixtures.ts` 造带 Info/首页字号的 PDF 与 Atom。
 - `studio/`：新形态存储与 HTTP——主题自带白板、资料库 sha256 去重与只读落盘、引用与进度、容量拒绝（R11）、rev 冲突、出处边界（R15）、取消引用不动区块（R10）、失败不留半块、按运行写版本；真实服务的 ETag/上传/链接；真实 start.ts 子进程的设置导入不泄凭证与旧形态数据根拒绝。
 - `deployment/`：替换 launchctl 调度、保留真实子进程/内核锁/HTTP，验证私有部署就绪、重启卸载、崩溃恢复、所有权拒绝及不接管旧 label/旧形态数据根；不调用真实 launchctl。
 
