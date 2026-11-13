@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 真实 StudioApp（主题栏/白板/材料/精灵/阅读器）与 React DOM、真实 HTTP 服务与 Mastra Controller、确定性模型
- * [OUTPUT]: S4 外壳行为证据（含 S5 返工：单张不显示张标签、面板首行头部、梯子断点在两级之间、不重复「AI 画的」、主题 ＋ 回车建/Esc 取消；返工二：中栏头部无主题名、不显示已用块数、素材单列表倒序；P0 后续：⌘B/⌘⌥B 收放与 localStorage、铺满/Esc、无 ws-tag）：四种区块经真实 board_draw 落库后渲染（梯子/表格/小部件/出处签与 AI 推断）、白板只靠工具完成信号刷新（ETag 轮询被截住）、
+ * [OUTPUT]: S4 外壳行为证据（含 S5 返工：单张不显示张标签、面板首行头部、梯子断点在两级之间、不重复「AI 画的」、主题 ＋ 回车建/Esc 取消；返工二：中栏头部无主题名、不显示已用块数、素材单列表倒序；P0 后续：⌘B/⌘⌥B 收放与 localStorage、铺满/Esc、无 ws-tag；精灵：拖浮窗带着锚点走、收起后头像在锚点角、拖头像不打开）：四种区块经真实 board_draw 落库后渲染（梯子/表格/小部件/出处签与 AI 推断）、白板只靠工具完成信号刷新（ETag 轮询被截住）、
  *           对话里只出现白板卡片且点卡跳到那块、主题运行时「新对话」禁用（R1）、材料分「你带来的 / AI 找来的」并在分屏打开原件、精灵收起/停靠/拖动并持久
  * [POS]: S4 组件级验收；可控模型只证明机制，不冒充真实模型研究验收；不宣称覆盖 WebKit
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -20,6 +20,7 @@ import { fixtureProvider, textReply, toolReply, type ProviderRequest } from '../
 import { ensureTopic } from '../../mastra-service/tests/topic-fixture.ts'
 import { LumenApi } from '../src/mastra/data/client.ts'
 import { STUDIO_COPY as S } from '../src/copy/studioCopy.ts'
+import { ORB, orbPoint, windowAt } from '../src/mastra/studio/sprite-place.ts'
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/', pretendToBeVisual: true })
 for (const name of ['window', 'document', 'HTMLElement', 'HTMLInputElement', 'Element', 'Node', 'NodeFilter', 'Text', 'DocumentFragment', 'MutationObserver', 'localStorage', 'getComputedStyle', 'navigator']) {
@@ -232,14 +233,28 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     assert.ok($('main.studio.studio-docked') && $('.sprite-docked'))
     assert.equal(JSON.parse(localStorage.getItem('lumen.studio.sprite')!).docked, true)
     await click(S.sprite.float)
-    const before = JSON.parse(localStorage.getItem('lumen.studio.sprite')!) as { x: number; y: number }
+    // ---- 精灵只有一个位置：拖浮窗标题栏带着锚点走，收起后头像在浮窗的锚点角（M5） ----
+    type Stored = { anchor: Parameters<typeof orbPoint>[0]; w: number; h: number; open: boolean }
+    const stored = () => JSON.parse(localStorage.getItem('lumen.studio.sprite')!) as Stored
+    const vw = window.innerWidth, vh = window.innerHeight
+    const frame = windowAt(orbPoint(stored().anchor, vw, vh), stored(), vw, vh)
     const head = $('.sprite-head')!
     await pointer(head, 'pointerdown', 500, 400); await pointer(head, 'pointermove', 440, 360); await pointer(head, 'pointerup', 440, 360)
-    const moved = JSON.parse(localStorage.getItem('lumen.studio.sprite')!) as { x: number; y: number }
-    assert.deepEqual([moved.x, moved.y], [Math.max(8, before.x - 60), Math.max(8, before.y - 40)])
+    const dragged = windowAt(orbPoint(stored().anchor, vw, vh), stored(), vw, vh)
+    assert.deepEqual([dragged.x, dragged.y], [Math.max(8, frame.x - 60), Math.max(8, frame.y - 40)])
+    assert.deepEqual([parseFloat($('.sprite-floating')!.style.left), parseFloat($('.sprite-floating')!.style.top)], [dragged.x, dragged.y])
     await click(S.sprite.collapse)
     assert.ok($('.sprite-orb') && !$('.sprite'))
-    assert.equal(JSON.parse(localStorage.getItem('lumen.studio.sprite')!).open, false)
+    assert.equal(stored().open, false)
+    const orb = orbPoint(stored().anchor, vw, vh)
+    assert.deepEqual([parseFloat($('.sprite-orb')!.style.left), parseFloat($('.sprite-orb')!.style.top)], [orb.x, orb.y])
+    assert.ok([dragged.x, dragged.x + dragged.w - ORB].includes(orb.x) && [dragged.y, dragged.y + dragged.h - ORB].includes(orb.y), '头像落在浮窗的一个角上')
+    // ---- 头像：拖超过 4px 不打开，松手停在那里（M2/M3） ----
+    const ball = $('.sprite-orb')!
+    await pointer(ball, 'pointerdown', orb.x + 26, orb.y + 26); await pointer(ball, 'pointermove', 200, 150); await pointer(ball, 'pointerup', 200, 150)
+    await act(async () => ball.click())
+    assert.ok(!$('.sprite'), '拖完的 click 不打开')
+    assert.deepEqual(orbPoint(stored().anchor, vw, vh), { x: 200 - 26, y: 150 - 26 })
     assert.ok(fixture.requests.length > 0)
 
     // ---- T1：左栏头部「主题 ＋」，＋ 在列表顶出输入框，Esc 取消、回车创建 ----

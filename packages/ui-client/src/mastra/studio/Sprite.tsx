@@ -1,11 +1,12 @@
 /**
  * [INPUT]: LumenApi 的主题会话目录、Welcome/Conversation/Specialists/Diagnostics、主题运行投影（R1）、useSession 的唯一订阅与 useSpeaking 的文字增量、sprite-face 的状态映射与 SpriteFace
- * [OUTPUT]: Sprite：对话精灵——收起是白板区右下角的 52px 头像（主题/会话的 running、waiting 与说话折成 idle/running/waiting/speaking 一个状态，表情与光环跟它走，状态写进 aria-label），展开头部同脸；收起仍观察文字流，展开复用同一订阅，点开是可拖动的浮窗或停靠右侧的栏；切换本主题的对话、开新对话（主题忙时禁用并说明）、专家目录与诊断入口；位置与形态存 localStorage
+ * [OUTPUT]: Sprite：对话精灵——收起是 52px 头像（主题/会话的 running、waiting 与说话折成 idle/running/waiting/speaking 一个状态，表情与光环跟它走，状态写进 aria-label），
+ *           可拖到整个窗口任意位置、放哪停哪；展开时浮窗从头像中心柔和长出、收起缩回头像（useSpriteMove），浮窗贴着头像那一侧、拖标题栏带着锚点走，或停靠右侧的栏；
+ *           展开头部同脸；收起仍观察文字流，展开复用同一订阅；切换本主题的对话、开新对话（主题忙时禁用并说明）、专家目录与诊断入口；锚点、大小与形态存 localStorage（sprite-place）
  * [POS]: 对话从主角退成精灵：白板是主题的共同草稿，对话只是说话的记录。所有消息、审批、追问仍走原生 Conversation
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
-import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { createPortal } from 'react-dom'
+import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import { BackIcon, CloseIcon, PanelIcon, PlusIcon } from '../../components/icons'
 import { STUDIO_COPY as S } from '../../copy/studioCopy'
@@ -17,25 +18,12 @@ import { Specialists } from '../views/conversation/Specialists'
 import { Diagnostics } from '../diagnostics/Diagnostics'
 import { Light } from './TopicPanel'
 import { SpriteFace } from './SpriteFace'
-import { spriteState } from './sprite-face'
+import { spriteState, useReducedMotion } from './sprite-face'
+import { loadShape, saveShape, type Shape } from './sprite-place'
+import { useSpriteMove } from './useSpriteMove'
 import { useSession } from '../data/useSession.ts'
 import { messageText } from '../data/feed.ts'
 import { useSpeaking } from './useSpeaking'
-
-const KEY = 'lumen.studio.sprite'
-interface Shape { open: boolean; docked: boolean; x: number; y: number; w: number; h: number }
-const DEFAULT: Shape = { open: false, docked: false, x: -1, y: -1, w: 420, h: 560 }
-
-export function loadShape(): Shape {
-  try { return { ...DEFAULT, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') as Partial<Shape> } } catch { return DEFAULT }
-}
-/** 浮窗必须留在窗口里：上次的位置在小窗口下可能已经出界。 */
-export function clampShape(shape: Shape, width: number, height: number): Shape {
-  const w = Math.min(shape.w, Math.max(320, width - 24)), h = Math.min(shape.h, Math.max(360, height - 24))
-  const x = shape.x < 0 ? width - w - 24 : Math.max(8, Math.min(shape.x, width - w - 8))
-  const y = shape.y < 0 ? height - h - 24 : Math.max(8, Math.min(shape.y, height - h - 8))
-  return { ...shape, w, h, x, y }
-}
 
 export function useSessions(api: LumenApi, topicId: string | null, signal: number) {
   const [sessions, setSessions] = useState<SessionInfo[]>([]), [error, setError] = useState('')
@@ -57,7 +45,7 @@ export function useSessions(api: LumenApi, topicId: string | null, signal: numbe
   return { sessions, error }
 }
 
-export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity, onOpenFile, onFocusBlock, onBoard, onSettings, onDocked, orbHost }: {
+export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity, onOpenFile, onFocusBlock, onBoard, onSettings, onDocked }: {
   api: LumenApi
   topic: Topic
   identity: Identity | null
@@ -70,62 +58,40 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
   onSettings: () => void
   /** 停靠时外壳给右侧让出位置 */
   onDocked?: (docked: boolean) => void
-  /** 收起时球挂在这里（白板区右下角，G8：不压右栏）；没给就退回窗口右下角 */
-  orbHost?: HTMLElement | null
 }) {
-  const [shape, setShape] = useState<Shape>(() => clampShape(loadShape(), window.innerWidth, window.innerHeight))
+  const [shape, setShape] = useState<Shape>(loadShape)
   const [listing, setListing] = useState(false), [diagnostics, setDiagnostics] = useState(false)
   // ---- 收起也保留同一条原生订阅；展开时交给 Conversation，不重复连流 ----
   const session = useSession(api, identity)
   const activeMessage = session.view.display?.currentMessage
   const message = activeMessage ? session.view.messages.find(item => item.id === activeMessage.id) : undefined
   const streaming = useSpeaking(session.view.display?.isRunning ? activeMessage?.id ?? null : null, message ? messageText(message) : '')
-  const drag = useRef<{ x: number; y: number; sx: number; sy: number } | null>(null)
   const busy = !!(topic.running || topic.waiting)
   const current = identity ? sessions.find(session => session.taskId === identity.taskId) : undefined
   const idle = !current?.running && !current?.waiting
   // 表情只认这四个状态；等你优先于运行（审批挂起时 running 仍为真）
   const state = spriteState({ waiting: !!(current?.waiting || topic.waiting), running: !!(current?.running || topic.running), streaming: streaming && !!identity })
 
-  const update = useCallback((patch: Partial<Shape>) => setShape(previous => {
-    const next = clampShape({ ...previous, ...patch }, window.innerWidth, window.innerHeight)
-    try { localStorage.setItem(KEY, JSON.stringify(next)) } catch { /* 存不下就只在本次有效 */ }
-    return next
-  }), [])
-  useEffect(() => {
-    const resize = () => setShape(previous => clampShape(previous, window.innerWidth, window.innerHeight))
-    window.addEventListener('resize', resize)
-    return () => window.removeEventListener('resize', resize)
-  }, [])
+  // ---- 锚点只在松手、键盘移动、开合时写回；窗口缩放不改它，只在显示时夹取 ----
+  const update = useCallback((patch: Partial<Shape>) => setShape(previous => { const next = { ...previous, ...patch }; saveShape(next); return next }), [])
+  const move = useSpriteMove(shape, update, useReducedMotion())
   useEffect(() => { setListing(false); setDiagnostics(false) }, [topic.id])
   useEffect(() => { onDocked?.(shape.open && shape.docked) }, [shape.open, shape.docked, onDocked])
 
-  function startDrag(event: ReactPointerEvent) {
-    if (shape.docked || (event.target as Element).closest('button, input, textarea')) return
-    drag.current = { x: event.clientX, y: event.clientY, sx: shape.x, sy: shape.y }
-    ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
-  }
-  function moveDrag(event: ReactPointerEvent) {
-    const start = drag.current
-    if (start) setShape(previous => clampShape({ ...previous, x: start.sx + event.clientX - start.x, y: start.sy + event.clientY - start.y }, window.innerWidth, window.innerHeight))
-  }
-  function endDrag() {
-    if (!drag.current) return
-    drag.current = null
-    update({})
-  }
+  // ---- 停靠且展开时只有右侧一栏；否则头像在锚点上（展开动画期间与浮窗同在，交叉淡出淡入） ----
+  const docked = shape.docked && shape.open
+  const showOrb = !docked && move.phase !== 'open', showWindow = docked || move.phase !== 'closed'
+  const orb = showOrb && <button ref={move.orbRef} type="button" className="sprite-orb" data-state={state} data-phase={move.phase} aria-label={S.sprite.openWith[state]} title={S.sprite.openWith[state]}
+    style={{ left: move.orb.x, top: move.orb.y }} {...move.orbHandlers}>
+    <SpriteFace state={state} breathe />
+    {sessions.some(item => item.unread) && <span className="sprite-unread" aria-label="未读" />}
+  </button>
+  // 同一个片段结构：开合时头像按钮不重挂（焦点与动画目标不丢）
+  if (!showWindow) return <>{orb}{null}</>
 
-  if (!shape.open) {
-    const orb = <button type="button" className={`sprite-orb${orbHost ? ' sprite-orb-hosted' : ''}`} data-state={state} aria-label={S.sprite.openWith[state]} title={S.sprite.openWith[state]} onClick={() => update({ open: true })}>
-      <SpriteFace state={state} breathe />
-      {sessions.some(item => item.unread) && <span className="sprite-unread" aria-label="未读" />}
-    </button>
-    return orbHost ? createPortal(orb, orbHost) : orb
-  }
-
-  const style = shape.docked ? undefined : { left: shape.x, top: shape.y, width: shape.w, height: shape.h }
-  return <section className={`sprite${shape.docked ? ' sprite-docked studio-panel' : ' sprite-floating'}`} style={style} aria-label="对话">
-    <header className="studio-head sprite-head" onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag} onPointerCancel={endDrag}>
+  const style = docked ? undefined : { left: move.frame.x, top: move.frame.y, width: move.frame.w, height: move.frame.h }
+  return <>{orb}<section ref={move.winRef} className={`sprite${docked ? ' sprite-docked studio-panel' : ' sprite-floating'}`} data-phase={docked ? 'open' : move.phase} style={style} aria-label="对话">
+    <header className="studio-head sprite-head" {...move.headHandlers}>
       <SpriteFace state={state} className="sprite-face-head" />
       <button type="button" className="sprite-title" aria-expanded={listing} onClick={() => setListing(value => !value)} title={S.sprite.conversations}>
         {listing ? <BackIcon /> : null}<span>{listing ? S.sprite.conversations : current?.title ?? S.sprite.untitled}</span><Light topic={topic} />
@@ -133,7 +99,7 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
       <div className="sprite-actions">
         <button type="button" className="icon-btn" aria-label={S.sprite.newConversation} title={busy ? S.sprite.busy : S.sprite.newConversation} disabled={busy && !!identity} onClick={() => { onIdentity(null); setListing(false) }}><PlusIcon /></button>
         <button type="button" className="icon-btn" aria-label={shape.docked ? S.sprite.float : S.sprite.dock} title={shape.docked ? S.sprite.float : S.sprite.dock} aria-pressed={shape.docked} onClick={() => update({ docked: !shape.docked })}><PanelIcon /></button>
-        <button type="button" className="icon-btn" aria-label={S.sprite.collapse} title={S.sprite.collapse} onClick={() => update({ open: false })}><CloseIcon /></button>
+        <button type="button" className="icon-btn" aria-label={S.sprite.collapse} title={S.sprite.collapse} onClick={() => move.setOpen(false)}><CloseIcon /></button>
       </div>
     </header>
     {busy && !identity && <p className="sprite-busy" role="status">{S.sprite.busy}</p>}
@@ -153,5 +119,5 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
       : busy ? null
       : <div className="sprite-welcome"><Welcome key={`${api.connection.baseUrl}:${topic.id}`} api={api} topicId={topic.id} onSettings={onSettings} onSession={next => { onIdentity(next); onActivity() }} /></div>}
     {diagnostics && identity && <Diagnostics api={api} identity={identity} onClose={() => setDiagnostics(false)} />}
-  </section>
+  </section></>
 }

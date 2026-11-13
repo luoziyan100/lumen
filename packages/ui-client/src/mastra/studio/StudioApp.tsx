@@ -1,7 +1,7 @@
 /**
  * [INPUT]: 服务连接、主题/会话/白板/材料数据钩子、精灵与阅读器、设置与研究角色面板、外观订阅
  * [OUTPUT]: StudioApp：新形态外壳——原型 v7 骨架：canvas 底上 8px 间距的圆角面板（左栏主题、中栏、右栏材料、停靠的精灵），每个面板首行 50px 头部同线；
- *           中栏头部只有按中线居中的分段视图（主题名进 aria-label 与窗口标题），分屏时阅读器头与白板头同一行；精灵球挂在白板区右下角；
+ *           中栏头部只有按中线居中的分段视图（主题名进 aria-label 与窗口标题），分屏时阅读器头与白板头同一行；精灵自己定位在整个窗口上（不再挂进白板区）；
  *           左右栏可收起（宽 0，展开按钮在中栏头部两端，⌘B / ⌘⌥B）；阅读器三态：关闭 / 分屏（可拖分隔条）/ 铺满中栏（白板隐藏但保持挂载与相机，Esc 还原）
  * [POS]: 桌面唯一工作台（取代 S2 过渡入口）。白板刷新只靠对话里的白板工具完成信号 + 运行中 ETag 兜底，不另建事件协议
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -44,7 +44,6 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const [focus, setFocus] = useState<{ blockId: string; nonce: number } | null>(null)
   const [reading, setReading] = useState<{ target: FileTarget; title?: string } | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false), [agentsOpen, setAgentsOpen] = useState(false), [docked, setDocked] = useState(false)
-  const [orbHost, setOrbHost] = useState<HTMLElement | null>(null), [fullOrbHost, setFullOrbHost] = useState<HTMLElement | null>(null)
   const [full, setFull] = useState(false), [center, setCenter] = useState<HTMLElement | null>(null)
   const panes = usePanes()
   const live = !!topic?.running
@@ -125,19 +124,17 @@ export function StudioApp({ connection }: { connection: Connection }) {
           {!topic ? <div className="studio-later studio-pick"><p>{S.pickTopic}</p></div>
             : view === 'board' ? <Board board={board} materials={materials.items} drawing={signal.drawing} focus={focus} onOpenSource={openSource} />
             : <div className="studio-later" role="status"><p>{S.views[view].available ? '' : S.views[view].later}</p></div>}
-          <div className="studio-orb-host" ref={setOrbHost} />
         </div>
       </div>
       {split && !full && <Splitter host={center} ratio={panes.ratio} onRatio={panes.setRatio} />}
       {split && <DocumentReader api={api} identity={identity} target={reading.target} title={reading.title} live={live} onClose={() => { setReading(null); setFull(false) }}
         onNavigate={target => setReading({ target })} full={full} onToggleFull={() => setFull(value => !value)} leading={full && reopenLeft} trailing={reopenRight} />}
-      {split && full && <div className="studio-orb-host studio-orb-full" ref={setFullOrbHost} />}
     </section>
     {topic && <Materials api={api} topicId={topic.id} items={materials.items} error={materials.error} activeId={reading?.target.scope === 'library' ? reading.target.path : null}
       collapsed={panes.right} onToggle={() => flip('right')}
       onOpen={item => openMaterial(item)} onChanged={materials.refresh} />}
     {topic && <Sprite api={api} topic={topic} identity={identity} sessions={sessions} onIdentity={setIdentity} onActivity={activity}
-      onOpenFile={target => setReading({ target })} onFocusBlock={onFocusBlock} onBoard={onBoard} onSettings={() => setSettingsOpen(true)} onDocked={setDocked} orbHost={split && full ? fullOrbHost : orbHost} />}
+      onOpenFile={target => setReading({ target })} onFocusBlock={onFocusBlock} onBoard={onBoard} onSettings={() => setSettingsOpen(true)} onDocked={setDocked} />}
     {settingsOpen && <Settings api={api} appearance={appearance} onClose={() => setSettingsOpen(false)} />}
     {agentsOpen && <Agents api={api} onClose={() => setAgentsOpen(false)} />}
   </main></ExternalLinkGate>
