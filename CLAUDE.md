@@ -46,6 +46,7 @@ npm run tauri:build -w packages/ui-client
 - 源文件保留 INPUT/OUTPUT/POS；结构变化同步所在目录和父级 `CLAUDE.md`。
 - UI 使用现有 Kumo 与 tokens，明暗基线与玻璃/纸面皮肤共用 appearance 管道；控件和文档岛保留实色表面。PDF 固定 4.10.38，保留 WebKit 可用的资源配置。
 - Node 直接运行 TypeScript，只使用可擦除语法；不引入 enum 或构造器参数属性。
+- 精灵由主窗口唯一会话订阅投影到透明桌面窗口，原生窗口事件判定唯一形态；关窗留后台，系统退出结束壳进程。
 - 不建立第二套调度、消息库或执行事件协议。领域算法可以独立，原生生命周期差异用有证据的窄适配修正。
 - 测试经过实际 Controller、存储、文件和 HTTP；可控模型网络用来验证机制，不能冒充真实模型研究验收。
 - 旧 WS/core/runtime 与旧测试已退役，原用户基线的删除前文件有逐项 SHA256 备份；S2 起项目模型、旧导入/legacy 诊断与旧工作台外壳也已退场（备份见 `~/Workspace/tmp/studio-retired/2026-11-12-S2/`）。历史设计文档不作为当前执行合同。

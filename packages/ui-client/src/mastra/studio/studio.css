@@ -196,8 +196,8 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 .material:hover .material-remove, .material-remove:focus-visible { opacity: 1; }
 
 /* ---- 对话精灵 ---- */
-/* 头像：left/top 由锚点算出（sprite-place），拖动中只写 transform；悬停 pointer、拖动 grabbing */
-.sprite-orb { position: fixed; z-index: var(--st-z-sprite); touch-action: none; user-select: none; -webkit-user-select: none; width: 52px; height: 52px; padding: 0; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.45); background: var(--surface-elevated); box-shadow: var(--shadow-3); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; overflow: visible; }
+/* 全身缩小版：left/top 由 sprite-place 的实际 60×92 包围盒算出；拖动中只写 transform。 */
+.sprite-orb { position: fixed; z-index: var(--st-z-sprite); touch-action: none; user-select: none; -webkit-user-select: none; width: 60px; height: 92px; padding: 0; border: 0; border-radius: 0; background: transparent; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; overflow: visible; }
 .sprite-orb.is-dragging { cursor: grabbing; }
 /* 脸：五张叠放，只切透明度（200ms 交叉淡入），切换不重取图 */
 .sprite-face { position: relative; display: inline-flex; width: 100%; height: 100%; border-radius: 50%; }
@@ -209,7 +209,7 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 .sprite-face[data-state='waiting']::after { opacity: 1; box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 80%, transparent), 0 0 14px 2px color-mix(in srgb, var(--warning) 50%, transparent); animation: sprite-pulse 1.8s ease-in-out infinite; }
 .sprite-breathe { transform-origin: 50% 60%; animation: sprite-breathe 5s ease-in-out infinite; }
 /* 展开态头部：28–32px，不呼吸 */
-.sprite-orb > .sprite-unread { position: absolute; top: 0; right: 0; box-shadow: 0 0 0 2px var(--surface-elevated); }
+.sprite-orb > .sprite-unread { position: absolute; top: 0; right: 2px; box-shadow: 0 0 0 2px var(--surface-elevated); }
 .sprite-face-head { width: 32px; height: 32px; flex: none; }
 @keyframes sprite-spin { to { transform: rotate(360deg); } }
 @keyframes sprite-pulse { 50% { opacity: 0.45; } }

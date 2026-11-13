@@ -1,0 +1,98 @@
+/**
+ * [INPUT]: 原生四态缓存、可见性通知、透明窗口与共享 SpriteFigure
+ * [OUTPUT]: SpriteDesktopApp；按下即交原生拖动，以实际位移超过4px区分拖点，单击唤回，右键原生菜单
+ * [POS]: 桌面窗口唯一入口；不读取研究连接，不创建 HTTP/SSE，位置归 Rust
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ */
+import { useEffect, useRef, useState } from 'react'
+import { listen } from '@tauri-apps/api/event'
+import { invoke, isTauri } from '@tauri-apps/api/core'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import type { SpriteState } from '../sprite-face'
+import { useReducedMotion } from '../sprite-face'
+import { isDrag } from '../sprite-place'
+import { isSpriteStatePayload } from './state'
+import { desktopMotion } from './motion'
+import { SpriteFigure } from './Visual'
+
+function dragDiagnostic(detail: string) {
+  if (import.meta.env.DEV && isTauri()) void invoke('sprite_received', { sequence: 0, receivedAt: Date.now(), detail }).catch(() => {})
+}
+
+const COPY: Record<SpriteState, string> = {
+  idle: '打开 Lumen 对话 · 空闲', running: '打开 Lumen 对话 · 正在思考',
+  waiting: '打开 Lumen 对话 · 等你回应', speaking: '打开 Lumen 对话 · 正在说话',
+}
+
+export function SpriteDesktopApp() {
+  const [state, setState] = useState<SpriteState>('idle')
+  const [visible, setVisible] = useState(!isTauri())
+  const root = useRef<HTMLElement>(null), sequence = useRef(-1)
+  const position = useRef<{ x: number; y: number }>({ x: 0, y: 0 }), scale = useRef(1)
+  const gesture = useRef<{ x: number; y: number } | null>(null)
+  const reduced = useReducedMotion()
+
+  useEffect(() => {
+    if (!isTauri()) return
+    let stopped = false
+    const stops: (() => void)[] = []
+    const receive = (payload: unknown) => {
+      if (!isSpriteStatePayload(payload) || payload.sequence <= sequence.current) return
+      sequence.current = payload.sequence; setState(payload.state)
+      if (import.meta.env.DEV) void invoke('sprite_received', { sequence: payload.sequence, receivedAt: Date.now() }).catch(() => {})
+    }
+    void (async () => {
+      const window = getCurrentWindow()
+      const initial = await window.outerPosition()
+      position.current = initial; scale.current = await window.scaleFactor()
+      const registered = await Promise.all([
+        window.onMoved(event => { position.current = event.payload }),
+        listen<unknown>('sprite-state', event => receive(event.payload)),
+        listen<boolean>('sprite-presence', event => setVisible(event.payload === true)),
+      ])
+      if (stopped) { registered.forEach(stop => stop()); return }
+      stops.push(...registered)
+      receive(await invoke('sprite_snapshot'))
+      if (!stopped) await invoke('sprite_ready')
+    })().catch(() => {})
+    return () => { stopped = true; stops.forEach(stop => stop()) }
+  }, [])
+
+  useEffect(() => {
+    const element = root.current
+    if (!element) return
+    const motion = desktopMotion(visible, reduced)
+    if (!element.animate) { element.style.opacity = visible ? '1' : '0'; return }
+    const animation = element.animate(motion.frames, { duration: motion.duration, easing: 'ease-out', fill: 'forwards' })
+    return () => animation.cancel()
+  }, [visible, reduced])
+
+  const start = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0 || !isTauri()) return
+    gesture.current = { ...position.current }
+    dragDiagnostic('pointer-down')
+    void getCurrentWindow().startDragging().catch(error => dragDiagnostic(String(error)))
+  }
+  const finish = () => {
+    const initial = gesture.current
+    if (!initial || !isTauri()) return
+    gesture.current = null
+    dragDiagnostic('pointer-up')
+    void getCurrentWindow().outerPosition().then(async end => {
+      const dragged = isDrag((end.x - initial.x) / scale.current, (end.y - initial.y) / scale.current)
+      dragDiagnostic(`native-drag-ended:${end.x - initial.x},${end.y - initial.y}`)
+      if (!dragged) await invoke('sprite_action', { action: 'open' })
+    })
+  }
+  const open = (event: React.MouseEvent) => {
+    if (event.detail === 0 && isTauri()) void invoke('sprite_action', { action: 'open' }).catch(() => {})
+  }
+  return <main ref={root} className="sprite-root" data-state={state} data-visible={visible} onContextMenu={event => {
+    event.preventDefault()
+    if (isTauri()) void invoke('show_sprite_menu').catch(() => {})
+  }}>
+    <button className="sprite-art-button" type="button" aria-label={COPY[state]} onClick={open} onPointerDown={start} onPointerUp={finish}>
+      <SpriteFigure state={state} size="desktop" />
+    </button>
+  </main>
+}

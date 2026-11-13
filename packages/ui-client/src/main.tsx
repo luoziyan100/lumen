@@ -1,7 +1,7 @@
 /**
- * [INPUT]: React、StudioApp（白板工作台外壳）、唯一 Mastra 服务发现和皮肤
- * [OUTPUT]: 桌面根渲染；冷启动失败有界退避，已连接后的探测失败保留工作台
- * [POS]: 应用唯一入口；未就绪或首次发现失败始终停留在 Mastra，不加载旧运行时
+ * [INPUT]: React、StudioApp（白板工作台外壳）、唯一 Mastra 服务发现、皮肤与独立桌面 SpriteDesktopApp
+ * [OUTPUT]: 主窗口或 ?sprite-desktop=1 桌面窗口的根渲染；桌面窗口不读取 Mastra 连接、不创建会话订阅
+ * [POS]: 应用唯一入口；桌面精灵分支在服务发现之前短路，主窗口仍保留原有冷启动与重试行为
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { StrictMode } from 'react'
@@ -14,6 +14,8 @@ import { Button } from '@cloudflare/kumo/components/button'
 const MastraApp = lazy(() => import('./mastra/studio/StudioApp').then(module => ({ default: module.StudioApp })))
 const connection = (window as Window & { __LUMEN_MASTRA__?: Connection }).__LUMEN_MASTRA__ ?? { baseUrl: '', token: '', error: '未发现本机研究服务，请启动 Mastra 服务后重试。' }
 import { bootstrapAppearance } from './appearance'
+import { useDesktopSpritePreference } from './mastra/studio/sprite-desktop/bridge'
+import { SpriteDesktopApp } from './mastra/studio/sprite-desktop/App'
 import 'yan-design-system/fonts.css'
 import 'yan-design-system/tokens.css'
 import 'yan-design-system/base.css'
@@ -23,8 +25,13 @@ import 'yan-design-system/icons/motion.css'
 import './styles.css'
 import './mastra/views/workbench.css'
 import './appearance/fonts.css'
+import './mastra/studio/sprite-desktop/figure.css'
+
+const isSpriteDesktopWindow = new URLSearchParams(window.location.search).get('sprite-desktop') === '1'
 
 function AppRoot() {
+  if (isSpriteDesktopWindow) return <SpriteDesktopApp />
+  useDesktopSpritePreference()
   const [current, setCurrent] = useState(connection)
   useEffect(() => {
     const apply = (next: Connection) => setCurrent(previous => keepLiveConnection(previous, next))
@@ -42,6 +49,9 @@ function AppRoot() {
 }
 
 bootstrapAppearance()
+const reflectVisibility = () => { document.documentElement.dataset.spriteDocumentHidden = String(document.hidden) }
+document.addEventListener('visibilitychange', reflectVisibility)
+reflectVisibility()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

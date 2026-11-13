@@ -10,6 +10,7 @@ src-tauri/
 │   ├── mastra.rs
 │   ├── files.rs
 │   ├── skills.rs
+│   ├── sprite.rs / sprite_model.rs / sprite_macos.rs
 │   └── CLAUDE.md
 ├── tauri.conf.json
 ├── Cargo.toml / Cargo.lock
@@ -21,13 +22,14 @@ src-tauri/
 - `src/mastra.rs`：默认 `~/.lumen-studio`（只唤醒 `com.lumen.studio`），参数 `--mastra-data-root` 优先于 `LUMEN_MASTRA_HOME`；私有发现验证后只向可信顶层页面注入 HTTP 身份，失败显示重试入口。
 - `src/files.rs`：系统文档打开先向受信服务验证主题工作区文件归属（topicId/taskId），二次确认实际路径，禁止页面传入任意宿主路径。
 - `src/skills.rs`：原生选择完整技能包，保留脚本、资源和空目录相对结构，32 MiB/4096项/32层限制且拒绝符号链接。
+- `src/sprite*.rs`：纯模型判定唯一形态，动作层执行透明置顶窗口、位置记忆与单订阅投影，macOS 通知适配只报告生命周期事实。
 - `src/CLAUDE.md`：原生职责与依赖地图。
 - `tauri.conf.json`：应用身份与最小 CSP；`macOSPrivateApi` 开启以允许窗口透明(私有 API，不可上架 App Store)；脚本仅 self/lumenwidget，无 unsafe-inline/eval；服务连接仅本机 HTTP。
-- `Cargo.toml` / `Cargo.lock`：Tauri、rfd、serde、base64 0.22和reqwest 0.13；二进制名Lumen，reqwest只连私有发现的本机服务，不跟随重定向或系统代理。
+- `Cargo.toml` / `Cargo.lock`：Tauri、rfd、serde、base64 0.22、reqwest 0.13，以及沿用锁定版本的 objc2 通知桥；二进制名Lumen，reqwest只连私有发现的本机服务，不跟随重定向或系统代理。
 - `build.rs`：Tauri 构建元数据。
 - `icons/`：用户提供的飞鸟/星芒水彩图标，全幅1024母版派生桌面各尺寸与ICNS/ICO，详见局部地图。
 
-正式入口发现失败时只对已注册的 `com.lumen.mastra` 执行不带 `-k` 的 kickstart，不安装服务、不杀活实例。显式隔离根不会唤醒正式服务。启动、聚焦和重开共用后台发现节流，UI 重试始终读取当前私有令牌。
+正式入口发现失败时只对已注册的 `com.lumen.studio` 执行不带 `-k` 的 kickstart，不安装服务、不杀活实例。显式隔离根不会唤醒正式服务。启动、聚焦和重开共用后台发现节流，UI 重试始终读取当前私有令牌。
 
 `save_diagnostic_file` 保存有界诊断 JSON（8 MiB）；`save_workspace_file` 先校验 base64 编码长度，再解码并限制 25 MiB。二者共用原生对话框，只写用户选择位置、取消不落盘，不接受目标绝对路径。HTML/widget 沿用网页沙箱与 lumenwidget 脚本通道。
 
@@ -36,3 +38,5 @@ src-tauri/
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
 
 2026-09-20：应用图标替换为用户提供的水彩飞鸟与金色星芒，去除展示稿外围白底；系统合成验证后改为不透明全幅母版，避免重复圆角底板与内缩。应用身份保持com.lumen.research。2026-11-12（studio S5）：新形态独立应用 `Lumen Studio.app`，bundle id `com.lumen.studio`、窗口标题 Lumen Studio，与旧 `Lumen.app`（com.lumen.research）并存，WebKit 存储互不相干。2026-11-12 合入 main 后显示名改回 `Lumen.app`、窗口标题 Lumen，bundle id 仍为 com.lumen.studio；旧 com.lumen.research 包已移出 /Applications。
+
+2026-11-12：应用内 60×92 全身精灵与 156×238 桌面精灵共享显示层；原生判定关窗/最小化/恢复与 ⌘H，退出不阻止系统终止。隔离数据根使用独立 WebKit 存储。

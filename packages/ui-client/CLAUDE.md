@@ -52,3 +52,5 @@ tests/                      # 原生 HTTP/SSE 客户端与保留渲染算法回�
 依赖收口：移除无现役引用的 shaders-react；Mermaid 固定 11.16.1。2026-09-20按原源码恢复思考/工具过程展示，重新接入 generative-loaders 0.1.1 与 thinking-orbs 0.2.0，分别负责等待光圈和工具状态球。
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+
+桌面精灵：主窗口保留唯一会话订阅，经原生缓存投影到独立透明窗口；关窗/最小化后显示桌面形态，恢复后回到应用内。SpriteFigure 是两形共用、可独立替换的绘制边界，原生层独占生命周期与桌面位置。浏览器和原生验收入口见 scripts/CLAUDE.md。

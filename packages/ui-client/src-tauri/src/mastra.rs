@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 正式或显式数据根、私有 Mastra discovery、已注册 LaunchAgent 与 Tauri 生命周期
- * [OUTPUT]: ServiceConnection、可信页面连接注入、后台唤醒和用户选择的诊断/工作区文件保存
+ * [OUTPUT]: ServiceConnection、可信页面连接注入、后台唤醒、隔离根只读查询和用户选择的诊断/工作区文件保存
  * [POS]: 唯一服务发现边界；默认 ~/.lumen-studio（label com.lumen.studio，不连旧形态 ~/.lumen-mastra），隔离根只读，任何错误均不连接旧服务
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -198,9 +198,14 @@ pub fn trusted_origin(url: &tauri::Url) -> bool {
     match (url.scheme(), url.host_str(), url.port()) {
         ("tauri", Some("localhost"), None) => true,
         ("http" | "https", Some("tauri.localhost"), None) => true,
-        ("http", Some("localhost" | "127.0.0.1"), Some(5180)) => cfg!(debug_assertions),
+        ("http", Some("localhost" | "127.0.0.1"), Some(5180 | 5183)) => cfg!(debug_assertions),
         _ => false,
     }
+}
+
+pub fn isolated_root(app: &tauri::AppHandle) -> Option<PathBuf> {
+    let state = app.state::<ServiceConnection>();
+    if state.wake_installed { None } else { state.root.as_ref().ok().cloned() }
 }
 
 pub fn startup(app: &tauri::AppHandle) -> String {
@@ -208,7 +213,7 @@ pub fn startup(app: &tauri::AppHandle) -> String {
 }
 
 pub fn page_load(webview: &tauri::Webview, url: &tauri::Url) {
-    if trusted_origin(url) {
+    if webview.label() == "main" && trusted_origin(url) {
         let connection = webview.app_handle().state::<ServiceConnection>().connection();
         let _ = webview.eval(&connection_script(&connection));
     }

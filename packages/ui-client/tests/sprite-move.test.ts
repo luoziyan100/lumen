@@ -20,7 +20,7 @@ after(() => dom.window.close())
 register('./helpers/tsx-loader.mjs', import.meta.url)
 const { createRoot } = await import('react-dom/client')
 const { useSpriteMove } = await import('../src/mastra/studio/useSpriteMove.ts')
-const { DEFAULT_SHAPE, ORB, anchorAt, anchorOfWindow, orbPoint, windowAt } = await import('../src/mastra/studio/sprite-place.ts')
+const { DEFAULT_SHAPE, SPRITE_W, anchorAt, anchorOfWindow, orbPoint, windowAt } = await import('../src/mastra/studio/sprite-place.ts')
 type Shape = typeof DEFAULT_SHAPE
 
 // ---- 假 Web Animations：每 16ms 推进一帧，reverse 从当前进度倒放，到头触发 onfinish ----
@@ -115,7 +115,7 @@ test('pointercancel 停在最后的位置；拖动夹在视口 8px 之内', asyn
   await fire(orb, 'pointercancel', start.x - 120, start.y - 40)
   assert.deepEqual(orbPoint(shape.anchor, VW, VH), { x: start.x - 120, y: start.y - 40 })
   await fire(orb, 'pointerdown', 100, 100); await fire(orb, 'pointermove', 5000, -5000); await fire(orb, 'pointerup', 5000, -5000)
-  assert.deepEqual(orbPoint(shape.anchor, VW, VH), { x: VW - 8 - ORB, y: 8 })
+  assert.deepEqual(orbPoint(shape.anchor, VW, VH), { x: VW - 8 - SPRITE_W, y: 8 })
   await view.unmount()
 })
 

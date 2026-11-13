@@ -1,5 +1,5 @@
 /**
- * [INPUT]: 视口宽高、头像与浮窗的像素位置、localStorage 里的旧/新 Shape、prefers-reduced-motion
+ * [INPUT]: 视口宽高、全身缩小精灵与浮窗的像素位置、localStorage 里的旧/新 Shape、prefers-reduced-motion
  * [OUTPUT]: 精灵的唯一位置——Anchor（横向离左或离右、纵向离上或离下，取松手时更近的一边）与换算：orbPoint / anchorAt（夹进视口 8px）、
  *           windowAt（按头像象限决定浮窗往哪长，放不下夹回）、anchorOfWindow（拖浮窗带着锚点走）、nudge（Alt+方向键 16px）、isDrag（4px 阈值）；
  *           parseShape（旧 x/y/w/h 迁移、缺字段或非法时回默认）与 load/saveShape；spriteMotion（展开/收起关键帧与时长，减弱动效只淡入淡出）、originOf
@@ -7,8 +7,9 @@
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
-/** 头像直径、离视口边的最小距离、拖与点的阈值、Alt+方向键步长 */
-export const ORB = 52
+/** 应用内全身形象的实际包围盒；高度保持在合同要求的 80–96px。 */
+export const SPRITE_W = 60
+export const SPRITE_H = 92
 export const EDGE = 8
 export const DRAG_THRESHOLD = 4
 export const NUDGE = 16
@@ -28,7 +29,7 @@ const MIN_W = 320, MIN_H = 360
 const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(value, high))
 const finite = (value: unknown, min: number): value is number => typeof value === 'number' && Number.isFinite(value) && value >= min
 
-/** 读旧数据：只有 x/y/w/h 的旧 Shape 保留大小与开合，位置回默认；字段缺失或非法时逐项回默认 */
+/** 旧 52px 锚点保留四边距离，新的宽高直接参与换算；更早的浮窗 x/y 仍回默认锚点。 */
 export function parseShape(raw: string | null): Shape {
   let data: Record<string, unknown> = {}
   try {
@@ -50,18 +51,18 @@ export function saveShape(shape: Shape) {
   try { localStorage.setItem(SPRITE_KEY, JSON.stringify(shape)) } catch { /* 存不下就只在本次有效 */ }
 }
 
-/** 头像整圆留在视口里，四边各 8px */
+/** 全身形象留在视口里，四边各 8px。 */
 export function clampOrb(point: Point, vw: number, vh: number): Point {
-  return { x: clamp(point.x, EDGE, vw - EDGE - ORB), y: clamp(point.y, EDGE, vh - EDGE - ORB) }
+  return { x: clamp(point.x, EDGE, vw - EDGE - SPRITE_W), y: clamp(point.y, EDGE, vh - EDGE - SPRITE_H) }
 }
-/** 锚点 → 头像左上角（显示时夹取，锚点本身不改，窗口再放大就回到原来的相对位置） */
+/** 锚点 → 全身形象左上角（显示时夹取，锚点本身不改，窗口再放大就回到原来的相对位置）。 */
 export function orbPoint(anchor: Anchor, vw: number, vh: number): Point {
-  return clampOrb({ x: anchor.h === 'left' ? anchor.dx : vw - anchor.dx - ORB, y: anchor.v === 'top' ? anchor.dy : vh - anchor.dy - ORB }, vw, vh)
+  return clampOrb({ x: anchor.h === 'left' ? anchor.dx : vw - anchor.dx - SPRITE_W, y: anchor.v === 'top' ? anchor.dy : vh - anchor.dy - SPRITE_H }, vw, vh)
 }
-/** 松手的位置 → 锚点：横纵各取更近的一边，存到那条边的距离 */
+/** 松手的位置 → 锚点：横纵各取更近的一边，存到那条边的距离。 */
 export function anchorAt(point: Point, vw: number, vh: number): Anchor {
   const { x, y } = clampOrb(point, vw, vh)
-  const right = vw - x - ORB, bottom = vh - y - ORB
+  const right = vw - x - SPRITE_W, bottom = vh - y - SPRITE_H
   return { h: x <= right ? 'left' : 'right', dx: Math.min(x, right), v: y <= bottom ? 'top' : 'bottom', dy: Math.min(y, bottom) }
 }
 /** Alt+方向键：每次 16px，同样夹取 */
@@ -74,17 +75,17 @@ export function nudge(anchor: Anchor, key: string, vw: number, vh: number): Anch
 /** 按下后移动超过 4px 才算拖动 */
 export function isDrag(dx: number, dy: number) { return Math.hypot(dx, dy) > DRAG_THRESHOLD }
 
-/** 浮窗贴着头像展开：头像在右半边就往左长、在下半边就往上长，头像那个角与浮窗的角重合；放不下夹回视口 */
+/** 浮窗贴着全身形象展开：形象在右半边就往左长、在下半边就往上长，那个角与浮窗的角重合；放不下夹回视口。 */
 export function windowAt(orb: Point, size: { w: number; h: number }, vw: number, vh: number): Rect & { corner: { h: Anchor['h']; v: Anchor['v'] } } {
   const w = Math.max(0, Math.min(size.w, vw - 2 * EDGE)), h = Math.max(0, Math.min(size.h, vh - 2 * EDGE))
-  const corner = { h: orb.x + ORB / 2 > vw / 2 ? 'right' as const : 'left' as const, v: orb.y + ORB / 2 > vh / 2 ? 'bottom' as const : 'top' as const }
-  const x = corner.h === 'left' ? orb.x : orb.x + ORB - w, y = corner.v === 'top' ? orb.y : orb.y + ORB - h
+  const corner = { h: orb.x + SPRITE_W / 2 > vw / 2 ? 'right' as const : 'left' as const, v: orb.y + SPRITE_H / 2 > vh / 2 ? 'bottom' as const : 'top' as const }
+  const x = corner.h === 'left' ? orb.x : orb.x + SPRITE_W - w, y = corner.v === 'top' ? orb.y : orb.y + SPRITE_H - h
   return { x: clamp(x, EDGE, vw - EDGE - w), y: clamp(y, EDGE, vh - EDGE - h), w, h, corner }
 }
-/** 拖动浮窗后锚点跟着走：头像落在浮窗靠视口那一侧的角上，再从这个头像展开会得到同一个浮窗 */
+/** 拖动浮窗后锚点跟着走：全身形象落在浮窗靠视口那一侧的角上，再从这个形象展开会得到同一个浮窗。 */
 export function anchorOfWindow(rect: Rect, vw: number, vh: number): Anchor {
   const right = rect.x + rect.w / 2 > vw / 2, bottom = rect.y + rect.h / 2 > vh / 2
-  return anchorAt({ x: right ? rect.x + rect.w - ORB : rect.x, y: bottom ? rect.y + rect.h - ORB : rect.y }, vw, vh)
+  return anchorAt({ x: right ? rect.x + rect.w - SPRITE_W : rect.x, y: bottom ? rect.y + rect.h - SPRITE_H : rect.y }, vw, vh)
 }
 /** 浮窗拖动时的位移夹取：整个浮窗留在视口里 */
 export function clampWindow(rect: Rect, vw: number, vh: number): Rect {
@@ -93,7 +94,7 @@ export function clampWindow(rect: Rect, vw: number, vh: number): Rect {
 
 /** 展开时的缩放原点：头像中心相对浮窗左上角 */
 export function originOf(orb: Point, rect: Rect) {
-  return { x: orb.x + ORB / 2 - rect.x, y: orb.y + ORB / 2 - rect.y }
+  return { x: orb.x + SPRITE_W / 2 - rect.x, y: orb.y + SPRITE_H / 2 - rect.y }
 }
 
 export interface Motion { duration: number; easing: string; window: Keyframe[]; orb: Keyframe[] }

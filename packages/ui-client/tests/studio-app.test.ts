@@ -20,7 +20,7 @@ import { fixtureProvider, textReply, toolReply, type ProviderRequest } from '../
 import { ensureTopic } from '../../mastra-service/tests/topic-fixture.ts'
 import { LumenApi } from '../src/mastra/data/client.ts'
 import { STUDIO_COPY as S } from '../src/copy/studioCopy.ts'
-import { ORB, orbPoint, windowAt } from '../src/mastra/studio/sprite-place.ts'
+import { SPRITE_W, SPRITE_H, orbPoint, windowAt } from '../src/mastra/studio/sprite-place.ts'
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/', pretendToBeVisual: true })
 for (const name of ['window', 'document', 'HTMLElement', 'HTMLInputElement', 'Element', 'Node', 'NodeFilter', 'Text', 'DocumentFragment', 'MutationObserver', 'localStorage', 'getComputedStyle', 'navigator']) {
@@ -248,14 +248,16 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     assert.equal(stored().open, false)
     const orb = orbPoint(stored().anchor, vw, vh)
     assert.deepEqual([parseFloat($('.sprite-orb')!.style.left), parseFloat($('.sprite-orb')!.style.top)], [orb.x, orb.y])
-    assert.ok([dragged.x, dragged.x + dragged.w - ORB].includes(orb.x) && [dragged.y, dragged.y + dragged.h - ORB].includes(orb.y), '头像落在浮窗的一个角上')
+    assert.ok([dragged.x, dragged.x + dragged.w - SPRITE_W].includes(orb.x) && [dragged.y, dragged.y + dragged.h - SPRITE_H].includes(orb.y), '头像落在浮窗的一个角上')
     // ---- 头像：拖超过 4px 不打开，松手停在那里（M2/M3） ----
     const ball = $('.sprite-orb')!
-    await pointer(ball, 'pointerdown', orb.x + 26, orb.y + 26); await pointer(ball, 'pointermove', 200, 150); await pointer(ball, 'pointerup', 200, 150)
+    await pointer(ball, 'pointerdown', orb.x + SPRITE_W / 2, orb.y + SPRITE_H / 2); await pointer(ball, 'pointermove', 200, 150)
     // 松手后浏览器紧随派发的鼠标 click（detail 1）；element.click() 的 detail 是 0，等同键盘激活，不会被吞
-    await act(async () => { ball.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })) })
+    await act(async () => {
+      ball.dispatchEvent(new dom.window.MouseEvent('pointerup', { bubbles: true, clientX: 200, clientY: 150 }))
+      ball.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, detail: 1 })) })
     assert.ok(!$('.sprite'), '拖完的 click 不打开')
-    assert.deepEqual(orbPoint(stored().anchor, vw, vh), { x: 200 - 26, y: 150 - 26 })
+    assert.deepEqual(orbPoint(stored().anchor, vw, vh), { x: 200 - SPRITE_W / 2, y: 150 - SPRITE_H / 2 })
     assert.ok(fixture.requests.length > 0)
 
     // ---- T1：左栏头部「主题 ＋」，＋ 在列表顶出输入框，Esc 取消、回车创建 ----

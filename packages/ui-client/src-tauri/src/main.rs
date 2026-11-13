@@ -1,12 +1,16 @@
 /**
- * [INPUT]: Tauri 窗口(macOS 透明 + 系统侧栏毛玻璃)、外观明暗、窗口标题、文件/完整技能选择、受控系统打开、外链、widget脚本与Mastra服务连接
- * [OUTPUT]: 唯一桌面窗口和显式原生命令，不持有 Agent 服务进程
- * [POS]: 原生薄壳；研究生命周期归 launchd/Mastra，窗口只负责发现、展示和用户文件动作
+ * [INPUT]: Tauri 主窗口、透明桌面精灵窗口、外观明暗、窗口标题、文件/完整技能选择、受控系统打开、外链、widget脚本与Mastra服务连接
+ * [OUTPUT]: 主窗口与桌面精灵的原生生命周期、位置持久化、原生菜单和显式原生命令；不持有 Agent 服务进程
+ * [POS]: 原生薄壳；研究生命周期归 launchd/Mastra，窗口层只判定显示形态与用户文件动作，桌面精灵不接服务
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 mod mastra;
 mod files;
 mod skills;
+mod sprite;
+mod sprite_model;
+#[cfg(target_os = "macos")]
+mod sprite_macos;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -111,8 +115,13 @@ fn main() {
     tauri::Builder::default()
         .manage(mastra::ServiceConnection::from_process())
         .manage(WidgetScripts { map: Mutex::new(HashMap::new()), seq: AtomicU64::new(1) })
+        .manage(sprite::Runtime::default())
         .invoke_handler(tauri::generate_handler![
             pick_folder, open_external_url, widget_put_script, set_window_theme, set_window_title,
+            sprite::sprite_snapshot, sprite::publish_sprite_state,
+            #[cfg(debug_assertions)]
+            sprite::sprite_received,
+            sprite::set_desktop_sprite_enabled, sprite::sprite_ready, sprite::sprite_action, sprite::show_sprite_menu,
             mastra::refresh_mastra_connection, mastra::save_diagnostic_file, mastra::save_workspace_file,
             files::open_workspace_file, skills::pick_skill_package
         ])
@@ -153,44 +162,38 @@ fn main() {
                     color: None,
                 })
                 .initialization_script("document.documentElement.dataset.vibrancy = 'sidebar'");
-            builder
+            sprite::isolate(builder, app.handle())
                 .title("Lumen")
                 .inner_size(1160.0, 800.0)
+                .background_throttling(tauri::utils::config::BackgroundThrottlingPolicy::Disabled)
                 .min_inner_size(720.0, 480.0)
                 .disable_drag_drop_handler()
                 .on_navigation(mastra::trusted_origin)
                 .initialization_script(&script)
                 .build()?;
+            sprite::setup(app)?;
             mastra::refresh(app.handle(), Duration::ZERO);
             Ok(())
         })
         .on_window_event(|window, event| {
-            #[cfg(target_os = "macos")]
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
-            }
-            if let tauri::WindowEvent::Focused(true) = event {
+            sprite::window_event(window, event);
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Focused(true)) {
                 mastra::refresh(window.app_handle(), Duration::from_secs(2));
             }
         })
+        .on_menu_event(|app, event| sprite::menu_action(app, event.id().as_ref()))
         .build(tauri::generate_context!())
         .expect("error building tauri app")
         .run(|app, event| {
             match event {
                 #[cfg(target_os = "macos")]
-                tauri::RunEvent::ExitRequested { api, code: None, .. } => api.prevent_exit(),
-                #[cfg(target_os = "macos")]
-                tauri::RunEvent::Reopen { has_visible_windows, .. } => {
+                tauri::RunEvent::Reopen { .. } => {
                     mastra::refresh(app, Duration::from_millis(500));
-                    if !has_visible_windows {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.unminimize();
-                            let _ = window.set_focus();
-                        }
-                    }
+                    sprite::open_main(app, false);
                 }
+                tauri::RunEvent::ExitRequested { .. } => sprite::exiting(app),
+                #[cfg(target_os = "macos")]
+                tauri::RunEvent::Exit => sprite_macos::stop(),
                 _ => {}
             }
         });

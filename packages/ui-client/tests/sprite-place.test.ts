@@ -6,31 +6,31 @@
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { DEFAULT_ANCHOR, DEFAULT_SHAPE, EDGE, ORB, anchorAt, anchorOfWindow, isDrag, nudge, orbPoint, originOf, parseShape, spriteMotion, windowAt } from '../src/mastra/studio/sprite-place.ts'
+import { DEFAULT_ANCHOR, DEFAULT_SHAPE, EDGE, SPRITE_W, SPRITE_H, anchorAt, anchorOfWindow, isDrag, nudge, orbPoint, originOf, parseShape, spriteMotion, windowAt } from '../src/mastra/studio/sprite-place.ts'
 
 const W = 1440, H = 900
 
 test('锚点：横纵各取松手时更近的一边，存到那条边的距离', () => {
   assert.deepEqual(anchorAt({ x: 100, y: 120 }, W, H), { h: 'left', dx: 100, v: 'top', dy: 120 })
-  assert.deepEqual(anchorAt({ x: 1200, y: 700 }, W, H), { h: 'right', dx: W - 1200 - ORB, v: 'bottom', dy: H - 700 - ORB })
+  assert.deepEqual(anchorAt({ x: 1200, y: 700 }, W, H), { h: 'right', dx: W - 1200 - SPRITE_W, v: 'bottom', dy: H - 700 - SPRITE_H })
   // 正中偏左一点仍算左；恰好居中取左/上
-  assert.equal(anchorAt({ x: (W - ORB) / 2, y: (H - ORB) / 2 }, W, H).h, 'left')
-  assert.equal(anchorAt({ x: (W - ORB) / 2 + 1, y: 0 }, W, H).h, 'right')
+  assert.equal(anchorAt({ x: (W - SPRITE_W) / 2, y: (H - SPRITE_H) / 2 }, W, H).h, 'left')
+  assert.equal(anchorAt({ x: (W - SPRITE_W) / 2 + 1, y: 0 }, W, H).h, 'right')
   // 来回换算不漂
-  for (const point of [{ x: 8, y: 8 }, { x: 700, y: 30 }, { x: 1380, y: 840 }, { x: 300, y: 600 }]) assert.deepEqual(orbPoint(anchorAt(point, W, H), W, H), point)
+  for (const point of [{ x: 8, y: 8 }, { x: 700, y: 30 }, { x: 1370, y: 800 }, { x: 300, y: 600 }]) assert.deepEqual(orbPoint(anchorAt(point, W, H), W, H), point)
 })
 
 test('锚点：松手位置先夹进视口（四边 8px）', () => {
   assert.deepEqual(orbPoint(anchorAt({ x: -40, y: -40 }, W, H), W, H), { x: EDGE, y: EDGE })
-  assert.deepEqual(orbPoint(anchorAt({ x: 5000, y: 5000 }, W, H), W, H), { x: W - EDGE - ORB, y: H - EDGE - ORB })
+  assert.deepEqual(orbPoint(anchorAt({ x: 5000, y: 5000 }, W, H), W, H), { x: W - EDGE - SPRITE_W, y: H - EDGE - SPRITE_H })
 })
 
 test('视口缩放：缩小时只在显示时夹取，锚点不变，放大后回到原来的相对位置', () => {
-  const anchor = anchorAt({ x: 1300, y: 300 }, W, H)   // 离右 88、离上 300
-  assert.deepEqual([anchor.h, anchor.dx, anchor.v, anchor.dy], ['right', 88, 'top', 300])
+  const anchor = anchorAt({ x: 1300, y: 300 }, W, H)   // 离右 80、离上 300
+  assert.deepEqual([anchor.h, anchor.dx, anchor.v, anchor.dy], ['right', 80, 'top', 300])
   const small = orbPoint(anchor, 1024, 320)
-  assert.deepEqual(small, { x: 1024 - 88 - ORB, y: 320 - EDGE - ORB }, '变窄仍离右 88；变矮夹回底边 8px')
-  assert.deepEqual(orbPoint(anchor, 120, 200), { x: EDGE, y: 200 - EDGE - ORB }, '窄到放不下离右 88 时夹到左边 8px')
+  assert.deepEqual(small, { x: 1024 - 80 - SPRITE_W, y: 320 - EDGE - SPRITE_H }, '变窄仍离右 80；变矮夹回底边 8px')
+  assert.deepEqual(orbPoint(anchor, 120, 200), { x: EDGE, y: 200 - EDGE - SPRITE_H }, '窄到放不下离右 80 时夹到左边 8px')
   assert.deepEqual(orbPoint(anchor, W, H), { x: 1300, y: 300 }, '回到 1440×900 原位')
   // 离左存的在变窄时不动，离右存的跟着右边走
   assert.equal(orbPoint(anchorAt({ x: 100, y: 100 }, W, H), 1024, 768).x, 100)
@@ -49,7 +49,7 @@ test('迁移：旧 Shape 只有 x/y/w/h 时位置回默认、大小与开合保�
 })
 
 test('默认位置与上一版一致：1440×900 下离右 311（右栏与内边距之外）、离底 69（缩放条之上）', () => {
-  assert.deepEqual(orbPoint(DEFAULT_ANCHOR, W, H), { x: W - 311 - ORB, y: H - 69 - ORB })
+  assert.deepEqual(orbPoint(DEFAULT_ANCHOR, W, H), { x: W - 311 - SPRITE_W, y: H - 69 - SPRITE_H })
 })
 
 test('拖与点：按下后移动超过 4px 才算拖', () => {
@@ -65,9 +65,9 @@ test('浮窗：头像所在象限决定往哪长，头像那个角与浮窗的�
   const topLeft = windowAt({ x: 100, y: 100 }, size, W, H)
   assert.deepEqual([topLeft.x, topLeft.y, topLeft.corner.h, topLeft.corner.v], [100, 100, 'left', 'top'])
   const bottomRight = windowAt({ x: 1200, y: 760 }, size, W, H)
-  assert.deepEqual([bottomRight.x + bottomRight.w, bottomRight.y + bottomRight.h, bottomRight.corner.h, bottomRight.corner.v], [1200 + ORB, 760 + ORB, 'right', 'bottom'])
+  assert.deepEqual([bottomRight.x + bottomRight.w, bottomRight.y + bottomRight.h, bottomRight.corner.h, bottomRight.corner.v], [1200 + SPRITE_W, 760 + SPRITE_H, 'right', 'bottom'])
   const topRight = windowAt({ x: 1300, y: 60 }, size, W, H)
-  assert.deepEqual([topRight.x + topRight.w, topRight.y, topRight.corner.h, topRight.corner.v], [1300 + ORB, 60, 'right', 'top'])
+  assert.deepEqual([topRight.x + topRight.w, topRight.y, topRight.corner.h, topRight.corner.v], [1300 + SPRITE_W, 60, 'right', 'top'])
   // 下半边、窗比剩余高度高：往上长，顶夹在 8px
   const tall = windowAt({ x: 100, y: 470 }, { w: 420, h: 900 }, W, H)
   assert.deepEqual([tall.y, tall.h, tall.corner.v], [EDGE, H - 2 * EDGE, 'bottom'])
@@ -89,7 +89,7 @@ test('拖浮窗带着锚点走：头像落在浮窗靠视口那一侧的角上�
   }
   // 右下的窗：头像在它的右下角
   const anchor = anchorOfWindow({ x: 960, y: 300, ...size }, W, H)
-  assert.deepEqual(orbPoint(anchor, W, H), { x: 960 + 420 - ORB, y: 300 + 560 - ORB })
+  assert.deepEqual(orbPoint(anchor, W, H), { x: 960 + 420 - SPRITE_W, y: 300 + 560 - SPRITE_H })
 })
 
 test('Alt+方向键：每次 16px，同样夹取；其他键不处理', () => {
@@ -115,5 +115,13 @@ test('动画参数：展开 260ms 缓出、收起 200ms 缓入，只有 transfor
     assert.equal(reduced.duration, 120)
     for (const frame of [...reduced.window, ...reduced.orb]) assert.deepEqual(Object.keys(frame), ['opacity'], '减弱动效不缩放')
   }
-  assert.deepEqual(originOf({ x: 100, y: 200 }, { x: 80, y: 150, w: 420, h: 560 }), { x: 46, y: 76 })
+  assert.deepEqual(originOf({ x: 100, y: 200 }, { x: 80, y: 150, w: 420, h: 560 }), { x: 50, y: 96 })
+})
+
+// 52px 时期的边距无损读取，实际宽高只在显示换算时参与。
+test('旧52px锚点读取后按60×92的真实尺寸定位', () => {
+  const old = { h: 'right' as const, dx: 40, v: 'bottom' as const, dy: 30 }
+  const next = parseShape(JSON.stringify({ anchor: old }))
+  assert.deepEqual(next.anchor, old)
+  assert.deepEqual(orbPoint(next.anchor, W, H), { x: W - 40 - SPRITE_W, y: H - 30 - SPRITE_H })
 })
