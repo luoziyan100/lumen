@@ -1,6 +1,6 @@
 /**
  * [INPUT]: sprite_model 的原生形态、主窗口唯一订阅投影、Tauri 窗口与本机位置文件
- * [OUTPUT]: 桌面精灵窗口、原生菜单、显示切换和仅含四态的单向投影
+ * [OUTPUT]: 默认隐藏的桌面精灵能力；DESKTOP_ENABLED 开启后才创建窗口、注册观察者与转发四态
  * [POS]: 原生动作层；不读取服务身份、不创建 HTTP/SSE，系统通知由 sprite_macos 接入；隔离根同时隔离 WebKit 存储，防止测试复用正式外观、锚点与开关
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -11,6 +11,8 @@ use tauri::{AppHandle, Emitter, Manager, WebviewWindow, WebviewWindowBuilder, We
 use tauri::menu::MenuBuilder;
 
 pub const LABEL: &str = "sprite-desktop";
+// --- 产品暂不提供桌面形态；恢复时与前端同名功能常量一起开启 ---
+pub const DESKTOP_ENABLED: bool = false;
 pub const WIDTH: f64 = 156.0;
 pub const HEIGHT: f64 = 238.0;
 
@@ -26,6 +28,7 @@ struct Inner { model: Model, ready: bool, state: SpriteState, generation: u64 }
 fn desktop(app: &AppHandle) -> Option<WebviewWindow> { app.get_webview_window(LABEL) }
 
 pub fn transition(app: &AppHandle, event: Event) {
+    if !DESKTOP_ENABLED { return; }
     let (before, after, ready, generation) = {
         let runtime = app.state::<Runtime>();
         let mut inner = runtime.inner.lock().unwrap();
@@ -95,6 +98,7 @@ pub fn sprite_action(app: AppHandle, action: Action) { perform(&app, action); }
 
 #[tauri::command]
 pub fn show_sprite_menu(window: WebviewWindow) -> Result<(), String> {
+    if !DESKTOP_ENABLED { return Err("desktop sprite disabled".into()); }
     if window.label() != LABEL { return Err("desktop window required".into()); }
     let menu = MenuBuilder::new(window.app_handle())
         .text("sprite-open", "打开 Lumen")
@@ -191,6 +195,7 @@ fn remember_position(app: &AppHandle) {
 }
 
 pub fn setup(app: &mut tauri::App) -> tauri::Result<()> {
+    if !DESKTOP_ENABLED { return Ok(()); }
     let builder = WebviewWindowBuilder::new(&*app, LABEL, WebviewUrl::App("index.html?sprite-desktop=1".into()))
         .title("Lumen 精灵").inner_size(WIDTH, HEIGHT)
         .resizable(false).decorations(false).transparent(true).always_on_top(true)

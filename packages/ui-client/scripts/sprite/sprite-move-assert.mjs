@@ -481,6 +481,10 @@ for (const [w, h] of sizes) {
   await collapseSprite(page)
 
   check(`${tag} 页面无脚本错误`, !errors.length, errors.join('; '))
+  await openSettings()
+  await page.getByRole('button', { name: '外观', exact: true }).click()
+  check(`${tag} H1 外观页不提供桌面精灵入口`, await page.getByText('收起窗口时在桌面显示精灵', { exact: true }).count() === 0, '')
+  await closeAll()
   await context.close()
 
   // ---- 减弱动效：只淡 120ms，拖动照常 ----

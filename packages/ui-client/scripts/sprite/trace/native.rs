@@ -1,11 +1,16 @@
 /**
  * [INPUT]: 调试构建、显式 LUMEN_SPRITE_TRACE 输出路径与测试注入脚本
- * [OUTPUT]: 只在 debug_assertions 下编译的主窗投影接收与桌面实际 DOM 提交时延
+ * [OUTPUT]: 只在 debug_assertions 下编译的真实WebView清单、主窗投影与桌面DOM提交时延
  * [POS]: 仓库验收代码；原生主窗命令记录起点，桌面初始化脚本记录终点，正式构建不编译此模块或命令
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 use std::io::Write;
 use tauri::{Manager, WebviewWindow, WebviewWindowBuilder};
+
+pub fn window_inventory(app: &tauri::AppHandle) {
+    let labels: Vec<_> = app.webview_windows().into_keys().collect();
+    append(serde_json::json!({"kind": "windows", "labels": labels}));
+}
 
 pub fn projected(state: crate::sprite::SpriteState) {
     let at = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis();

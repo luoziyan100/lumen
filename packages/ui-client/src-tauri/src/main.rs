@@ -1,6 +1,6 @@
 /**
  * [INPUT]: Tauri 主窗口、透明桌面精灵窗口、外观明暗、窗口标题、文件/完整技能选择、受控系统打开、外链、widget脚本与Mastra服务连接
- * [OUTPUT]: 主窗口与桌面精灵的原生生命周期、位置持久化、原生菜单和显式原生命令；不持有 Agent 服务进程
+ * [OUTPUT]: 主窗口原生生命周期与显式命令；桌面能力默认隐藏，位置/菜单代码保留；不持有 Agent 服务进程
  * [POS]: 原生薄壳；研究生命周期归 launchd/Mastra，窗口层只判定显示形态与用户文件动作，桌面精灵不接服务
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -175,6 +175,8 @@ fn main() {
                 .initialization_script(&script)
                 .build()?;
             sprite::setup(app)?;
+            #[cfg(debug_assertions)]
+            sprite_trace::window_inventory(app.handle());
             mastra::refresh(app.handle(), Duration::ZERO);
             Ok(())
         })

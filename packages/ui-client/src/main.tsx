@@ -1,6 +1,6 @@
 /**
  * [INPUT]: React、StudioApp（白板工作台外壳）、唯一 Mastra 服务发现、皮肤与独立桌面 SpriteDesktopApp
- * [OUTPUT]: 主窗口或 ?sprite-desktop=1 桌面窗口的根渲染；桌面窗口不读取 Mastra 连接、不创建会话订阅
+ * [OUTPUT]: 当前只渲染主窗口；桌面功能常量开启后才识别独立入口，该入口不读取服务连接
  * [POS]: 应用唯一入口；入口选择两个独立根，桌面精灵不挂载服务发现钩子，主窗口仍保留原有冷启动与重试行为
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -15,6 +15,7 @@ const MastraApp = lazy(() => import('./mastra/studio/StudioApp').then(module => 
 const connection = (window as Window & { __LUMEN_MASTRA__?: Connection }).__LUMEN_MASTRA__ ?? { baseUrl: '', token: '', error: '未发现本机研究服务，请启动 Mastra 服务后重试。' }
 import { bootstrapAppearance } from './appearance'
 import { useDesktopSpritePreference } from './mastra/studio/sprite-desktop/bridge'
+import { DESKTOP_SPRITE_ENABLED } from './mastra/studio/sprite-desktop/preference'
 import { SpriteDesktopApp } from './mastra/studio/sprite-desktop/App'
 import 'yan-design-system/fonts.css'
 import 'yan-design-system/tokens.css'
@@ -26,7 +27,7 @@ import './styles.css'
 import './mastra/views/workbench.css'
 import './appearance/fonts.css'
 
-const isSpriteDesktopWindow = new URLSearchParams(window.location.search).get('sprite-desktop') === '1'
+const isSpriteDesktopWindow = DESKTOP_SPRITE_ENABLED && new URLSearchParams(window.location.search).get('sprite-desktop') === '1'
 
 function MainAppRoot() {
   useDesktopSpritePreference()

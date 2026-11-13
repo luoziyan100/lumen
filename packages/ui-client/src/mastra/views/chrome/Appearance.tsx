@@ -1,13 +1,13 @@
 /**
  * [INPUT]: AppearanceState + onChange、桌面精灵本机开关、统一勾选图标
- * [OUTPUT]: PreferencePane：整窗皮肤、真实明暗、阅读字体(西文/中文/两端对齐，带实时样张)、背景效果与桌面精灵开关；点选皮肤同步推荐模式与材质
+ * [OUTPUT]: PreferencePane：整窗皮肤、真实明暗、阅读字体与背景效果；桌面精灵入口由集中常量隐藏，保留代码便于恢复
  * [POS]: Mastra 设置的外观页；复用迁移前皮肤控件，偏好仅保存在本机
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import type { AppearanceMode, AppearanceState, ReadingFontOption, SkinDefinition } from '../../../appearance'
 import { CJK_FONTS, LATIN_FONTS, coerceCjkFont, coerceLatinFont, coerceSkinId, listSkins } from '../../../appearance'
 import { CheckIcon, ICON_SM } from '../../../components/icons'
-import { useDesktopSpriteEnabled } from '../../studio/sprite-desktop/preference'
+import { DESKTOP_SPRITE_ENABLED, useDesktopSpriteEnabled } from '../../studio/sprite-desktop/preference'
 
 const MODE_ITEMS: { id: AppearanceMode; label: string }[] = [
   { id: 'dark', label: '深色' },
@@ -108,13 +108,13 @@ export function PreferencePane({
           />
         </label>
       </section>
-      <section className="pref-section">
+      {DESKTOP_SPRITE_ENABLED && <section className="pref-section">
         <h3 className="pref-h">桌面精灵</h3>
         <label className="pref-check">
           <input type="checkbox" checked={desktopSpriteEnabled} onChange={event => setDesktopSpriteEnabled(event.target.checked)} />
           <span>收起窗口时在桌面显示精灵</span>
         </label>
-      </section>
+      </section>}
     </div>
   )
 }
