@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 真实 StudioApp（素材栏 + 阅读器）与 React DOM、真实 HTTP 服务与资料库（catalog.sqlite + library/）；arXiv 在研究网络 fetch 边界换成可控桩，原生 invoke 在 __TAURI_INTERNALS__ 边界记录
- * [OUTPUT]: L3/L5 界面证据：粘贴 arXiv 摘要页链接后素材行主行是 API 标题（title 属性给全名、CSS 单行省略）、副行「格式 · 站点 · arXiv 编号 · 年份 · 读到哪」、阅读器头部用新标题；
+ * [OUTPUT]: L3/L5 界面证据：粘贴 arXiv 摘要页链接后素材行主行是 API 标题（title 属性给全名、CSS 单行省略）、副行「arXiv 编号 · 年份 · 读到哪」（Q3 去冗余，副行 title 给全文）、阅读器头部用新标题；
  *           桌面里「系统打开」只把条目 id 交给 open_library_item、「保存」仍走保存对话框且文件名补上扩展名；saveName 规则
  * [POS]: 界面接线验收；省略号与明暗/尺寸的真实渲染在浏览器断言里核对，原生打开预览在装机后核对，这里不宣称覆盖 WebKit
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -42,6 +42,7 @@ register('data:text/javascript,' + encodeURIComponent(`export async function res
 const { createRoot } = await import('react-dom/client')
 const { StudioApp } = await import('../src/mastra/studio/StudioApp.tsx')
 const { saveName } = await import('../src/mastra/views/reader/DocumentReader.tsx')
+const { materialMeta, materialMetaTitle } = await import('../src/mastra/studio/Materials.tsx')
 
 async function until(check: () => boolean, message: string, ms = 15000) {
   const limit = Date.now() + ms
@@ -52,6 +53,18 @@ async function until(check: () => boolean, message: string, ms = 15000) {
 }
 
 const TITLE = 'Banding instabilities in poroelastic media under flow-driven compaction: a long title that still has to fit one line'
+
+test('素材副行（Q3）：[AI 找来 ·]（扩展名）· 来源（arXiv 编号代替站点）· 年份 · 读到哪；title 是全文另起一句接板上引用数', () => {
+  const base = { id: 'i', kind: 'pdf', title: 't', file: 'x.pdf', sourceUrl: null, sha256: 's', mediaType: 'application/pdf', size: 1, addedBy: 'you', createdAt: '', authors: null, year: null, arxivId: null, titleSource: null,
+    topicId: 'p', addedAt: '', readProgress: 0, citedBy: 0 } as Parameters<typeof materialMeta>[0]
+  const ai = { ...base, addedBy: 'ai' as const, arxivId: '2104.09864', year: 2021, sourceUrl: 'https://arxiv.org/abs/2104.09864', readProgress: 0.42, citedBy: 2 }
+  assert.equal(materialMeta(ai), `${S.materials.foundByAi} · arXiv 2104.09864 · 2021 · ${S.materials.progress(0.42)}`)
+  assert.equal(materialMetaTitle(ai), `${materialMeta(ai)}\n${S.materials.cited(2)}`)
+  const web = { ...base, kind: 'web' as const, file: 'page.txt', sourceUrl: 'https://a-very-long-subdomain.example-research-site.org/p' }
+  assert.equal(materialMeta(web), `a-very-long-subdomain.example-research-site.org · ${S.materials.progress(0)}`)
+  assert.equal(materialMetaTitle(web), materialMeta(web))
+  assert.equal(materialMeta({ ...base, kind: 'file', file: 'notes.txt' }), `TXT · ${S.materials.progress(0)}`)
+})
 
 test('saveName：没有扩展名按原件类型补，已有的不重复', () => {
   assert.equal(saveName('Attention Is All You Need', 'application/pdf'), 'Attention Is All You Need.pdf')
@@ -94,10 +107,12 @@ test('素材与阅读器：arXiv 链接收成 PDF，主行 API 标题、副行�
     await act(async () => { $('.materials-add')!.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })) })
     await until(() => $$('.material').length === 1, `链接没有收进素材：${$('.studio-materials')?.textContent}`)
 
-    // ---- L3：主行是 API 标题，悬停 title 给全名；副行保留格式 · 站点 · 读到哪，arXiv 补编号与年份 ----
+    // ---- L3：主行是 API 标题，悬停 title 给全名；副行 arXiv 编号 · 年份 · 读到哪 ----
     const title = $('.material-title')!
     assert.deepEqual([title.textContent, title.getAttribute('title')], [TITLE, TITLE])
-    assert.equal($('.material-meta')!.textContent, `${S.materials.format.pdf} · arxiv.org · arXiv 2611.14235v1 · 2026 · ${S.materials.progress(0)}`)
+    // Q3：去冗余保持单行——不写 PDF/网页字样（图标已表达），arXiv 编号代替站点；副行 title 是全文
+    const meta = $('.material-meta')!
+    assert.deepEqual([meta.textContent, meta.getAttribute('title')], [`arXiv 2611.14235v1 · 2026 · ${S.materials.progress(0)}`, `arXiv 2611.14235v1 · 2026 · ${S.materials.progress(0)}`])
     const css = await readFile(new URL('../src/mastra/studio/studio.css', import.meta.url), 'utf8')
     assert.match(css, /\.material-title \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/, '主行单行省略')
 
