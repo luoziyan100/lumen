@@ -13,3 +13,15 @@
 - seed：平台不支持，无可记录值
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+
+## 全身精灵
+
+原型提交 `263305d` 的全身中性母版逐字节复制，仅改名。未生成新图，原有五表情文件保持原样。
+
+母版 1792×1792，alpha 包围盒 `(318,18,1473,1774)`，各边增加 12 原图像素，裁切 `(306,6,1485,1786)`。Pillow `Image.Resampling.LANCZOS` 分别缩到 120×184 和 312×476，再执行 `cwebp -quiet -q 82 input.png -o output.webp`，保留透明通道。运行时两张 WebP 合计小于 30KB，母版不被 import。
+
+| 文件 | SHA256 |
+|---|---|
+| body-neutral.png | 0a8c7f27ff8212a36d1c04029c68078f688ca2ed5cb23650962ddddf4fccc463 |
+| body-compact@2x.webp | daeff2732added4233e186723aabce7682656977a780d0060891d836de9c5b8e |
+| body-desktop@2x.webp | 657b05ed39c93b33456c0ff38cdf2343b1ccb8625fe0a13f17b22354bb886be5 |
