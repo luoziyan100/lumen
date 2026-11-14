@@ -8,13 +8,15 @@ import { randomUUID } from 'node:crypto'
 import type { Memory } from '@mastra/memory'
 import type { StorageThreadType } from '@mastra/core/memory'
 import { StudioError } from '../studio/errors.ts'
+import type { ErrorCode } from '../http/error-codes.ts'
 import type { TopicStore } from '../studio/topics.ts'
 import { ReadReceipts } from './read-receipts.ts'
 import type { CatalogQuery, Page, SessionPatch, SessionSummary } from './types.ts'
 
 export class CatalogError extends Error {
   readonly status: 404 | 409
-  constructor(message: string, status: 404 | 409) { super(message); this.status = status }
+  readonly code: ErrorCode
+  constructor(message: string, status: 404 | 409, code: ErrorCode) { super(message); this.status = status; this.code = code }
 }
 
 function summary(thread: StorageThreadType, lastMessageId: string | null = null, unread = false): SessionSummary {
@@ -34,7 +36,7 @@ export function createCatalog(root: string, memory: Memory, topics: TopicStore) 
 
   function requireTopic(id: string) {
     try { return topics.get(id) }
-    catch (error) { if (error instanceof StudioError && error.status === 404) throw new CatalogError('Topic not found', 404); throw error }
+    catch (error) { if (error instanceof StudioError && error.status === 404) throw new CatalogError('Topic not found', 404, 'topic.not_found'); throw error }
   }
 
   // ---- 同主题修改按提交顺序执行，避免检查之后又插入会话 ----
@@ -51,7 +53,7 @@ export function createCatalog(root: string, memory: Memory, topics: TopicStore) 
     const id = `${topicId}:${taskId}`
     const thread = await memory.getThreadById({ threadId: id, resourceId: id })
     if (!thread || thread.metadata?.lumenTopicId !== topicId || thread.metadata?.lumenTaskId !== taskId)
-      throw new CatalogError('Session not found', 404)
+      throw new CatalogError('Session not found', 404, 'session.not_found')
     return thread
   }
 
@@ -85,7 +87,7 @@ export function createCatalog(root: string, memory: Memory, topics: TopicStore) 
     const id = `${topicId}:${taskId}`
     const existing = await memory.getThreadById({ threadId: id, resourceId: id })
     if (existing) return describe(await requireSession(topicId, taskId))
-    if (topic.archived) throw new CatalogError('Topic is archived', 409)
+    if (topic.archived) throw new CatalogError('Topic is archived', 409, 'topic.archived')
     return summary(await memory.createThread({ threadId: id, resourceId: id, title: title ?? '新对话',
       metadata: { lumenTopicId: topicId, lumenTaskId: taskId, lumenPinned: false, lumenArchived: false, lumenAutoTitle: title === undefined } }))
   }

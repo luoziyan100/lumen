@@ -7,10 +7,12 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import type { SettingsPatch } from './types.ts'
+import type { ErrorCode } from '../http/error-codes.ts'
 
 export class SettingsError extends Error {
   readonly status: 400 | 404 | 409 | 500
-  constructor(message: string, status: 400 | 404 | 409 | 500 = 400) { super(message); this.status = status }
+  readonly code: ErrorCode
+  constructor(message: string, status: 400 | 404 | 409 | 500, code: ErrorCode) { super(message); this.status = status; this.code = code }
 }
 
 export const profileId = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/)
@@ -59,13 +61,13 @@ const patch = z.object({
 
 export function parsePatch(value: SettingsPatch): SettingsPatch {
   const result = patch.safeParse(value)
-  if (!result.success) throw new SettingsError('Invalid settings update')
+  if (!result.success) throw new SettingsError('Invalid settings update', 400, 'settings.invalid_update')
   return result.data
 }
 
 export function parseStored(value: unknown): StoredSettings {
   const result = storedSettings.safeParse(value)
-  if (!result.success) throw new SettingsError('Invalid settings document')
+  if (!result.success) throw new SettingsError('Invalid settings document', 400, 'settings.invalid_document')
   return result.data
 }
 
@@ -90,7 +92,7 @@ function importProfile(raw: z.infer<typeof legacyProfile>, fallbackId?: string):
 
 export function importDocument(value: unknown): StoredSettings {
   const result = legacyDocument.safeParse(value)
-  if (!result.success) throw new SettingsError('Invalid legacy settings document')
+  if (!result.success) throw new SettingsError('Invalid legacy settings document', 400, 'settings.invalid_legacy')
   const raw = result.data
   const hasFlatProfile = !!(raw.provider || raw.baseUrl || raw.apiKey || raw.model || raw.models)
   const profiles = raw.profiles?.map(profile => importProfile(profile)) ?? (hasFlatProfile ? [importProfile(raw, 'default')] : [])

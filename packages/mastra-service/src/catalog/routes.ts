@@ -8,6 +8,7 @@ import { Hono } from 'hono'
 import { z } from 'zod'
 import { CatalogError, type Catalog } from './catalog.ts'
 import { StudioError } from '../studio/errors.ts'
+import { errorBody } from '../http/error-codes.ts'
 
 const id = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/)
 const title = z.string().trim().min(1).max(200)
@@ -25,7 +26,8 @@ const readReceipt = z.object({ messageId: z.string().min(1).max(512) }).strict()
 export function catalogRoutes(catalog: Catalog, activity?: () => Promise<Map<string, { running: boolean; waiting: boolean }>>, assertIdle?: (topicId: string, taskId?: string) => Promise<void>) {
   const app = new Hono()
   app.onError((error, c) => {
-    if (error instanceof CatalogError || error instanceof StudioError) return c.json({ error: error.message }, error.status)
+    if (error instanceof StudioError) return c.json(errorBody(error.message, error.code, error.params, error.detail), error.status)
+    if (error instanceof CatalogError) return c.json(errorBody(error.message, error.code), error.status)
     if (error instanceof z.ZodError || error instanceof SyntaxError) return c.json({ error: 'Invalid catalog request' }, 400)
     return c.json({ error: 'Catalog operation failed' }, 500)
   })

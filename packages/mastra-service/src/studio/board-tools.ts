@@ -48,7 +48,7 @@ export function createBoardTools(studio: Studio, writer: BoardWriter, reader: Bo
     inputSchema: z.object({ blockId: z.string().max(64).optional() }),
     execute: async ({ blockId }, context) => {
       const { sheetId } = reader(context)
-      if (sheetId === null) throw new StudioError('这个主题现在没有进行中的白板；请用户点 ＋ 新开一张', 409)
+      if (sheetId === null) throw new StudioError('这个主题现在没有进行中的白板；请用户点 ＋ 新开一张', 409, 'board.no_live_sheet')
       const current = studio.board.view(sheetId)
       const sheet = { id: current.sheet.id, title: current.sheet.title, used: current.sheet.used, capacity: current.sheet.capacity }
       if (blockId) {

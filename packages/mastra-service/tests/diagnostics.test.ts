@@ -57,7 +57,7 @@ test('真实 Mastra trace 关联受信会话、导出无凭证、标注不串会
   const settings = { baseURL: 'https://fixture.invalid/v1', apiKey: secret, model: 'test', fetch: fixture.fetch }
   const options = { dataRoot: root, storage, enabled: () => enabled, secrets: () => activeSecrets, authorize: async (resourceId: string) => {
     const thread = await memory.getThreadById({ threadId: resourceId })
-    if (!thread) throw new DiagnosticsError('Session missing', 404)
+    if (!thread) throw new DiagnosticsError('Session missing', 404, 'diagnostics.session_not_found')
     return { resourceId: thread.resourceId, threadId: thread.id }
   } }
   const diagnostics = createDiagnostics(options)

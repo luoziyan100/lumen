@@ -4,14 +4,15 @@
  * [POS]: 由会话挂在输入坞上方；只恢复展示，不合成跳过或改写原生 resume 契约
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+import { useT } from '../../../../i18n/index.ts'
 import { useId, useState, type FormEvent } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import { PlusIcon, ICON_SM } from '../../../../components/icons'
-import { MASTRA_COPY as C } from '../../../../copy/mastraCopy'
 import './question.css'
 
 function object(value: unknown): Record<string, unknown> | null { return value !== null && typeof value === 'object' ? value as Record<string, unknown> : null }
 export function Question({ payload, onAnswer }: { payload: unknown; onAnswer: (text: string | string[]) => Promise<void> }) {
+  const C = useT().chat
   const titleId = useId()
   const [answer, setAnswer] = useState(''), [selected, setSelected] = useState<string[]>([]), [busy, setBusy] = useState(false), [error, setError] = useState('')
   const data = object(payload), question = typeof data?.question === 'string' ? data.question : C.question

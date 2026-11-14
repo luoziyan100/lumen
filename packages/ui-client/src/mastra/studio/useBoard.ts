@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { LumenApi, Sheet, SheetDeletion, SheetList, SheetView } from '../data/client.ts'
-import { STUDIO_COPY as S } from '../../copy/studioCopy.ts'
+import { t } from '../../i18n/index.ts'
 
 export interface BoardState {
   sheets: Sheet[]
@@ -92,7 +92,7 @@ export function useBoard(api: LumenApi, topicId: string | null, signal: string, 
       // means the tab shown and the sheet the AI will write to differ, so it is reported; only the latest pick counts.
       const mine = ++pick.current
       api.selectSheet(topicId, sheetId).then(() => { if (pick.current === mine) setActionError('') },
-        error => { if (pick.current === mine) setActionError(S.board.selectFailed + (error instanceof Error ? error.message : String(error))) })
+        error => { if (pick.current === mine) setActionError(t().studio.board.selectFailed + (error instanceof Error ? error.message : String(error))) })
     },
     async createSheet() {
       if (!topicId) return
@@ -105,7 +105,7 @@ export function useBoard(api: LumenApi, topicId: string | null, signal: string, 
       try {
         const result = await api.deleteSheet(topicId, sheetId, confirmed)
         if (result.kind === 'confirm') return result
-        if (result.kind === 'unsupported') { if (pick.current === mine) setActionError(S.board.removeUnsupported); return result }
+        if (result.kind === 'unsupported') { if (pick.current === mine) setActionError(t().studio.board.removeUnsupported); return result }
         if (pick.current === mine) setActionError('')
         // ---- the service moved the selection to the neighbour when the deleted sheet was the selected one (R17); follow it at once ----
         setSheets(previous => previous.filter(sheet => sheet.id !== sheetId))

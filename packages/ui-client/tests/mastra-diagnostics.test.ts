@@ -4,6 +4,7 @@
  * [POS]: 桌面诊断的组件及接口纵向回归；只控制网络响应时序，不替换服务或伪造 trace
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+import './helpers/zh.ts'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtemp, rm } from 'node:fs/promises'

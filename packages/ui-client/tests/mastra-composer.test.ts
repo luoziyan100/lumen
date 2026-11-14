@@ -19,7 +19,8 @@ import { fixtureProvider, textReply } from '../../mastra-service/tests/provider-
 import { ensureTopic } from '../../mastra-service/tests/topic-fixture.ts'
 import { LumenApi, type Identity } from '../src/mastra/data/client.ts'
 import { SessionFeed, messageText } from '../src/mastra/data/feed.ts'
-import { MASTRA_COPY as C } from '../src/copy/mastraCopy.ts'
+import { zh } from './helpers/zh.ts'
+const C = zh.chat
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/', pretendToBeVisual: true })
 for (const name of ['window', 'document', 'HTMLElement', 'HTMLInputElement', 'Element', 'Node', 'NodeFilter', 'Text', 'DocumentFragment', 'MutationObserver', 'localStorage', 'getComputedStyle']) {

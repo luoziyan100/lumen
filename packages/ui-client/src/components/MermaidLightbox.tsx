@@ -4,6 +4,7 @@
  * [POS]: MermaidBlock 的放大视图;只消费 SVG 字符串,不参与渲染或缓存
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
+import { useT } from '../i18n/index.ts'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { CloseIcon, ICON_SM, ZoomInIcon, ZoomOutIcon } from './icons'
@@ -11,6 +12,7 @@ import { tightenSvgInk } from '../mermaid/mermaidMeasureHost'
 import { clampZoom, panBy, panForZoom, sizeFromViewBox, wheelZoomFactor, zoomByFactor, zoomByStep, ZOOM_MAX, ZOOM_MIN } from '../mermaid/mermaidZoom'
 
 export function MermaidLightbox({ svg, onClose }: { svg: string; onClose: () => void }) {
+  const { mermaid: M, common } = useT()
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const pinchRef = useRef<{ dist: number; zoom: number } | null>(null)
@@ -161,15 +163,15 @@ export function MermaidLightbox({ svg, onClose }: { svg: string; onClose: () => 
   }, [])
 
   return createPortal(
-    <div className="mermaid-lightbox" role="dialog" aria-modal="true" aria-label="流程图放大" onClick={onClose}>
+    <div className="mermaid-lightbox" role="dialog" aria-modal="true" aria-label={M.lightbox} onClick={onClose}>
       <div className="mermaid-lightbox-bar" onClick={(e) => e.stopPropagation()}>
-        <button type="button" className="mermaid-tool" title="放大" aria-label="放大" disabled={zoom >= ZOOM_MAX} onClick={() => setZoom((z) => zoomByStep(z, 1))}>
+        <button type="button" className="mermaid-tool" title={common.zoomIn} aria-label={common.zoomIn} disabled={zoom >= ZOOM_MAX} onClick={() => setZoom((z) => zoomByStep(z, 1))}>
           <ZoomInIcon size={ICON_SM} />
         </button>
-        <button type="button" className="mermaid-tool" title="缩小" aria-label="缩小" disabled={zoom <= ZOOM_MIN} onClick={() => setZoom((z) => zoomByStep(z, -1))}>
+        <button type="button" className="mermaid-tool" title={common.zoomOut} aria-label={common.zoomOut} disabled={zoom <= ZOOM_MIN} onClick={() => setZoom((z) => zoomByStep(z, -1))}>
           <ZoomOutIcon size={ICON_SM} />
         </button>
-        <button type="button" className="mermaid-tool" title="关闭" aria-label="关闭" onClick={onClose}>
+        <button type="button" className="mermaid-tool" title={common.close} aria-label={common.close} onClick={onClose}>
           <CloseIcon size={ICON_SM} />
         </button>
       </div>

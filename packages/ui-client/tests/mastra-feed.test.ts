@@ -4,6 +4,7 @@
  * [POS]: 新客户端恢复契约；网络延迟与断开作用于真实响应，不伪造框架事件
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+import './helpers/zh.ts'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { register } from 'node:module'

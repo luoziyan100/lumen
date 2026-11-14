@@ -11,6 +11,8 @@
 
 卷帘边界：思考/过程和目录使用 `components/disclosure/CurtainFold`；新增模型价格、专家、用量等详情用 `Disclosure`，收起保留草稿。浮层菜单、左右整栏显隐继续沿各自原交互。
 
+Language (i18n): views read `useT()`; tool names, role names and process labels resolve at render time from the catalog, so cached turn projections follow a language switch. Errors shown here use `errorText`, and service errors were already put into the UI language from their `code`. Text that goes to the model (uploaded-material list, current draft, Mermaid fix request) comes from `i18n/locales/model.ts` and stays Chinese.
+
 错误呈现：`Conversation.tsx` 独立展示运行错误与连接错误；运行错误保持可见到下一轮开始，只有连接/读取错误提供重新连接入口，成功补取历史不代表模型执行成功。
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

@@ -8,7 +8,8 @@
 - `permissions.ts`：主 Agent 工具权限类别唯一真源与 Controller 内建工具单独放行名单；未登记工具落入 other，不被默认放行。
 
 - `drain.ts`：按受信 Controller 的父任务 resourceId 等待主/子模型输出持久化，使停止先排空再取消快照；关闭时排空全部运行，单任务停止不等待其他会话。
-- `server.ts`：认证保护的官方 HTTP/SSE 与产品入口；模型/角色/资料共用配置写锁，运行/待答时拒绝修改，资料库上传进 `/lumen/library` 并可引用到主题，主题会话经 `/lumen/topics/:id/sessions` 建立；请求超限明确返回 413，残缺附件包返回可重试的 400，未知错误仅在服务日志记录脱敏原因，不记录请求正文或凭证。
+- Error responses (i18n I6): every product error carries a stable `code` (and `params` when the text has values) next to the Chinese `error`; the error classes (`StudioError`, settings/catalog/diagnostics errors) take the code as a constructor argument. Codes live only in `http/error-codes.ts`. Model-facing text is unchanged.
+- `server.ts`：认证保护的官方 HTTP/SSE 与产品入口；模型/角色/资料共用配置写锁，运行/待答时拒绝修改，资料库上传进 `/lumen/library` 并可引用到主题，主题会话经 `/lumen/topics/:id/sessions` 建立；请求超限明确返回 413（code `upload.too_large`, params `{ limit }`），残缺附件包返回可重试的 400，未知错误仅在服务日志记录脱敏原因，不记录请求正文或凭证。
 - 模型设置：保存期间暂停新执行请求，已有研究或待回答问题拒绝热切换；版本化网关避免同名模型复用旧地址缓存。新会话自动恢复原生待回答问题与待审批卡(批准走官方路由的持久审批分支)；用户停止持久取消，退出应用保留。
 
 - `config.ts`：只读解析当前有效模型档案，凭证不进入日志或迁移输出。

@@ -4,6 +4,7 @@
  * [POS]: PdfViewer 的组件级验收；jsdom 没有 canvas，只验缩放与页尺寸，像素由浏览器断言脚本核对
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+import './helpers/zh.ts'
 import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
 import { register } from 'node:module'

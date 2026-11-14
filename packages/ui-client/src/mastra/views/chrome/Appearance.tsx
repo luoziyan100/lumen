@@ -1,6 +1,6 @@
 /**
  * [INPUT]: AppearanceState + onChange、桌面精灵本机开关、统一勾选图标
- * [OUTPUT]: PreferencePane：整窗皮肤、真实明暗、阅读字体与背景效果；桌面精灵入口由集中常量隐藏，保留代码便于恢复
+ * [OUTPUT]: PreferencePane：顶部界面语言（按各语言自称列出，即选即换），整窗皮肤（名称与说明随语言）、真实明暗、阅读字体与背景效果；桌面精灵入口由集中常量隐藏，保留代码便于恢复
  * [POS]: Mastra 设置的外观页；复用迁移前皮肤控件，偏好仅保存在本机
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -8,14 +8,10 @@ import type { AppearanceMode, AppearanceState, ReadingFontOption, SkinDefinition
 import { CJK_FONTS, LATIN_FONTS, coerceCjkFont, coerceLatinFont, coerceSkinId, listSkins } from '../../../appearance'
 import { CheckIcon, ICON_SM } from '../../../components/icons'
 import { DESKTOP_SPRITE_ENABLED, useDesktopSpriteEnabled } from '../../studio/sprite-desktop/preference'
+import { Select } from '@cloudflare/kumo/components/select'
+import { localeNames, setLocale, useLocale, useT } from '../../../i18n/index.ts'
 
-const MODE_ITEMS: { id: AppearanceMode; label: string }[] = [
-  { id: 'dark', label: '深色' },
-  { id: 'light', label: '浅色' },
-  { id: 'system', label: '跟随系统' },
-]
-
-const FONT_SAMPLE = '读得懂，不等于被带走。Understanding precedes proof — Einstein chased a beam of light.'
+const MODES: AppearanceMode[] = ['dark', 'light', 'system']
 
 export function PreferencePane({
   state,
@@ -24,6 +20,7 @@ export function PreferencePane({
   state: AppearanceState
   onChange: (partial: Partial<AppearanceState>) => void
 }) {
+  const { appearance: A, skins: skinCopy } = useT(), locale = useLocale()
   const skins = listSkins()
   const activeId = coerceSkinId(state.skinId)
   const [desktopSpriteEnabled, setDesktopSpriteEnabled] = useDesktopSpriteEnabled()
@@ -31,43 +28,49 @@ export function PreferencePane({
   return (
     <div className="pref-pane">
       <div className="mp-head">
-        <h2 className="settings-h">外观</h2>
+        <h2 className="settings-h">{A.title}</h2>
       </div>
-      <p className="set-hint pref-hint">
-        选择一套皮肤，立即切换整窗配色与材质。外观偏好仅保存在本机。
-      </p>
+      <p className="set-hint pref-hint">{A.hint}</p>
+
+      <section className="pref-section pref-language">
+        <h3 className="pref-h">{A.language}</h3>
+        <Select aria-label={A.language} size="sm" className="set-control pref-language-select" value={locale}
+          items={Object.fromEntries(localeNames().map(entry => [entry.id, entry.nativeName]))} onValueChange={value => { void setLocale(value) }} />
+      </section>
 
       <section className="pref-section">
-        <h3 className="pref-h">外观模式</h3>
-        <div className="pref-mode-row" role="group" aria-label="外观模式">
-          {MODE_ITEMS.map((m) => (
+        <h3 className="pref-h">{A.mode}</h3>
+        <div className="pref-mode-row" role="group" aria-label={A.mode}>
+          {MODES.map((mode) => (
             <button
-              key={m.id}
+              key={mode}
               type="button"
-              className={`pref-mode-btn${state.mode === m.id ? ' is-active' : ''}`}
-              aria-pressed={state.mode === m.id}
-              onClick={() => onChange({ mode: m.id })}
+              className={`pref-mode-btn${state.mode === mode ? ' is-active' : ''}`}
+              aria-pressed={state.mode === mode}
+              onClick={() => onChange({ mode })}
             >
-              {m.label}
+              {A.modes[mode]}
             </button>
           ))}
         </div>
       </section>
 
       <section className="pref-section">
-        <h3 className="pref-h">阅读字体</h3>
-        <FontRow label="西文" fonts={LATIN_FONTS} active={coerceLatinFont(state.latinFont)} onPick={(id) => onChange({ latinFont: id })} />
-        <FontRow label="中文" fonts={CJK_FONTS} active={coerceCjkFont(state.cjkFont)} onPick={(id) => onChange({ cjkFont: id })} />
+        <h3 className="pref-h">{A.readingFont}</h3>
+        <div className="pref-font-grid">
+          <FontRow label={A.latin} fonts={LATIN_FONTS} active={coerceLatinFont(state.latinFont)} onPick={(id) => onChange({ latinFont: id })} />
+          <FontRow label={A.cjk} fonts={CJK_FONTS} active={coerceCjkFont(state.cjkFont)} onPick={(id) => onChange({ cjkFont: id })} />
+        </div>
         <label className="pref-check">
           <input type="checkbox" checked={state.justify === true} onChange={(e) => onChange({ justify: e.target.checked })} />
-          <span>正文两端对齐</span>
+          <span>{A.justify}</span>
         </label>
-        <p className={`pref-font-sample${state.justify ? ' is-justify' : ''}`}>{FONT_SAMPLE}</p>
+        <p className={`pref-font-sample${state.justify ? ' is-justify' : ''}`}>{A.sample}</p>
       </section>
 
       <section className="pref-section">
-        <h3 className="pref-h">皮肤 <span className="pref-h-req">必选 · 当前 {skins.find((s) => s.id === activeId)?.name ?? '青瓷默认'}</span></h3>
-        <div className="pref-skin-grid" role="radiogroup" aria-label="皮肤">
+        <h3 className="pref-h">{A.theme} <span className="pref-h-req">{A.themeCurrent(skinCopy[activeId]?.name ?? activeId)}</span></h3>
+        <div className="pref-skin-grid" role="radiogroup" aria-label={A.theme}>
           {skins.map((s) => (
             <SkinCard
               key={s.id}
@@ -80,7 +83,7 @@ export function PreferencePane({
       </section>
 
       <section className="pref-section">
-        <h3 className="pref-h">背景遮罩</h3>
+        <h3 className="pref-h">{A.overlay}</h3>
         <label className="pref-slider">
           <span className="pref-slider-label">{Math.round(state.overlay * 100)}%</span>
           <input
@@ -89,13 +92,13 @@ export function PreferencePane({
             max={100}
             value={Math.round(state.overlay * 100)}
             onChange={(e) => onChange({ overlay: Number(e.target.value) / 100 })}
-            aria-label="背景遮罩强度"
+            aria-label={A.overlayLabel}
           />
         </label>
       </section>
 
       <section className="pref-section">
-        <h3 className="pref-h">背景模糊</h3>
+        <h3 className="pref-h">{A.blur}</h3>
         <label className="pref-slider">
           <span className="pref-slider-label">{state.blurPx}px</span>
           <input
@@ -104,15 +107,15 @@ export function PreferencePane({
             max={40}
             value={state.blurPx}
             onChange={(e) => onChange({ blurPx: Number(e.target.value) })}
-            aria-label="背景模糊像素"
+            aria-label={A.blurLabel}
           />
         </label>
       </section>
       {DESKTOP_SPRITE_ENABLED && <section className="pref-section">
-        <h3 className="pref-h">桌面精灵</h3>
+        <h3 className="pref-h">{A.desktopSprite}</h3>
         <label className="pref-check">
           <input type="checkbox" checked={desktopSpriteEnabled} onChange={event => setDesktopSpriteEnabled(event.target.checked)} />
-          <span>收起窗口时在桌面显示精灵</span>
+          <span>{A.desktopSpriteHint}</span>
         </label>
       </section>}
     </div>
@@ -128,6 +131,7 @@ function SkinCard({
   active: boolean
   onSelect: () => void
 }) {
+  const { appearance: A, skins } = useT(), copy = skins[skin.id] ?? { name: skin.id, description: '' }
   return (
     <button
       type="button"
@@ -135,7 +139,7 @@ function SkinCard({
       className={`pref-skin-card${active ? ' is-active' : ''}`}
       onClick={onSelect}
       aria-checked={active}
-      aria-label={`${skin.name}${active ? '（已选）' : ''}`}
+      aria-label={`${copy.name}${active ? A.selected : ''}`}
     >
       <span
         className="pref-skin-swatch"
@@ -151,9 +155,9 @@ function SkinCard({
         ) : null}
       </span>
       <span className="pref-skin-meta">
-        <span className="pref-skin-name">{skin.name}</span>
-        {skin.description ? <span className="pref-skin-desc">{skin.description}</span> : null}
-        <span className="pref-skin-badge">{skin.preferredScheme === 'light' ? '浅色' : '深色'} · {skin.material === 'paper' ? '纸面' : '玻璃'}</span>
+        <span className="pref-skin-name">{copy.name}</span>
+        {copy.description ? <span className="pref-skin-desc">{copy.description}</span> : null}
+        <span className="pref-skin-badge">{skin.preferredScheme === 'light' ? A.light : A.dark} · {skin.material === 'paper' ? A.paper : A.glass}</span>
       </span>
       {active ? <span className="pref-skin-check" aria-hidden><CheckIcon size={ICON_SM} /></span> : null}
     </button>
@@ -162,10 +166,11 @@ function SkinCard({
 
 /** 每个选项用自身字体渲染名字，即选即见 */
 function FontRow({ label, fonts, active, onPick }: { label: string; fonts: readonly ReadingFontOption[]; active: string; onPick: (id: string) => void }) {
+  const { appearance: A, fonts: names } = useT()
   return (
     <div className="pref-font-row">
       <span className="pref-font-label">{label}</span>
-      <div className="pref-mode-row" role="group" aria-label={`${label}字体`}>
+      <div className="pref-mode-row" role="group" aria-label={A.fontGroup(label)}>
         {fonts.map((f) => (
           <button
             key={f.id}
@@ -175,7 +180,7 @@ function FontRow({ label, fonts, active, onPick }: { label: string; fonts: reado
             style={{ fontFamily: f.family }}
             onClick={() => onPick(f.id)}
           >
-            {f.name}
+            {names[f.id] ?? f.name}
           </button>
         ))}
       </div>

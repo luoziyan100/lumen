@@ -6,6 +6,8 @@
 - `skills.rs`：原生选择完整技能目录或Markdown，有限递归读取并保留空目录、相对目录及执行位，拒绝链接与特殊文件。
 - `mastra.rs`：默认正式数据根、显式隔离根、私有 discovery 校验及可信页面注入；正式模式只唤醒已注册的 com.lumen.studio，隔离根仅发现；诊断 JSON（8 MiB）和工作区二进制（25 MiB）经原生保存框写到用户选择位置。
 
+- `locale.rs`: the shell's only language state, set by the UI through `set_locale` at startup and on every change; an en/zh table for what macOS draws natively (folder/skill pickers, the save dialog, the desktop sprite's window title and menu); unknown ids are English.
+
 - `sprite_model.rs`：原生事件到唯一形态的纯模型、菜单动作与逻辑坐标夹取；应用隐藏优先于桌面显示。
 - `sprite.rs`：DESKTOP_ENABLED默认false，不创建桌面窗、不注册观察者，主窗关窗隐藏/Dock重开；保留窗口切换、菜单、位置存储与投影实现；只缓存主窗口四态字符串，不创建服务订阅；隔离根同时分离 WebKit 的 localStorage，防止测试偏好与正式数据交叉。
 - `sprite_macos.rs`：保留生命周期通知观察者；只接主窗口最小化/恢复、应用隐藏/恢复与屏幕变化，不读焦点或遮挡。

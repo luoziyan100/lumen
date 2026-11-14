@@ -19,8 +19,8 @@ import { serve } from '@hono/node-server'
 import { createHttpService } from '../../mastra-service/src/server.ts'
 import { ensureTopic } from '../../mastra-service/tests/topic-fixture.ts'
 import { atom, titledPdf } from '../../mastra-service/tests/studio/library-fixtures.ts'
-import { STUDIO_COPY as S } from '../src/copy/studioCopy.ts'
-import { MASTRA_COPY as C } from '../src/copy/mastraCopy.ts'
+import { zh } from './helpers/zh.ts'
+const S = zh.studio, C = zh.chat
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/', pretendToBeVisual: true })
 for (const name of ['window', 'document', 'HTMLElement', 'HTMLInputElement', 'Element', 'Node', 'NodeFilter', 'Text', 'DocumentFragment', 'MutationObserver', 'localStorage', 'getComputedStyle', 'navigator']) {

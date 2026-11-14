@@ -6,6 +6,7 @@
  */
 import { Hono } from 'hono'
 import { parsePatch, SettingsError } from './schema.ts'
+import { errorBody } from '../http/error-codes.ts'
 import type { SettingsStore } from './store.ts'
 import type { PublicSettings, SettingsPatch } from './types.ts'
 
@@ -24,7 +25,7 @@ export function settingsRoutes(store: SettingsStore, hooks: SettingsRouteHooks =
   }
   let pending = Promise.resolve()
   app.onError((error, c) => {
-    if (error instanceof SettingsError) return c.json({ error: error.message }, error.status)
+    if (error instanceof SettingsError) return c.json(errorBody(error.message, error.code), error.status)
     if (error instanceof SyntaxError) return c.json({ error: 'Invalid settings request' }, 400)
     return c.json({ error: 'Settings operation failed' }, 500)
   })

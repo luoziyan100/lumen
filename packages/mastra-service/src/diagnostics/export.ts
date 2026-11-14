@@ -20,20 +20,20 @@ const recordSchema = z.object({
 
 export function encodeDiagnosticPack(pack: DiagnosticPack) {
   const payload = JSON.stringify(pack)
-  if (Buffer.byteLength(payload) > MAX_PACK_BYTES - 256) throw new DiagnosticsError('诊断包超过 8 MiB，请缩小所选 trace 范围', 413)
+  if (Buffer.byteLength(payload) > MAX_PACK_BYTES - 256) throw new DiagnosticsError('诊断包超过 8 MiB，请缩小所选 trace 范围', 413, 'diagnostics.pack_too_large')
   const content = JSON.stringify({ sha256: digest(payload), payload: pack }, null, 2)
-  if (Buffer.byteLength(content) > MAX_PACK_BYTES) throw new DiagnosticsError('诊断包超过 8 MiB，请缩小所选 trace 范围', 413)
+  if (Buffer.byteLength(content) > MAX_PACK_BYTES) throw new DiagnosticsError('诊断包超过 8 MiB，请缩小所选 trace 范围', 413, 'diagnostics.pack_too_large')
   return { fileName: `lumen-diagnostic-${Date.now()}.json`, content, bytes: Buffer.byteLength(content), sha256: digest(content) }
 }
 
 export function readRecorded(content: string, secrets: readonly string[] = []) {
-  if (Buffer.byteLength(content) > MAX_PACK_BYTES) throw new DiagnosticsError('诊断包超过 8 MiB', 413)
+  if (Buffer.byteLength(content) > MAX_PACK_BYTES) throw new DiagnosticsError('诊断包超过 8 MiB', 413, 'diagnostics.pack_too_large')
   let parsed: unknown
-  try { parsed = JSON.parse(content) } catch { throw new DiagnosticsError('无效诊断 JSON', 400) }
+  try { parsed = JSON.parse(content) } catch { throw new DiagnosticsError('无效诊断 JSON', 400, 'diagnostics.invalid_json') }
   const result = z.object({ sha256: z.string().regex(/^[a-f0-9]{64}$/), payload: recordSchema }).safeParse(parsed)
-  if (!result.success) throw new DiagnosticsError('诊断包结构或版本无效', 400)
+  if (!result.success) throw new DiagnosticsError('诊断包结构或版本无效', 400, 'diagnostics.invalid_pack')
   const raw = parsed as { payload: unknown }
-  if (digest(JSON.stringify(raw.payload)) !== result.data.sha256) throw new DiagnosticsError('诊断包完整性校验失败', 400)
+  if (digest(JSON.stringify(raw.payload)) !== result.data.sha256) throw new DiagnosticsError('诊断包完整性校验失败', 400, 'diagnostics.checksum_failed')
   const safe = redactPayload(result.data.payload, secrets)
   return { mode: 'recorded-inspection' as const, executionPerformed: false as const, checksumVerified: true as const, sourceAuthenticated: false as const,
     redacted: safe.redacted, truncated: safe.truncated, record: safe.value }

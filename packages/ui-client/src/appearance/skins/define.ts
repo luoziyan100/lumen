@@ -14,7 +14,7 @@ export function t(partial: Partial<Record<AppearanceTokenName, string>>): SkinDe
 /** 设计系统主题 → 皮肤补丁：只取白名单原语，别名留给解析器保持 var() 级联 */
 export function fromDesignSystem(name: string, extra: Partial<Record<AppearanceTokenName, string>>): SkinDefinition['tokens'] {
   const theme = THEMES[name]
-  if (!theme) throw new Error(`yan-design-system 缺少主题 ${name}`)
+  if (!theme) throw new Error(`yan-design-system has no theme ${name}`)
   const out: Partial<Record<AppearanceTokenName, string>> = {}
   for (const [key, value] of Object.entries(theme)) {
     if (APPEARANCE_TOKEN_SET.has(key) && !TOKEN_ALIASES[key]) out[key as AppearanceTokenName] = value

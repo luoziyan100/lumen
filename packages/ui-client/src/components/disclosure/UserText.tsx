@@ -5,13 +5,14 @@
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { MSG_FOLD_COPY } from '../../copy/appCopy'
+import { useT } from '../../i18n/index.ts'
 import { CurtainFold } from './CurtainFold'
 
 // 原设计给 380ms 收帘留一帧余量，完成后才恢复摘要。
 const COLLAPSE_OUT_MS = 400
 
 export function CollapsibleUserText({ text, leading }: { text: string; leading?: ReactNode }) {
+  const T = useT().transcript
   const canFold = text.trim().length > 750 || text.trim().split('\n').length > 9
   const [expanded, setExpanded] = useState(false), [curtainOpen, setCurtainOpen] = useState(false), [showPeek, setShowPeek] = useState(true)
   const frame = useRef<number | null>(null), timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -40,6 +41,6 @@ export function CollapsibleUserText({ text, leading }: { text: string; leading?:
       {showPeek && <div className="msg-fold-body is-collapsed" aria-hidden={curtainOpen}>{text}</div>}
       <CurtainFold open={curtainOpen}><div className="msg-fold-body">{text}</div></CurtainFold>
     </div>
-    <button type="button" className="msg-fold-toggle" aria-expanded={expanded} onClick={toggle}>{expanded ? MSG_FOLD_COPY.collapse : MSG_FOLD_COPY.expand}</button>
+    <button type="button" className="msg-fold-toggle" aria-expanded={expanded} onClick={toggle}>{expanded ? T.collapse : T.expand}</button>
   </div>
 }

@@ -28,7 +28,7 @@ export class TopicStore {
 
   get(id: string): Topic {
     const row = this.db.prepare('SELECT * FROM topics WHERE id = ?').get(id)
-    if (!row) throw new StudioError('没有这个主题', 404)
+    if (!row) throw new StudioError('没有这个主题', 404, 'topic.not_found')
     return topic(row)
   }
 
@@ -69,7 +69,7 @@ export class TopicStore {
 
   reference(topicId: string, itemId: string): boolean {
     this.get(topicId)
-    if (!this.db.prepare('SELECT 1 FROM library_items WHERE id = ?').get(itemId)) throw new StudioError('资料库里没有这份材料', 404)
+    if (!this.db.prepare('SELECT 1 FROM library_items WHERE id = ?').get(itemId)) throw new StudioError('资料库里没有这份材料', 404, 'library.not_found')
     const now = new Date().toISOString()
     const added = this.db.prepare('INSERT OR IGNORE INTO topic_materials (topic_id, item_id, added_at) VALUES (?, ?, ?)').run(topicId, itemId, now).changes > 0
     if (added) this.db.prepare('UPDATE topics SET updated_at = ? WHERE id = ?').run(now, topicId)

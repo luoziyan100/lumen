@@ -13,6 +13,8 @@
 
 离线包查看仅核对 JSON 完整性和脱敏内容，不认证来源、不执行模型或工具。录制回放不调用外部模型或真实工具；重新评估使用当前模型发送一次无工具请求。两者的执行/判断由后端保存到标注，文本包含判断不等于回答质量通过。
 
+2026-11-14 (i18n): all labels come from the catalog (`diagnostics`, `coverage`, `trace`, `cases`, `evaluation`); times print through `formatDateTime` in the UI language. Saved notes, trace payloads and evaluation text are data and stay as recorded.
+
 2026-09-19：补齐录制回放/当前模型评估与真实 React/HTTP 回归；桌面重装和真机验证由整应用交付统一执行。
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

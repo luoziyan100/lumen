@@ -4,16 +4,17 @@
  * [POS]: 用户显式文件操作边界；取消不落盘，浏览器下载与桌面原生保存共用 8 MiB 限制
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+import { t } from '../../i18n/index.ts'
 import type { DiagnosticExport } from '../data/client.ts'
 
 const MAX_BYTES = 8 * 1024 * 1024
 function limited(content: string) {
-  if (new TextEncoder().encode(content).byteLength > MAX_BYTES) throw new Error('诊断包超过 8 MiB')
+  if (new TextEncoder().encode(content).byteLength > MAX_BYTES) throw new Error(t().diagnostics.packTooLarge)
   return content
 }
 
 export async function readDiagnosticFile(file: File) {
-  if (file.size > MAX_BYTES) throw new Error('诊断包超过 8 MiB')
+  if (file.size > MAX_BYTES) throw new Error(t().diagnostics.packTooLarge)
   return limited(await file.text())
 }
 

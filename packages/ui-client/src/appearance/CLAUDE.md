@@ -21,6 +21,8 @@ index.ts → store.ts / systemMode.ts → resolve.ts → apply.ts
 - `fonts.ts`：阅读字体注册表；西文七款(Source Serif 默认在线，EB Garamond/Crimson Pro/Newsreader/Literata/Lora/Inter 本地)与中文三款(文楷默认、宋体、苹方)分别选，组合成 --font-serif，默认组合不覆盖。
 - `fonts.css`：本地西文 OFL 可变字体(@fontsource-variable)的 @font-face，按 x 字高 size-adjust 与中文齐平、只覆盖拉丁字符(破折号/省略号留给中文)；html[data-justify] 让正文两端对齐。
 
+2026-11-14 (i18n): skins and fonts keep only ids and values; their display names and descriptions live in the UI catalogs (`skins.<id>`, `fonts.<id>`), so `SkinDefinition` has no name/description and `fonts.ts` names are English fallbacks.
+
 2026-09-19：补齐保留外观模块地图；Mastra 迁移继续复用同一客户端偏好入口。
 2026-10-05：补齐真实浅色基线与三套明亮材质预设，深浅控件、玻璃反光、阴影和桌面边框贯通；外观仍通过本机偏好与单一出口切换。
 

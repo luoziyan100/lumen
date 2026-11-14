@@ -4,6 +4,7 @@
  * [POS]: 原生数据的展示缓存，只恢复已存在身份；不创建研究或重新实现执行状态机；旧端点重连有界，耗尽通知宿主重新发现
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+import { t } from '../../i18n/index.ts'
 import { agentControllerMessageText, isKnownAgentControllerEvent, type AgentControllerEvent, type KnownAgentControllerEvent, type MastraDBMessage } from '@mastra/client-js'
 import { LumenApi, type ChildTokenUsage, type DisplayState, type Identity } from './client.ts'
 
@@ -93,8 +94,8 @@ export function errorText(error: unknown): string {
   const codes = Array.isArray(value.codes) ? value.codes.filter((code): code is string => typeof code === 'string' && !!code) : []
   const status = typeof value.statusCode === 'number' ? `HTTP ${value.statusCode}` : ''
   const detail = [status, ...codes].join(' · ')
-  const text = reason || message || '运行失败'
-  return detail && !text.includes(detail) ? `${text}（${detail}）` : text
+  const text = reason || message || t().data.runFailed
+  return detail && !text.includes(detail) ? t().common.withDetail(text, detail) : text
 }
 
 function applyEvent(view: SessionView, event: AgentControllerEvent): SessionView {
@@ -165,7 +166,7 @@ export class SessionFeed {
       })
       messages.push(...result.messages)
       if (!result.hasMore) break
-      if (!result.messages.length) throw new Error('会话历史分页返回空页，无法完成恢复')
+      if (!result.messages.length) throw new Error(t().data.historyEmptyPage)
     }
     return messages
   }

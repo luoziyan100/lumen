@@ -246,7 +246,7 @@ fn safe_name(name: &str, fallback: &str) -> String {
 }
 
 fn save_selected_file(name: &str, content: &[u8], json: bool) -> Result<Option<String>, String> {
-    let mut dialog = rfd::FileDialog::new().set_title("保存到本机").set_file_name(name);
+    let mut dialog = rfd::FileDialog::new().set_title(crate::locale::text(crate::locale::Text::SaveFile)).set_file_name(name);
     if json { dialog = dialog.add_filter("JSON", &["json"]); }
     let Some(path) = dialog.save_file() else { return Ok(None); };
     fs::write(&path, content).map_err(|_| "无法保存文件，请检查目标目录权限")?;

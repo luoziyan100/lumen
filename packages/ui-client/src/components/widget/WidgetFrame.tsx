@@ -12,6 +12,7 @@
  * 高度铁律见 height.ts:终态可收缩,否则进出阅读器后底部留白。
  * iframe 用同源 /widget-receiver.html(非 srcdoc),避开父 CSP 继承掐死 bootstrap。
  */
+import { useT } from '../../i18n/index.ts'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   WIDGET_DIAG,
@@ -77,6 +78,7 @@ export function WidgetFrame({
   /** 白板区块：岛始终浅档，不随系统暗色变黑（浅色白板里黑底小部件读不清） */
   light?: boolean
 }) {
+  const W = useT().widget
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const readyRef = useRef(false)
   const firstResizeRef = useRef(true)
@@ -243,7 +245,7 @@ export function WidgetFrame({
         <iframe
           ref={iframeRef}
           className="widget-iframe"
-          title={title || '可视化'}
+          title={title || W.title}
           sandbox="allow-scripts"
           referrerPolicy="no-referrer"
           style={style}
@@ -256,7 +258,7 @@ export function WidgetFrame({
             sendContent(el, widgetCode, isStreaming)
           }}
         />
-        {showOverlay ? <div className="widget-frame-overlay" aria-hidden>正在为可视化添加交互动画</div> : null}
+        {showOverlay ? <div className="widget-frame-overlay" aria-hidden>{W.animating}</div> : null}
       </div>
     </div>
   )

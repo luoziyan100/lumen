@@ -32,7 +32,7 @@ register('./helpers/tsx-loader.mjs', import.meta.url)
 const { createRoot } = await import('react-dom/client')
 const { Board } = await import('../src/mastra/studio/Board.tsx')
 const { useBoard, initialSelection } = await import('../src/mastra/studio/useBoard.ts')
-const { STUDIO_COPY: S } = await import('../src/copy/studioCopy.ts')
+const S = (await import('./helpers/zh.ts')).zh.studio
 type BoardState = ReturnType<typeof useBoard>
 
 async function until(check: () => boolean | Promise<boolean>, message: string, ms = 10000) {

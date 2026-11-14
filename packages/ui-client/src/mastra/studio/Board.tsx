@@ -11,7 +11,7 @@ import { Button } from '@cloudflare/kumo/components/button'
 import { Dialog } from '@cloudflare/kumo/components/dialog'
 import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
 import { BoardViewIcon, MinusIcon, MoreIcon, PlusIcon, ExpandIcon } from '../../components/icons'
-import { STUDIO_COPY as S } from '../../copy/studioCopy'
+import { useT } from '../../i18n/index.ts'
 import type { Sheet, TopicMaterial } from '../data/client.ts'
 import { BlockCard } from './Block'
 import { BOARD, flowLayout } from './layout'
@@ -23,6 +23,7 @@ const NOTICE_MS = 4000
 
 /** A sheet's 「⋯」 menu with its one item (R17). The run's target cannot be deleted; the reason sits in the item's title. */
 function SheetMenu({ name, busy, className, onRemove }: { name: string; busy: boolean; className: string; onRemove: () => void }) {
+  const S = useT().studio
   return <DropdownMenu>
     <DropdownMenu.Trigger render={<button type="button" className={className} aria-label={S.board.more(name)} title={S.board.more(name)} />}><MoreIcon size={16} /></DropdownMenu.Trigger>
     <DropdownMenu.Content align="start" sideOffset={6} className="glass-card">
@@ -38,6 +39,7 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
   focus: { blockId: string; nonce: number } | null
   onOpenSource: (itemId: string, page?: number) => void
 }) {
+  const S = useT().studio
   const viewport = useRef<HTMLDivElement>(null), world = useRef<HTMLDivElement>(null), strip = useRef<HTMLSpanElement>(null)
   const [camera, setCamera] = useState(HOME)
   const [width, setWidth] = useState(0)
@@ -162,7 +164,7 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
     if (start) setCamera(camera => ({ ...camera, x: start.cx + event.clientX - start.x, y: start.cy + event.clientY - start.y }))
   }
 
-  return <section className="studio-board" aria-label={S.views.board.label}>
+  return <section className="studio-board" aria-label={S.views.board}>
     <div className="board-viewport" ref={viewport} onWheel={onWheel} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={() => { drag.current = null }} onPointerCancel={() => { drag.current = null }}>
       <div className="board-world" ref={world} style={{ transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.scale})` }}>
         {view && blocks.length > 0 && <div className="board-frame" style={{ width: layout.span + BOARD.PAD * 2, height: layout.height + BOARD.PAD * 2, left: -BOARD.PAD, top: -BOARD.PAD }}>
@@ -178,7 +180,7 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
       {notice && <div className="board-drawing board-notice" role="status">{S.board.blockGone}</div>}
       {board.error && <p className="mw-error board-error" role="alert">{board.error}</p>}
     </div>
-    <nav className="board-sheets" aria-label="白板">
+    <nav className="board-sheets" aria-label={S.board.tabs}>
       {tabs && <span className="board-tabs" ref={strip}>{board.sheets.map((sheet, index) => {
         const name = sheet.state !== 'live' ? `${sheet.title} · ${S.board.folded}` : sheet.title
         const writing = !!drawing && board.target === sheet.id, on = sheet.id === board.selected

@@ -20,7 +20,8 @@ import { createHttpService } from '../../mastra-service/src/server.ts'
 import { fixtureProvider, textReply, toolReply, type ProviderRequest } from '../../mastra-service/tests/provider-fixture.ts'
 import { ensureTopic } from '../../mastra-service/tests/topic-fixture.ts'
 import { LumenApi } from '../src/mastra/data/client.ts'
-import { STUDIO_COPY as S } from '../src/copy/studioCopy.ts'
+import { zh } from './helpers/zh.ts'
+const S = zh.studio
 import { SPRITE_W, SPRITE_H, orbPoint, windowAt } from '../src/mastra/studio/sprite-place.ts'
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/', pretendToBeVisual: true })
@@ -123,7 +124,7 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     assert.deepEqual($$('.studio-views [role=tab]').map(tab => [tab.getAttribute('aria-label'), tab.firstElementChild!.matches('svg.lumen-icon'), tab.dataset.available]),
       [['白板', true, 'true'], ['沉淀', true, 'false'], ['概念图', true, 'false'], ['灵感', true, 'false'], ['全部', true, 'false']])
     await act(async () => $$('.studio-views [role=tab]')[2]!.click())
-    assert.equal($('.studio-later')!.textContent, S.views.map.later)
+    assert.equal($('.studio-later')!.textContent, S.later.map)
     await act(async () => $$('.studio-views [role=tab]')[0]!.click())
 
     // ---- 材料：分「你带来的 / AI 找来的」，点开在中间分屏读原件 ----

@@ -9,6 +9,7 @@ import { Hono, type Context } from 'hono'
 import { z } from 'zod'
 import type { ResearchHttp } from '../research/http.ts'
 import { StudioError } from './errors.ts'
+import { errorBody } from '../http/error-codes.ts'
 import type { Studio } from './studio.ts'
 import type { Topic } from './types.ts'
 
@@ -49,8 +50,8 @@ export function studioRoutes(options: { studio: Studio; http: ResearchHttp; acti
   const { topics, board, library } = options.studio
   const app = new Hono()
   app.onError((error, c) => {
-    if (error instanceof StudioError) return c.json({ ...error.detail, error: error.message }, error.status)
-    if (error instanceof z.ZodError || error instanceof SyntaxError) return c.json({ error: '请求格式不对，请检查后重试' }, 400)
+    if (error instanceof StudioError) return c.json(errorBody(error.message, error.code, error.params, error.detail), error.status)
+    if (error instanceof z.ZodError || error instanceof SyntaxError) return c.json(errorBody('请求格式不对，请检查后重试', 'request.invalid'), 400)
     throw error
   })
 
@@ -100,9 +101,9 @@ export function studioRoutes(options: { studio: Studio; http: ResearchHttp; acti
     let added: Awaited<ReturnType<typeof library.add>>, topicId: string | undefined
     if (c.req.header('Content-Type')?.includes('multipart/form-data')) {
       const form = await c.req.formData().catch(() => null)
-      if (!form) throw new StudioError('上传内容不完整，请重新选择文件后重试', 400)
+      if (!form) throw new StudioError('上传内容不完整，请重新选择文件后重试', 400, 'library.upload_incomplete')
       const file = form.get('file')
-      if (!(file instanceof File)) throw new StudioError('请选择一个文件', 400)
+      if (!(file instanceof File)) throw new StudioError('请选择一个文件', 400, 'library.no_file')
       const topic = form.get('topicId')
       topicId = typeof topic === 'string' && topic ? id.parse(topic) : undefined
       if (topicId) topics.get(topicId)
@@ -140,7 +141,7 @@ export function studioRoutes(options: { studio: Studio; http: ResearchHttp; acti
   })
   app.delete('/topics/:topicId/materials/:itemId', c => {
     const removed = topics.unreference(id.parse(c.req.param('topicId')), z.string().min(1).max(128).parse(c.req.param('itemId')))
-    if (!removed) throw new StudioError('这个主题没有引用这份材料', 404)
+    if (!removed) throw new StudioError('这个主题没有引用这份材料', 404, 'topic.material_not_referenced')
     return c.body(null, 204)
   })
   return app

@@ -10,6 +10,7 @@ import { z } from 'zod'
 import type { Session } from '@mastra/core/agent-controller'
 import type { SpecialistHistory } from './index.ts'
 import type { FamilyBudget } from '../budget/index.ts'
+import { errorBody } from '../../http/error-codes.ts'
 
 const id = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/)
 const identity = z.object({ topicId: id, taskId: id })
@@ -46,12 +47,12 @@ export function specialistRoutes(options: {
       const { topicId, taskId, specialistId, prompt } = parsed.data, parent = `${topicId}:${taskId}`
       const session = await options.session(topicId, taskId)
       const state = session.displayState.get()
-      if (state.isRunning || state.pendingApprovals.size || state.pendingSuspensions.size) return c.json({ error: '请先完成或停止当前研究，再继续专家' }, 409)
+      if (state.isRunning || state.pendingApprovals.size || state.pendingSuspensions.size) return c.json(errorBody('请先完成或停止当前研究，再继续专家', 'specialists.busy'), 409)
       let previous
       const nonce = randomUUID()
       try { previous = await options.history.prepare(parent, specialistId, nonce) }
       catch (error) { return c.json({ error: (error as Error).message }, 409) }
-      if (!previous.threads.length) return c.json({ error: '专家尚无持久上下文，不能假装继续' }, 409)
+      if (!previous.threads.length) return c.json(errorBody('专家尚无持久上下文，不能假装继续', 'specialists.no_context'), 409)
       let waiting!: () => void
       const approval = new Promise<boolean>(resolve => { waiting = () => resolve(true) })
       const unsubscribe = session.subscribe(event => { if (event.type === 'tool_approval_required' || event.type === 'tool_suspended') waiting() })
@@ -61,7 +62,7 @@ export function specialistRoutes(options: {
       const record = (await options.history.list(parent)).find(item => item.id === specialistId)!
       const after = session.displayState.get()
       if (awaitingApproval || after.pendingApprovals.size || after.pendingSuspensions.size) return c.json({ continued: record.continuations > previous.continuations, pendingApproval: true, record }, 202)
-      if (record.continuations <= previous.continuations) return c.json({ error: '模型没有执行指定专家的继续请求；未将新专家冒充继续，请查看本轮反馈', continued: false, record }, 409)
+      if (record.continuations <= previous.continuations) return c.json(errorBody('模型没有执行指定专家的继续请求；未将新专家冒充继续，请查看本轮反馈', 'specialists.not_continued', undefined, { continued: false, record }), 409)
       return c.json({ continued: true, record })
     }))
   })

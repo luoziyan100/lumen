@@ -57,13 +57,13 @@ function issues(error: z.ZodError) {
 
 export function parseContent(kind: BlockKind, content: unknown): unknown {
   const result = blockContent[kind].safeParse(content)
-  if (!result.success) throw new StudioError(`「${kind}」区块的内容不合格式：${issues(result.error)}`, 400)
+  if (!result.success) throw new StudioError(`「${kind}」区块的内容不合格式：${issues(result.error)}`, 400, 'board.invalid_content', { kind, issues: issues(result.error) })
   return result.data
 }
 
 export function parseSources(sources: unknown): BlockSource[] {
   const result = sourcesSchema.safeParse(sources ?? [])
-  if (!result.success) throw new StudioError(`出处格式不对：${issues(result.error)}。材料写 { itemId, page?, quote? }，对话写 { threadId }`, 400)
+  if (!result.success) throw new StudioError(`出处格式不对：${issues(result.error)}。材料写 { itemId, page?, quote? }，对话写 { threadId }`, 400, 'board.invalid_sources', { issues: issues(result.error) })
   return result.data
 }
 

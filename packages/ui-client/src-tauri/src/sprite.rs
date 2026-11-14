@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::Mutex, time::Duration};
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow, WebviewWindowBuilder, WebviewUrl};
 use tauri::menu::MenuBuilder;
+use crate::locale::{self, Text};
 
 pub const LABEL: &str = "sprite-desktop";
 // --- 产品暂不提供桌面形态；恢复时与前端同名功能常量一起开启 ---
@@ -101,9 +102,9 @@ pub fn show_sprite_menu(window: WebviewWindow) -> Result<(), String> {
     if !DESKTOP_ENABLED { return Err("desktop sprite disabled".into()); }
     if window.label() != LABEL { return Err("desktop window required".into()); }
     let menu = MenuBuilder::new(window.app_handle())
-        .text("sprite-open", "打开 Lumen")
-        .text("sprite-hide-once", "这次先藏起来")
-        .text("sprite-quit", "退出 Lumen")
+        .text("sprite-open", locale::text(Text::SpriteOpen))
+        .text("sprite-hide-once", locale::text(Text::SpriteHide))
+        .text("sprite-quit", locale::text(Text::SpriteQuit))
         .build().map_err(|error| error.to_string())?;
     window.popup_menu(&menu).map_err(|error| error.to_string())
 }
@@ -197,7 +198,7 @@ fn remember_position(app: &AppHandle) {
 pub fn setup(app: &mut tauri::App) -> tauri::Result<()> {
     if !DESKTOP_ENABLED { return Ok(()); }
     let builder = WebviewWindowBuilder::new(&*app, LABEL, WebviewUrl::App("index.html?sprite-desktop=1".into()))
-        .title("Lumen 精灵").inner_size(WIDTH, HEIGHT)
+        .title(locale::text(Text::SpriteWindow)).inner_size(WIDTH, HEIGHT)
         .resizable(false).decorations(false).transparent(true).always_on_top(true)
         .visible_on_all_workspaces(true).skip_taskbar(true).shadow(false)
         .focused(false).focusable(true).accept_first_mouse(true).visible(false)

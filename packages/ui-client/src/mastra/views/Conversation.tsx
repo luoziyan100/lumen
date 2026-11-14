@@ -4,10 +4,10 @@
  * [POS]: 新会话组合，不依赖旧 chat reducer；按身份 key 挂载以隔离草稿和迟到结果
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+import { errorText, useT } from '../../i18n/index.ts'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import { AssistantContent } from '../../components/widget/AssistantContent'
-import { MASTRA_COPY as C } from '../../copy/mastraCopy'
 import { LumenApi, type ChildTask, type Identity, type DisplayState } from '../data/client.ts'
 import { useSession } from '../data/useSession.ts'
 import { messageRole, messageText } from '../data/feed.ts'
@@ -18,9 +18,7 @@ import { messageAnchor, userContent } from './conversation/transcript/content'
 import './conversation/transcript/transcript.css'
 import { Composer } from './conversation/Composer'
 import { createConversationProjection, turnStartedAt, type BoardCard } from './conversation/process/project'
-import { STUDIO_COPY as S } from '../../copy/studioCopy'
 import { ProcessRow, ThoughtRow, Waiting } from './conversation/process/Rows'
-import { getTimeGreeting } from '../../copy/greeting'
 import { Question } from './conversation/question/Question'
 import { workspaceLink, type FileTarget } from '../data/file-links'
 import { useTranscriptStick } from './conversation/stick'
@@ -29,17 +27,20 @@ import { useTranscriptStick } from './conversation/stick'
 function acknowledged(ack: { ok: boolean; reason?: string }) { if (!ack.ok) throw new Error(ack.reason ?? 'rejected') }
 function stringify(value: unknown) { return typeof value === 'string' ? value : JSON.stringify(value, null, 2) }
 function Approval({ approval, onReply }: { approval: DisplayState['pendingApprovals'][string]; onReply: (approved: boolean) => Promise<void> }) {
+  const C = useT().chat
   const [busy, setBusy] = useState(false), [error, setError] = useState('')
-  return <section className="mw-question"><strong>{C.approval}: {approval.toolName}</strong><pre>{stringify(approval.args)}</pre>{[true, false].map(approved => <Button disabled={busy} key={String(approved)} variant={approved ? 'primary' : 'ghost'} onClick={() => { setBusy(true); setError(''); void onReply(approved).catch(error => { setError(String(error)); setBusy(false) }) }}>{approved ? C.allow : C.deny}</Button>)}{error && <p role="alert">{error}</p>}</section>
+  return <section className="mw-question"><strong>{C.approval}: {approval.toolName}</strong><pre>{stringify(approval.args)}</pre>{[true, false].map(approved => <Button disabled={busy} key={String(approved)} variant={approved ? 'primary' : 'ghost'} onClick={() => { setBusy(true); setError(''); void onReply(approved).catch(error => { setError(errorText(error)); setBusy(false) }) }}>{approved ? C.allow : C.deny}</Button>)}{error && <p role="alert">{error}</p>}</section>
 }
 /** 白板动态：哪块正在画（新块为 'new'），以及已完成写入的签名——变了就该重新取白板。 */
 export interface BoardSignal { drawing: string | null; done: string }
 function BoardCardRow({ card, onFocus }: { card: BoardCard; onFocus?: (blockId: string) => void }) {
+  const S = useT().studio
   const verb = card.status === 'failed' ? S.card.failed : card.running ? S.card.running[card.action] : S.card.done[card.action]
-  const body = <><span className="board-card-verb">{verb}</span>{card.title && <> · <b>{card.title}</b></>}{card.error && <span className="board-card-error">：{card.error}</span>}</>
+  const body = <><span className="board-card-verb">{verb}</span>{card.title && <> · <b>{card.title}</b></>}{card.error && <span className="board-card-error">{S.card.error(card.error)}</span>}</>
   return <div className={`board-card board-card-${card.status}`}>{card.blockId && onFocus && card.status !== 'failed' ? <button type="button" onClick={() => onFocus(card.blockId!)}>{body}</button> : <span>{body}</span>}</div>
 }
 export function Conversation({ api, identity, onActivity, onOpenFile, onSettings, activePath, onClearActivePath, onFocusBlock, onBoard, session: sharedSession }: { api: LumenApi; identity: Identity; onActivity: () => void; onOpenFile: (target: FileTarget) => void; onSettings?: () => void; activePath?: string | null; onClearActivePath?: () => void; onFocusBlock?: (blockId: string) => void; onBoard?: (signal: BoardSignal) => void; session?: ReturnType<typeof useSession> }) {
+  const { chat: C, greeting } = useT()
   const localSession = useSession(api, sharedSession ? null : identity)
   const { feed, view } = sharedSession ?? localSession
   const [error, setError] = useState(''), [children, setChildren] = useState<ChildTask[]>([])
@@ -101,7 +102,7 @@ export function Conversation({ api, identity, onActivity, onOpenFile, onSettings
       if (target) { event.preventDefault(); event.stopPropagation(); onOpenFile(target) }
     }} onScroll={event => { stick.onScroll(event); markVisibleRead() }}>
       <div className="messages-content">
-      {empty && <div className="empty"><div className="empty-mark">{getTimeGreeting()}</div></div>}
+      {empty && <div className="empty"><div className="empty-mark">{greeting(new Date().getHours())}</div></div>}
       {timeline.map(row => {
         if (row.kind === 'thought') return <ThoughtRow key={row.id} row={row} />
         if (row.kind === 'process') return <ProcessRow key={row.id} row={row} />

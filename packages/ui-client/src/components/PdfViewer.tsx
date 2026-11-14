@@ -13,6 +13,7 @@
  *  setLayerDimensions 用 `calc(var(--scale-factor) * pageWidth)` 定尺寸,故 .pdf-page 必须带
  *  `--scale-factor: scale`,且 canvas 显示尺寸 = viewport(=scale×页尺寸),两层才严丝合缝。
  *  缩放:scale 提为状态,+/- 重渲 canvas 与文本层;retina 用 devicePixelRatio 放大画布保持锐利。 */
+import { t, useT } from '../i18n/index.ts'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import * as pdfjs from 'pdfjs-dist'
 import { TextLayer } from 'pdfjs-dist'
@@ -36,6 +37,7 @@ export const FIT_MAX_WIDTH = 960
 export const fitScale = (inner: number, pageWidth: number): number => Math.min(MAX_SCALE, Math.max(FIT_MIN, Math.floor(Math.min(inner, FIT_MAX_WIDTH) / pageWidth * 100) / 100))
 
 export function PdfViewer({ blob, page, fit = false }: { blob: Blob; page?: number; fit?: boolean }) {
+  const { pdf: T, common } = useT()
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null)
   const [error, setError] = useState('')
   const [scale, setScale] = useState(1.3)
@@ -55,7 +57,7 @@ export function PdfViewer({ blob, page, fit = false }: { blob: Blob; page?: numb
       const next = await task.promise
       if (!cancelled) setDoc(next)
     }).catch(error => {
-      if (!cancelled) setError(`无法读取这份 PDF：${error instanceof Error ? error.message : String(error)}`)
+      if (!cancelled) setError(t().pdf.readFailed(error instanceof Error ? error.message : String(error)))
     })
     return () => { cancelled = true; void task?.destroy() }
   }, [blob])
@@ -103,14 +105,14 @@ export function PdfViewer({ blob, page, fit = false }: { blob: Blob; page?: numb
 
   const zoom = (d: number): void => { setFitting(false); setScale((s) => clampScale(s + d)) }
 
-  if (!doc) return <div className="pdf-scroll pdf-loading" role={error ? 'alert' : 'status'}>{error || '载入中…'}</div>
+  if (!doc) return <div className="pdf-scroll pdf-loading" role={error ? 'alert' : 'status'}>{error || T.loading}</div>
   return (
     <div className="pdf-scroll" ref={scrollRef}>
-      <div className="pdf-toolbar" role="toolbar" aria-label="缩放">
-        <button className="pdf-zoom-btn" onClick={() => zoom(-STEP)} aria-label="缩小" disabled={scale <= MIN_SCALE}><ZoomOutIcon /></button>
+      <div className="pdf-toolbar" role="toolbar" aria-label={T.toolbar}>
+        <button className="pdf-zoom-btn" onClick={() => zoom(-STEP)} aria-label={common.zoomOut} disabled={scale <= MIN_SCALE}><ZoomOutIcon /></button>
         <span className="pdf-zoom-val" aria-live="polite">{Math.round(scale * 100)}%</span>
-        <button className="pdf-zoom-btn" onClick={() => zoom(STEP)} aria-label="放大" disabled={scale >= MAX_SCALE}><ZoomInIcon /></button>
-        {fit && <button className="pdf-fit-btn" onClick={() => setFitting(true)} aria-pressed={fitting} disabled={fitting}>适配宽度</button>}
+        <button className="pdf-zoom-btn" onClick={() => zoom(STEP)} aria-label={common.zoomIn} disabled={scale >= MAX_SCALE}><ZoomInIcon /></button>
+        {fit && <button className="pdf-fit-btn" onClick={() => setFitting(true)} aria-pressed={fitting} disabled={fitting}>{T.fitWidth}</button>}
       </div>
       <div className="pdf-pages">
         {Array.from({ length: doc.numPages }, (_, i) => (

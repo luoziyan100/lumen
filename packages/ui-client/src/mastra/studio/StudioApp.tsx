@@ -10,7 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { ExternalLinkGate } from '../../components/ExternalLinkDialog'
 import { useAppearance } from '../../appearance'
-import { STUDIO_COPY as S } from '../../copy/studioCopy'
+import { useT } from '../../i18n/index.ts'
 import { LumenApi, type Connection, type Identity, type TopicMaterial } from '../data/client.ts'
 import type { FileTarget } from '../data/file-links'
 import type { BoardSignal } from '../views/Conversation'
@@ -22,13 +22,14 @@ import { Sprite, useSessions } from './Sprite'
 import { TopicPanel, useTopics } from './TopicPanel'
 import { useBoard } from './useBoard'
 import { PaneToggle, Splitter, usePanes, type Side } from './Panes'
-import { ViewNav, type View } from './ViewNav'
+import { VIEW_AVAILABLE, ViewNav, type View } from './ViewNav'
 import '../views/workbench.css'
 import './studio.css'
 
 const TOPIC_KEY = 'lumen.studio.topic'
 
 export function StudioApp({ connection }: { connection: Connection }) {
+  const S = useT().studio
   const api = useMemo(() => new LumenApi(connection), [connection.baseUrl, connection.token])
   const appearance = useAppearance()
   const [revision, setRevision] = useState(0)
@@ -71,7 +72,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
     const title = topic ? `${topic.title} — ${S.app}` : S.app
     document.title = title
     if (isTauri()) void invoke('set_window_title', { title }).catch(() => {})
-  }, [topic?.title])
+  }, [topic?.title, S.app])
 
   // ---- 铺满时 Esc 回到分屏；输入框里的 Esc 留给输入框 ----
   useEffect(() => {
@@ -120,7 +121,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
         <div className="studio-stage">
           {!topic ? <div className="studio-later studio-pick"><p>{S.pickTopic}</p></div>
             : view === 'board' ? <Board board={board} materials={materials.items} drawing={signal.drawing} focus={focus} onOpenSource={openSource} />
-            : <div className="studio-later" role="status"><p>{S.views[view].available ? '' : S.views[view].later}</p></div>}
+            : <div className="studio-later" role="status"><p>{VIEW_AVAILABLE[view] ? '' : S.later[view]}</p></div>}
         </div>
       </div>
       {split && !full && <Splitter host={center} ratio={panes.ratio} onRatio={panes.setRatio} />}

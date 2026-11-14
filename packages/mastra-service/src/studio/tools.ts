@@ -38,7 +38,7 @@ export function createMaterialAccess(studio: Studio, topicOf: TopicResolver, htt
   /** 只认本主题引用的材料（R15）；不在清单里与不存在给同一句话，不泄露别的主题有什么。 */
   async function open(context: Parameters<TopicResolver>[0], itemId: string) {
     const topicId = topicOf(context)
-    if (!studio.topics.isReferenced(topicId, itemId)) throw new StudioError(`材料 ${itemId} 不在这个主题的引用清单里；用 list_materials 看能读哪些`, 404)
+    if (!studio.topics.isReferenced(topicId, itemId)) throw new StudioError(`材料 ${itemId} 不在这个主题的引用清单里；用 list_materials 看能读哪些`, 404, 'material.not_referenced', { itemId })
     const item = studio.library.get(itemId)
     return { topicId, item, bytes: await studio.library.read(item) }
   }
@@ -74,7 +74,7 @@ export function createMaterialTools(access: ReturnType<typeof createMaterialAcce
         if (item.mediaType === 'application/pdf') {
           const all = await access.pages(item, bytes, context?.abortSignal)
           if (page !== undefined) {
-            if (page > all.length) throw new StudioError(`这份 PDF 只有 ${all.length} 页`, 400)
+            if (page > all.length) throw new StudioError(`这份 PDF 只有 ${all.length} 页`, 400, 'material.pdf_pages', { pages: all.length })
             studio.topics.setProgress(topicId, item.id, page / all.length)
             const text = pdfText([all[page - 1]!], page)
             return { ...base, page, totalPages: all.length, content: text.slice(offset, offset + limit), totalChars: text.length, offset, truncated: offset + limit < text.length, empty: !text.trim() }
@@ -83,11 +83,11 @@ export function createMaterialTools(access: ReturnType<typeof createMaterialAcce
           studio.topics.setProgress(topicId, item.id, text.length ? Math.min(text.length, offset + limit) / text.length : 1)
           return { ...base, totalPages: all.length, content: text.slice(offset, offset + limit), totalChars: text.length, offset, truncated: offset + limit < text.length, empty: !text.trim() }
         }
-        if (IMAGE.test(item.mediaType)) throw new StudioError(`「${item.title}」是图片，用 look_at_image({ itemId: "${item.id}" }) 看`, 400)
+        if (IMAGE.test(item.mediaType)) throw new StudioError(`「${item.title}」是图片，用 look_at_image({ itemId: "${item.id}" }) 看`, 400, 'material.is_image', { title: item.title })
         let text: string
         if (item.mediaType === DOCX) text = await extractDocxText(bytes, context?.abortSignal)
         else if (TEXT.test(item.mediaType) || item.kind === 'web') text = new TextDecoder().decode(bytes)
-        else throw new StudioError(`「${item.title}」（${item.mediaType}）不是能直接读的文本格式`, 400)
+        else throw new StudioError(`「${item.title}」（${item.mediaType}）不是能直接读的文本格式`, 400, 'material.not_text', { title: item.title, mediaType: item.mediaType })
         studio.topics.setProgress(topicId, item.id, text.length ? Math.min(text.length, offset + limit) / text.length : 1)
         return { ...base, content: text.slice(offset, offset + limit), totalChars: text.length, offset, truncated: offset + limit < text.length }
       },

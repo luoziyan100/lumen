@@ -59,7 +59,7 @@ fn walk(root: &Path, path: &Path, name: &str, depth: usize, files: &mut Vec<Pack
 
 #[tauri::command]
 pub fn pick_skill_package(directory: bool) -> Result<Option<Vec<PackageFile>>, String> {
-    let dialog = rfd::FileDialog::new().set_title(if directory { "选择包含 SKILL.md 的技能文件夹" } else { "选择技能 Markdown" });
+    let dialog = rfd::FileDialog::new().set_title(crate::locale::text(if directory { crate::locale::Text::PickSkillFolder } else { crate::locale::Text::PickSkillFile }));
     let selected = if directory { dialog.pick_folder() } else { dialog.add_filter("Markdown", &["md"]).pick_file() };
     let Some(selected) = selected else { return Ok(None); };
     if directory {

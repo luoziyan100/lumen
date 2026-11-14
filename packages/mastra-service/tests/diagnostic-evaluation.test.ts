@@ -35,7 +35,7 @@ async function setup(outcome: 'success' | 'failed' | 'cancelled' = 'success') {
   const secrets = [settings.apiKey]
   const options = { dataRoot: root, storage, secrets: () => secrets, liveModel: () => live, authorize: async (id: string) => {
     const thread = await memory.getThreadById({ threadId: id })
-    if (!thread) throw new DiagnosticsError('Session missing', 404)
+    if (!thread) throw new DiagnosticsError('Session missing', 404, 'diagnostics.session_not_found')
     return { resourceId: thread.resourceId, threadId: thread.id }
   } }
   const diagnostics = createDiagnostics(options)

@@ -82,13 +82,13 @@ export function createConfiguredModels() {
 
   function configured(providerId: string, model: string) {
     const settings = configurations.get(providerId)
-    if (!settings || settings.model !== model) throw new SettingsError('Model configuration is unavailable', 409)
+    if (!settings || settings.model !== model) throw new SettingsError('Model configuration is unavailable', 409, 'settings.model_unavailable')
     return settings
   }
 
   function fromRouterId(routerId: string) {
     const [gatewayId, providerId, ...model] = routerId.split('/')
-    if (gatewayId !== 'lumen' || !providerId) throw new SettingsError('Invalid configured model ID')
+    if (gatewayId !== 'lumen' || !providerId) throw new SettingsError('Invalid configured model ID', 400, 'settings.invalid_model_id')
     return configured(providerId, model.join('/'))
   }
 

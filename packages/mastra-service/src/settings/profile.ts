@@ -42,7 +42,7 @@ export function applyPatch(previous: StoredSettings, patch: SettingsPatch): Stor
     data.activeProfileId ??= profile.id
   }
   if (patch.deleteProfileId) {
-    if (!data.profiles.some(profile => profile.id === patch.deleteProfileId)) throw new SettingsError('Profile not found', 404)
+    if (!data.profiles.some(profile => profile.id === patch.deleteProfileId)) throw new SettingsError('Profile not found', 404, 'settings.profile_not_found')
     data.profiles = data.profiles.filter(profile => profile.id !== patch.deleteProfileId)
     if (data.activeProfileId === patch.deleteProfileId) data.activeProfileId = data.profiles[0]?.id ?? null
   }

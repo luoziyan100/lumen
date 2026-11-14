@@ -12,7 +12,8 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
-    "check:theme": "node scripts/check-theme-celadon.mjs"
+    "check:theme": "node scripts/check-theme-celadon.mjs",
+    "check:i18n": "node scripts/check-cjk-literals.mjs"
   },
   "dependencies": {
     "@cloudflare/kumo": "^2.6.0",

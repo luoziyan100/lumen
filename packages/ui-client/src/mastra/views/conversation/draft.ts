@@ -4,7 +4,8 @@
  * [POS]: 输入内容独立于组件挂载；提交快照送往原会话，运行生命周期仍由 Mastra 拥有
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
-import { MASTRA_COPY as C } from '../../../copy/mastraCopy.ts'
+import { t } from '../../../i18n/index.ts'
+import { MODEL_TEXT } from '../../../i18n/locales/model.ts'
 import type { Identity, LumenApi, Upload } from '../../data/client.ts'
 import type { SessionFeed } from '../../data/feed.ts'
 import { writableDocument } from '../../data/file-links.ts'
@@ -19,7 +20,7 @@ function storedText(key: string): string {
 }
 
 function materials(content: string, uploaded: Upload[]): string {
-  return `${content}${uploaded.length ? `\n\n${C.uploadedMaterials}\n${uploaded.map(file => `- ${file.name}: ${file.itemId}`).join('\n')}` : ''}`
+  return `${content}${uploaded.length ? `\n\n${MODEL_TEXT.uploadedMaterials}\n${uploaded.map(file => `- ${file.name}: ${file.itemId}`).join('\n')}` : ''}`
 }
 
 class ConversationDraft {
@@ -72,13 +73,13 @@ class ConversationDraft {
     if (this.staging || (!draft.trim() && !files.length)) return false
     const id = ++this.nextId, uploaded: Upload[] = []
     const path = writableDocument(activePath ? { path: activePath, scope: 'work' } : null)
-    const prompt = path ? `${draft}\n\n当前稿（主题工作区路径）：${path}\n用户正在查看这份稿件；若要求修改它，请先读取现有内容。` : draft
+    const prompt = path ? `${draft}\n\n${MODEL_TEXT.activeDraft(path)}` : draft
     this.staging = true
     this.publish({ draft: '', files: [], uploading: files.length > 0 })
     let feed: SendTarget
     try {
       feed = typeof target === 'function' ? await target() : target
-      if (!this.matches(feed)) throw new Error('会话身份不匹配，未发送研究')
+      if (!this.matches(feed)) throw new Error(t().chat.identityMismatch)
       for (const file of files) uploaded.push(await api.upload(this.identity, file))
     }
     catch (error) { this.fail(id, materials(prompt, uploaded), files.slice(uploaded.length), error); return false }

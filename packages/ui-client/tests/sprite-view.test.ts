@@ -19,7 +19,8 @@ import { fixtureProvider, textReply } from '../../mastra-service/tests/provider-
 import { ensureTopic } from '../../mastra-service/tests/topic-fixture.ts'
 import { LumenApi } from '../src/mastra/data/client.ts'
 import { useSpeaking } from '../src/mastra/studio/useSpeaking.ts'
-import { STUDIO_COPY as S } from '../src/copy/studioCopy.ts'
+import { zh } from './helpers/zh.ts'
+const S = zh.studio
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/', pretendToBeVisual: true })
 for (const name of ['window', 'document', 'HTMLElement', 'Element', 'Node', 'NodeFilter', 'Text', 'DocumentFragment', 'MutationObserver', 'localStorage', 'getComputedStyle', 'navigator']) {

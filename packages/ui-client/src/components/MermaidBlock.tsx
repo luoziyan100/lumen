@@ -16,7 +16,7 @@ import { prepareAndValidate } from '../mermaid/mermaidSyntax'
 import { getMermaidPalette, mermaidThemeVariables, paletteSignature, subscribeMermaidPalette } from '../mermaid/mermaidTheme'
 import { cacheHoldsFinalSvg, createMermaidMeasureHost, mermaidLayoutCacheKey, tightenSvgInHost } from '../mermaid/mermaidMeasureHost'
 import { ensureElkLayout, mermaidInitializeOptions } from '../mermaid/mermaidLayout'
-import { MERMAID_COPY } from '../copy/appCopy'
+import { t, useT } from '../i18n/index.ts'
 import type { MermaidFix } from '../mermaid/mermaidFixLedger'
 import { CheckIcon, CopyIcon, ExpandIcon, ICON_SM } from './icons'
 import { MermaidLightbox } from './MermaidLightbox'
@@ -94,6 +94,7 @@ export function MermaidBlock({
   /** 失败时把原图与解析错误交给当前会话;阅读器等无会话处不传 */
   fix?: MermaidFix
 }) {
+  const { mermaid: M, app: A, common } = useT()
   const hostRef = useRef<HTMLDivElement>(null)
   const reactId = useId().replace(/:/g, '')
   const original = chart.trim()
@@ -174,7 +175,7 @@ export function MermaidBlock({
         show(entry)
       } catch (e) {
         if (cancelled) return
-        const msg = e instanceof Error ? e.message : '流程图渲染失败'
+        const msg = e instanceof Error ? e.message : t().mermaid.renderFailed
         const entry: CacheEntry = { svg: null, error: msg.length > 160 ? `${msg.slice(0, 157)}…` : msg, detail: msg }
         cacheSet(key, entry)
         show(entry)
@@ -205,18 +206,18 @@ export function MermaidBlock({
   }
 
   return (
-    <div ref={hostRef} className="mermaid-block" role="figure" aria-label={svg && !error ? undefined : '流程图'}>
-      <div className="mermaid-toolbar" role="toolbar" aria-label="流程图操作">
+    <div ref={hostRef} className="mermaid-block" role="figure" aria-label={svg && !error ? undefined : M.figure}>
+      <div className="mermaid-toolbar" role="toolbar" aria-label={M.toolbar}>
         {svg && !error ? (
-          <button type="button" className="mermaid-tool" title="放大查看" aria-label="放大查看" onClick={() => setExpanded(true)}>
+          <button type="button" className="mermaid-tool" title={M.expand} aria-label={M.expand} onClick={() => setExpanded(true)}>
             <ExpandIcon size={ICON_SM} />
           </button>
         ) : null}
         <button
           type="button"
           className={`mermaid-tool${copied ? ' is-copied' : ''}`}
-          title={copied ? '已复制' : '复制源码'}
-          aria-label={copied ? '已复制' : '复制源码'}
+          title={copied ? common.copied : common.copySource}
+          aria-label={copied ? common.copied : common.copySource}
           onClick={() => { void onCopy() }}
         >
           {copied ? <CheckIcon size={ICON_SM} /> : <CopyIcon size={ICON_SM} />}
@@ -228,7 +229,7 @@ export function MermaidBlock({
             <div className="mermaid-error" role="alert">{error}</div>
             {detail && detail !== error ? (
               <button type="button" className="mermaid-error-detail-toggle" onClick={() => setShowDetail((v) => !v)}>
-                {showDetail ? '收起详情' : '详情'}
+                {showDetail ? M.hideDetail : M.detail}
               </button>
             ) : null}
             {showDetail && detail ? <pre className="mermaid-error-detail"><code>{detail}</code></pre> : null}
@@ -239,13 +240,13 @@ export function MermaidBlock({
                 disabled={askedFix}
                 onClick={() => fix.ask(original, detail ?? error)}
               >
-                {askedFix ? MERMAID_COPY.askedFix : MERMAID_COPY.askFix}
+                {askedFix ? A.askedFix : A.askFix}
               </button>
             ) : null}
             <pre className="mermaid-source"><code>{original}</code></pre>
           </div>
         ) : null}
-        {!error && svg ? <div className="mermaid-svg" role="img" aria-label="流程图" dangerouslySetInnerHTML={{ __html: svg }} /> : null}
+        {!error && svg ? <div className="mermaid-svg" role="img" aria-label={M.figure} dangerouslySetInnerHTML={{ __html: svg }} /> : null}
       </div>
       {expanded && svg ? <MermaidLightbox svg={svg} onClose={() => setExpanded(false)} /> : null}
     </div>

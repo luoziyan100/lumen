@@ -68,7 +68,7 @@ function _h(){
 var _ro=new ResizeObserver(_h);
 _ro.observe(root);
 
-/* 对话内:overflow hidden + 宿主跟高;阅读器 fillHeight:钉视口 → 必须在岛内滚动 */
+/* In a conversation: overflow hidden and the host follows the height; reader fillHeight pins the viewport, so the island must scroll itself */
 function setFillScroll(on){
   _fill=!!on;
   var r=document.documentElement,b=document.body;
@@ -104,7 +104,7 @@ function finalizeHtml(html,generation){
   var cdnScripts=scripts.filter(function(s){return !!s.src});
   var inlineScripts=scripts.filter(function(s){return !s.src&&s.text});
   _diag('finalize',{found:scripts.length,cdn:cdnScripts.length,inline:inlineScripts.length});
-  /* 内联应由宿主 hoist 成 lumenwidget: src;此处 textContent 仅 dev 兜底 */
+  /* Inline scripts should be hoisted by the host into lumenwidget: src; textContent here is only a dev fallback */
   function _appendInline(){
     if(seq!==_finalizeGeneration)return;
     for(var k=0;k<inlineScripts.length;k++){
@@ -145,7 +145,7 @@ window.addEventListener('message',function(e){
       if(v)for(var k in v)r.style.setProperty(k,v[k]);
       if(typeof e.data.isDark==='boolean'){
         r.className=e.data.isDark?'dark':'light';
-        /* only:禁止 WKWebView/系统暗色把浅档文档自动换皮(丢 inline 颜色) */
+        /* only: stops WKWebView / system dark mode from re-skinning a light document (which loses inline colors) */
         r.style.colorScheme=e.data.isDark?'only dark':'only light';
       }
       if(typeof e.data.fillHeight==='boolean')setFillScroll(e.data.fillHeight);
@@ -176,7 +176,7 @@ parent.postMessage({type:'${WIDGET_READY}'},'*');
 <meta charset="utf-8"/>
 <meta http-equiv="Content-Security-Policy" content="${csp}"/>
 <style>
-/* 内容岛默认浅档实底;only light 阻止系统暗色自适应抹掉 author/inline 颜色 */
+/* The content island defaults to a solid light surface; only light stops system dark mode from wiping author/inline colors */
 html,body{margin:0;padding:0;overflow:hidden;}
 html.light,html:not(.dark){color-scheme:only light;background:#ffffff;}
 html.dark{color-scheme:only dark;background:#14161c;}
@@ -185,9 +185,9 @@ body{
   color:var(--color-text-primary,#211f1c);
   background:transparent;
 }
-/* 让 button 吃得下 inline background(WK 在 appearance:auto 时会忽略) */
+/* Let buttons take an inline background (WebKit ignores it with appearance:auto) */
 button,input,select,textarea{-webkit-appearance:none;appearance:none;}
-/* 滑块、勾选不需要 inline 背景，去掉外观后浅档里连轨道都看不见：还给系统外观 */
+/* Sliders and checkboxes need no inline background, and without system appearance even the track vanishes on light: give it back */
 input[type=range],input[type=checkbox],input[type=radio]{-webkit-appearance:auto;appearance:auto;}
 #__root{min-height:1px;}
 ${styleBlock}

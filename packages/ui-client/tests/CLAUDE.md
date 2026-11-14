@@ -26,6 +26,7 @@ tests/
 ├── sprite-desktop.test.ts   # 原生投影负载和桌面出入动效参数
 ├── sprite-view.test.ts      # A04 compact/Retina desktop source selection, shared-driver ticks and lifecycle, plus real HTTP/SSE continuity
 ├── appearance-resolve.test.ts
+├── i18n.test.ts             # catalogs, Intl formatting, persistence, error codes against a real service, in-place re-render
 ├── source-cite.test.ts / scroll-debug.test.ts
 └── fixtures/               # 合成阅读材料
 ```
@@ -62,6 +63,8 @@ tests/
 - `source-cite.test.ts`：URL、正文来源段、工具来源与站点归并的纯算法；不再包含旧 reducer 集成。
 - `widget-parse.test.ts`：show-widget 围栏分段和不完整输入处理。
 - `widget-theme.test.ts`：暗壳保持固定浅色文档岛；浅玻璃内容岛从实色伴生取底并沿用深墨，透明壳面不泄漏到 iframe；保留明暗识别与 receiver fillHeight 滚动合同。
+- `i18n.test.ts`: en/zh key and kind parity; every registered locale loads with its native name; plural/number/date/relative time per language; first launch English, unknown stored values fall back, the choice survives a reload and sets `<html lang>`; error codes map to UI text with params, unknown codes fall back to the service's text; the service's `ERROR_CODES` equal both catalogs' error keys; a real service returns `{ error, code }` and `LumenApi` shows it per language, including a 413 over the upload request limit; a language switch re-renders mounted ViewNav and Settings › Appearance in place, Language first by native name.
+- Language in tests: the UI defaults to English. Suites written against Chinese text import `helpers/zh.ts` first (it switches to zh) and read expected strings from `zh.*` instead of literals; text sent to models comes from `MODEL_TEXT`.
 - `fixtures/`：真实渲染内核使用的合成材料，见局部地图。
 - `helpers/`：只为真实组件测试加载 TSX，不替换客户端、组件或服务。
 

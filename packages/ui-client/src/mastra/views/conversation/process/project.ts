@@ -1,14 +1,15 @@
 /**
  * [INPUT]: 原生Mastra持久/流式消息parts、当前DisplayState与轮次摘要投影
  * [OUTPUT]: processTimeline 与 createConversationProjection：思考、工具叙事、白板卡片（R6）、正文和轮次导航的有序投影；流式更新复用稳定历史
- * [POS]: 纯呈现投影，不保存第二份消息；只采用服务公开reasoning，工具按callId去重，中文文案沿原VERB；计时只采用本轮真实用户消息时间
+ * [POS]: 纯呈现投影，不保存第二份消息；只采用服务公开reasoning，工具按callId去重，工具名在渲染时经 i18n 取（toolLabel），投影缓存不存文案；计时只采用本轮真实用户消息时间
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import type { MastraDBMessage } from '@mastra/client-js'
 import type { DisplayState } from '../../../data/client'
 import { messageRole } from '../../../data/feed'
 import { turnItems } from '../transcript/content'
-export interface Step { id: string; name: string; label: string; chip?: string; status: 'running' | 'completed' | 'failed' | 'stopped'; error?: string }
+import { t } from '../../../../i18n/index.ts'
+export interface Step { id: string; name: string; chip?: string; status: 'running' | 'completed' | 'failed' | 'stopped'; error?: string }
 /** 白板写入在对话里只留一张卡片（R6）：画了/改了/取代了哪一块，点它跳到那块。 */
 export interface BoardCard { kind: 'board'; id: string; action: 'draw' | 'update' | 'supersede'; title: string; blockId?: string; running: boolean; status: Step['status']; error?: string }
 export type Row = { kind: 'message'; id: string; message: MastraDBMessage } | { kind: 'thought'; id: string; text: string; running: boolean; startedAt: Date | null } | { kind: 'process'; id: string; steps: Step[]; running: boolean; startedAt: Date | null } | BoardCard
@@ -18,21 +19,12 @@ function boardCard(id: string, name: string, args: Record<string, unknown>, resu
   const blockId = typeof result.blockId === 'string' ? result.blockId : typeof args.blockId === 'string' ? args.blockId : undefined
   return { kind: 'board', id, action: BOARD_ACTIONS[name]!, title, blockId, running: status === 'running', status, error }
 }
-const labels: Record<string, string> = {
-  search_papers: '检索文献', openalex_search: '检索文献', web_search: '网页搜索', search_web: '网页搜索',
-  extract_pdf: '读取 PDF', fetch_url: '抓取网页', read_url: '抓取网页', web_fetch: '抓取网页',
-  board_view: '看白板', board_draw: '在白板上画', board_update: '改白板', board_supersede: '标为已取代',
-  write_file: '写入文件', edit_file: '编辑文件', read_file: '读取文件', list_materials: '查看材料', read_material: '阅读材料',
-  list_files: '浏览工作区', list_dir: '列目录', grep: '检索内文', glob: '查找文件',
-  run_code: '运行代码', execute_command: '执行命令', todo_write: '更新进度', update_plan: '更新进度', ask_user: '询问用户',
-  spawn_subagent: '子代理', wait_subagents: '等待子代理', get_subagent_output: '读子代理结果', kill_subagent: '中止子代理',
-  look_at_image: '查看图像', run_skill: '运行技能', read_memory: '读取记忆', write_memory: '写入记忆',
-  spawn_agent: '委派专家', delegate_to_agent: '委派专家', search: '搜索资料',
-}
+/** Read at render time, not at projection time: cached history rows must follow a language switch. */
 export function toolLabel(name: string): string {
-  if (!name.startsWith('agent-')) return labels[name] ?? '执行工具'
-  const role = name.slice(6), roles: Record<string, string> = { reader: '阅读', verifier: '核验', researcher: '研究', writer: '写作', analyst: '分析' }
-  return `委派专家 · ${roles[role] ?? role.slice(0, 20)}`
+  const copy = t().process
+  if (!name.startsWith('agent-')) return copy.toolNames[name] ?? copy.otherTool
+  const role = name.slice(6)
+  return copy.delegate(copy.roles[role] ?? role.slice(0, 20))
 }
 export function turnStartedAt(messages: MastraDBMessage[]): Date | null {
   const message = [...messages].reverse().find(item => messageRole(item) === 'user')
@@ -66,7 +58,7 @@ export function processTimeline(messages: MastraDBMessage[], display: DisplaySta
         const call = part.toolInvocation, result = record('result' in call ? call.result : undefined), live = display?.activeTools[call.toolCallId]
         const failed = live?.status === 'error' || result.isError === true || !!result.error, complete = 'result' in call || live?.status === 'completed'
         const status: Step['status'] = failed ? 'failed' : complete ? 'completed' : turn === activeTurn && display?.isRunning === true ? 'running' : 'stopped'
-        const card = boardCard(call.toolCallId, call.toolName, record(call.args), result, status, failed ? (typeof result.error === 'string' ? result.error.slice(0, 180) : typeof result.message === 'string' ? result.message.slice(0, 180) : '没画上') : undefined)
+        const card = boardCard(call.toolCallId, call.toolName, record(call.args), result, status, failed ? (typeof result.error === 'string' ? result.error.slice(0, 180) : typeof result.message === 'string' ? result.message.slice(0, 180) : undefined) : undefined)
         const existing = rows.findIndex(row => row.kind === 'board' && row.id === card.id)
         if (existing < 0) rows.push(card); else rows[existing] = card
       } else if (part.type === 'tool-invocation') {
@@ -76,7 +68,7 @@ export function processTimeline(messages: MastraDBMessage[], display: DisplaySta
         const complete = 'result' in call || live?.status === 'completed'
         const active = turn === activeTurn && display?.isRunning === true && !complete && !failed
         const path = typeof args.path === 'string' ? args.path : typeof args.query === 'string' ? args.query : undefined
-        const step: Step = { id: call.toolCallId, name: call.toolName, label: toolLabel(call.toolName), chip: path?.split('/').pop(), status: failed ? 'failed' : complete ? 'completed' : active ? 'running' : 'stopped', error: failed ? (typeof result.error === 'string' ? result.error.slice(0, 180) : '执行失败') : undefined }
+        const step: Step = { id: call.toolCallId, name: call.toolName, chip: path?.split('/').pop(), status: failed ? 'failed' : complete ? 'completed' : active ? 'running' : 'stopped', error: failed && typeof result.error === 'string' ? result.error.slice(0, 180) : undefined }
         const existing = process.steps.findIndex(item => item.id === step.id)
         if (existing < 0) process.steps.push(step); else process.steps[existing] = step
         process.running = process.steps.some(item => item.status === 'running')
@@ -99,7 +91,7 @@ export function processTimeline(messages: MastraDBMessage[], display: DisplaySta
       if (BOARD_ACTIONS[tool.name]) { rows.push(boardCard(id, tool.name, record(tool.args), {}, 'running')); continue }
       if (!process) { process = { kind: 'process', id: `${activeTurn}:process`, steps: [], running: true, startedAt: turnStartedAt(messages) }; rows.push(process) }
       const args = record(tool.args)
-      process.steps.push({ id, name: tool.name, label: toolLabel(tool.name), chip: typeof args.path === 'string' ? args.path.split('/').pop() : undefined, status: 'running' })
+      process.steps.push({ id, name: tool.name, chip: typeof args.path === 'string' ? args.path.split('/').pop() : undefined, status: 'running' })
       process.running = true
       finished.delete(process.id)
     }

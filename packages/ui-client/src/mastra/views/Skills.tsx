@@ -4,23 +4,24 @@
  * [POS]: 保留脚本与资源的相对目录，安装复用服务原子发布；技能只在用户选择后加入草稿
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+import { errorText, useT } from '../../i18n/index.ts'
 import { useEffect, useRef, useState } from 'react'
 import { isTauri } from '@tauri-apps/api/core'
 import { Button } from '@cloudflare/kumo/components/button'
 import { Dialog } from '@cloudflare/kumo/components/dialog'
 import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
 import { CloseIcon, PlusIcon, ChevronDownIcon, SkillIcon, TrashIcon } from '../../components/icons'
-import { MASTRA_COPY as C } from '../../copy/mastraCopy'
 import { browserSkillFiles, pickSkillPackage, type SkillFile } from '../../shell/pickSkill'
 import { LumenApi, type Identity, type SkillInfo } from '../data/client.ts'
 
 export function Skills({ api, identity, onClose }: { api: LumenApi; identity: Identity; onClose: () => void }) {
+  const { chat: C, skills: K } = useT()
   const [skills, setSkills] = useState<SkillInfo[]>([]), [error, setError] = useState(''), [busy, setBusy] = useState(false)
   const upload = useRef<HTMLInputElement>(null), folder = useRef<HTMLInputElement>(null), active = useRef(true)
   useEffect(() => { active.current = true; void refresh(); return () => { active.current = false } }, [api, identity.topicId, identity.taskId])
   async function refresh() {
     try { const result = await api.skills(identity); if (active.current) setSkills(result.skills) }
-    catch (error) { if (active.current) setError(String(error)) }
+    catch (error) { if (active.current) setError(errorText(error)) }
   }
   async function act(work: () => Promise<void>) {
     if (busy) return
@@ -38,11 +39,11 @@ export function Skills({ api, identity, onClose }: { api: LumenApi; identity: Id
     void act(async () => { const files = await pickSkillPackage(directory); if (files && active.current) await install(files) })
   }
   return <Dialog.Root open onOpenChange={open => { if (!open && !busy) onClose() }}><Dialog className="skills-manage-modal p-0" aria-label={C.skills}>
-    <div className="skills-manage-head"><div><h2 className="skills-manage-title">{C.skills}</h2><p className="skills-manage-hint">安装和管理研究技能，在输入框的 + 菜单中选择使用。</p></div><Button variant="ghost" aria-label={C.close} disabled={busy} onClick={onClose}><CloseIcon size={18} /></Button></div>
+    <div className="skills-manage-head"><div><h2 className="skills-manage-title">{C.skills}</h2><p className="skills-manage-hint">{K.hint}</p></div><Button variant="ghost" aria-label={C.close} disabled={busy} onClick={onClose}><CloseIcon size={18} /></Button></div>
     <div className="skills-manage-toolbar">
-      <span className="skills-manage-hint">技能装在你的技能目录，所有主题通用。</span>
-      <DropdownMenu><DropdownMenu.Trigger render={<Button className="skills-add-btn" variant="secondary" disabled={busy} />}><PlusIcon size={18} />添加<ChevronDownIcon size={16} /></DropdownMenu.Trigger>
-        <DropdownMenu.Content align="end" sideOffset={6} className="glass-card"><DropdownMenu.Item onClick={() => choose(true)}>添加技能文件夹</DropdownMenu.Item><DropdownMenu.Item onClick={() => choose(false)}>添加 Markdown</DropdownMenu.Item></DropdownMenu.Content>
+      <span className="skills-manage-hint">{K.scope}</span>
+      <DropdownMenu><DropdownMenu.Trigger render={<Button className="skills-add-btn" variant="secondary" disabled={busy} />}><PlusIcon size={18} />{K.add}<ChevronDownIcon size={16} /></DropdownMenu.Trigger>
+        <DropdownMenu.Content align="end" sideOffset={6} className="glass-card"><DropdownMenu.Item onClick={() => choose(true)}>{K.addFolder}</DropdownMenu.Item><DropdownMenu.Item onClick={() => choose(false)}>{K.addMarkdown}</DropdownMenu.Item></DropdownMenu.Content>
       </DropdownMenu>
     </div>
     {error && <p role="alert" className="skills-manage-err">{error}</p>}

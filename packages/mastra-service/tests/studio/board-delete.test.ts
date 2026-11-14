@@ -118,7 +118,7 @@ test('R17 delete: empty at once; content needs confirmation with the count; one 
     assert.deepEqual(rows(env.dataRoot, full), { sheets: 0, blocks: 0, versions: 0, selection: 0, targets: 0 })
     assert.equal((await env.sheets('p')).selected, first)
     // ---- the card's block: its sheet is gone ----
-    assert.deepEqual(await env.block(blockId), { status: 404, body: { reason: 'deleted', error: '这块所在的白板已删除' } })
+    assert.deepEqual(await env.block(blockId), { status: 404, body: { reason: 'deleted', error: '这块所在的白板已删除', code: 'board.block_sheet_deleted' } })
   } finally { await env.close() }
 })
 

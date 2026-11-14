@@ -5,14 +5,13 @@
  * [POS]: 新外壳中间分屏的阅读器（取代 S2 的 Files 目录轨，只保留阅读部分）；不列目录、不上传
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+import { errorText, useT } from '../../../i18n/index.ts'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { ArrowDownIcon, CheckIcon, CloseIcon, CollapseIcon, CopyIcon, ExpandIcon, FileGlyph, FileTypeIcon, ICON_MD, OpenOutIcon } from '../../../components/icons'
 import { Markdown } from '../../../components/Markdown'
 import { PdfViewer } from '../../../components/PdfViewer'
 import { HtmlViewer } from '../../../components/HtmlViewer'
-import { MASTRA_COPY as C } from '../../../copy/mastraCopy'
-import { STUDIO_COPY as S } from '../../../copy/studioCopy'
 import type { LumenApi, Identity } from '../../data/client.ts'
 import { workspaceLink, type FileTarget } from '../../data/file-links'
 import { saveWorkspaceFile } from '../../data/download'
@@ -34,6 +33,7 @@ export function saveName(name: string, type: string): string {
 }
 
 function View({ document, page, title }: { document: Loaded; page?: number; title: string }) {
+  const C = useT().chat
   const render = {
     pdf: () => <PdfViewer blob={document.blob} page={page} fit />,
     image: () => <img src={document.url} alt={title} />,
@@ -67,6 +67,7 @@ export function DocumentReader({ api, identity, target, title, live = false, ful
   onClose: () => void
   onNavigate?: (target: FileTarget) => void
 }) {
+  const { chat: C, studio: S } = useT()
   const [document, setDocument] = useState<Loaded | null>(null), [error, setError] = useState('')
   const [copied, setCopied] = useState(false), [saving, setSaving] = useState(false)
   const loaded = useRef<Loaded | null>(null)
@@ -80,7 +81,7 @@ export function DocumentReader({ api, identity, target, title, live = false, ful
       if (pending) return
       pending = true
       try {
-        if (target.scope !== 'library' && !identity) throw new Error('需要先打开一段对话才能读工作区文件')
+        if (target.scope !== 'library' && !identity) throw new Error(S.reader.needSession)
         const previous = loaded.current?.key === key ? loaded.current : null
         const result = await api.fileVersion(identity ?? { topicId: '', taskId: '' }, target.path, target.scope, previous?.etag ?? undefined)
         if (!result.blob || !active) return
@@ -101,7 +102,7 @@ export function DocumentReader({ api, identity, target, title, live = false, ful
   async function copySource() {
     if (!current?.text) return
     try { await navigator.clipboard.writeText(current.text); setCopied(true) }
-    catch { setError('无法复制，请改用下载。') }
+    catch { setError(S.reader.copyFailed) }
   }
   async function openOutside() {
     if (!current) return
@@ -111,7 +112,7 @@ export function DocumentReader({ api, identity, target, title, live = false, ful
       if (isTauri() && target.scope === 'library') await invoke('open_library_item', { itemId: target.path })
       else if (isTauri() && identity) await invoke('open_workspace_file', { ...identity, path: target.path, scope: target.scope })
       else await saveWorkspaceFile(saveName(name, current.blob.type), current.blob)
-    } catch (error) { setError(String(error)) } finally { setSaving(false) }
+    } catch (error) { setError(errorText(error)) } finally { setSaving(false) }
   }
   return <section className="studio-pane studio-reader" aria-label={name}>
     <header className="studio-head reader-head">
@@ -122,7 +123,7 @@ export function DocumentReader({ api, identity, target, title, live = false, ful
         {onToggleFull && <button className="icon-btn reader-action reader-full" aria-label={full ? S.reader.restore : S.reader.full} aria-pressed={full} title={full ? S.reader.restore : S.reader.full} onClick={onToggleFull}>{full ? <CollapseIcon /> : <ExpandIcon />}</button>}
         {current?.text && <button className="icon-btn reader-action" aria-label={copied ? S.reader.copied : S.reader.copy} title={copied ? S.reader.copied : S.reader.copy} onClick={() => void copySource()}>{copied ? <CheckIcon /> : <CopyIcon />}</button>}
         {current && <button className="icon-btn reader-action" disabled={saving} aria-label={S.reader.open} title={S.reader.open} onClick={() => void openOutside()}><OpenOutIcon /></button>}
-        {current && <button className="icon-btn reader-action" disabled={saving} aria-label={C.download} title={C.download} onClick={() => { setSaving(true); void saveWorkspaceFile(saveName(name, current.blob.type), current.blob).catch(error => setError(String(error))).finally(() => setSaving(false)) }}><ArrowDownIcon /></button>}
+        {current && <button className="icon-btn reader-action" disabled={saving} aria-label={C.download} title={C.download} onClick={() => { setSaving(true); void saveWorkspaceFile(saveName(name, current.blob.type), current.blob).catch(error => setError(errorText(error))).finally(() => setSaving(false)) }}><ArrowDownIcon /></button>}
         <button className="icon-btn reader-action" aria-label={S.reader.close} title={S.reader.close} onClick={onClose}><CloseIcon /></button>
       </div>
       {trailing}

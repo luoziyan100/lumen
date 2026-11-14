@@ -28,7 +28,7 @@ export class CaseStore {
   }
   get(resourceId: string, id: string): BadCase {
     const row = this.db.prepare('SELECT * FROM diagnostic_cases WHERE resource_id = ? AND id = ?').get(resourceId, id)
-    if (!row) throw new DiagnosticsError('问题标注不存在', 404)
+    if (!row) throw new DiagnosticsError('问题标注不存在', 404, 'diagnostics.case_not_found')
     return decode(row)
   }
   list(resourceId: string, page: number, perPage: number) {
@@ -50,7 +50,7 @@ export class CaseStore {
   saveEvaluation(item: BadCase, evaluation: EvaluationResult) {
     const result = this.db.prepare('UPDATE diagnostic_cases SET last_evaluation = ? WHERE resource_id = ? AND id = ? AND updated_at = ?')
       .run(JSON.stringify(evaluation), item.resourceId, item.id, item.updatedAt)
-    if (result.changes !== 1) throw new DiagnosticsError('问题标注已编辑，请按新内容重新评估', 409)
+    if (result.changes !== 1) throw new DiagnosticsError('问题标注已编辑，请按新内容重新评估', 409, 'diagnostics.case_edited')
   }
   close() { this.db.close() }
 }

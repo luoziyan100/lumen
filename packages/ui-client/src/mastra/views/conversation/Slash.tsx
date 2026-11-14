@@ -4,6 +4,7 @@
  * [POS]: 技能仅显式加入原会话草稿；迟到激活不覆盖新输入，不提交模型请求
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+import { useT } from '../../../i18n/index.ts'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { ManageSkillsIcon, SkillIcon } from '../../../components/icons'
@@ -13,6 +14,7 @@ import { conversationDraft } from './draft.ts'
 export function useSkillSlash({ api, identity, text, anchor, onManage, prepareSession }: {
   api: LumenApi; identity: Identity; text: string; anchor: RefObject<HTMLFormElement | null>; onManage: () => void; prepareSession?: () => Promise<unknown>
 }) {
+  const { slash: T, chat: C } = useT()
   const store = conversationDraft(identity), filter = /^\/([^\s]*)$/.exec(text)?.[1]
   const [skills, setSkills] = useState<SkillInfo[]>([]), [highlight, setHighlight] = useState(0)
   const [error, setError] = useState(''), [loading, setLoading] = useState(false), [busy, setBusy] = useState(false)
@@ -68,16 +70,16 @@ export function useSkillSlash({ api, identity, text, anchor, onManage, prepareSe
     if (selected && !loading) void pick(selected)
     return true
   }
-  const menu = open && box ? createPortal(<div className="skill-slash-menu glass-card" aria-label="技能快捷选择" aria-busy={loading || busy} style={box}>
-    <div className="skill-slash-hint">输入名称筛选 · ↑↓ 选择 · Enter 使用 · Esc 关闭</div>
+  const menu = open && box ? createPortal(<div className="skill-slash-menu glass-card" aria-label={T.label} aria-busy={loading || busy} style={box}>
+    <div className="skill-slash-hint">{T.hint}</div>
     {error && <p role="alert">{error}</p>}
-    <ul className="skill-slash-list" role="listbox" aria-label="研究技能">
+    <ul className="skill-slash-list" role="listbox" aria-label={C.skills}>
       {rows.map((skill, index) => <li key={`${skill.layer}:${skill.name}`}><button type="button" role="option" aria-selected={index === highlight} disabled={busy} className={`skill-slash-item${index === highlight ? ' is-active' : ''}`} onMouseEnter={() => setHighlight(index)} onClick={() => void pick(skill)}>
         <SkillIcon name={skill.name} /><span className="skill-slash-name">{skill.name}</span><span className="skill-slash-desc">{skill.description}</span>
       </button></li>)}
-      {!rows.length && <li className="skill-slash-empty">{loading ? '正在读取技能…' : '没有匹配的技能'}</li>}
+      {!rows.length && <li className="skill-slash-empty">{loading ? C.readingSkills : T.noMatch}</li>}
     </ul><div className="skill-slash-sep" />
-    <button type="button" className="skill-slash-item skill-slash-manage" onClick={() => { store.setText(''); onManage() }}><ManageSkillsIcon /><span className="skill-slash-name">管理技能</span></button>
+    <button type="button" className="skill-slash-item skill-slash-manage" onClick={() => { store.setText(''); onManage() }}><ManageSkillsIcon /><span className="skill-slash-name">{C.manageSkills}</span></button>
   </div>, document.body) : null
   return { onKeyDown, menu }
 }

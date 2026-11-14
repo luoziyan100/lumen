@@ -4,6 +4,7 @@
  * [POS]: doc/mermaid.md 出图层 R1–R7(原 pipeline AT-A1/A6/A7) + R7 Omarchy 漏括号
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
+import './helpers/zh.ts'
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {

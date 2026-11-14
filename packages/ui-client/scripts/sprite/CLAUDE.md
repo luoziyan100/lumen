@@ -9,6 +9,8 @@
 - `trace/`：仅调试构建编译的原生取证模块，观察主窗原生投影与桌面真实 DOM 状态及跨窗口时延，不改变产品协议。
 - `naming.mjs`：浏览器和原生共用的命名审计，检查变更源码、生产网页与原生可打印字符串。
 
+- Language (i18n): `ui-assert-panels.mjs` and `sprite-move-assert.mjs` take `LOCALE=en|zh` (default zh) and `PORT` (default 5183). The language is seeded before the page loads, and every visible word they click or compare comes from that locale's catalog, so both pass in either language with unchanged conditions. Check names stay Chinese.
+
 运行于仓库根：先编译 Swift 驱动到 `/tmp/lumen-sprite-native`，启动 fixture 和5183，再依次执行原生与浏览器断言，避免受控模型流互相覆盖。输出目录从参数传入，证据不进入产品。
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

@@ -6,7 +6,7 @@
  */
 import { Markdown } from '../../components/Markdown'
 import { WidgetFrame } from '../../components/widget/WidgetFrame'
-import { STUDIO_COPY as S } from '../../copy/studioCopy'
+import { useT } from '../../i18n/index.ts'
 import type { SheetView, TopicMaterial } from '../data/client.ts'
 
 export type Block = SheetView['blocks'][number]
@@ -15,8 +15,9 @@ type Table = { columns: string[]; rows: string[][]; guessCells?: [number, number
 
 /** 断点画在 breakAt 那级和上一级之间：「从这一级往上爬不上去」（原型 .break）。 */
 function LadderView({ value }: { value: Ladder }) {
+  const { studio: S, common: { labelled } } = useT()
   const rungs = [...value.rungs].sort((a, b) => b.level - a.level)
-  return <ol className="ladder" aria-label="理解的梯子">
+  return <ol className="ladder" aria-label={S.board.ladder}>
     {rungs.flatMap((rung, index) => {
       const fog = value.foggedAbove !== undefined && rung.level > value.foggedAbove
       const item = <li key={rung.level} className={`rung${rung.level === value.here ? ' rung-here' : ''}${fog ? ' rung-fog' : ''}`} data-level={rung.level}>
@@ -29,6 +30,7 @@ function LadderView({ value }: { value: Ladder }) {
 }
 
 function TableView({ value }: { value: Table }) {
+  const { studio: S, common: { labelled } } = useT()
   const guess = new Set((value.guessCells ?? []).map(([row, column]) => `${row}:${column}`))
   return <div className="block-table-wrap"><table className="block-table">
     <thead><tr>{value.columns.map((column, index) => <th key={index}>{column}</th>)}</tr></thead>
@@ -48,6 +50,7 @@ export function BlockCard({ block, materials, supersededTitle, widgetActive, onA
   focused: boolean
   drawing: boolean
 }) {
+  const { studio: S, common: { labelled } } = useT()
   const content = block.content as Record<string, unknown>
   const body = block.kind === 'text' ? <div className="block-text"><Markdown>{String(content.markdown ?? '')}</Markdown></div>
     : block.kind === 'ladder' ? <LadderView value={content as unknown as Ladder} />
@@ -57,7 +60,7 @@ export function BlockCard({ block, materials, supersededTitle, widgetActive, onA
   const superseded = block.state === 'superseded'
   return <article id={`block-${block.id}`} data-block={block.id} data-kind={block.kind}
     className={`board-block board-block-${block.kind}${superseded ? ' is-superseded' : ''}${block.state === 'settled' ? ' is-settled' : ''}${focused ? ' is-focused' : ''}${drawing ? ' is-drawing' : ''}`}
-    style={{ left: block.x, top: block.y, width: block.w }} aria-label={`${S.board.by}：${block.title}`}>
+    style={{ left: block.x, top: block.y, width: block.w }} aria-label={labelled(S.board.by, block.title)}>
     {(superseded || block.state === 'settled' || drawing) && <header className="block-head">
       {superseded && <span className="block-state">{supersededTitle ? S.board.supersededBy(supersededTitle) : S.board.superseded}</span>}
       {block.state === 'settled' && <span className="block-state">✓ {S.board.settled}</span>}

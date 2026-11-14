@@ -4,6 +4,7 @@
  * [POS]: 文件预览路由边界，不替代原生阅读器验收
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+import './helpers/zh.ts'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { workspaceLink, writableDocument } from '../src/mastra/data/file-links.ts'

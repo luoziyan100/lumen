@@ -29,7 +29,7 @@ Object.assign(globalThis, {
 register('./helpers/tsx-loader.mjs', import.meta.url)
 const { createRoot } = await import('react-dom/client')
 const { AssistantContent } = await import('../src/components/widget/AssistantContent.tsx')
-const { MERMAID_COPY } = await import('../src/copy/appCopy.ts')
+const MERMAID_COPY = (await import('./helpers/zh.ts')).zh.app
 const { mermaidRenderCacheSize } = await import('../src/components/MermaidBlock.tsx')
 const { markMermaidFixAsked, mermaidFixAsked } = await import('../src/mermaid/mermaidFixLedger.ts')
 

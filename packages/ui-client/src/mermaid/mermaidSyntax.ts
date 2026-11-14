@@ -7,6 +7,7 @@
  */
 
 import { applyHostColors, type MermaidPalette } from './mermaidTheme.ts'
+import { t } from '../i18n/index.ts'
 
 export type DiagramKind =
   | 'flowchart'
@@ -235,31 +236,23 @@ export function repairMermaidSyntax(source: string): SyntaxRepairResult {
   return { source: text, kind, actions }
 }
 
-const TOKEN_HINTS: Array<{ re: RegExp; hint: string }> = [
-  {
-    re: /DIAMOND_START|got 'DIAMOND/i,
-    hint: '标签里的 { 未加引号（路径模板请写成 ID["...{x}"]）',
-  },
-  {
-    re: /Expecting.*STADIUM|got 'STADIUM|PQ|LEXER/i,
-    hint: '引号未配对或标签形状括号不匹配',
-  },
-  {
-    re: /EOF|Expecting 'NEWLINE'|got 'EOF'/i,
-    hint: '可能缺少 end 或围栏/括号未闭合',
-  },
+const TOKEN_HINTS: Array<{ re: RegExp; hint: 'brace' | 'quote' | 'eof' }> = [
+  { re: /DIAMOND_START|got 'DIAMOND/i, hint: 'brace' },
+  { re: /Expecting.*STADIUM|got 'STADIUM|PQ|LEXER/i, hint: 'quote' },
+  { re: /EOF|Expecting 'NEWLINE'|got 'EOF'/i, hint: 'eof' },
 ]
 
 /** R6：短错误摘要 */
 export function summarizeParseError(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error ?? '流程图解析失败')
+  const copy = t().mermaid
+  const raw = error instanceof Error ? error.message : String(error ?? copy.parseFailed)
   const lineMatch = raw.match(/Parse error on line\s*(\d+)/i)
     ?? raw.match(/\bline\s*(\d+)\b/i)
   const line = lineMatch?.[1]
   let hint = ''
   for (const { re, hint: h } of TOKEN_HINTS) {
     if (re.test(raw)) {
-      hint = h
+      hint = copy.hints[h]
       break
     }
   }
@@ -267,7 +260,7 @@ export function summarizeParseError(error: unknown): string {
     const first = raw.split('\n')[0]?.trim() ?? raw
     hint = first.length > 120 ? `${first.slice(0, 117)}…` : first
   }
-  if (line) return `第 ${line} 行附近 · ${hint}`
+  if (line) return copy.near(line, hint)
   return hint
 }
 

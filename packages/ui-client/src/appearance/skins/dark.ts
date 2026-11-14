@@ -10,8 +10,6 @@ import { t } from './define.ts'
 /** 旧默认 Lumen Glass 青瓷（空补丁 = 全基线）；id 保持 'default' 以兼容已保存偏好 */
 export const SKIN_CELADON: SkinDefinition = {
   id: 'default',
-  name: '青瓷暗色',
-  description: '近黑玻璃壳 + 青瓷强调（明暗基线本身）',
   preview: 'linear-gradient(145deg, #0B0C10 0%, #14161C 35%, #1E212A 55%, #6BC49A 100%)',
   accents: ['#6BC49A', '#8AD4B0', '#5EF0D0'],
   preferredScheme: 'dark',
@@ -26,8 +24,6 @@ export const SKIN_CELADON: SkinDefinition = {
  */
 export const SKIN_MIST: SkinDefinition = {
   id: 'mist-forest',
-  name: '雾林深境',
-  description: '整窗冷绿玻璃：侧栏与卡片带松林色偏',
   preview: 'linear-gradient(145deg, #061210 0%, #0f2a22 40%, #1a5c48 70%, #3dcc9a 100%)',
   accents: ['#3dcc9a', '#1a3a30', '#7dffe0'],
   preferredScheme: 'dark',
@@ -88,8 +84,6 @@ export const SKIN_MIST: SkinDefinition = {
 
 export const SKIN_SKY: SkinDefinition = {
   id: 'clear-sky',
-  name: '晴穹蓝构',
-  description: '整窗冷蓝玻璃：侧栏与卡片偏夜空蓝',
   preview: 'linear-gradient(145deg, #060a14 0%, #102038 40%, #1a4a80 70%, #4db0ff 100%)',
   accents: ['#4db0ff', '#162434', '#8ad0ff'],
   preferredScheme: 'dark',
@@ -143,8 +137,6 @@ export const SKIN_SKY: SkinDefinition = {
 
 export const SKIN_CLAY: SkinDefinition = {
   id: 'clay-warm',
-  name: '陶土叠影',
-  description: '整窗暖陶玻璃：侧栏与卡片偏赭石暖调',
   preview: 'linear-gradient(145deg, #140c08 0%, #3a2418 40%, #8a5030 70%, #e8a060 100%)',
   accents: ['#e8a060', '#2c2018', '#ffd0a0'],
   preferredScheme: 'dark',
@@ -199,8 +191,6 @@ export const SKIN_CLAY: SkinDefinition = {
 /** 墨紫夜航：低噪声的紫蓝研究工作台，强调层次而不是高饱和发光。 */
 export const SKIN_PLUM: SkinDefinition = {
   id: 'ink-plum',
-  name: '墨紫夜航',
-  description: '安静的紫蓝玻璃：适合长时间研究与写作',
   preview: 'linear-gradient(145deg, #100D18 0%, #241A38 42%, #49356D 72%, #B493FF 100%)',
   accents: ['#B493FF', '#70A0FF', '#F5C2FF'],
   preferredScheme: 'dark',
@@ -255,8 +245,6 @@ export const SKIN_PLUM: SkinDefinition = {
 /** 玄青海潮：比雾林更冷、更蓝，让大面积画布保持沉静。 */
 export const SKIN_TIDE: SkinDefinition = {
   id: 'deep-tide',
-  name: '玄青海潮',
-  description: '冷静的深海青：清晰、克制、长时间不刺眼',
   preview: 'linear-gradient(145deg, #07151A 0%, #0C303A 42%, #1E6671 72%, #45D6C6 100%)',
   accents: ['#45D6C6', '#4F8CFF', '#B4FFF4'],
   preferredScheme: 'dark',
@@ -311,8 +299,6 @@ export const SKIN_TIDE: SkinDefinition = {
 /** 酒红暮光：最有性格的版本，用莓红和紫光拉开层次。 */
 export const SKIN_WINE: SkinDefinition = {
   id: 'wine-dusk',
-  name: '酒红暮光',
-  description: '带莓红余温的暮色玻璃：更有个性，但仍保持深色对比',
   preview: 'linear-gradient(145deg, #170B12 0%, #3C1D30 42%, #713957 72%, #F08CB6 100%)',
   accents: ['#F08CB6', '#9D7BFF', '#FFD0E5'],
   preferredScheme: 'dark',
@@ -372,8 +358,6 @@ export const SKIN_WINE: SkinDefinition = {
  */
 export const SKIN_COSMIC_LATTE: SkinDefinition = {
   id: 'cosmic-latte',
-  name: '宇宙拿铁',
-  description: '半透明白霜玻璃 · 极低可见度（试样原意）',
   preview: 'linear-gradient(145deg, #0c1018 0%, #1a2230 40%, #3a4558 70%, #a8b0bc 100%)',
   accents: ['#ffffff', '#94a3b8', '#3b82f6'],
   preferredScheme: 'dark',

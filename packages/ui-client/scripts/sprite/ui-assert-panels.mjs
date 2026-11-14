@@ -1,5 +1,6 @@
 /**
  * [INPUT]: 5183 的真实面板与隔离 PDF 材料
+ *          lumen-i18n: PORT overrides 5183; LOCALE=en|zh (default zh) picks the UI language and the catalog the checks read
  * [OUTPUT]: 上一任务全部面板回归，只将形象尺寸断言推广为60×92
  * [POS]: 现有面板合同的回归入口，不修改面板布局要求
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -15,6 +16,11 @@
 // openBoard take `.board-tabs .board-tab > button:first-child` instead of `.board-tabs button`; the conditions are unchanged.
 // 用法：node ui-assert-panels.mjs <evidence-dir> [topicTitle]
 import { chromium } from '/tmp/lumen-s0-pw/node_modules/playwright-core/index.mjs'
+// lumen-i18n: LOCALE=en|zh (default zh, the language these checks were first written in) seeds the UI language before the page loads, and every
+// visible word the checks click or read comes from that language's catalog instead of a Chinese literal; the conditions are unchanged.
+const LOCALE = process.env.LOCALE ?? 'zh'
+const M = (await import(`../../src/i18n/locales/${LOCALE}.ts`))[LOCALE]
+const seedLocale = locale => localStorage.setItem('lumen:locale.v1', JSON.stringify({ version: 1, locale }))
 const exe = process.env.HOME + '/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
 const [out, topicTitle = '自注意力为什么能取代循环'] = process.argv.slice(2)
 const emptyTitle = ''
@@ -158,6 +164,7 @@ for (const [w, h] of sizes) {
   const tag = `${w}×${h}`
   const context = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2 })
   const page = await context.newPage()
+  await page.addInitScript(seedLocale, LOCALE)
   const errors = []; page.on('pageerror', e => errors.push(e.message))
   await page.addInitScript(() => { if (!sessionStorage.getItem('seeded')) { localStorage.removeItem('lumen.studio.sprite'); localStorage.removeItem('lumen.studio.panes'); sessionStorage.setItem('seeded', '1') } })
   await page.goto(`http://localhost:${port}/`)
@@ -173,7 +180,7 @@ for (const [w, h] of sizes) {
   assertLayout(`${tag} 默认`, m); assertCommon(`${tag} 默认`, g)
   check(`${tag} 默认 三栏都在、无展开按钮`, g.topics.w > 0 && g.materials.w > 0 && !g.reopenLeft && !g.reopenRight, '')
   const collapseBtn = await page.evaluate(() => { const b = document.querySelector('.studio-topics .pane-toggle'); return b && { expanded: b.getAttribute('aria-expanded'), title: b.title, label: b.getAttribute('aria-label') } })
-  check(`${tag} K4 主题栏收起按钮 aria/title`, collapseBtn?.expanded === 'true' && collapseBtn.title === '收起主题栏 ⌘B' && collapseBtn.label === '收起主题栏', JSON.stringify(collapseBtn))
+  check(`${tag} K4 主题栏收起按钮 aria/title`, collapseBtn?.expanded === 'true' && collapseBtn.title === `${M.studio.panes.left.collapse} ⌘B` && collapseBtn.label === M.studio.panes.left.collapse, JSON.stringify(collapseBtn))
   await shot('default')
 
   // ---- 左收起（⌘B） ----
@@ -181,7 +188,7 @@ for (const [w, h] of sizes) {
   m = await measure(page); g = await geometry(page)
   assertLayout(`${tag} 左收起`, m); assertCommon(`${tag} 左收起`, g)
   check(`${tag} K1 左栏宽 0`, g.topics.w === 0, JSON.stringify(g.topics))
-  check(`${tag} K1 展开按钮可见、可键盘聚焦，aria-expanded=false，title 带 ⌘B`, g.reopenLeft && g.focusLeft && g.reopenLeftAttrs.expanded === 'false' && g.reopenLeftAttrs.title === '展开主题栏 ⌘B', JSON.stringify(g.reopenLeftAttrs))
+  check(`${tag} K1 展开按钮可见、可键盘聚焦，aria-expanded=false，title 带 ⌘B`, g.reopenLeft && g.focusLeft && g.reopenLeftAttrs.expanded === 'false' && g.reopenLeftAttrs.title === `${M.studio.panes.left.expand} ⌘B`, JSON.stringify(g.reopenLeftAttrs))
   check(`${tag} K5 中栏左缘仍是 8px`, near(g.center.l, 8), `${g.center.l}`)
   check(`${tag} K3 localStorage 记住左收起`, JSON.parse(g.panes).left === true, g.panes)
   await shot('left-collapsed')
@@ -195,7 +202,7 @@ for (const [w, h] of sizes) {
   await page.keyboard.press('Meta+Alt+b'); await settle(page)
   m = await measure(page); g = await geometry(page)
   assertLayout(`${tag} 两侧收起`, m); assertCommon(`${tag} 两侧收起`, g)
-  check(`${tag} K2 右栏宽 0，展开按钮可见可聚焦，title 带 ⌘⌥B`, g.materials.w === 0 && g.reopenRight && g.focusRight && g.reopenRightAttrs.title === '展开素材栏 ⌘⌥B' && g.reopenRightAttrs.expanded === 'false', JSON.stringify(g.reopenRightAttrs))
+  check(`${tag} K2 右栏宽 0，展开按钮可见可聚焦，title 带 ⌘⌥B`, g.materials.w === 0 && g.reopenRight && g.focusRight && g.reopenRightAttrs.title === `${M.studio.panes.right.expand} ⌘⌥B` && g.reopenRightAttrs.expanded === 'false', JSON.stringify(g.reopenRightAttrs))
   check(`${tag} K5 两侧收起后外边距仍 8px`, near(g.center.l, 8) && near(g.center.r, w - 8), `${g.center.l}–${g.center.r}`)
   await shot('both-collapsed')
 
@@ -206,16 +213,16 @@ for (const [w, h] of sizes) {
   m = await measure(page); g = await geometry(page)
   assertLayout(`${tag} 右收起`, m); assertCommon(`${tag} 右收起`, g)
   check(`${tag} K2 只收右：左栏回来、右栏 0、中栏右缘 8px`, g.topics.w > 0 && g.materials.w === 0 && near(g.center.r, w - 8), `${g.center.r}`)
-  check(`${tag} K4 点展开后焦点落到栏内收起按钮`, focusAfter === '收起主题栏', `${focusAfter}`)
+  check(`${tag} K4 点展开后焦点落到栏内收起按钮`, focusAfter === M.studio.panes.left.collapse, `${focusAfter}`)
   await shot('right-collapsed')
   await page.locator('.studio-center .pane-toggle[data-pane="right"]').click(); await settle(page)
 
   // ---- 分屏：从素材打开，PDF 按宽适配 ----
-  if (await page.locator('.studio-reader').count()) await page.locator('.studio-reader button[aria-label="关闭阅读器"]').click()
+  if (await page.locator('.studio-reader').count()) await page.locator(`.studio-reader button[aria-label="${M.studio.reader.close}"]`).click()
   await page.locator('.material-open').filter({ hasText: '1706.03762' }).click(); await pdfReady(page)
   m = await measure(page); g = await geometry(page)
   assertLayout(`${tag} 分屏`, m); assertCommon(`${tag} 分屏`, g)
-  check(`${tag} R-b 头部顺序`, JSON.stringify(g.order) === JSON.stringify(['icon', 'title', '铺满中栏', '用系统打开', '下载', '关闭阅读器']) || JSON.stringify(g.order) === JSON.stringify(['icon', 'title', '铺满中栏', '用系统打开', '保存到本机', '关闭阅读器']), JSON.stringify(g.order))
+  check(`${tag} R-b 头部顺序`, JSON.stringify(g.order) === JSON.stringify(['icon', 'title', M.studio.reader.full, M.studio.reader.open, M.chat.download, M.studio.reader.close]), JSON.stringify(g.order))
   check(`${tag} R-b 标题有 title 全名`, !!g.titleFull, `${g.titleFull} truncated=${g.titleTruncated}`)
   check(`${tag} R-d 白板段 ≥360，阅读器 ≥420 或已先压阅读器`, g.board.w >= 360 - 0.5 && (g.reader.w >= 420 - 0.5 || near(g.board.w, 360)), `board=${g.board.w} reader=${g.reader.w}`)
   check(`${tag} R-e PDF 适配宽度、无横向滚动`, g.pdf && g.pdf.fitting === true && g.pdf.sw <= g.pdf.cw + 1, JSON.stringify(g.pdf))
@@ -242,7 +249,7 @@ for (const [w, h] of sizes) {
   check(`${tag} R-d 双击回到各一半`, JSON.parse(g.panes).ratio === 0.5, g.panes)
 
   // ---- 手动缩放后不再自动适配；「适配宽度」回到适配 ----
-  await page.locator('.studio-reader .pdf-zoom-btn[aria-label="放大"]').click(); await page.waitForTimeout(600)
+  await page.locator(`.studio-reader .pdf-zoom-btn[aria-label="${M.common.zoomIn}"]`).click(); await page.waitForTimeout(600)
   const zoomed = (await geometry(page)).pdf
   await page.keyboard.press('Meta+b'); await page.waitForTimeout(900)
   const kept = (await geometry(page)).pdf
@@ -253,15 +260,15 @@ for (const [w, h] of sizes) {
   check(`${tag} R-e 「适配宽度」回到适配`, g.pdf.fitting === true && g.pdf.sw <= g.pdf.cw + 1 && g.pdf.zoom !== zoomed.zoom, JSON.stringify(g.pdf))
 
   // ---- 铺满：白板隐藏但保持挂载与相机；中栏头部只剩阅读器头；Esc 回分屏 ----
-  await page.locator('.board-zoom button[aria-label="缩小"]').click(); await page.waitForTimeout(300)
+  await page.locator(`.board-zoom button[aria-label="${M.studio.board.zoomOut}"]`).click(); await page.waitForTimeout(300)
   const cameraBefore = (await geometry(page)).camera
-  await page.locator('.studio-reader button[aria-label="铺满中栏"]').click(); await page.waitForTimeout(900)
+  await page.locator(`.studio-reader button[aria-label="${M.studio.reader.full}"]`).click(); await page.waitForTimeout(900)
   m = await measure(page); g = await geometry(page)
   assertLayout(`${tag} 铺满`, m, { board: false }); assertCommon(`${tag} 铺满`, g)
   check(`${tag} R-a 铺满：白板隐藏、仍挂载，阅读器占满中栏，无分段控件`, !g.boardShown && g.boardMounted && near(g.reader.w, g.center.w - 2, 1) && !g.seg, `reader=${g.reader.w} center=${g.center.w} seg=${g.seg}`)
   check(`${tag} R-e 铺满后重新适配、无横向滚动`, g.pdf.fitting === true && g.pdf.sw <= g.pdf.cw + 1, JSON.stringify(g.pdf))
   check(`${tag} R1 铺满：页宽 ≤ min(内宽, 960) 且居中`, g.pdf.pageW <= Math.min(g.pdf.inner, 960) && g.pdf.offCenter <= 1, JSON.stringify(g.pdf))
-  check(`${tag} R-b 铺满后按钮换成还原`, g.order.includes('还原分屏 Esc'), JSON.stringify(g.order))
+  check(`${tag} R-b 铺满后按钮换成还原`, g.order.includes(M.studio.reader.restore), JSON.stringify(g.order))
   await shot('full')
 
   // ---- 铺满 + 两侧收起（沉浸） ----
@@ -276,7 +283,7 @@ for (const [w, h] of sizes) {
   g = await geometry(page)
   check(`${tag} R-c Esc 回到分屏，白板相机不变`, g.boardShown && !!g.reader && g.camera === cameraBefore, `camera ${cameraBefore} → ${g.camera}`)
   await page.keyboard.press('Meta+b'); await page.keyboard.press('Meta+Alt+b'); await settle(page)
-  await page.locator('.studio-reader button[aria-label="关闭阅读器"]').click()
+  await page.locator(`.studio-reader button[aria-label="${M.studio.reader.close}"]`).click()
 
   check(`${tag} 页面无脚本错误`, !errors.length, errors.join('; '))
   await context.close()

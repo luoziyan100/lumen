@@ -8,7 +8,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { AttachIcon, CloseIcon, FileTextIcon, FileTypeIcon, ICON_MD, ICON_SM, SearchIcon } from '../../components/icons'
-import { STUDIO_COPY as S } from '../../copy/studioCopy'
+import { useT } from '../../i18n/index.ts'
 import type { LumenApi, TopicMaterial } from '../data/client.ts'
 import { PaneToggle } from './Panes'
 
@@ -42,6 +42,7 @@ function KindIcon({ item }: { item: TopicMaterial }) {
 }
 
 function Row({ item, active, onOpen, onRemove }: { item: TopicMaterial; active: boolean; onOpen: () => void; onRemove: () => void }) {
+  const { studio: S, common: { labelled } } = useT()
   const link = shortLink(item.sourceUrl)
   return <li className={`material${active ? ' on' : ''}`}>
     <button type="button" className="material-open" onClick={onOpen}>
@@ -49,7 +50,7 @@ function Row({ item, active, onOpen, onRemove }: { item: TopicMaterial; active: 
       <span className="material-text"><span className="material-title" title={item.title}>{item.title}</span>
         {link && <small className="material-link" title={item.sourceUrl ?? undefined}>{link}</small>}</span>
     </button>
-    <button type="button" className="icon-btn material-remove" aria-label={`${S.materials.remove}：${item.title}`} title={S.materials.remove} onClick={onRemove}><CloseIcon /></button>
+    <button type="button" className="icon-btn material-remove" aria-label={labelled(S.materials.remove, item.title)} title={S.materials.remove} onClick={onRemove}><CloseIcon /></button>
   </li>
 }
 
@@ -64,6 +65,7 @@ export function Materials({ api, topicId, items, error: loadError, activeId, col
   onOpen: (item: TopicMaterial) => void
   onChanged: () => void
 }) {
+  const S = useT().studio
   const [query, setQuery] = useState(''), [busy, setBusy] = useState(false), [uploading, setUploading] = useState(false), [error, setError] = useState('')
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => setQuery(''), [topicId])

@@ -28,6 +28,7 @@ import { redactPayload } from './diagnostics/redact.ts'
 import { diagnosticsRoutes } from './http/diagnostics.ts'
 import { researchHttp } from './research/http.ts'
 import { StudioError } from './studio/errors.ts'
+import { errorBody } from './http/error-codes.ts'
 import { studioRoutes } from './studio/routes.ts'
 
 const identity = z.object({ topicId: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/), taskId: z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/) })
@@ -79,7 +80,7 @@ export async function createHttpService(options: ApplicationOptions & { token: s
     const operation = configurationTail.then(async () => {
       reconfiguring = true
       try {
-        if (!isModelSelectionPatch(patch) && (executionRequests > 0 || await application.isBusy())) throw new SettingsError('请先完成或停止正在进行的研究(含侧栏中等待回答的会话)，再修改配置', 409)
+        if (!isModelSelectionPatch(patch) && (executionRequests > 0 || await application.isBusy())) throw new SettingsError('请先完成或停止正在进行的研究(含侧栏中等待回答的会话)，再修改配置', 409, 'settings.busy')
         return await work()
       } finally { reconfiguring = false }
     })
@@ -104,12 +105,12 @@ export async function createHttpService(options: ApplicationOptions & { token: s
   app.use('*', (c, next) => {
     const limitMiB = c.req.path === '/lumen/skills/package' ? 34 : 25
     return bodyLimit({ maxSize: limitMiB * 1024 * 1024,
-      onError: c => c.json({ error: `上传内容超过 ${limitMiB} MiB 请求上限，请缩小文件后重试` }, 413),
+      onError: c => c.json(errorBody(`上传内容超过 ${limitMiB} MiB 请求上限，请缩小文件后重试`, 'upload.too_large', { limit: limitMiB }), 413),
     })(c, next)
   })
   app.use('/api/*', async (c, next) => {
-    if (c.req.method === 'POST' && reconfiguring) return c.json({ error: '配置正在保存，请稍后重试' }, 409)
-    if (c.req.path.endsWith('/messages') && c.req.method === 'POST' && !application.hasModel()) return c.json({ error: '请先在设置中配置模型' }, 409)
+    if (c.req.method === 'POST' && reconfiguring) return c.json(errorBody('配置正在保存，请稍后重试', 'settings.saving'), 409)
+    if (c.req.path.endsWith('/messages') && c.req.method === 'POST' && !application.hasModel()) return c.json(errorBody('请先在设置中配置模型', 'settings.model_missing'), 409)
     if (c.req.method !== 'POST') return next()
     executionRequests++
     try { await next() } finally { executionRequests-- }
@@ -126,7 +127,8 @@ export async function createHttpService(options: ApplicationOptions & { token: s
     return workspace.filesystem
   }
   app.onError((error, c) => {
-    if (error instanceof CatalogError || error instanceof SettingsError || error instanceof DiagnosticsError || error instanceof StudioError) return c.json({ error: error.message }, error.status)
+    if (error instanceof StudioError) return c.json(errorBody(error.message, error.code, error.params, error.detail), error.status)
+    if (error instanceof CatalogError || error instanceof SettingsError || error instanceof DiagnosticsError) return c.json(errorBody(error.message, error.code), error.status)
     const detail = redactPayload({ method: c.req.method, path: c.req.path, name: error.name, message: error.message,
       cause: error.cause instanceof Error ? { name: error.cause.name, message: error.cause.message } : undefined,
     }, [options.token, ...settings.secrets(), ...(options.diagnostics?.secrets?.() ?? [])])
@@ -154,7 +156,7 @@ export async function createHttpService(options: ApplicationOptions & { token: s
   app.route('/lumen', studioRoutes({ studio, http: researchHttp(options.research?.fetch), activity: application.liveSessionStates }))
   app.route('/lumen', specialistRoutes({ history: application.specialistHistory, budget: application.familyBudget, session: bindSession, admit: application.admitRun,
     withExecution: async work => {
-      if (reconfiguring) throw new SettingsError('配置正在保存，请稍后重试', 409)
+      if (reconfiguring) throw new SettingsError('配置正在保存，请稍后重试', 409, 'settings.saving')
       executionRequests++
       try { return await work() } finally { executionRequests-- }
     },
@@ -201,9 +203,9 @@ export async function createHttpService(options: ApplicationOptions & { token: s
     const parsed = fileIdentity.extend({ path: z.string().min(1).max(4096) }).safeParse(c.req.query())
     if (!parsed.success) return c.json({ error: 'Invalid file identity' }, 400)
     const filesystem = await filesFor(parsed.data)
-    if (!(filesystem instanceof LocalFilesystem)) return c.json({ error: '当前文件没有本机位置' }, 400)
+    if (!(filesystem instanceof LocalFilesystem)) return c.json(errorBody('当前文件没有本机位置', 'files.not_local'), 400)
     try { return c.json(await nativeFileLocation(filesystem.basePath, parsed.data.path)) }
-    catch { return c.json({ error: '文件不存在或不在可访问的工作区内' }, 400) }
+    catch { return c.json(errorBody('文件不存在或不在可访问的工作区内', 'files.not_found'), 400) }
   })
   app.get('/lumen/files', async c => {
     const parsed = fileIdentity.safeParse(c.req.query())

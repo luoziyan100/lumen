@@ -4,12 +4,13 @@
  * [POS]: 只展示本地附件，URL 生命周期随 File；图片不进入可执行 HTML
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+import { useT } from '../../../i18n/index.ts'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import { CloseIcon, ICON_SM } from '../../../components/icons'
-import { MASTRA_COPY as C } from '../../../copy/mastraCopy'
 
 function Attachment({ file, onRemove }: { file: File; onRemove: () => void }) {
+  const C = useT().chat
   const [url, setUrl] = useState(''), [expanded, setExpanded] = useState(false)
   const dialog = useRef<HTMLDialogElement>(null)
   useEffect(() => {

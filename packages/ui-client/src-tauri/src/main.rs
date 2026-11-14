@@ -1,9 +1,10 @@
 /**
- * [INPUT]: Tauri 主窗口、透明桌面精灵窗口、外观明暗、窗口标题、文件/完整技能选择、受控系统打开、外链、widget脚本与Mastra服务连接
+ * [INPUT]: Tauri 主窗口、透明桌面精灵窗口、外观明暗、窗口标题、界面语言（locale::set_locale，原生标题随之切换）、文件/完整技能选择、受控系统打开、外链、widget脚本与Mastra服务连接
  * [OUTPUT]: 主窗口原生生命周期与显式命令；桌面能力默认隐藏，位置/菜单代码保留；不持有 Agent 服务进程
  * [POS]: 原生薄壳；研究生命周期归 launchd/Mastra，窗口层只判定显示形态与用户文件动作，桌面精灵不接服务
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+mod locale;
 mod mastra;
 mod files;
 mod skills;
@@ -62,7 +63,7 @@ fn widget_put_script(code: String, store: tauri::State<WidgetScripts>) -> Result
 #[tauri::command]
 fn pick_folder() -> Option<String> {
     rfd::FileDialog::new()
-        .set_title("选择项目源文件夹")
+        .set_title(locale::text(locale::Text::PickFolder))
         .pick_folder()
         .map(|p| p.to_string_lossy().into_owned())
 }
@@ -120,7 +121,7 @@ fn main() {
         .manage(WidgetScripts { map: Mutex::new(HashMap::new()), seq: AtomicU64::new(1) })
         .manage(sprite::Runtime::default())
         .invoke_handler(tauri::generate_handler![
-            pick_folder, open_external_url, widget_put_script, set_window_theme, set_window_title,
+            pick_folder, open_external_url, widget_put_script, set_window_theme, set_window_title, locale::set_locale,
             sprite::sprite_snapshot, sprite::publish_sprite_state,
             #[cfg(debug_assertions)]
             sprite_trace::record_sprite_trace,

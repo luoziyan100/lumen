@@ -6,9 +6,8 @@
  */
 import { useEffect, useState, type FormEvent } from 'react'
 import { GearIcon, PlusIcon } from '../../components/icons'
-import { STUDIO_COPY as S } from '../../copy/studioCopy'
+import { useT } from '../../i18n/index.ts'
 import { PaneToggle } from './Panes'
-import { MASTRA_COPY as C } from '../../copy/mastraCopy'
 import type { LumenApi, Topic } from '../data/client.ts'
 
 export function useTopics(api: LumenApi, signal: number) {
@@ -30,6 +29,7 @@ export function useTopics(api: LumenApi, signal: number) {
 }
 
 export function Light({ topic }: { topic: Pick<Topic, 'running' | 'waiting'> }) {
+  const S = useT().studio
   if (topic.waiting) return <span className="topic-light topic-light-waiting" role="img" aria-label={S.light.waiting} title={S.light.waiting} />
   if (topic.running) return <span className="topic-light topic-light-running" role="img" aria-label={S.light.running} title={S.light.running} />
   return null
@@ -46,6 +46,7 @@ export function TopicPanel({ api, topics, error, selected, collapsed, onToggle, 
   onCreated: (topic: Topic) => void
   onSettings: () => void
 }) {
+  const { studio: S, common: C } = useT()
   const [adding, setAdding] = useState(false), [title, setTitle] = useState(''), [busy, setBusy] = useState(false), [createError, setCreateError] = useState('')
   function close() { setAdding(false); setTitle(''); setCreateError('') }
   async function create(event: FormEvent) {
@@ -67,7 +68,7 @@ export function TopicPanel({ api, topics, error, selected, collapsed, onToggle, 
           onChange={event => setTitle(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') close() }} />
       </form>}
       {(error || createError) && <p className="mw-error studio-note" role="alert">{createError || error}</p>}
-      {topics === null ? !error && <p className="studio-note" role="status">{C.loading}</p> : !topics.length && !adding && <p className="studio-note">{S.noTopics}</p>}
+      {topics === null ? !error && <p className="studio-note" role="status">{C.reading}</p> : !topics.length && !adding && <p className="studio-note">{S.noTopics}</p>}
       <ul className="topics-list">{topics?.map(topic => <li key={topic.id}>
         <button type="button" className={`studio-item topic${topic.id === selected ? ' on' : ''}`} aria-current={topic.id === selected ? 'page' : undefined} onClick={() => onSelect(topic.id)}>
           <span className="topic-title">{topic.title}</span><Light topic={topic} />

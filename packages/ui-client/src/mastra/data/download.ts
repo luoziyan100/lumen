@@ -4,15 +4,16 @@
  * [POS]: 桌面使用系统对话框；浏览器保留标准下载，不向原生层传任意路径或网络地址
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+import { t } from '../../i18n/index.ts'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 
 export async function saveWorkspaceFile(name: string, blob: Blob): Promise<string | null> {
-  if (blob.size > 25 * 1024 * 1024) throw new Error('文件超过 25 MiB，请在工作区中处理后导出。')
+  if (blob.size > 25 * 1024 * 1024) throw new Error(t().data.exportTooLarge)
   if (isTauri()) {
     const encoded = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader()
       reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
-      reader.onerror = () => reject(new Error('无法准备导出文件'))
+      reader.onerror = () => reject(new Error(t().data.exportPrepare))
       reader.readAsDataURL(blob)
     })
     return invoke<string | null>('save_workspace_file', { name, contentBase64: encoded })

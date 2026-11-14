@@ -1,5 +1,6 @@
 /**
  * [INPUT]: 5183 的真实 UI、隔离主题与 Chromium
+ *          lumen-i18n: PORT overrides 5183; LOCALE=en|zh (default zh) picks the UI language and the catalog the checks read
  * [OUTPUT]: M1–M12 新尺寸回归、P9/P10 外观断言、截图与开合帧序列
  * [POS]: 继承上一任务的浏览器合同，只按60×92包围盒调整横纵几何
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -18,6 +19,11 @@ import { execFileSync } from 'node:child_process'
 const exe = process.env.HOME + '/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
 const [out] = process.argv.slice(2)
 const port = process.env.PORT ?? '5183', base = `http://localhost:${port}/`
+// lumen-i18n: LOCALE=en|zh (default zh, the language these checks were first written in) seeds the UI language before the page loads, and every
+// visible word the checks click or read comes from that language's catalog instead of a Chinese literal; the conditions are unchanged.
+const LOCALE = process.env.LOCALE ?? 'zh'
+const M = (await import(`../../src/i18n/locales/${LOCALE}.ts`))[LOCALE]
+const seedLocale = locale => localStorage.setItem('lumen:locale.v1', JSON.stringify({ version: 1, locale }))
 const topicTitle = '自注意力为什么能取代循环'
 const SPRITE_W = 60, SPRITE_H = 92, EDGE = 8, HALF = SPRITE_W / 2, HALF_H = SPRITE_H / 2
 const sizes = [[1440, 900], [1280, 800]]
@@ -102,7 +108,7 @@ async function openSprite(page) {
   return orb
 }
 async function collapseSprite(page) {
-  const button = page.locator('.sprite-floating button[aria-label="收回成球"]')
+  const button = page.locator(`.sprite-floating button[aria-label="${M.studio.sprite.collapse}"]`)
   await button.click()
   await page.waitForSelector('.sprite-orb[data-phase="closed"]', { timeout: 5000 })
   await page.waitForFunction(() => !document.querySelector('.sprite-floating'))
@@ -226,6 +232,7 @@ for (const [w, h] of sizes) {
   const tag = `${w}×${h}`
   const context = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2 })
   await context.addInitScript(initScript, SKINS.clear)
+  await context.addInitScript(seedLocale, LOCALE)
   const page = await context.newPage()
   const errors = []; page.on('pageerror', e => errors.push(e.message))
   const shot = name => page.screenshot({ path: `${out}/${w}-${name}.png` })
@@ -333,7 +340,7 @@ for (const [w, h] of sizes) {
     const open = await sampleRun(page, () => page.mouse.click(orbBox.x + HALF, orbBox.y + HALF_H))
     motion[`${skin}-open`] = assertMotion(`${tag} ${skin} M6 打开`, open, 'open', orbBox)
     await page.waitForTimeout(300)
-    const button = await page.locator('.sprite-floating button[aria-label="收回成球"]').boundingBox()
+    const button = await page.locator(`.sprite-floating button[aria-label="${M.studio.sprite.collapse}"]`).boundingBox()
     const close = await sampleRun(page, () => page.mouse.click(button.x + button.width / 2, button.y + button.height / 2))
     motion[`${skin}-close`] = assertMotion(`${tag} ${skin} M7 收起`, close, 'close', orbBox)
     const after = await orbState(page)
@@ -342,7 +349,7 @@ for (const [w, h] of sizes) {
     await page.waitForTimeout(300)
     const openFrames = await frameSequence(page, 'open', `${w}-${skin}-open`, () => page.mouse.click(orbBox.x + HALF, orbBox.y + HALF_H))
     await page.waitForTimeout(300)
-    const btn = await page.locator('.sprite-floating button[aria-label="收回成球"]').boundingBox()
+    const btn = await page.locator(`.sprite-floating button[aria-label="${M.studio.sprite.collapse}"]`).boundingBox()
     const closeFrames = await frameSequence(page, 'close', `${w}-${skin}-close`, () => page.mouse.click(btn.x + btn.width / 2, btn.y + btn.height / 2))
     check(`${tag} ${skin} 帧序列：打开 ${openFrames} 帧、收起 ${closeFrames} 帧（每 16ms 一帧，${w}-${skin}-open.gif / -close.gif）`, openFrames >= 12 && closeFrames >= 12, '')
   }
@@ -362,7 +369,7 @@ for (const [w, h] of sizes) {
     const run = await sampleRun(page, async () => {
       await page.mouse.click(orbBox.x + HALF, orbBox.y + HALF_H)
       await page.waitForTimeout(110)
-      const button = await page.locator('.sprite-floating button[aria-label="收回成球"]').boundingBox()
+      const button = await page.locator(`.sprite-floating button[aria-label="${M.studio.sprite.collapse}"]`).boundingBox()
       await page.mouse.click(button.x + button.width / 2, button.y + button.height / 2)
       await page.waitForTimeout(70)
       await page.mouse.click(orbBox.x + HALF, orbBox.y + HALF_H)
@@ -383,7 +390,7 @@ for (const [w, h] of sizes) {
   }
 
   // ---- 层级：设置弹窗、下拉菜单、外链确认框盖住头像 ----
-  const openSettings = async () => { await page.locator('.studio-topics .studio-item', { hasText: '设置' }).click(); await page.waitForSelector('[role="dialog"]'); await page.waitForTimeout(400) }
+  const openSettings = async () => { await page.locator('.studio-topics .studio-item', { hasText: M.studio.settings }).click(); await page.waitForSelector('[role="dialog"]'); await page.waitForTimeout(400) }
   const closeAll = async () => { for (let i = 0; i < 3 && await page.locator('[role="dialog"]').count(); i++) { await page.keyboard.press('Escape'); await page.waitForTimeout(300) } }
   await openSettings()
   const dialogBox = await page.locator('[role="dialog"]').first().boundingBox()
@@ -395,14 +402,14 @@ for (const [w, h] of sizes) {
   check(`${tag} M9 设置弹窗盖住头像`, !stack.topInOrb && stack.topDialog, JSON.stringify(stack))
   await shot('layer-settings')
   // 下拉菜单：设置里「添加模型」→「接口协议」下拉
-  await page.locator('[role="dialog"] button', { hasText: '添加模型' }).click(); await page.waitForTimeout(300)
+  await page.locator('[role="dialog"] button', { hasText: M.settings.addModel }).click(); await page.waitForTimeout(300)
   await page.locator('[role="dialog"] [role="combobox"]').first().click(); await page.waitForSelector('[role="listbox"]'); await page.waitForTimeout(300)
   const listBox = await page.locator('[role="listbox"]').boundingBox()
   await closeAll()
   await dragOrb(page, Math.round(listBox.x + listBox.width / 2), Math.round(listBox.y + listBox.height / 2))
   orbNow = (await orbState(page)).orb
   await openSettings()
-  await page.locator('[role="dialog"] button', { hasText: '添加模型' }).click(); await page.waitForTimeout(300)
+  await page.locator('[role="dialog"] button', { hasText: M.settings.addModel }).click(); await page.waitForTimeout(300)
   await page.locator('[role="dialog"] [role="combobox"]').first().click(); await page.waitForSelector('[role="listbox"]'); await page.waitForTimeout(300)
   stack = await stackAt(page, orbNow.x + HALF, orbNow.y + HALF_H)
   check(`${tag} M9 下拉菜单盖住头像`, !stack.topInOrb && stack.topListbox && stack.orbIndex > 0, JSON.stringify(stack))
@@ -420,20 +427,20 @@ for (const [w, h] of sizes) {
   check(`${tag} M9 外链确认框盖住浮窗（与头像同一层级 token）`, !stack.top?.includes('sprite') && await page.evaluate(([x, y]) => !document.elementFromPoint(x, y)?.closest('.sprite-floating'), [winNow.l + winNow.w / 2, winNow.t + 30]), JSON.stringify(stack))
   await shot('layer-confirm-window')
   // 确认框是模态的，只能用 DOM click 收起精灵（真实鼠标会被模态挡住），再看确认框与头像的叠放
-  await page.evaluate(() => document.querySelector('.sprite-floating button[aria-label="收回成球"]').click())
+  await page.evaluate(label => document.querySelector(`.sprite-floating button[aria-label="${label}"]`).click(), M.studio.sprite.collapse)
   await page.waitForSelector('.sprite-orb[data-phase="closed"]'); await page.waitForTimeout(300)
   orbNow = (await orbState(page)).orb
   stack = await stackAt(page, orbNow.x + HALF, orbNow.y + HALF_H)
   check(`${tag} M9 外链确认框盖住头像`, await page.locator('.ext-link-modal').count() === 1 && !stack.topInOrb && stack.topDialog, JSON.stringify(stack))
   await shot('layer-confirm')
-  await page.locator('.ext-link-modal button', { hasText: '取消' }).click().catch(() => page.keyboard.press('Escape'))
+  await page.locator('.ext-link-modal button', { hasText: M.common.cancel }).click().catch(() => page.keyboard.press('Escape'))
   await page.waitForTimeout(300)
   check(`${tag} 外链确认框已取消、未打开外部链接`, !(await page.locator('.ext-link-modal').count()) && context.pages().length === 1, `pages=${context.pages().length}`)
 
   // ---- 沉浸阅读：头像盖在阅读器上 ----
   await page.locator('.material-open').filter({ hasText: '1706.03762' }).click()
   await page.waitForSelector('.studio-reader .pdf-page', { timeout: 15000 }); await page.waitForTimeout(1200)
-  await page.locator('.studio-reader button[aria-label="铺满中栏"]').click(); await page.waitForTimeout(500)
+  await page.locator(`.studio-reader button[aria-label="${M.studio.reader.full}"]`).click(); await page.waitForTimeout(500)
   await page.keyboard.press('Meta+b'); await page.keyboard.press('Meta+Alt+b'); await page.waitForTimeout(900)
   await dragOrb(page, Math.round(w * 0.62), Math.round(h * 0.45))
   orbNow = (await orbState(page)).orb
@@ -447,20 +454,20 @@ for (const [w, h] of sizes) {
   await collapseSprite(page)
   await page.keyboard.press('Escape'); await page.waitForTimeout(600)
   await page.keyboard.press('Meta+b'); await page.keyboard.press('Meta+Alt+b'); await page.waitForTimeout(500)
-  await page.locator('.studio-reader button[aria-label="关闭阅读器"]').click(); await page.waitForTimeout(400)
+  await page.locator(`.studio-reader button[aria-label="${M.studio.reader.close}"]`).click(); await page.waitForTimeout(400)
 
   // ---- 停靠 / 取消停靠 ----
   await dragOrb(page, 200, Math.round(h * 0.7))
   const anchorBefore = (await orbState(page)).orb
   await openSprite(page)
-  await page.locator('.sprite-floating button[aria-label="停靠到右侧"]').click(); await page.waitForTimeout(500)
+  await page.locator(`.sprite-floating button[aria-label="${M.studio.sprite.dock}"]`).click(); await page.waitForTimeout(500)
   let dock = await page.evaluate(() => ({ docked: !!document.querySelector('.sprite-docked'), floating: !!document.querySelector('.sprite-floating'), orbs: document.querySelectorAll('.sprite-orb').length, rightEdge: document.querySelector('.sprite-docked')?.getBoundingClientRect().right }))
   check(`${tag} M10 停靠：占右侧一栏、不显示头像、没有浮窗`, dock.docked && !dock.floating && dock.orbs === 0 && near(dock.rightEdge, w - 8), JSON.stringify(dock))
   await shot('docked')
   await page.reload(); await ready({ orb: false })
   dock = await page.evaluate(() => ({ docked: !!document.querySelector('.sprite-docked'), orbs: document.querySelectorAll('.sprite-orb').length }))
   check(`${tag} M10 停靠刷新后仍停靠、仍无头像`, dock.docked && dock.orbs === 0, JSON.stringify(dock))
-  await page.locator('.sprite-docked button[aria-label="恢复浮动"]').click(); await page.waitForTimeout(500)
+  await page.locator(`.sprite-docked button[aria-label="${M.studio.sprite.float}"]`).click(); await page.waitForTimeout(500)
   const undocked = await winBox(page), stored = (await orbState(page)).stored, want = expectedOrb(stored, w, h)
   check(`${tag} M10 取消停靠：浮窗出现在锚点旁（贴着锚点头像那一角）`, !!undocked && undocked.phase === 'open' && attached(undocked, want, w, h).ok && near(want.x, anchorBefore.x) && near(want.y, anchorBefore.y), JSON.stringify({ undocked, want }))
   await shot('undocked')
@@ -483,14 +490,15 @@ for (const [w, h] of sizes) {
 
   check(`${tag} 页面无脚本错误`, !errors.length, errors.join('; '))
   await openSettings()
-  await page.getByRole('button', { name: '外观', exact: true }).click()
-  check(`${tag} H1 外观页不提供桌面精灵入口`, await page.getByText('收起窗口时在桌面显示精灵', { exact: true }).count() === 0, '')
+  await page.getByRole('button', { name: M.settings.tabs.preference, exact: true }).click()
+  check(`${tag} H1 外观页不提供桌面精灵入口`, await page.getByText(M.appearance.desktopSpriteHint, { exact: true }).count() === 0, '')
   await closeAll()
   await context.close()
 
   // ---- 减弱动效：只淡 120ms，拖动照常 ----
   const reduced = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1, reducedMotion: 'reduce' })
   await reduced.addInitScript(initScript, SKINS.clear)
+  await reduced.addInitScript(seedLocale, LOCALE)
   const rpage = await reduced.newPage()
   const rerrors = []; rpage.on('pageerror', e => rerrors.push(e.message))
   await rpage.goto(base)
@@ -501,7 +509,7 @@ for (const [w, h] of sizes) {
   const ropen = await sampleRun(rpage, () => rpage.mouse.click(rorb.x + HALF, rorb.y + HALF_H), 500)
   assertMotion(`${tag} reduced M11 打开`, ropen, 'open', rorb, { reduced: true })
   await rpage.waitForTimeout(200)
-  const rbtn = await rpage.locator('.sprite-floating button[aria-label="收回成球"]').boundingBox()
+  const rbtn = await rpage.locator(`.sprite-floating button[aria-label="${M.studio.sprite.collapse}"]`).boundingBox()
   const rclose = await sampleRun(rpage, () => rpage.mouse.click(rbtn.x + rbtn.width / 2, rbtn.y + rbtn.height / 2), 500)
   assertMotion(`${tag} reduced M11 收起`, rclose, 'close', rorb, { reduced: true })
   check(`${tag} 减弱动效页面无脚本错误`, !rerrors.length, rerrors.join('; '))
@@ -510,6 +518,7 @@ for (const [w, h] of sizes) {
   // ---- 复核 R1：拖动以真实 pointercancel 结束后 Enter 照常打开；鼠标拖完紧随的 click 被吞、随后 Enter 照常打开 ----
   const touch = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1, hasTouch: true })
   await touch.addInitScript(initScript, SKINS.clear)
+  await touch.addInitScript(seedLocale, LOCALE)
   const tpage = await touch.newPage()
   const terrors = []; tpage.on('pageerror', e => terrors.push(e.message))
   await tpage.goto(base); await readyOn(tpage)
@@ -546,6 +555,7 @@ for (const [w, h] of sizes) {
   // ---- 录像：拖动、打开、收起（CDP screencast，实时） ----
   const rec = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 })
   await rec.addInitScript(initScript, SKINS.clear)
+  await rec.addInitScript(seedLocale, LOCALE)
   const vpage = await rec.newPage()
   await vpage.goto(base)
   await readyOn(vpage)
@@ -554,7 +564,7 @@ for (const [w, h] of sizes) {
   for (let i = 0; i < 2; i++) {
     const o = (await orbState(vpage)).orb
     await vpage.mouse.click(o.x + HALF, o.y + HALF_H); await vpage.waitForTimeout(900)
-    const b = await vpage.locator('.sprite-floating button[aria-label="收回成球"]').boundingBox()
+    const b = await vpage.locator(`.sprite-floating button[aria-label="${M.studio.sprite.collapse}"]`).boundingBox()
     await vpage.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await vpage.waitForTimeout(900)
   }
   await vpage.evaluate(value => localStorage.setItem('lumen:appearance.v2', value), JSON.stringify(SKINS.dark)); await vpage.reload()
@@ -562,7 +572,7 @@ for (const [w, h] of sizes) {
   {
     const o = (await orbState(vpage)).orb
     await vpage.mouse.click(o.x + HALF, o.y + HALF_H); await vpage.waitForTimeout(900)
-    const b = await vpage.locator('.sprite-floating button[aria-label="收回成球"]').boundingBox()
+    const b = await vpage.locator(`.sprite-floating button[aria-label="${M.studio.sprite.collapse}"]`).boundingBox()
     await vpage.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await vpage.waitForTimeout(900)
   }
   const recorded = await stopRecording(`${w}-drag-open-close.mp4`)

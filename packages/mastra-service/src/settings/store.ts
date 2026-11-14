@@ -19,10 +19,10 @@ async function load(file: string): Promise<StoredSettings | undefined> {
   try { content = await readFile(file, 'utf8') }
   catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
-    throw new SettingsError('Could not read settings', 500)
+    throw new SettingsError('Could not read settings', 500, 'settings.read_failed')
   }
   try { return parseStored(JSON.parse(content)) }
-  catch { throw new SettingsError('Invalid settings document') }
+  catch { throw new SettingsError('Invalid settings document', 400, 'settings.invalid_document') }
 }
 
 async function save(file: string, data: StoredSettings): Promise<void> {
@@ -32,19 +32,19 @@ async function save(file: string, data: StoredSettings): Promise<void> {
     try { await handle.writeFile(`${JSON.stringify(data, null, 2)}\n`); await handle.sync() }
     finally { await handle.close() }
     await rename(temporary, file)
-  } catch { throw new SettingsError('Could not save settings', 500) }
+  } catch { throw new SettingsError('Could not save settings', 500, 'settings.save_failed') }
   finally { await rm(temporary, { force: true }).catch(() => {}) }
 }
 
 async function legacyInput(source: LegacySettingsSource): Promise<unknown> {
   if ('data' in source) return source.data
-  if (!isAbsolute(source.path)) throw new SettingsError('Settings import requires an absolute path')
+  if (!isAbsolute(source.path)) throw new SettingsError('Settings import requires an absolute path', 400, 'settings.import_path')
   try { return JSON.parse(await readFile(source.path, 'utf8')) }
-  catch { throw new SettingsError('Could not read legacy settings') }
+  catch { throw new SettingsError('Could not read legacy settings', 400, 'settings.legacy_read_failed') }
 }
 
 export async function openSettingsStore({ dataRoot }: { dataRoot: string }) {
-  if (!isAbsolute(dataRoot)) throw new SettingsError('Settings data root must be absolute')
+  if (!isAbsolute(dataRoot)) throw new SettingsError('Settings data root must be absolute', 400, 'settings.data_root')
   await mkdir(dataRoot, { recursive: true, mode: 0o700 })
   const file = join(dataRoot, 'settings.json')
   const loaded = await load(file)
@@ -54,7 +54,7 @@ export async function openSettingsStore({ dataRoot }: { dataRoot: string }) {
   let closing = false
 
   function change<T>(work: () => Promise<T>): Promise<T> {
-    if (closing) return Promise.reject(new SettingsError('Settings store is closed', 409))
+    if (closing) return Promise.reject(new SettingsError('Settings store is closed', 409, 'settings.closed'))
     const result = pending.then(work)
     pending = result.then(() => {}, () => {})
     return result
@@ -79,7 +79,7 @@ export async function openSettingsStore({ dataRoot }: { dataRoot: string }) {
     },
     importLegacy(source: LegacySettingsSource) {
       return change(async () => {
-        if (initialized) throw new SettingsError('Settings already initialized', 409)
+        if (initialized) throw new SettingsError('Settings already initialized', 409, 'settings.already_initialized')
         return commit(importDocument(await legacyInput(source)))
       })
     },

@@ -158,7 +158,7 @@ export async function createApplication(options: ApplicationOptions) {
   }
   const currentModel = ({ requestContext }: { requestContext?: RequestContext } = {}) => {
     const model = sessionModelId(requestContext)
-    if (!model) throw new SettingsError('请先在设置中配置模型', 409)
+    if (!model) throw new SettingsError('请先在设置中配置模型', 409, 'settings.model_missing')
     return model
   }
   const familyBudget = createFamilyBudget({ storage, limits: options.researchBudget ?? (() => ({})),
@@ -178,7 +178,7 @@ export async function createApplication(options: ApplicationOptions) {
     secrets: () => [modelSettings?.apiKey, options.research?.openAlexKey, options.research?.tavilyKey, ...(options.diagnostics?.secrets?.() ?? [])].filter((value): value is string => !!value),
     authorize: async resourceId => {
       const thread = await memory.getThreadById({ threadId: resourceId })
-      if (!thread || thread.resourceId !== resourceId) throw new DiagnosticsError('会话不存在', 404)
+      if (!thread || thread.resourceId !== resourceId) throw new DiagnosticsError('会话不存在', 404, 'diagnostics.session_not_found')
       return { resourceId, threadId: thread.id }
     },
   })
@@ -396,7 +396,7 @@ export async function createApplication(options: ApplicationOptions) {
     return null
   }
   function busy(holder: string) {
-    return new StudioError(`这个主题里另一段对话（${holder.split(':')[1]}）还在进行或在等用户回应；一个主题同一时刻只跑一段对话，先等它结束或把它停下`, 409)
+    return new StudioError(`这个主题里另一段对话（${holder.split(':')[1]}）还在进行或在等用户回应；一个主题同一时刻只跑一段对话，先等它结束或把它停下`, 409, 'topic.busy', { taskId: holder.split(':')[1] ?? '' })
   }
   /** 新开对话前检查；只检查不预留，真正开跑时由 admitRun 裁决。 */
   async function assertTopicIdle(topic: string, task?: string) {

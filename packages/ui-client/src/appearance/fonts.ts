@@ -20,9 +20,9 @@ export const LATIN_FONTS: readonly ReadingFontOption[] = [
 
 /** 中文：文楷为设计系统默认；宋体、苹方为 macOS 系统字体，无需下载 */
 export const CJK_FONTS: readonly ReadingFontOption[] = [
-  { id: 'wenkai', name: '霞鹜文楷', family: "'LXGW WenKai', 'Kaiti SC', STKaiti, Kaiti" },
-  { id: 'song', name: '宋体', family: "'Songti SC', STSong, 'Noto Serif SC'" },
-  { id: 'hei', name: '苹方', family: "'PingFang SC', 'Noto Sans SC'" },
+  { id: 'wenkai', name: 'LXGW WenKai', family: "'LXGW WenKai', 'Kaiti SC', STKaiti, Kaiti" },
+  { id: 'song', name: 'Songti', family: "'Songti SC', STSong, 'Noto Serif SC'" },
+  { id: 'hei', name: 'PingFang', family: "'PingFang SC', 'Noto Sans SC'" },
 ]
 
 export const DEFAULT_LATIN_FONT = LATIN_FONTS[0]!.id

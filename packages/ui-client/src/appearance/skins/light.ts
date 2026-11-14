@@ -28,8 +28,6 @@ export const CLEAR_SOFT_BLUE_DARK = {
 /** 清透(默认)：近白实色内容面、半透明侧栏/标题栏(桌面端透出系统毛玻璃)、单一淡蓝强调；暗色为中性深灰对应版 */
 export const SKIN_CLEAR: SkinDefinition = {
   id: 'yan-clear',
-  name: '清透',
-  description: '近白内容面 + 透明侧栏，单一淡蓝强调；暗色为中性深灰',
   preview: 'linear-gradient(145deg, #F4F5F7 0%, #F4F5F7 34%, #FEFEFE 34%, #FEFEFE 100%)',
   accents: ['#FEFEFE', '#93ABD9', '#2B2D31'],
   preferredScheme: 'light',
@@ -43,8 +41,6 @@ export const SKIN_CLEAR: SkinDefinition = {
 /** 冰川玻璃：明亮银灰底透过低不透明度白玻璃，文字与控件保持实色边界。 */
 export const SKIN_GLACIER: SkinDefinition = {
   id: 'glacier-glass',
-  name: '冰川液体玻璃',
-  description: '明亮银灰与透明白玻璃：干净、轻盈的研究工作台',
   preview: 'linear-gradient(145deg, #F6F9FC 0%, #E8EEF4 42%, #CFDCE9 74%, #A7BFDA 100%)',
   accents: ['#FFFFFF', '#345B84', '#BCD4D1'],
   preferredScheme: 'light',
@@ -122,8 +118,6 @@ export const SKIN_GLACIER: SkinDefinition = {
 /** 暖白纸面：实体纸张承载编辑，关闭玻璃折光与彩色光晕，以层级和细线分区。 */
 export const SKIN_PAPER: SkinDefinition = {
   id: 'warm-paper',
-  name: '暖白纸面',
-  description: '实体暖白与深墨：安静、清晰的编辑工作台',
   preview: 'linear-gradient(145deg, #FFFDFA 0%, #F8F5EE 42%, #F3EFE7 74%, #DED6C8 100%)',
   accents: ['#FFFDFA', '#416458', '#C7BCAB'],
   preferredScheme: 'light',
@@ -208,8 +202,6 @@ export const SKIN_PAPER: SkinDefinition = {
 /** 海盐玻璃：浅青空气层透过白玻璃，较冰川更有水感，仍以深色正文和实色控件锚定。 */
 export const SKIN_SEA_SALT: SkinDefinition = {
   id: 'sea-salt',
-  name: '海盐浅青玻璃',
-  description: '浅青光层与透明白玻璃：柔和、通透的海盐工作台',
   preview: 'linear-gradient(145deg, #F7FEFF 0%, #E2F0F3 42%, #C7E3E9 74%, #9ED5DA 100%)',
   accents: ['#FFFFFF', '#176778', '#A9C7E7'],
   preferredScheme: 'light',

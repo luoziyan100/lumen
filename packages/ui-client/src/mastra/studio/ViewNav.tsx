@@ -1,5 +1,5 @@
 /**
- * [INPUT]: STUDIO_COPY.views 的视图名与是否开放、icons 的五个视图图标（16，currentColor）
+ * [INPUT]: i18n studio.views 的视图名、本文件的 VIEWS/VIEW_AVAILABLE（哪几个视图已开放）、icons 的五个视图图标（16，currentColor）
  * [OUTPUT]: ViewNav：中栏头部的主导航（白板 · 沉淀 · 概念图 · 灵感 · 全部），图标在左、文字在右；放不下时只留图标（aria-label 恒在，紧凑时加 title）；
  *           navFits：按中线居中、两侧给展开按钮让出同样宽度时完整导航放不放得下
  * [POS]: StudioApp 中栏头部的一部分；完整宽度由一份不可见的同款导航量出（同一头部、同一套样式），所以切换紧凑不会来回抖
@@ -8,10 +8,12 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { Icon } from '@phosphor-icons/react'
 import { AllViewIcon, BoardViewIcon, IdeasViewIcon, MapViewIcon, SettledViewIcon } from '../../components/icons'
-import { STUDIO_COPY as S } from '../../copy/studioCopy'
+import { useT } from '../../i18n/index.ts'
 
-export type View = keyof typeof S.views
-export const VIEWS = Object.keys(S.views) as View[]
+export const VIEWS = ['board', 'settled', 'map', 'ideas', 'all'] as const
+export type View = typeof VIEWS[number]
+/** P0 opens only the board; the rest are honest placeholders */
+export const VIEW_AVAILABLE: Record<View, boolean> = { board: true, settled: false, map: false, ideas: false, all: false }
 export const VIEW_ICONS: Record<View, Icon> = { board: BoardViewIcon, settled: SettledViewIcon, map: MapViewIcon, ideas: IdeasViewIcon, all: AllViewIcon }
 /** 导航与两侧按钮之间至少留的空 */
 const BREATH = 8
@@ -31,8 +33,9 @@ function edgeReserve(head: HTMLElement) {
 }
 
 function Tabs({ view, onView, compact, ghost }: { view: View; onView?: (view: View) => void; compact?: boolean; ghost?: boolean }) {
+  const S = useT().studio
   return VIEWS.map(key => {
-    const Glyph = VIEW_ICONS[key], { label, available } = S.views[key]
+    const Glyph = VIEW_ICONS[key], label = S.views[key], available = VIEW_AVAILABLE[key]
     return <button type="button" key={key} {...(ghost ? { tabIndex: -1 } : { role: 'tab', 'aria-selected': view === key, 'aria-label': label })} title={compact ? label : undefined}
       className={view === key ? 'on' : undefined} data-available={available} onClick={ghost ? undefined : () => onView?.(key)}>
       <Glyph />{!compact && <span>{label}</span>}
@@ -43,6 +46,7 @@ function Tabs({ view, onView, compact, ghost }: { view: View; onView?: (view: Vi
 export function ViewNav({ view, onView }: { view: View; onView: (view: View) => void }) {
   const nav = useRef<HTMLElement>(null), ghost = useRef<HTMLDivElement>(null)
   const [compact, setCompact] = useState(false)
+  const S = useT().studio
   useLayoutEffect(() => {
     const head = nav.current?.parentElement, full = ghost.current
     if (!head || !full) return
@@ -54,7 +58,7 @@ export function ViewNav({ view, onView }: { view: View; onView: (view: View) => 
     return () => { resize.disconnect(); mutate.disconnect() }
   }, [])
   return <>
-    <nav ref={nav} className={`studio-seg studio-views${compact ? ' is-compact' : ''}`} role="tablist" aria-label="视图"><Tabs view={view} onView={onView} compact={compact} /></nav>
+    <nav ref={nav} className={`studio-seg studio-views${compact ? ' is-compact' : ''}`} role="tablist" aria-label={S.viewsNav}><Tabs view={view} onView={onView} compact={compact} /></nav>
     <div ref={ghost} className="studio-seg studio-views studio-views-ghost" aria-hidden inert><Tabs view={view} ghost /></div>
   </>
 }

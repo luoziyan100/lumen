@@ -64,7 +64,7 @@ export class BoardStore {
 
   sheet(sheetId: string): Sheet {
     const row = this.db.prepare(`SELECT ${SHEET_COLUMNS} FROM sheets s WHERE s.id = ?`).get(sheetId)
-    if (!row) throw new StudioError('没有这张白板', 404)
+    if (!row) throw new StudioError('没有这张白板', 404, 'board.sheet_not_found')
     return sheet(row)
   }
 
@@ -95,12 +95,12 @@ export class BoardStore {
   deleteSheet(topicId: string, sheetId: string, guard: { confirmed: boolean; busy: ReadonlySet<string>; since: string }): { deleted: string; selected: string | null } {
     return transaction(this.db, () => {
       const target = this.sheet(sheetId)
-      if (target.topicId !== topicId) throw new StudioError('没有这张白板', 404)
+      if (target.topicId !== topicId) throw new StudioError('没有这张白板', 404, 'board.sheet_not_found')
       const held = this.db.prepare('SELECT thread_id, created_at FROM run_targets WHERE sheet_id = ?').all(sheetId)
         .some(row => guard.busy.has(String(row.thread_id)) || String(row.created_at) >= guard.since)
-      if (held) throw new StudioError(`白板「${target.title}」正被 AI 这一轮写着，不能删；等这一轮结束或把它停下再删。`, 409, { reason: 'target' })
+      if (held) throw new StudioError(`白板「${target.title}」正被 AI 这一轮写着，不能删；等这一轮结束或把它停下再删。`, 409, 'board.sheet_in_use', { title: target.title }, { reason: 'target' })
       const blocks = Number(this.db.prepare('SELECT COUNT(*) AS n FROM blocks WHERE sheet_id = ?').get(sheetId)!.n)
-      if (blocks && !guard.confirmed) throw new StudioError(`白板「${target.title}」上有 ${blocks} 块内容，删除要先确认，删了不能恢复。`, 409, { reason: 'confirm', blocks })
+      if (blocks && !guard.confirmed) throw new StudioError(`白板「${target.title}」上有 ${blocks} 块内容，删除要先确认，删了不能恢复。`, 409, 'board.confirm_delete', { title: target.title, blocks }, { reason: 'confirm', blocks })
       // ---- the sheet the next message would write to is going away: move to the next sheet by ord, else the previous one, else none ----
       const selected = this.selectedSheet(topicId)?.id === sheetId
       const neighbour = this.db.prepare('SELECT id FROM sheets WHERE topic_id = ? AND ord > ? ORDER BY ord LIMIT 1').get(topicId, target.ord)
@@ -118,7 +118,7 @@ export class BoardStore {
   /** Where a block lives, for conversation cards (R17: a card whose sheet was deleted says so). */
   blockSheet(blockId: string): { blockId: string; sheetId: string; topicId: string } {
     const row = this.db.prepare('SELECT b.sheet_id, s.topic_id FROM blocks b JOIN sheets s ON s.id = b.sheet_id WHERE b.id = ?').get(blockId)
-    if (!row) throw new StudioError('这块所在的白板已删除', 404, { reason: 'deleted' })
+    if (!row) throw new StudioError('这块所在的白板已删除', 404, 'board.block_sheet_deleted', undefined, { reason: 'deleted' })
     return { blockId, sheetId: String(row.sheet_id), topicId: String(row.topic_id) }
   }
 
@@ -130,7 +130,7 @@ export class BoardStore {
   /** The newest live sheet: the target for clients that never sent a selection (B3), and the old `writable` field. */
   writableSheet(topicId: string): Sheet {
     const row = this.db.prepare(`SELECT ${SHEET_COLUMNS} FROM sheets s WHERE s.topic_id = ? AND s.state = 'live' ORDER BY s.ord DESC LIMIT 1`).get(topicId)
-    if (!row) throw new StudioError('这个主题现在没有进行中的白板；请用户点 ＋ 新开一张', 409)
+    if (!row) throw new StudioError('这个主题现在没有进行中的白板；请用户点 ＋ 新开一张', 409, 'board.no_live_sheet')
     return sheet(row)
   }
 
@@ -144,7 +144,7 @@ export class BoardStore {
   }
 
   select(topicId: string, sheetId: string): void {
-    if (this.sheet(sheetId).topicId !== topicId) throw new StudioError('没有这张白板', 404)
+    if (this.sheet(sheetId).topicId !== topicId) throw new StudioError('没有这张白板', 404, 'board.sheet_not_found')
     this.storeSelection(topicId, sheetId, new Date().toISOString())
   }
 
@@ -195,11 +195,11 @@ export class BoardStore {
   /** sheetId undefined: today's newest live sheet. null: the run has no sheet. Otherwise the run's target, which must be live. */
   private target(topicId: string, sheetId: string | null | undefined): Sheet {
     if (sheetId === undefined) return this.writableSheet(topicId)
-    if (sheetId === null) throw new StudioError('这个主题现在没有进行中的白板；请用户点 ＋ 新开一张', 409)
+    if (sheetId === null) throw new StudioError('这个主题现在没有进行中的白板；请用户点 ＋ 新开一张', 409, 'board.no_live_sheet')
     const target = this.sheet(sheetId)
-    if (target.topicId !== topicId) throw new StudioError('没有这张白板', 404)
+    if (target.topicId !== topicId) throw new StudioError('没有这张白板', 404, 'board.sheet_not_found')
     if (target.state !== 'live') throw new StudioError(
-      `用户这一轮选中的白板「${target.title}」已经收起，只读：这一轮不写白板。在对话里告诉用户这一点；要画的话，请用户选一张进行中的白板或点 ＋ 新开一张，再发消息。`, 409)
+      `用户这一轮选中的白板「${target.title}」已经收起，只读：这一轮不写白板。在对话里告诉用户这一点；要画的话，请用户选一张进行中的白板或点 ＋ 新开一张，再发消息。`, 409, 'board.selected_sheet_closed', { title: target.title })
     return target
   }
 
@@ -210,7 +210,7 @@ export class BoardStore {
     return transaction(this.db, () => {
       const target = this.target(topicId, sheetId)
       if (target.used >= target.capacity) throw new StudioError(
-        `这张白板满了（${target.used}/${target.capacity}）。不要往外挤：告诉用户这张已经写满，建议先把想清楚的部分沉淀下来；要接着画，可以请用户点 ＋ 开一张新的再发消息。开哪张、写哪张由用户选，你不自己开新白板，也不换到别的白板。如果某块已被新的理解取代，可以用 board_supersede 把它标灰腾出位置。`, 409)
+        `这张白板满了（${target.used}/${target.capacity}）。不要往外挤：告诉用户这张已经写满，建议先把想清楚的部分沉淀下来；要接着画，可以请用户点 ＋ 开一张新的再发消息。开哪张、写哪张由用户选，你不自己开新白板，也不换到别的白板。如果某块已被新的理解取代，可以用 board_supersede 把它标灰腾出位置。`, 409, 'board.sheet_full', { used: target.used, capacity: target.capacity })
       const place = this.place(target.id, input.kind, content, input.near)
       const id = `b${randomBytes(5).toString('hex')}`, now = new Date().toISOString()
       this.db.prepare(`INSERT INTO blocks (id, sheet_id, kind, title, content, x, y, w, h, state, superseded_by, rev, sources, thread_id, run_id, created_at, updated_at)
@@ -226,9 +226,9 @@ export class BoardStore {
     const sources = input.sources === undefined ? undefined : this.sources(topicId, input.sources)
     return transaction(this.db, () => {
       const current = this.ownedBlock(topicId, input.blockId, sheetId)
-      if (current.block.state !== 'current') throw new StudioError(`「${current.block.title}」已经不是当前区块（${current.block.state}），不能再改；需要的话画一块新的`, 409)
+      if (current.block.state !== 'current') throw new StudioError(`「${current.block.title}」已经不是当前区块（${current.block.state}），不能再改；需要的话画一块新的`, 409, 'board.block_not_current', { title: current.block.title, state: current.block.state })
       if (input.baseRev !== current.block.rev) throw new StudioError(
-        `「${current.block.title}」已经被改过：现在是第 ${current.block.rev} 版，你基于第 ${input.baseRev} 版。先用 board_view 看最新内容再改。`, 409)
+        `「${current.block.title}」已经被改过：现在是第 ${current.block.rev} 版，你基于第 ${input.baseRev} 版。先用 board_view 看最新内容再改。`, 409, 'board.block_stale', { title: current.block.title, rev: current.block.rev, baseRev: input.baseRev })
       const content = input.content === undefined ? current.block.content : parseContent(current.block.kind, input.content)
       const now = new Date().toISOString(), rev = current.block.rev + 1
       this.db.prepare(`UPDATE blocks SET title = ?, content = ?, sources = ?, rev = ?, thread_id = ?, run_id = ?, updated_at = ? WHERE id = ?`)
@@ -241,11 +241,11 @@ export class BoardStore {
   supersede(topicId: string, input: { blockId: string; by?: string }, origin: WriteOrigin, sheetId?: string | null): { blockId: string; rev: number } {
     return transaction(this.db, () => {
       const current = this.ownedBlock(topicId, input.blockId, sheetId)
-      if (current.block.state !== 'current') throw new StudioError(`「${current.block.title}」已经是 ${current.block.state}，不用再取代`, 409)
+      if (current.block.state !== 'current') throw new StudioError(`「${current.block.title}」已经是 ${current.block.state}，不用再取代`, 409, 'board.block_already_replaced', { title: current.block.title, state: current.block.state })
       if (input.by !== undefined) {
-        if (input.by === input.blockId) throw new StudioError('一块不能取代它自己', 400)
+        if (input.by === input.blockId) throw new StudioError('一块不能取代它自己', 400, 'board.replace_self')
         const replacement = this.db.prepare(`SELECT state FROM blocks WHERE id = ? AND sheet_id = ?`).get(input.by, current.sheet.id)
-        if (!replacement || replacement.state !== 'current') throw new StudioError(`取代它的区块 ${input.by} 不在这张白板的当前区块里`, 400)
+        if (!replacement || replacement.state !== 'current') throw new StudioError(`取代它的区块 ${input.by} 不在这张白板的当前区块里`, 400, 'board.replacement_missing', { by: input.by })
       }
       const now = new Date().toISOString(), rev = current.block.rev + 1
       this.db.prepare(`UPDATE blocks SET state = 'superseded', superseded_by = ?, rev = ?, thread_id = ?, run_id = ?, updated_at = ? WHERE id = ?`)
@@ -287,7 +287,7 @@ export class BoardStore {
   // -------------------------------------------------------------------------
   private title(value: string) {
     const result = blockTitle.safeParse(value)
-    if (!result.success) throw new StudioError('区块标题要有，且不超过 80 字', 400)
+    if (!result.success) throw new StudioError('区块标题要有，且不超过 80 字', 400, 'board.title_invalid')
     return result.data
   }
 
@@ -297,9 +297,9 @@ export class BoardStore {
     const referenced = this.db.prepare('SELECT 1 FROM topic_materials WHERE topic_id = ? AND item_id = ?')
     for (const source of sources) {
       if ('itemId' in source && !referenced.get(topicId, source.itemId))
-        throw new StudioError(`出处里的材料 ${source.itemId} 不在这个主题的引用清单里；先用 list_materials 看能引用哪些材料`, 400)
+        throw new StudioError(`出处里的材料 ${source.itemId} 不在这个主题的引用清单里；先用 list_materials 看能引用哪些材料`, 400, 'board.source_material', { itemId: source.itemId })
       if ('threadId' in source && !source.threadId.startsWith(`${topicId}:`))
-        throw new StudioError(`出处里的对话 ${source.threadId} 不属于这个主题`, 400)
+        throw new StudioError(`出处里的对话 ${source.threadId} 不属于这个主题`, 400, 'board.source_thread', { threadId: source.threadId })
     }
     return sources
   }
@@ -308,11 +308,11 @@ export class BoardStore {
   private ownedBlock(topicId: string, blockId: string, sheetId?: string | null) {
     const fixed = sheetId === undefined ? undefined : this.target(topicId, sheetId)
     const row = this.db.prepare(`SELECT b.* FROM blocks b JOIN sheets s ON s.id = b.sheet_id WHERE b.id = ? AND s.topic_id = ?`).get(blockId, topicId)
-    if (!row) throw new StudioError(`这个主题的白板上没有区块 ${blockId}；用 board_view 看现有区块`, 404)
+    if (!row) throw new StudioError(`这个主题的白板上没有区块 ${blockId}；用 board_view 看现有区块`, 404, 'board.block_not_found', { blockId })
     const owned = block(row), target = this.sheet(owned.sheetId)
     if (fixed && fixed.id !== target.id) throw new StudioError(
-      `区块 ${blockId} 在白板「${target.title}」上，不在这一轮写入的白板「${fixed.title}」上；这一轮只能改「${fixed.title}」上的区块。`, 409)
-    if (target.state !== 'live') throw new StudioError('这张白板已经收起，只读', 409)
+      `区块 ${blockId} 在白板「${target.title}」上，不在这一轮写入的白板「${fixed.title}」上；这一轮只能改「${fixed.title}」上的区块。`, 409, 'board.block_other_sheet', { blockId, sheet: target.title, target: fixed.title })
+    if (target.state !== 'live') throw new StudioError('这张白板已经收起，只读', 409, 'board.sheet_closed')
     return { block: owned, sheet: target }
   }
 

@@ -7,6 +7,7 @@
 import type { MiddlewareHandler } from 'hono'
 import { z } from 'zod'
 import { suspendedQuestionRuns, type QuestionContext } from '../lifecycle/questions.ts'
+import { errorBody, type ErrorCode } from './error-codes.ts'
 
 const answerSchema = z.object({ toolCallId: z.string().min(1), resumeData: z.union([z.string(), z.array(z.string())]) })
 const PATH = /^\/api\/agent-controller\/lumen\/sessions\/([^/]+)\/tool-suspension$/
@@ -14,7 +15,10 @@ const ID = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/
 const UNAVAILABLE = '这个问题已经结束、已取消或无法恢复，答案未提交。请刷新任务后重新发送要求。'
 const answering = new WeakMap<QuestionContext['session'], Set<string>>()
 
-class QuestionConflict extends Error {}
+class QuestionConflict extends Error {
+  readonly code: ErrorCode
+  constructor(message: string, code: ErrorCode = 'question.unavailable') { super(message); this.code = code }
+}
 
 async function resumeQuestion(context: QuestionContext, input: z.infer<typeof answerSchema>) {
   const pending = context.session.suspensions.get({ toolCallId: input.toolCallId })
@@ -24,7 +28,7 @@ async function resumeQuestion(context: QuestionContext, input: z.infer<typeof an
   try {
     const runs = await suspendedQuestionRuns(context)
     const call = runs.find(run => run.runId === pending.runId)?.toolCalls.find(call => call.toolCallId === input.toolCallId)
-    if (!call || call.requiresApproval) throw new QuestionConflict('问题仍在保存或已经失效，答案未提交。请刷新后重试。')
+    if (!call || call.requiresApproval) throw new QuestionConflict('问题仍在保存或已经失效，答案未提交。请刷新后重试。', 'question.stale')
     let accepted = false
     const unsubscribe = context.session.subscribe(event => {
       if (event.type === 'tool_end' && event.toolCallId === input.toolCallId) accepted = true
@@ -51,7 +55,7 @@ export function suspensionResponses(resolve: (topicId: string, taskId: string) =
       await resumeQuestion(await resolve(identity[0]!, identity[1]!), parsed.data)
       return c.json({ ok: true })
     } catch (error) {
-      if (error instanceof QuestionConflict) return c.json({ error: error.message, code: 'QUESTION_UNAVAILABLE' }, 409)
+      if (error instanceof QuestionConflict) return c.json(errorBody(error.message, error.code), 409)
       throw error
     }
   }

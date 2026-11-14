@@ -5,7 +5,7 @@
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getTimeGreeting } from '../../../../copy/greeting.ts'
+import { useT } from '../../../../i18n/index.ts'
 import type { Identity, LumenApi } from '../../../data/client.ts'
 import { SessionFeed } from '../../../data/feed.ts'
 import { Composer } from '../Composer.tsx'
@@ -34,6 +34,7 @@ export function Welcome({ api, topicId, onSession, onSettings }: {
   onSession: (identity: Identity) => void
   onSettings: () => void
 }) {
+  const { greeting } = useT()
   const scope = JSON.stringify([api.connection.baseUrl, topicId])
   const [identity] = useState(() => reserveIdentity(scope, topicId))
   const pending = useRef<Promise<SessionFeed> | null>(null), feed = useRef<SessionFeed | null>(null), alive = useRef(true)
@@ -52,5 +53,5 @@ export function Welcome({ api, topicId, onSession, onSettings }: {
     releaseIdentity(scope, identity)
     if (alive.current) onSession(identity)
   }
-  return <><div className="chat-stage"><div className="messages messages-empty"><div className="messages-content"><div className="empty"><div className="empty-mark">{getTimeGreeting()}</div></div></div></div></div><Composer api={api} identity={identity} feed={null} connected canStop={false} queued={0} onActivity={sent} onSettings={onSettings} prepareSession={prepareSession} /></>
+  return <><div className="chat-stage"><div className="messages messages-empty"><div className="messages-content"><div className="empty"><div className="empty-mark">{greeting(new Date().getHours())}</div></div></div></div></div><Composer api={api} identity={identity} feed={null} connected canStop={false} queued={0} onActivity={sent} onSettings={onSettings} prepareSession={prepareSession} /></>
 }

@@ -15,13 +15,11 @@ import { isSpriteState } from './state'
 import { desktopMotion } from './motion'
 import { SpriteFigure } from '../SpriteFigure'
 import './desktop.css'
+import { useT } from '../../../i18n/index.ts'
 
-const COPY: Record<SpriteState, string> = {
-  idle: '打开 Lumen 对话 · 空闲', running: '打开 Lumen 对话 · 正在思考',
-  waiting: '打开 Lumen 对话 · 等你回应', speaking: '打开 Lumen 对话 · 正在说话',
-}
 
 export function SpriteDesktopApp() {
+  const copy = useT().studio.desktop
   const [state, setState] = useState<SpriteState>('idle')
   const [visible, setVisible] = useState(!isTauri())
   const root = useRef<HTMLElement>(null)
@@ -88,7 +86,7 @@ export function SpriteDesktopApp() {
     event.preventDefault()
     if (isTauri()) void invoke('show_sprite_menu').catch(() => {})
   }}>
-    <button className="sprite-art-button" type="button" aria-label={COPY[state]} onClick={open} onPointerDown={start} onPointerUp={finish}>
+    <button className="sprite-art-button" type="button" aria-label={copy[state]} onClick={open} onPointerDown={start} onPointerUp={finish}>
       <SpriteFigure state={state} size="desktop" expression={expression} />
     </button>
   </main>

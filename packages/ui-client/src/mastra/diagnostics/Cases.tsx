@@ -10,9 +10,9 @@ import { Textarea } from '@cloudflare/kumo/components/input'
 import { Select } from '@cloudflare/kumo/components/select'
 import type { BadCase, EvaluationResult, Identity, LumenApi, MarkCaseInput, Page } from '../data/client.ts'
 import { Evaluation } from './Evaluation'
+import { useT, errorText } from '../../i18n/index.ts'
 import type { CaseTarget } from './Trace'
 
-const kinds = { answer_quality: '回答质量', tool_failure: '工具问题', evidence_missing: '证据缺失' } as const
 const empty = (): MarkCaseInput => ({ kind: 'answer_quality', actual: '', expected: '', note: '' })
 type Props = { api: LumenApi; identity: Identity; target?: CaseTarget; revision?: number }
 type Operation = 'save' | EvaluationResult['mode'] | null
@@ -26,6 +26,7 @@ export function Cases(props: Props) {
 }
 
 function CaseEditor({ api, identity, target, revision: refresh = 0 }: Props) {
+  const { cases: K, common } = useT(), kinds = K.kinds
   const [list, setList] = useState<Page<BadCase> | null>(null), [page, setPage] = useState(0), [revision, setRevision] = useState(0)
   const [selected, setSelected] = useState<BadCase | null>(null), [draft, setDraft] = useState<MarkCaseInput>(empty)
   const [busy, setBusy] = useState<Operation>(null), [error, setError] = useState(''), [saved, setSaved] = useState(false)
@@ -38,7 +39,7 @@ function CaseEditor({ api, identity, target, revision: refresh = 0 }: Props) {
     void api.badCases(identity, page).then(value => {
       if (!active) return
       setList(value); setSelected(current => current ? value.items.find(item => item.id === current.id) ?? current : null)
-    }).catch(error => { if (active) setError(String(error)) })
+    }).catch(error => { if (active) setError(errorText(error)) })
     return () => { active = false }
   }, [api, identity.topicId, identity.taskId, page, revision, refresh])
 
@@ -61,7 +62,7 @@ function CaseEditor({ api, identity, target, revision: refresh = 0 }: Props) {
       if (!alive.current) return
       if (current === editor.current) { edit(result); setSaved(true) }
       setPage(0); setRevision(value => value + 1)
-    } catch (error) { if (alive.current && current === editor.current) setError(String(error)) }
+    } catch (error) { if (alive.current && current === editor.current) setError(errorText(error)) }
     finally { finish() }
   }
   async function evaluate(mode: EvaluationResult['mode']) {
@@ -72,20 +73,20 @@ function CaseEditor({ api, identity, target, revision: refresh = 0 }: Props) {
       if (!alive.current) return
       if (current === editor.current) setSelected(value => value?.id === id ? { ...value, lastEvaluation: result } : value)
       setRevision(value => value + 1)
-    } catch (error) { if (alive.current && current === editor.current) setError(String(error)) }
+    } catch (error) { if (alive.current && current === editor.current) setError(errorText(error)) }
     finally { finish() }
   }
   const association = selected ? { traceId: selected.traceId, spanId: selected.spanId } : target
-  return <div className="md-cases"><aside><header><strong>问题标注</strong><Button disabled={!!busy} variant="ghost" onClick={() => edit(null)}>新增标注</Button></header>
-    {list === null ? !error && <p role="status">正在读取…</p> : !list.items.length && <p>此会话还没有问题标注。</p>}
+  return <div className="md-cases"><aside><header><strong>{K.title}</strong><Button disabled={!!busy} variant="ghost" onClick={() => edit(null)}>{K.add}</Button></header>
+    {list === null ? !error && <p role="status">{common.reading}</p> : !list.items.length && <p>{K.empty}</p>}
     {list?.items.map(item => <Button disabled={!!busy} variant={selected?.id === item.id ? 'secondary' : 'ghost'} key={item.id} onClick={() => edit(item)}><span>{kinds[item.kind]}</span><small>{item.actual}</small></Button>)}
-    <footer><Button disabled={!!busy || page === 0} variant="ghost" onClick={() => setPage(value => value - 1)}>上一页</Button><Button disabled={!!busy || !list?.hasMore} variant="ghost" onClick={() => setPage(value => value + 1)}>下一页</Button></footer>
+    <footer><Button disabled={!!busy || page === 0} variant="ghost" onClick={() => setPage(value => value - 1)}>{common.previous}</Button><Button disabled={!!busy || !list?.hasMore} variant="ghost" onClick={() => setPage(value => value + 1)}>{common.next}</Button></footer>
   </aside><form onSubmit={event => { event.preventDefault(); void save() }}>
-    <h3>{selected ? '编辑问题标注' : '新增问题标注'}</h3><p className="md-hint">标注是你的观察，不代表问题已重现或修复。</p>
-    <p className="md-association">{association?.traceId ? <>关联记录 <code>{association.traceId}</code>{association.spanId && <> / 步骤 <code>{association.spanId}</code></>}</> : '关联当前会话；没有执行记录时也可标注证据缺失。'}</p>
-    <label>问题类型<Select disabled={!!busy} aria-label="问题类型" items={kinds} value={draft.kind ?? 'answer_quality'} onValueChange={value => { if (value && value in kinds) setDraft({ ...draft, kind: value as BadCase['kind'] }) }} /></label>
-    {(['actual', 'expected', 'note'] as const).map(field => <label key={field}>{({ actual: '实际表现', expected: '预期表现', note: '补充说明' })[field]}<Textarea disabled={!!busy} aria-label={({ actual: '实际表现', expected: '预期表现', note: '补充说明' })[field]} required={field !== 'note'} maxLength={10000} value={draft[field] ?? ''} onChange={event => { setDraft({ ...draft, [field]: event.target.value }); setSaved(false) }} /></label>)}
-    <footer><Button type="submit" disabled={!!busy || !draft.actual.trim() || !draft.expected.trim()}>{busy === 'save' ? '保存中…' : '保存标注'}</Button>{saved && <span role="status">已保存</span>}</footer>
+    <h3>{selected ? K.edit : K.create}</h3><p className="md-hint">{K.hint}</p>
+    <p className="md-association">{association?.traceId ? <>{K.linked} <code>{association.traceId}</code>{association.spanId && <> / {K.step} <code>{association.spanId}</code></>}</> : K.unlinked}</p>
+    <label>{K.kind}<Select disabled={!!busy} aria-label={K.kind} items={kinds} value={draft.kind ?? 'answer_quality'} onValueChange={value => { if (value && value in kinds) setDraft({ ...draft, kind: value as BadCase['kind'] }) }} /></label>
+    {(['actual', 'expected', 'note'] as const).map(field => <label key={field}>{K.fields[field]}<Textarea disabled={!!busy} aria-label={K.fields[field]} required={field !== 'note'} maxLength={10000} value={draft[field] ?? ''} onChange={event => { setDraft({ ...draft, [field]: event.target.value }); setSaved(false) }} /></label>)}
+    <footer><Button type="submit" disabled={!!busy || !draft.actual.trim() || !draft.expected.trim()}>{busy === 'save' ? K.saving : K.save}</Button>{saved && <span role="status">{K.saved}</span>}</footer>
     {error && <p role="alert" className="mw-error">{error}</p>}
     {selected && <Evaluation result={selected.lastEvaluation} disabled={!!busy} dirty={dirty} pending={busy === 'save' ? null : busy} onRun={mode => void evaluate(mode)} />}
   </form></div>

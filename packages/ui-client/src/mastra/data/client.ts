@@ -1,11 +1,12 @@
 /**
  * [INPUT]: 官方MastraClient、原生注入的本机服务发现与所选技能文件清单
- * [OUTPUT]: LumenApi、Connection、主题/会话目录、资料库与主题引用、白板只读视图与用户选中的白板（R16；旧服务缺路由时静默，其它失败抛出）、用户删除白板与区块所在白板（R17；旧服务缺路由如实返回 unsupported/unknown）、带状态码与 JSON 正文的 RequestError、完整技能包/诊断与问题评估入口、附专家用量的快照和带 ETag 的文件版本读取；身份是 {topicId, taskId}，同会话阅读写入串行，手动未读不被先发自动确认覆盖
+ * [OUTPUT]: LumenApi、Connection、主题/会话目录、资料库与主题引用、白板只读视图与用户选中的白板（R16；旧服务缺路由时静默，其它失败抛出）、用户删除白板与区块所在白板（R17；旧服务缺路由如实返回 unsupported/unknown）、带状态码与 JSON 正文的 RequestError（消息按 code 译成界面语言，i18n I6）、完整技能包/诊断与问题评估入口、附专家用量的快照和带 ETag 的文件版本读取；身份是 {topicId, taskId}，同会话阅读写入串行，手动未读不被先发自动确认覆盖
  * [POS]: 新客户端唯一网络边界；不暴露提前创建空会话的目录写入，提交准备沿 open 绑定；附件先完整读取再进资料库并引用到当前主题，失败不发残缺请求
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { MastraClient, type KnownAgentControllerEvent } from '@mastra/client-js'
 import type { SkillFile } from '../../shell/pickSkill.ts'
+import { serviceErrorText, t } from '../../i18n/index.ts'
 
 export interface Connection { baseUrl: string; token: string; error?: string }
 export interface Identity { topicId: string; taskId: string }
@@ -63,7 +64,7 @@ export class LumenApi {
     const response = await fetch(`${this.connection.baseUrl}${path}`, { method, headers: { ...this.headers(), ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
     if (!response.ok) {
       const detail = await response.json().catch(() => null)
-      throw new RequestError(typeof detail?.error === 'string' ? detail.error : `请求失败 (${response.status})`, response.status, detail && typeof detail === 'object' ? detail : null)
+      throw new RequestError(serviceErrorText(detail, t().data.requestFailed(response.status)), response.status, detail && typeof detail === 'object' ? detail : null)
     }
     return response.json()
   }
@@ -113,7 +114,7 @@ export class LumenApi {
     if (response.status === 304) return { view: null, etag: etag ?? null }
     if (!response.ok) {
       const detail = await response.json().catch(() => null)
-      throw new Error(typeof detail?.error === 'string' ? detail.error : `请求失败 (${response.status})`)
+      throw new Error(serviceErrorText(detail, t().data.requestFailed(response.status)))
     }
     return { view: await response.json() as SheetView, etag: response.headers.get('ETag') }
   }
@@ -122,7 +123,7 @@ export class LumenApi {
   reference(topicId: string, itemId: string) { return this.request<{ referenced: boolean }>(`/lumen/topics/${encodeURIComponent(topicId)}/materials`, 'POST', { itemId }) }
   async unreference(topicId: string, itemId: string) {
     const response = await fetch(`${this.connection.baseUrl}/lumen/topics/${encodeURIComponent(topicId)}/materials/${encodeURIComponent(itemId)}`, { method: 'DELETE', headers: this.headers() })
-    if (!response.ok && response.status !== 404) throw new Error(`取消引用失败 (${response.status})`)
+    if (!response.ok && response.status !== 404) throw new Error(t().data.unreferenceFailed(response.status))
   }
   libraryContentUrl(itemId: string) { return `${this.connection.baseUrl}/lumen/library/${encodeURIComponent(itemId)}/content` }
   sessions(topicId: string, page = 0, archived = false, search = '') { return this.request<Page<SessionInfo>>(`/lumen/topics/${encodeURIComponent(topicId)}/sessions?${new URLSearchParams({ page: String(page), archived: String(archived), search })}`) }
@@ -155,7 +156,7 @@ export class LumenApi {
     files.forEach(({ file }, index) => { if (file) body.append(`file-${index}`, file) })
     const response = await fetch(`${this.connection.baseUrl}/lumen/skills/package?${this.query(identity)}`, { method: 'POST', headers: this.headers(), body })
     const result = await response.json()
-    if (!response.ok) throw new Error(result.error ?? `技能安装失败 (${response.status})`)
+    if (!response.ok) throw new Error(serviceErrorText(result, t().data.skillInstallFailed(response.status)))
     return result
   }
   removeSkill(identity: Identity, name: string) { return this.request('/lumen/skills', 'DELETE', { topicId: identity.topicId, taskId: identity.taskId, name }) }
@@ -169,13 +170,13 @@ export class LumenApi {
   readRecorded(content: string) { return this.request<RecordedInspection>('/lumen/diagnostics/recorded', 'POST', { content }) }
   /** 附件进资料库并引用到当前主题；返回资料库条目 id，消息里按 id 提及，模型用 read_material 读。 */
   async upload(identity: Pick<Identity, 'topicId'>, file: File): Promise<Upload> {
-    if (file.size >= 25 * 1024 * 1024) throw new Error(`附件「${file.name}」过大，请使用小于 25 MiB 的文件`)
+    if (file.size >= 25 * 1024 * 1024) throw new Error(t().data.uploadTooLarge(file.name))
     let bytes: ArrayBuffer
     try {
       bytes = await file.arrayBuffer()
       if (bytes.byteLength !== file.size) throw new Error('Incomplete file')
     } catch {
-      throw new Error(`无法完整读取附件「${file.name}」，请通过“添加文件”重新选择；若仍失败，请先将文件复制到下载目录`)
+      throw new Error(t().data.uploadUnreadable(file.name))
     }
     const body = new FormData()
     body.set('file', new Blob([bytes], { type: file.type }), file.name)
@@ -183,7 +184,7 @@ export class LumenApi {
     const response = await fetch(`${this.connection.baseUrl}/lumen/library`, { method: 'POST', headers: this.headers(), body })
     if (!response.ok) {
       const detail = await response.json().catch(() => null)
-      throw new Error(`附件「${file.name}」上传失败：${typeof detail?.error === 'string' ? detail.error : `请求失败 (${response.status})`}`)
+      throw new Error(t().data.uploadFailed(file.name, serviceErrorText(detail, t().data.requestFailed(response.status))))
     }
     const { item } = await response.json() as { item: LibraryItem }
     return { itemId: item.id, name: file.name, size: item.size, mediaType: item.mediaType }
@@ -194,12 +195,12 @@ export class LumenApi {
       headers: { ...this.headers(), ...(etag ? { 'If-None-Match': etag } : {}) },
     })
     if (response.status === 304) return { blob: null, etag: response.headers.get('ETag') ?? etag ?? null }
-    if (!response.ok) throw new Error(`读取失败 (${response.status})`)
+    if (!response.ok) throw new Error(t().data.readFailed(response.status))
     return { blob: await response.blob(), etag: response.headers.get('ETag') }
   }
   async file(identity: Identity, path: string, scope: ReadScope = 'work'): Promise<Blob> {
     const result = await this.fileVersion(identity, path, scope)
-    if (!result.blob) throw new Error('文件内容未变化')
+    if (!result.blob) throw new Error(t().data.unchanged)
     return result.blob
   }
 }

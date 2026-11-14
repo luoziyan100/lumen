@@ -4,6 +4,7 @@
  * [POS]: 设置与外观的用户路径回归；验证导航、服务配置与本机偏好各自的边界
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+import { zh } from './helpers/zh.ts'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { register } from 'node:module'
@@ -44,7 +45,7 @@ test('系统变化切换实际明暗基线，选择浅色纸面后重挂载恢�
   try {
     await act(async () => root.render(createElement(Panel)))
     const defaultSkin = listSkins().find(skin => skin.id === 'default')!
-    const defaultCard = [...element.querySelectorAll<HTMLButtonElement>('[role=radio]')].find(button => button.getAttribute('aria-label')?.startsWith(defaultSkin.name))!
+    const defaultCard = [...element.querySelectorAll<HTMLButtonElement>('[role=radio]')].find(button => button.getAttribute('aria-label')?.startsWith(zh.skins[defaultSkin.id]!.name))!
     await act(async () => defaultCard.click())
     const system = [...element.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === '跟随系统')!
     await act(async () => system.click())
@@ -60,7 +61,7 @@ test('系统变化切换实际明暗基线，选择浅色纸面后重挂载恢�
     assertHostTheme('light', LIGHT_BASELINE)
 
     const selected = listSkins().find(skin => skin.id === 'warm-paper')!
-    const card = [...element.querySelectorAll<HTMLButtonElement>('[role=radio]')].find(button => button.getAttribute('aria-label')?.startsWith(selected.name))!
+    const card = [...element.querySelectorAll<HTMLButtonElement>('[role=radio]')].find(button => button.getAttribute('aria-label')?.startsWith(zh.skins[selected.id]!.name))!
     assert.ok(card)
     await act(async () => card.click())
     assertHostTheme('light', { ...LIGHT_BASELINE, ...selected.tokens })
@@ -110,7 +111,7 @@ test('研究进行中四个设置分类可切换且无预算入口，配置写�
     await act(async () => nav('外观').click())
     const selected = listSkins().find(skin => skin.id === 'glacier-glass')!
     assert.notEqual(document.documentElement.dataset.skin, selected.id)
-    const card = [...document.querySelectorAll<HTMLButtonElement>('[role=radio]')].find(button => button.getAttribute('aria-label')?.startsWith(selected.name))!
+    const card = [...document.querySelectorAll<HTMLButtonElement>('[role=radio]')].find(button => button.getAttribute('aria-label')?.startsWith(zh.skins[selected.id]!.name))!
     assert.ok(card)
     assert.equal(card.disabled, false)
     await act(async () => card.click())

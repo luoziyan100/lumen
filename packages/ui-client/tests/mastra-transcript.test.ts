@@ -11,7 +11,7 @@ import { createElement, act } from 'react'
 import type { MastraDBMessage } from '@mastra/client-js'
 import { JSDOM } from 'jsdom'
 import { userContent, turnItems, messageAnchor } from '../src/mastra/views/conversation/transcript/content.ts'
-import { MASTRA_COPY as C } from '../src/copy/mastraCopy.ts'
+import { MODEL_TEXT as C } from './helpers/zh.ts'
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/', pretendToBeVisual: true })
 for (const name of ['window', 'document', 'HTMLElement', 'Element', 'Node', 'navigator']) Object.defineProperty(globalThis, name, { configurable: true, value: dom.window[name as keyof typeof dom.window] })

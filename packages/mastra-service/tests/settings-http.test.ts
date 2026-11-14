@@ -63,7 +63,7 @@ test('运行边界先拒绝不保存，接受后的回调按提交顺序读取�
       scopes.push('enter')
       try { return await work() } finally { scopes.push('leave') }
     },
-    beforeChange: () => { if (running) throw new SettingsError('Agent is running', 409) },
+    beforeChange: () => { if (running) throw new SettingsError('Agent is running', 409, 'settings.busy') },
     changed: async next => {
       assert.equal(store.toPublic().userInstructions, next.userInstructions)
       assert.equal(JSON.parse(await readFile(join(dataRoot, 'settings.json'), 'utf8')).userInstructions, next.userInstructions)

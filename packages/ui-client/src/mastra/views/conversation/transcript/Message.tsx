@@ -4,6 +4,7 @@
  * [POS]: 纯会话呈现；图片只读内嵌数据，文件点击才进入现有阅读器
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
+import { useT, t } from '../../../../i18n/index.ts'
 import { useEffect, useRef, useState } from 'react'
 import type { MastraDBMessage } from '@mastra/client-js'
 import { CopyIcon, CheckIcon, FileTypeIcon, ICON_SM } from '../../../../components/icons'
@@ -20,20 +21,22 @@ export function UserMessage({ message, onOpenFile }: { message: MastraDBMessage;
 }
 
 function InlineImage({ name, url }: { name: string; url: string }) {
+  const { transcript: T, common } = useT()
   const dialog = useRef<HTMLDialogElement>(null)
-  return <><button type="button" className="mw-history-image" aria-label={`预览图片 ${name}`} onClick={() => dialog.current?.showModal()}><img src={url} alt={name} /></button>
-    <dialog className="mw-image-preview" ref={dialog} aria-label={`预览图片 ${name}`} onClick={event => { if (event.target === event.currentTarget) dialog.current?.close() }}><button type="button" onClick={() => dialog.current?.close()}>关闭</button><img src={url} alt={name} /></dialog></>
+  return <><button type="button" className="mw-history-image" aria-label={T.previewImage(name)} onClick={() => dialog.current?.showModal()}><img src={url} alt={name} /></button>
+    <dialog className="mw-image-preview" ref={dialog} aria-label={T.previewImage(name)} onClick={event => { if (event.target === event.currentTarget) dialog.current?.close() }}><button type="button" onClick={() => dialog.current?.close()}>{common.close}</button><img src={url} alt={name} /></dialog></>
 }
 
 async function copyText(text: string) {
   try { await navigator.clipboard.writeText(text); return } catch { /* WebKit 无剪贴板权限时回退到用户点击内的复制。 */ }
   const focus = document.activeElement as HTMLElement | null, input = document.createElement('textarea')
   input.value = text; input.style.position = 'fixed'; input.style.opacity = '0'; document.body.append(input); input.select()
-  try { if (!document.execCommand('copy')) throw new Error('复制失败，请手动选择文本复制') }
+  try { if (!document.execCommand('copy')) throw new Error(t().transcript.copyFailed) }
   finally { input.remove(); focus?.focus({ preventScroll: true }) }
 }
 
 export function MessageCopy({ text, user }: { text: string; user: boolean }) {
+  const { transcript: T, common } = useT()
   const [copied, setCopied] = useState(false), [error, setError] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined), alive = useRef(true)
   useEffect(() => { alive.current = true; return () => { alive.current = false; clearTimeout(timer.current) } }, [])
@@ -44,5 +47,5 @@ export function MessageCopy({ text, user }: { text: string; user: boolean }) {
     } catch (error) { if (alive.current) { setCopied(false); setError(error instanceof Error ? error.message : String(error)) } }
   }
   if (!text) return null
-  return <div className="msg-actions"><button type="button" className={`msg-copy${copied ? ' is-copied' : ''}`} aria-label={copied ? '已复制' : user ? '复制这条输入' : '复制这条回答'} title={copied ? '已复制' : '复制'} onClick={() => void copy()}>{copied ? <CheckIcon /> : <CopyIcon />}</button>{error && <span role="alert">{error}</span>}</div>
+  return <div className="msg-actions"><button type="button" className={`msg-copy${copied ? ' is-copied' : ''}`} aria-label={copied ? common.copied : user ? T.copyInput : T.copyAnswer} title={copied ? common.copied : common.copy} onClick={() => void copy()}>{copied ? <CheckIcon /> : <CopyIcon />}</button>{error && <span role="alert">{error}</span>}</div>
 }

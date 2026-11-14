@@ -7,7 +7,8 @@
 import type { MastraDBMessage } from '@mastra/client-js'
 import { messageRole, messageText } from '../../../data/feed.ts'
 import type { FileTarget } from '../../../data/file-links.ts'
-import { MASTRA_COPY as C } from '../../../../copy/mastraCopy.ts'
+import { t } from '../../../../i18n/index.ts'
+import { MODEL_TEXT } from '../../../../i18n/locales/model.ts'
 
 export interface MessageFile { name: string; target: FileTarget }
 export interface TurnItem { id: string; label: string; description: string }
@@ -18,7 +19,7 @@ const ITEM = /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/
 export function userContent(message: MastraDBMessage) {
   let text = messageText(message)
   const files: MessageFile[] = []
-  const marker = `\n\n${C.uploadedMaterials}\n`, index = text.lastIndexOf(marker)
+  const marker = `\n\n${MODEL_TEXT.uploadedMaterials}\n`, index = text.lastIndexOf(marker)
   if (index >= 0) {
     const lines = text.slice(index + marker.length).split('\n'), parsed = lines.map(line => /^- (.+): ([^\s:]+)$/.exec(line))
     if (parsed.length && parsed.every(match => match && ITEM.test(match[2]!))) {
@@ -28,7 +29,7 @@ export function userContent(message: MastraDBMessage) {
   }
   const images = (message.content.experimental_attachments ?? []).flatMap((attachment, index) => {
     if (!/^data:image\/(?:png|jpe?g|gif|webp|avif|bmp);base64,[a-z0-9+/=\s]+$/i.test(attachment.url)) return []
-    return [{ name: attachment.name || `图片 ${index + 1}`, url: attachment.url }]
+    return [{ name: attachment.name || t().transcript.image(index + 1), url: attachment.url }]
   })
   return { text, files, images }
 }
@@ -41,7 +42,7 @@ export function turnItems(messages: MastraDBMessage[]): TurnItem[] {
   for (const message of messages) {
     if (messageRole(message) === 'user') {
       const content = userContent(message)
-      turns.push({ id: message.id, label: clip(content.text || content.files.map(file => file.name).join('、'), 40) || '图片消息', description: '暂无回复' })
+      turns.push({ id: message.id, label: clip(content.text || content.files.map(file => file.name).join(t().common.listSeparator), 40), description: '' })
     } else if (messageRole(message) === 'assistant' && turns.length && messageText(message).trim()) {
       turns[turns.length - 1]!.description = clip(messageText(message), 80)
     }

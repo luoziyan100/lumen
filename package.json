@@ -9,7 +9,7 @@
   "scripts": {
     "test": "npm test --workspace @lumen/mastra-service && npm test --workspace @lumen/ui-client",
     "typecheck": "npm run typecheck --workspaces",
-    "verify": "npm test && npm run check:theme -w packages/ui-client",
+    "verify": "npm test && npm run check:theme -w packages/ui-client && npm run check:i18n -w packages/ui-client",
     "dev": "node scripts/dev.mjs"
   },
   "engines": {

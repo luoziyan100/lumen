@@ -34,7 +34,7 @@ export function effectiveSettings(data: StoredSettings): EffectiveSettings | nul
 export function gatewaySettings(data: StoredSettings): ModelSettings | null {
   const active = effectiveSettings(data)
   if (!active) return null
-  if (!active.apiKey || !active.model) throw new SettingsError('Active model profile is incomplete', 409)
+  if (!active.apiKey || !active.model) throw new SettingsError('Active model profile is incomplete', 409, 'settings.profile_incomplete')
   const fallback = active.provider === 'anthropic' ? 'https://api.anthropic.com/v1' : 'https://api.openai.com/v1'
   const url = new URL(active.baseUrl || fallback)
   url.pathname = url.pathname.replace(/\/(chat\/completions|messages)\/?$/, '').replace(/\/$/, '') || '/v1'

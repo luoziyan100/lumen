@@ -68,7 +68,7 @@ export class LibraryStore {
 
   get(id: string): LibraryItem {
     const row = this.db.prepare('SELECT * FROM library_items WHERE id = ?').get(id)
-    if (!row) throw new StudioError('资料库里没有这份材料', 404)
+    if (!row) throw new StudioError('资料库里没有这份材料', 404, 'library.not_found')
     return libraryItem(row)
   }
 
@@ -79,8 +79,8 @@ export class LibraryStore {
 
   /** 收入一份原件。sha256 相同返回已有条目（created=false），调用方照常补引用。 */
   async add(input: AddInput): Promise<{ item: LibraryItem; created: boolean }> {
-    if (input.bytes.byteLength === 0) throw new StudioError('文件是空的，没有收进资料库', 400)
-    if (input.bytes.byteLength > MAX_LIBRARY_BYTES) throw new StudioError('单份材料不能超过 25 MB，请缩小后再试', 413)
+    if (input.bytes.byteLength === 0) throw new StudioError('文件是空的，没有收进资料库', 400, 'library.empty_file')
+    if (input.bytes.byteLength > MAX_LIBRARY_BYTES) throw new StudioError('单份材料不能超过 25 MB，请缩小后再试', 413, 'library.too_large', { limit: 25 })
     const sha256 = createHash('sha256').update(input.bytes).digest('hex')
     const existing = this.bySha(sha256)
     if (existing) return { item: existing, created: false }
@@ -117,7 +117,10 @@ export class LibraryStore {
     if (paper) return this.addArxiv(paper, http, addedBy, signal)
     let result: Awaited<ReturnType<ResearchHttp>>
     try { result = await http(url, { signal }) }
-    catch (error) { throw new StudioError(`链接没有取到：${error instanceof Error ? error.message : String(error)}。确认链接公开可访问后再试`, 400) }
+    catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      throw new StudioError(`链接没有取到：${reason}。确认链接公开可访问后再试`, 400, 'library.link_unreachable', { reason })
+    }
     const pathName = decodeURIComponent(new URL(result.url).pathname.split('/').filter(Boolean).pop() ?? '')
     const raw = Buffer.from(result.bytes)
     if (result.contentType.includes('application/pdf') || raw.subarray(0, 5).toString('latin1') === '%PDF-')
@@ -126,7 +129,7 @@ export class LibraryStore {
     const html = result.contentType.includes('html') || /<html/i.test(decoded)
     const title = html ? cleanTitle(htmlToText(decoded.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '')) : ''
     const text = html ? htmlToText(decoded) : decoded
-    if (!text.trim()) throw new StudioError('这个链接没有可读的正文', 400)
+    if (!text.trim()) throw new StudioError('这个链接没有可读的正文', 400, 'library.link_no_text')
     return this.add({ name: `${safeName(title || pathName || 'page').replace(/\.[^.]+$/, '')}.txt`, bytes: Buffer.from(text), addedBy, sourceUrl: result.url,
       kind: 'web', mediaType: 'text/plain', title: title || undefined, titleSource: 'page' })
   }
@@ -137,9 +140,12 @@ export class LibraryStore {
     let pdf = bytes
     if (!pdf) {
       try { pdf = (await http(arxivPdfUrl(id), { signal })).bytes }
-      catch (error) { throw new StudioError(`arXiv ${id} 的 PDF 没有取到：${error instanceof Error ? error.message : String(error)}。稍后再试`, 400) }
+      catch (error) {
+        const reason = error instanceof Error ? error.message : String(error)
+        throw new StudioError(`arXiv ${id} 的 PDF 没有取到：${reason}。稍后再试`, 400, 'library.arxiv_fetch_failed', { id, reason })
+      }
     }
-    if (!isPdf(pdf)) throw new StudioError(`arXiv ${id} 没有返回 PDF（可能还在处理或已撤回），稍后再试`, 400)
+    if (!isPdf(pdf)) throw new StudioError(`arXiv ${id} 没有返回 PDF（可能还在处理或已撤回），稍后再试`, 400, 'library.arxiv_not_pdf', { id })
     const found = await meta
     return this.add({ name: `${id.replace('/', '_')}.pdf`, bytes: pdf, addedBy, sourceUrl: arxivAbsUrl(id), kind: 'pdf', mediaType: 'application/pdf',
       ...(found ? { title: found.title, titleSource: 'arxiv' as const } : {}), meta: paperMeta(found, id) })
@@ -149,9 +155,9 @@ export class LibraryStore {
   async location(item: LibraryItem): Promise<{ root: string; path: string }> {
     const root = await realpath(this.root), path = this.path(item)
     const stat = await lstat(path).catch(() => null)
-    if (!stat || stat.isSymbolicLink() || !stat.isFile()) throw new StudioError('原件不存在或不是普通文件', 404)
+    if (!stat || stat.isSymbolicLink() || !stat.isFile()) throw new StudioError('原件不存在或不是普通文件', 404, 'library.original_missing')
     const real = await realpath(path)
-    if (!real.startsWith(root + sep) || real !== join(root, item.id, item.file)) throw new StudioError('原件不在资料库里', 404)
+    if (!real.startsWith(root + sep) || real !== join(root, item.id, item.file)) throw new StudioError('原件不在资料库里', 404, 'library.original_outside')
     return { root, path: real }
   }
 
@@ -166,9 +172,9 @@ export class LibraryStore {
   async replaceOriginal(item: LibraryItem, input: { name: string; bytes: Uint8Array; kind: LibraryKind; mediaType: string; sourceUrl: string }): Promise<LibraryItem> {
     const sha256 = createHash('sha256').update(input.bytes).digest('hex')
     const other = this.bySha(sha256)
-    if (other && other.id !== item.id) throw new StudioError(`新原件与资料库里的「${other.title}」相同`, 409)
+    if (other && other.id !== item.id) throw new StudioError(`新原件与资料库里的「${other.title}」相同`, 409, 'library.duplicate', { title: other.title })
     const file = safeName(input.name), directory = join(this.root, item.id), target = join(directory, file)
-    if (file === item.file) throw new StudioError('新原件与旧原件同名', 409)
+    if (file === item.file) throw new StudioError('新原件与旧原件同名', 409, 'library.same_name')
     const temporary = join(directory, `.${randomUUID()}.partial`)
     await writeFile(temporary, input.bytes, { mode: 0o600, flag: 'wx' })
     try {

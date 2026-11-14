@@ -31,15 +31,15 @@ export function createDiagnostics(options: Options) {
   let closed = false
   const evaluations = new Map<string, { abort: AbortController; result: Promise<EvaluationResult> }>()
   async function authorized(resourceId: string) {
-    if (closed) throw new DiagnosticsError('诊断已关闭', 503)
-    if (!resourceSchema.safeParse(resourceId).success) throw new DiagnosticsError('会话身份无效', 400)
+    if (closed) throw new DiagnosticsError('诊断已关闭', 503, 'diagnostics.closed')
+    if (!resourceSchema.safeParse(resourceId).success) throw new DiagnosticsError('会话身份无效', 400, 'diagnostics.invalid_session')
     const identity = await options.authorize(resourceId)
-    if (identity.resourceId !== resourceId || !identity.threadId) throw new DiagnosticsError('会话不存在', 404)
+    if (identity.resourceId !== resourceId || !identity.threadId) throw new DiagnosticsError('会话不存在', 404, 'diagnostics.session_not_found')
     return identity
   }
   async function domain() {
     const storage = await options.storage.getStore('observability')
-    if (!storage) throw new DiagnosticsError('原生 trace 存储不可用', 503)
+    if (!storage) throw new DiagnosticsError('原生 trace 存储不可用', 503, 'diagnostics.storage_unavailable')
     return storage
   }
   function safeCase(item: BadCase): BadCase {
@@ -61,10 +61,10 @@ export function createDiagnostics(options: Options) {
       redacted: clean.redacted || prior.redacted === true, truncated: clean.truncated || prior.truncated === true }
   }
   async function traceFor(resourceId: string, traceId: string): Promise<DiagnosticTrace> {
-    if (!traceId || traceId.length > 128) throw new DiagnosticsError('Trace 身份无效', 400)
+    if (!traceId || traceId.length > 128) throw new DiagnosticsError('Trace 身份无效', 400, 'diagnostics.invalid_trace')
     const trace = await (await domain()).getTrace({ traceId })
     const root = trace?.spans.find(span => !span.parentSpanId)
-    if (!trace || !root || root.resourceId !== resourceId) throw new DiagnosticsError('Trace 不存在', 404)
+    if (!trace || !root || root.resourceId !== resourceId) throw new DiagnosticsError('Trace 不存在', 404, 'diagnostics.trace_not_found')
     const byId = new Map(trace.spans.map(span => [span.spanId, span]))
     const attributable = trace.spans.filter(span => {
       let current = span, visited = new Set<string>()
@@ -83,9 +83,9 @@ export function createDiagnostics(options: Options) {
   async function listTraces(resourceId: string, query: { page?: number; perPage?: number } = {}) {
     await authorized(resourceId)
     const parsed = pageSchema.safeParse(query)
-    if (!parsed.success) throw new DiagnosticsError('分页无效', 400)
+    if (!parsed.success) throw new DiagnosticsError('分页无效', 400, 'diagnostics.invalid_page')
     const result = await (await domain()).listTraces({ filters: { resourceId }, pagination: parsed.data, orderBy: { field: 'startedAt', direction: 'DESC' } })
-    if (result.spans.some(span => span.resourceId !== resourceId)) throw new DiagnosticsError('原生 trace 范围校验失败', 503)
+    if (result.spans.some(span => span.resourceId !== resourceId)) throw new DiagnosticsError('原生 trace 范围校验失败', 503, 'diagnostics.scope_failed')
     const items: TraceSummary[] = result.spans.map(span => ({ traceId: span.traceId, name: String(redactPayload(span.name, secrets()).value), resourceId,
       threadId: span.threadId ?? null, runId: span.runId ?? null, startedAt: span.startedAt.toISOString(), endedAt: span.endedAt?.toISOString() ?? null, status: span.status }))
     return { items, ...parsed.data, total: result.pagination?.total ?? items.length, hasMore: result.pagination?.hasMore ?? false, collectionEnabled: enabled() }
@@ -109,37 +109,37 @@ export function createDiagnostics(options: Options) {
     async markBadCase(resourceId: string, input: MarkCaseInput) {
       await authorized(resourceId)
       const parsed = markCaseSchema.safeParse(input)
-      if (!parsed.success || (parsed.data.spanId && !parsed.data.traceId)) throw new DiagnosticsError('问题标注无效', 400)
+      if (!parsed.success || (parsed.data.spanId && !parsed.data.traceId)) throw new DiagnosticsError('问题标注无效', 400, 'diagnostics.invalid_case')
       if (parsed.data.traceId) {
         const trace = await traceFor(resourceId, parsed.data.traceId)
-        if (parsed.data.spanId && !trace.spans.some(span => span.spanId === parsed.data.spanId)) throw new DiagnosticsError('Span 不存在或不在可读范围', 404)
+        if (parsed.data.spanId && !trace.spans.some(span => span.spanId === parsed.data.spanId)) throw new DiagnosticsError('Span 不存在或不在可读范围', 404, 'diagnostics.span_not_found')
       }
       const clean = redactPayload(parsed.data, secrets())
       const value = markCaseSchema.safeParse(clean.value)
-      if (!value.success) throw new DiagnosticsError('问题标注无法安全保存', 400)
+      if (!value.success) throw new DiagnosticsError('问题标注无法安全保存', 400, 'diagnostics.case_unsafe')
       return safeCase(cases.mark(resourceId, value.data, clean.redacted))
     },
     async updateBadCase(resourceId: string, id: string, input: UpdateCaseInput) {
       await authorized(resourceId)
       const parsed = updateCaseSchema.safeParse(input)
-      if (!parsed.success) throw new DiagnosticsError('问题标注无效', 400)
+      if (!parsed.success) throw new DiagnosticsError('问题标注无效', 400, 'diagnostics.invalid_case')
       const clean = redactPayload(parsed.data, secrets()), value = updateCaseSchema.safeParse(clean.value)
-      if (!value.success) throw new DiagnosticsError('问题标注无法安全保存', 400)
+      if (!value.success) throw new DiagnosticsError('问题标注无法安全保存', 400, 'diagnostics.case_unsafe')
       return safeCase(cases.update(resourceId, id, value.data, clean.redacted))
     },
     async listBadCases(resourceId: string, query: { page?: number; perPage?: number } = {}) {
       await authorized(resourceId)
       const parsed = pageSchema.safeParse(query)
-      if (!parsed.success) throw new DiagnosticsError('分页无效', 400)
+      if (!parsed.success) throw new DiagnosticsError('分页无效', 400, 'diagnostics.invalid_page')
       const result = cases.list(resourceId, parsed.data.page, parsed.data.perPage)
       return { ...result, items: result.items.map(safeCase) }
     },
     async getBadCase(resourceId: string, id: string) { await authorized(resourceId); return safeCase(cases.get(resourceId, id)) },
     async evaluate(resourceId: string, id: string, mode: EvaluationMode, requestSignal?: AbortSignal) {
       await authorized(resourceId)
-      if (mode !== 'recorded' && mode !== 'live') throw new DiagnosticsError('评估模式无效', 400)
+      if (mode !== 'recorded' && mode !== 'live') throw new DiagnosticsError('评估模式无效', 400, 'diagnostics.invalid_mode')
       const key = `${resourceId}/${id}`, item = safeCase(cases.get(resourceId, id))
-      if (evaluations.has(key)) throw new DiagnosticsError('该问题正在评估', 409)
+      if (evaluations.has(key)) throw new DiagnosticsError('该问题正在评估', 409, 'diagnostics.evaluating')
       const abort = new AbortController(), signal = AbortSignal.any([abort.signal, AbortSignal.timeout(60000), ...(requestSignal ? [requestSignal] : [])])
       const result = Promise.resolve().then(async () => {
         let trace: DiagnosticTrace | undefined

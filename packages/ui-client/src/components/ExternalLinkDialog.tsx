@@ -7,7 +7,7 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import { Dialog } from '@cloudflare/kumo/components/dialog'
-import { APP_STATUS_COPY } from '../copy/appCopy'
+import { useT } from '../i18n/index.ts'
 import { hostOf } from '../sourceCite'
 import { isTrustedHost, trustHost } from '../trustedHosts'
 import { openExternalUrl } from '../openExternal'
@@ -21,6 +21,7 @@ export function useOpenExternal(): (url: string) => void {
 }
 
 export function ExternalLinkGate({ children }: { children: ReactNode }) {
+  const { app: A, common } = useT()
   const [pending, setPending] = useState<string | null>(null)
   const [remember, setRemember] = useState(false)
   const host = pending ? hostOf(pending) : ''
@@ -50,9 +51,9 @@ export function ExternalLinkGate({ children }: { children: ReactNode }) {
       {children}
       {pending ? (
         <Dialog.Root open onOpenChange={(o: boolean) => { if (!o) setPending(null) }}>
-          <Dialog className="ext-link-modal p-0" aria-label={APP_STATUS_COPY.linkDialogTitle}>
-            <h2 className="ext-link-title">{APP_STATUS_COPY.linkDialogTitle}</h2>
-            <p className="ext-link-hint">{APP_STATUS_COPY.linkDialogHint}</p>
+          <Dialog className="ext-link-modal p-0" aria-label={A.linkTitle}>
+            <h2 className="ext-link-title">{A.linkTitle}</h2>
+            <p className="ext-link-hint">{A.linkHint}</p>
             <div className="ext-link-url">{pending}</div>
             {host ? (
               <label className="ext-link-remember">
@@ -61,14 +62,14 @@ export function ExternalLinkGate({ children }: { children: ReactNode }) {
                   checked={remember}
                   onChange={(e) => setRemember(e.target.checked)}
                 />
-                <span>{APP_STATUS_COPY.linkDialogDontAsk(host)}</span>
+                <span>{A.linkDontAsk(host)}</span>
               </label>
             ) : null}
             <div className="ext-link-actions">
               <Button variant="ghost" onClick={() => setPending(null)}>
-                {APP_STATUS_COPY.linkDialogCancel}
+                {common.cancel}
               </Button>
-              <Button onClick={confirm}>{APP_STATUS_COPY.linkDialogOpen}</Button>
+              <Button onClick={confirm}>{A.linkOpen}</Button>
             </div>
           </Dialog>
         </Dialog.Root>

@@ -52,7 +52,7 @@ export async function backfillLibrary(studio: Studio, http: ResearchHttp, option
     if (item.kind === 'web' && paper) {
       try {
         const fetched = (await http(arxivPdfUrl(paper), { signal: options.signal })).bytes
-        if (!isPdf(fetched)) throw new StudioError(`arXiv ${paper} 没有返回 PDF`, 400)
+        if (!isPdf(fetched)) throw new StudioError(`arXiv ${paper} 没有返回 PDF`, 400, 'library.arxiv_not_pdf', { id: paper })
         bytes = fetched
         if (!options.dryRun) item = await studio.library.replaceOriginal(item, { name: `${paper.replace('/', '_')}.pdf`, bytes, kind: 'pdf', mediaType: 'application/pdf', sourceUrl: arxivAbsUrl(paper) })
         else item = { ...item, kind: 'pdf', file: `${paper.replace('/', '_')}.pdf`, mediaType: 'application/pdf', sourceUrl: arxivAbsUrl(paper), sha256: createHash('sha256').update(bytes).digest('hex') }

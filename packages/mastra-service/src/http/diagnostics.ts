@@ -18,13 +18,13 @@ export function diagnosticsRoutes(diagnostics: Diagnostics, authorize: (topicId:
   app.use('/diagnostics/*', async (c, next) => { c.header('Cache-Control', 'no-store'); await next() })
   async function resource(c: Context) {
     const parsed = identity.safeParse(c.req.query())
-    if (!parsed.success) throw new DiagnosticsError('会话身份无效', 400)
+    if (!parsed.success) throw new DiagnosticsError('会话身份无效', 400, 'diagnostics.invalid_session')
     await authorize(parsed.data.topicId, parsed.data.taskId)
     return `${parsed.data.topicId}:${parsed.data.taskId}`
   }
   function pagination(c: Context) {
     const parsed = page.safeParse(c.req.query())
-    if (!parsed.success) throw new DiagnosticsError('分页无效', 400)
+    if (!parsed.success) throw new DiagnosticsError('分页无效', 400, 'diagnostics.invalid_page')
     return parsed.data
   }
   app.get('/diagnostics/traces', async c => c.json(await diagnostics.listTraces(await resource(c), pagination(c))))
@@ -34,7 +34,7 @@ export function diagnosticsRoutes(diagnostics: Diagnostics, authorize: (topicId:
   app.patch('/diagnostics/cases/:id', async c => c.json(await diagnostics.updateBadCase(await resource(c), c.req.param('id'), await c.req.json().catch(() => null))))
   app.post('/diagnostics/cases/:id/evaluate', async c => {
     const parsed = z.object({ mode: z.enum(['recorded', 'live']) }).strict().safeParse(await c.req.json().catch(() => null))
-    if (!parsed.success) throw new DiagnosticsError('评估模式无效', 400)
+    if (!parsed.success) throw new DiagnosticsError('评估模式无效', 400, 'diagnostics.invalid_mode')
     return c.json(await diagnostics.evaluate(await resource(c), c.req.param('id'), parsed.data.mode, c.req.raw.signal))
   })
   app.get('/diagnostics/export', async c => {
@@ -43,7 +43,7 @@ export function diagnosticsRoutes(diagnostics: Diagnostics, authorize: (topicId:
   })
   app.post('/diagnostics/recorded', async c => {
     const parsed = z.object({ content: z.string() }).safeParse(await c.req.json().catch(() => null))
-    if (!parsed.success) throw new DiagnosticsError('请提供诊断 JSON 内容', 400)
+    if (!parsed.success) throw new DiagnosticsError('请提供诊断 JSON 内容', 400, 'diagnostics.missing_content')
     c.header('Cache-Control', 'no-store')
     return c.json(diagnostics.readRecorded(parsed.data.content))
   })

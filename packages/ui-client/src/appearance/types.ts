@@ -112,10 +112,8 @@ export const TOKEN_ALIASES: Record<string, string> = {
 }
 
 export interface SkinDefinition {
+  /** Name and one-line description are UI text: i18n catalog `skins[id]` */
   id: string
-  name: string
-  /** 一行说明（卡片副文案） */
-  description?: string
   /** 设置页缩略：CSS 渐变 */
   preview: string
   /** 卡片底部强调色点（2–3 个 hex） */

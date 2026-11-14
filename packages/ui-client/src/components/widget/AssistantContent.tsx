@@ -7,7 +7,7 @@
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  */
 import { memo, useMemo } from 'react'
-import { mermaidFixPrompt } from '../../copy/appCopy'
+import { MODEL_TEXT } from '../../i18n/locales/model.ts'
 import { markMermaidFixAsked, mermaidFixAsked, subscribeMermaidFix, type MermaidFix } from '../../mermaid/mermaidFixLedger'
 import { Markdown } from '../Markdown'
 import { WidgetFrame } from './WidgetFrame'
@@ -31,7 +31,7 @@ export const AssistantContent = memo(function AssistantContent({
     () => (onSendMessage && fixScope && !isStreaming
       ? {
           asked: (source) => mermaidFixAsked(fixScope, source),
-          ask: (source, error) => { if (markMermaidFixAsked(fixScope, source)) onSendMessage(mermaidFixPrompt(source, error)) },
+          ask: (source, error) => { if (markMermaidFixAsked(fixScope, source)) onSendMessage(MODEL_TEXT.mermaidFix(source, error)) },
           subscribe: subscribeMermaidFix,
         }
       : undefined),

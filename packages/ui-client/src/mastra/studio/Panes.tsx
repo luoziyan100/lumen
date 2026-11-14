@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PanelIcon } from '../../components/icons'
-import { STUDIO_COPY as S } from '../../copy/studioCopy'
+import { useT } from '../../i18n/index.ts'
 
 export const PANES_KEY = 'lumen.studio.panes'
 export const SPLIT = { BOARD_MIN: 360, READER_MIN: 420, RATIO: 0.5 }
@@ -47,15 +47,19 @@ export function usePanes() {
   return { ...panes, toggle, setRatio }
 }
 
+const SHORTCUTS = { left: { glyph: '⌘B', aria: 'Meta+B' }, right: { glyph: '⌘⌥B', aria: 'Meta+Alt+B' } }
+
 /** 收起按钮在栏头右侧；展开按钮在中栏头部最左 / 最右。右栏用同一轮廓镜像 */
 export function PaneToggle({ side, open, onToggle, className = '' }: { side: Side; open: boolean; onToggle: () => void; className?: string }) {
-  const copy = S.panes[side], label = open ? copy.collapse : copy.expand
+  const S = useT().studio
+  const copy = S.panes[side], keys = SHORTCUTS[side], label = open ? copy.collapse : copy.expand
   return <button type="button" className={`icon-btn pane-toggle ${className}`.trim()} data-pane={side} aria-controls={side === 'left' ? 'studio-topics' : 'studio-materials'} aria-label={label} aria-expanded={open}
-    aria-keyshortcuts={copy.keys} title={`${label} ${copy.key}`} onClick={onToggle}><PanelIcon mirrored={side === 'right'} /></button>
+    aria-keyshortcuts={keys.aria} title={`${label} ${keys.glyph}`} onClick={onToggle}><PanelIcon mirrored={side === 'right'} /></button>
 }
 
 /** 分屏分隔条：8px 命中区、悬停显 1px 线；拖动改比例（夹在两个下限之间），双击回到各一半，←/→ 键每次 5% */
 export function Splitter({ host, ratio, onRatio }: { host: HTMLElement | null; ratio: number; onRatio: (ratio: number) => void }) {
+  const S = useT().studio
   const dragging = useRef(false)
   const settle = (raw: number) => { const total = host?.clientWidth ?? 0; if (total) onRatio(splitBoardWidth(total, raw) / total) }
   const at = (clientX: number) => { if (host?.clientWidth) settle((clientX - host.getBoundingClientRect().left - host.clientLeft) / host.clientWidth) }

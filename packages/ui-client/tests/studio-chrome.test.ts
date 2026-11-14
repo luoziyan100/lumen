@@ -22,7 +22,7 @@ register('./helpers/tsx-loader.mjs', import.meta.url)
 const { createRoot } = await import('react-dom/client')
 const { filterMaterials, shortLink } = await import('../src/mastra/studio/Materials.tsx')
 const { ViewNav, navFits, VIEWS } = await import('../src/mastra/studio/ViewNav.tsx')
-const { STUDIO_COPY: S } = await import('../src/copy/studioCopy.ts')
+const S = (await import('./helpers/zh.ts')).zh.studio
 
 type Material = Parameters<typeof filterMaterials>[0][number]
 const base = { kind: 'pdf', file: 'x.pdf', sha256: 's', mediaType: 'application/pdf', size: 1, addedBy: 'you', createdAt: '', authors: null, year: null, arxivId: null, titleSource: null, topicId: 't', addedAt: '', readProgress: 0, citedBy: 0 }
@@ -83,7 +83,7 @@ test('视图导航：五项都有图标与 aria-label；放不下只留图标并
   try {
     await render(false)
     // ---- 五项：图标在左（16，currentColor）、文字在右，aria-label 恒在 ----
-    assert.deepEqual(tabs().map(tab => [tab.getAttribute('aria-label'), tab.textContent, tab.title]), VIEWS.map(view => [S.views[view].label, S.views[view].label, '']))
+    assert.deepEqual(tabs().map(tab => [tab.getAttribute('aria-label'), tab.textContent, tab.title]), VIEWS.map(view => [S.views[view], S.views[view], '']))
     assert.deepEqual(tabs().map(tab => tab.firstElementChild!.getAttribute('class')!.match(/li-(\w+)/)![1]), ['presentation', 'stack', 'conceptMap', 'lightbulb', 'grid'])
     assert.ok(tabs().every(tab => { const svg = tab.querySelector('svg')!; return svg.getAttribute('width') === '16' && svg.getAttribute('stroke') === 'currentColor' }))
     assert.deepEqual(tabs().map(tab => tab.getAttribute('aria-selected')), ['true', 'false', 'false', 'false', 'false'])
@@ -104,8 +104,8 @@ test('视图导航：五项都有图标与 aria-label；放不下只留图标并
     sizes.head -= 1
     await act(async () => observed.forEach(callback => callback()))
     assert.ok(element.querySelector('nav')!.classList.contains('is-compact'))
-    assert.deepEqual(tabs().map(tab => [tab.getAttribute('aria-label'), tab.textContent, tab.title, !!tab.querySelector('svg')]), VIEWS.map(view => [S.views[view].label, '', S.views[view].label, true]))
-    assert.equal(ghost.textContent, VIEWS.map(view => S.views[view].label).join(''), '副本一直是完整宽度')
+    assert.deepEqual(tabs().map(tab => [tab.getAttribute('aria-label'), tab.textContent, tab.title, !!tab.querySelector('svg')]), VIEWS.map(view => [S.views[view], '', S.views[view], true]))
+    assert.equal(ghost.textContent, VIEWS.map(view => S.views[view]).join(''), '副本一直是完整宽度')
     // ---- 展开按钮收走（头部尺寸不变，靠子节点变化重量）后又放得下 ----
     await render(false)
     await act(async () => { await Promise.resolve() })

@@ -5,6 +5,7 @@
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { z } from 'zod'
+import type { ErrorCode } from '../http/error-codes.ts'
 import type { EvaluationResult } from './evaluation/types.ts'
 export type { EvaluationMode, EvaluationResult } from './evaluation/types.ts'
 
@@ -46,5 +47,6 @@ export interface RecordedInspection {
 }
 export class DiagnosticsError extends Error {
   readonly status: 400 | 404 | 409 | 413 | 503
-  constructor(message: string, status: 400 | 404 | 409 | 413 | 503) { super(message); this.status = status }
+  readonly code: ErrorCode
+  constructor(message: string, status: 400 | 404 | 409 | 413 | 503, code: ErrorCode) { super(message); this.status = status; this.code = code }
 }

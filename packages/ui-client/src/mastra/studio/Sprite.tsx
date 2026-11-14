@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import { BackIcon, CloseIcon, PanelIcon, PlusIcon } from '../../components/icons'
-import { STUDIO_COPY as S } from '../../copy/studioCopy'
+import { useT } from '../../i18n/index.ts'
 import type { LumenApi, Identity, SessionInfo, Topic } from '../data/client.ts'
 import type { FileTarget } from '../data/file-links'
 import { Conversation, type BoardSignal } from '../views/Conversation'
@@ -61,6 +61,7 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
   /** 停靠时外壳给右侧让出位置 */
   onDocked?: (docked: boolean) => void
 }) {
+  const S = useT().studio
   const [shape, setShape] = useState<Shape>(loadShape)
   const [listing, setListing] = useState(false), [diagnostics, setDiagnostics] = useState(false)
   // ---- 收起也保留同一条原生订阅；展开时交给 Conversation，不重复连流 ----
@@ -92,13 +93,13 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
   const orb = showOrb && <button ref={move.orbRef} type="button" className="sprite-orb" data-visible={mainVisible} data-state={state} data-phase={move.phase} inert={move.phase === 'opening'} aria-label={S.sprite.openWith[state]} title={S.sprite.openWith[state]}
     style={{ left: move.orb.x, top: move.orb.y }} {...move.orbHandlers}>
     <SpriteFigure state={state} size="compact" expression={expression} />
-    {sessions.some(item => item.unread) && <span className="sprite-unread" aria-label="未读" />}
+    {sessions.some(item => item.unread) && <span className="sprite-unread" aria-label={S.sprite.unread} />}
   </button>
   // 同一个片段结构：开合时头像按钮不重挂（焦点与动画目标不丢）
   if (!showWindow) return <>{orb}{null}</>
 
   const style = docked ? undefined : { left: move.frame.x, top: move.frame.y, width: move.frame.w, height: move.frame.h }
-  return <>{orb}<section ref={move.winRef} className={`sprite${docked ? ' sprite-docked studio-panel' : ' sprite-floating'}`} data-phase={docked ? 'open' : move.phase} inert={!docked && move.phase === 'closing'} style={style} aria-label="对话">
+  return <>{orb}<section ref={move.winRef} className={`sprite${docked ? ' sprite-docked studio-panel' : ' sprite-floating'}`} data-phase={docked ? 'open' : move.phase} inert={!docked && move.phase === 'closing'} style={style} aria-label={S.sprite.chat}>
     <header className="studio-head sprite-head" {...move.headHandlers}>
       <SpriteFace state={state} expression={expression} className="sprite-face-head" />
       <button type="button" className="sprite-title" aria-expanded={listing} onClick={() => setListing(value => !value)} title={S.sprite.conversations}>
@@ -116,7 +117,7 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
       <Button variant="secondary" disabled={busy} title={busy ? S.sprite.busy : undefined} onClick={() => { onIdentity(null); setListing(false) }}>{S.sprite.newConversation}</Button>
       {busy && <p className="sprite-busy">{S.sprite.busy}</p>}
       <ul>{sessions.map(session => <li key={session.taskId}><button type="button" className={`sprite-session${session.taskId === identity?.taskId ? ' on' : ''}`} onClick={() => { onIdentity({ topicId: session.topicId, taskId: session.taskId }); setListing(false) }}>
-        <span>{session.title}</span>{session.unread && <span className="sprite-unread" aria-label="未读" />}<Light topic={session} />
+        <span>{session.title}</span>{session.unread && <span className="sprite-unread" aria-label={S.sprite.unread} />}<Light topic={session} />
       </button></li>)}</ul>
       {identity && <div className="sprite-tools">
         <Specialists className="sprite-specialists" api={api} identity={identity} idle={idle} onActivity={onActivity} />

@@ -11,7 +11,7 @@ src/
 ├── assets/                  # A04 masters, compact 2x/3x body WebP, Retina desktop layers and matching heads
 ├── components/              # Markdown、PDF、HTML、图表、外链与共享卷帘交互
 ├── appearance/              # 外观偏好解析、持久化与整窗应用
-├── copy/                    # 产品文案
+├── i18n/                    # UI language: en/zh catalogs, Intl formatting, useT/t, service error codes → text
 ├── mermaid/                 # 图表语法、主题颜色、测量与缩放
 ├── scroll/                  # 阅读器与图表共享的滚动诊断
 ├── shell/                   # 原生文件夹选择（S2 起无调用方；P0 保留不删，去留由合并时决定）
@@ -37,13 +37,14 @@ tests/                      # 原生 HTTP/SSE 客户端与保留渲染算法回�
 - `styles.css` 只保留现役布局、卷帘、消息、输入卡、阅读器和 Mermaid/widget 样式，新外壳样式在 `mastra/studio/studio.css`；退役侧栏、附件抽屉、Todo/来源/诊断/HUD 规则已清除。
 - 默认外观「清透」：侧栏/标题栏为半透明窗框、正文与工作区为实色内容面，细线分隔不浮卡；桌面端 `data-vibrancy` 下整窗透明，窗框透出 macOS 系统毛玻璃。
 - 玻璃反光、边缘和背景饱和度统一随材质 token；纸面关闭面板模糊、按钮扫光及输入卡彩边，面板与浮动跳转按钮使用实色，保留静态表面层次。背景模糊仅处理画布伪层，不模糊正文；浅色遮罩提亮，深色遮罩压暗。
+- i18n (2026-11-14): every user-facing string comes from `src/i18n/locales/{en,zh}.ts` (en defines the `Messages` type); components read `useT()`, other code `t()`. Default English, choice in `lumen:locale.v1`, switched in Settings › Appearance › Language without reload; `<html lang>` and the Rust `set_locale` table follow. Service errors are mapped by `code`, never by their Chinese `error` text. Text sent to models stays Chinese in `i18n/locales/model.ts`. `npm run check:i18n` (part of root `verify`) fails on any CJK string literal or JSX text outside `src/i18n/locales/`. See `src/i18n/CLAUDE.md`.
 - `components/disclosure/` 共用原卷帘时序与三层容器；`styles.css` 的开合/错峰只命中当前层，父级展开不得覆盖已收起的子会话。
 
 ## 开发纪律
 
-执行 `npm run typecheck -w @lumen/ui-client`、`npm test -w @lumen/ui-client`、`npm run build -w @lumen/ui-client`；原生构建与安装仍须在实际桌面验证。Node 回归不证明 WebKit 交互通过。
+执行 `npm run typecheck -w @lumen/ui-client`、`npm test -w @lumen/ui-client`、`npm run check:i18n -w @lumen/ui-client`、`npm run build -w @lumen/ui-client`；原生构建与安装仍须在实际桌面验证。Node 回归不证明 WebKit 交互通过。
 
-界面颜色、阴影与字体消费 token，控件沿用 Kumo；PDF 渲染保持 pdfjs-dist 4.10.38，避免已知 WebKit ESM 回归。修改界面后同步文案、局部地图与文件契约。
+界面颜色、阴影与字体消费 token，控件沿用 Kumo；PDF 渲染保持 pdfjs-dist 4.10.38，避免已知 WebKit ESM 回归。修改界面后同步文案、局部地图与文件契约。 New UI text goes into both catalogs (en first; zh is type-checked against it), never as a literal in a component.
 
 ## 迁移记录
 

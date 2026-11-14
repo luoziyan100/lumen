@@ -334,13 +334,13 @@ html[data-skin="cosmic-latte"] .rail-card {
   -webkit-backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation));
 }
 .settings-nav {
-  flex: 0 0 168px; background: var(--paper-deep); border-right: 1px solid var(--border);
+  flex: 0 0 auto; min-width: 168px; background: var(--paper-deep); border-right: 1px solid var(--border);
   padding: var(--s-5) var(--s-3); display: flex; flex-direction: column; gap: 2px;
 }
 .settings-nav-title { padding: 0 var(--s-3) var(--s-3); color: var(--text-muted); font-size: var(--t-body-sm); }
 .settings-nav-item {
   padding: 8px 12px; border: none; border-radius: var(--radius-md);
-  background: none; color: var(--text-soft); font: inherit; text-align: left; cursor: pointer;
+  background: none; color: var(--text-soft); font: inherit; text-align: left; cursor: pointer; white-space: nowrap;
   transition: background var(--dur-fast) var(--ease-out);
 }
 .settings-nav-item:hover { background: var(--border); }
@@ -2184,8 +2184,10 @@ html[data-skin="cosmic-latte"] .thought {
 .pref-mode-btn.is-active {
   border-color: var(--accent); color: var(--text); background: var(--accent-tint);
 }
-.pref-font-row { display: flex; align-items: baseline; gap: var(--s-3); }
-.pref-font-label { flex: none; width: 2.5em; color: var(--text-muted); font-size: var(--t-body-sm); }
+/* Labels share one column sized by the longer label in the current language, so both rows' chips line up */
+.pref-font-grid { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; gap: var(--s-3); }
+.pref-font-row { display: contents; }
+.pref-font-label { color: var(--text-muted); font-size: var(--t-body-sm); white-space: nowrap; }
 .pref-check { display: inline-flex; align-items: center; gap: var(--s-2); color: var(--text-soft); font-size: var(--t-body-sm); cursor: pointer; }
 .pref-font-sample {
   margin: 0; max-width: 36em; padding: var(--s-3) var(--s-4); border: 1px solid var(--border); border-radius: var(--radius-md);
