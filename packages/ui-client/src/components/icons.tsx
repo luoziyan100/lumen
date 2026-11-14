@@ -1,6 +1,6 @@
 /**
  * [INPUT]: yan-design-system/icons 的几何(静态常量 SVG 标记)与 React ref；doc/ui-design.md §3.1 的纯线条、尺寸、动效和操作语义
- * [OUTPUT]: currentColor 纯线条的操作、文件类别与 Kumo 菜单图标(兼容 Phosphor Icon 类型)，ICON_SM/MD/LG
+ * [OUTPUT]: currentColor 纯线条的操作、视图导航、文件类别与 Kumo 菜单图标(兼容 Phosphor Icon 类型)，ICON_SM/MD/LG
  * [POS]: 业务图标唯一入口；同一包装约束 JSX 与菜单引用，文件类别映射不含格式文字徽标
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -54,6 +54,13 @@ export const CollapseIcon = makeIcon('collapse', ICON_SM)
 export const ZoomInIcon = makeIcon('zoomIn', ICON_SM)
 export const ZoomOutIcon = makeIcon('zoomOut', ICON_SM)
 export const ManageSkillsIcon = makeIcon('briefcase', ICON_SM)
+
+// ---- 视图导航：白板 · 沉淀 · 概念图 · 灵感 · 全部，16 行内 ----
+export const BoardViewIcon = makeIcon('presentation', ICON_SM)
+export const SettledViewIcon = makeIcon('stack', ICON_SM)
+export const MapViewIcon = makeIcon('conceptMap', ICON_SM)
+export const IdeasViewIcon = makeIcon('lightbulb', ICON_SM)
+export const AllViewIcon = makeIcon('grid', ICON_SM)
 
 /** 右面板与左侧栏使用同一轮廓镜像，保持两侧导航对称。 */
 export function RailIcon({ size = ICON_LG }: { size?: number }) {

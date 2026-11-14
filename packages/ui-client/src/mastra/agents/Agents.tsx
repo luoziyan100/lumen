@@ -1,17 +1,17 @@
 /**
- * [INPUT]: 共享Disclosure卷帘、LumenApi 的全局角色目录与配置写入入口、Kumo 对话框
- * [OUTPUT]: Agents：可审阅角色来源和权限的管理面板
- * [POS]: 静态配置展示；不推导或复制原生子任务运行状态
+ * [INPUT]: 共享Disclosure卷帘、LumenApi 的全局专家目录与配置写入入口、设置页的标题/说明样式与 glass-card 卡面、agents.css
+ * [OUTPUT]: AgentsPane：设置里的「专家」分页——来源、权限、工具与指令，全局启停与空闲重载，配置错误展示；写入中经 onBusy 告诉设置页锁住分类与关闭
+ * [POS]: 静态配置展示；不推导或复制原生子任务运行状态，运行中写入由服务拒绝并如实显示
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { Disclosure } from '../../components/disclosure/Disclosure'
 import { useEffect, useState } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
-import { Dialog } from '@cloudflare/kumo/components/dialog'
 import type { AgentCatalog } from '../../../../mastra-service/src/agents/catalog/types.ts'
 import { LumenApi } from '../data/client'
+import './agents.css'
 
-export function Agents({ api, onClose }: { api: LumenApi; onClose: () => void }) {
+export function AgentsPane({ api, onBusy }: { api: LumenApi; onBusy: (busy: boolean) => void }) {
   const [catalog, setCatalog] = useState<AgentCatalog | null>(null), [error, setError] = useState(''), [busy, setBusy] = useState(false)
   useEffect(() => {
     let active = true
@@ -19,21 +19,21 @@ export function Agents({ api, onClose }: { api: LumenApi; onClose: () => void })
     return () => { active = false }
   }, [api])
   async function update(work: () => Promise<AgentCatalog>) {
-    setBusy(true); setError('')
-    try { setCatalog(await work()) } catch (error) { setError(String(error)) } finally { setBusy(false) }
+    setBusy(true); onBusy(true); setError('')
+    try { setCatalog(await work()) } catch (error) { setError(String(error)) } finally { setBusy(false); onBusy(false) }
   }
-  return <Dialog.Root open onOpenChange={open => { if (!open && !busy) onClose() }}><Dialog className="mw-dialog mw-settings" aria-label="研究角色">
-    <header><h2>研究角色</h2><Button variant="ghost" disabled={busy} onClick={onClose}>关闭</Button></header>
-    <p>主研究者按任务委派专家。角色启停作用于所有主题；修改 Markdown 定义后，在研究空闲时重新加载。</p>
-    <Button disabled={busy} variant="secondary" onClick={() => void update(() => api.reloadAgents())}>重新加载角色</Button>
+  return <>
+    <div className="mp-head"><h2 className="settings-h">专家</h2><Button type="button" disabled={busy} variant="outline" size="sm" onClick={() => void update(() => api.reloadAgents())}>重新加载专家</Button></div>
+    <p className="set-hint">主研究者按任务委派专家。专家启停作用于所有主题；修改 Markdown 定义后，在研究空闲时重新加载。</p>
     {error && <p role="alert" className="mw-error">{error}</p>}
-    {catalog?.entries.map(({ role, layer, sourcePath, disabled }) => <section className="mw-question" key={role.id}>
-      <header><strong>{role.name}</strong><Button disabled={busy} variant="ghost" onClick={() => void update(() => api.setAgentDisabled(role.id, !disabled))}>{disabled ? '启用' : '停用'}</Button></header>
-      <p>{role.description}</p><small>{role.id} · {disabled ? '已停用' : '已启用'} · {layer === 'builtin' ? '内建' : layer} · {role.maxSteps} 步</small>
-      <p>{role.execute ? '可申请执行代码；写入独立工作目录' : role.writable ? '写入独立工作目录' : '只读材料'}</p>
-      {sourcePath && <p>{sourcePath}</p>}
-      <Disclosure summary="工具与指令"><p>{role.tools.join('、')}</p><pre>{role.instructions}</pre></Disclosure>
-    </section>)}
-    {catalog?.diagnostics.map((item, index) => <p key={index} role="status">{item.sourcePath ? `${item.sourcePath}：` : ''}{item.message}</p>)}
-  </Dialog></Dialog.Root>
+    {!catalog && !error && <p className="set-hint">加载中…</p>}
+    {catalog && <div className="agent-list">{catalog.entries.map(({ role, layer, sourcePath, disabled }) => <section className="agent-card glass-card" key={role.id} aria-label={role.name}>
+      <header className="agent-card-head"><h3 className="agent-card-name">{role.name}</h3><Button type="button" disabled={busy} variant="outline" size="sm" onClick={() => void update(() => api.setAgentDisabled(role.id, !disabled))}>{disabled ? '启用' : '停用'}</Button></header>
+      <p className="agent-card-text">{role.description}</p><small className="agent-card-meta">{role.id} · {disabled ? '已停用' : '已启用'} · {layer === 'builtin' ? '内建' : layer} · {role.maxSteps} 步</small>
+      <p className="agent-card-text">{role.execute ? '可申请执行代码；写入独立工作目录' : role.writable ? '写入独立工作目录' : '只读材料'}</p>
+      {sourcePath && <p className="agent-card-text">{sourcePath}</p>}
+      <Disclosure summary="工具与指令"><p className="agent-card-text">{role.tools.join('、')}</p><pre>{role.instructions}</pre></Disclosure>
+    </section>)}</div>}
+    {!!catalog?.diagnostics.length && <div className="agent-notes">{catalog.diagnostics.map((item, index) => <p key={index} className="set-hint" role="status">{item.sourcePath ? `${item.sourcePath}：` : ''}{item.message}</p>)}</div>}
+  </>
 }

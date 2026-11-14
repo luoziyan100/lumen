@@ -7,6 +7,8 @@
 // sprite-move 回归：上一轮 lumen-sprite-ui 的 ui-assert-panels.js 全部断言（源自 lumen-studio-panels 的独立脚本 + S2 精灵圆 52px + 1706.03762 原文），
 // 改为独立运行、dev 端口 5183。唯一改写：G8 原为「精灵球在白板区内、不压右栏、不压缩放条」，按 M1（整窗自由放置）改为「默认位置不压右栏和缩放条」，
 // 不再要求在白板区内；脚本开头清掉 lumen.studio.sprite、全程不拖头像，所以每个状态量的都是默认位置。
+// lumen-studio-chrome 改写一条：U1「每项一行」原来量整个按钮内容的行顶，C2 给每项加了 16px 图标后图标与文字行顶不同会被误数成两行；
+// 改为只量文字 span 的行数（紧凑态没有文字就量按钮），scrollWidth 不溢出的条件不变。
 // 用法：node ui-assert-panels.mjs <evidence-dir> [topicTitle]
 import { chromium } from '/tmp/lumen-s0-pw/node_modules/playwright-core/index.mjs'
 const exe = process.env.HOME + '/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
@@ -62,7 +64,7 @@ async function measure(page) {
     const mats = document.querySelector('.studio-materials')
     const matGroups = mats ? mats.querySelectorAll('.studio-label, .materials-group, h4').length : 0
     const matCounts = mats ? [...mats.querySelectorAll('*')].filter(el => el.children.length === 0 && /^\s*\d+\s*$/.test(el.textContent)).length : 0
-    const segWrapped = seg ? [...seg.querySelectorAll('button')].filter(b => { const range = document.createRange(); range.selectNodeContents(b); return new Set([...range.getClientRects()].map(x => Math.round(x.top))).size > 1 || b.scrollWidth > b.clientWidth + 1 }).map(b => b.textContent) : []
+    const segWrapped = seg ? [...seg.querySelectorAll('button')].filter(b => { const range = document.createRange(); range.selectNodeContents(b.querySelector(':scope > span') ?? b); return new Set([...range.getClientRects()].map(x => Math.round(x.top))).size > 1 || b.scrollWidth > b.clientWidth + 1 }).map(b => b.textContent) : []
     return { segWrapped, segOffset, centerHead, boardText, matGroups, matCounts, labelClipped, labelHitsSheets, heads, edges, overflow, clipped, offRight, orb: !!orb, orbSize: orb ? r(orb).width : null, orbHeight: orb ? r(orb).height : null, orbHitsRight, orbInBoard, orbOverZoom, blocks: document.querySelectorAll('.board-block').length, scale: document.querySelector('.board-zoom-value')?.textContent, fonts: [...fonts].sort() }
   })
 }

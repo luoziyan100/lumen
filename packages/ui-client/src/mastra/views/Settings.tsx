@@ -1,6 +1,6 @@
 /**
- * [INPUT]: 共享Disclosure卷帘、脱敏设置DTO、模型档案更新API、原设置行样式、统一 icons 与外观面板
- * [OUTPUT]: Settings：模型、研究偏好与外观三个分类；供应商卡、逐行模型ID及视觉/上下文/价格设置
+ * [INPUT]: 共享Disclosure卷帘、脱敏设置DTO、模型档案更新API、原设置行样式、统一 icons、专家分页与外观面板
+ * [OUTPUT]: Settings：模型、研究偏好、专家与外观四个分类；供应商卡、逐行模型ID及视觉/上下文/价格设置；专家写入中与保存中一样锁住分类与关闭
  * [POS]: 设置组合层；分类浏览与配置写入分离，外观本机即时应用；密钥只单向提交，失败留稿，服务裁定运行中修改边界
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -12,6 +12,7 @@ import { Select } from '@cloudflare/kumo/components/select'
 import { MASTRA_COPY as C } from '../../copy/mastraCopy'
 import { CloseIcon, BackIcon, MinusIcon, PlusIcon, PlayIcon, TrashIcon, ICON_SM } from '../../components/icons'
 import { PreferencePane } from './chrome/Appearance'
+import { AgentsPane } from '../agents/Agents'
 import type { useAppearance } from '../../appearance'
 import { LumenApi, type PublicModelProfile, type PublicSettings, type SettingsPatch } from '../data/client.ts'
 
@@ -21,11 +22,11 @@ function SettingRow({ label, children }: { label: string; children: ReactNode })
 }
 
 export function Settings({ api, onClose, appearance }: { api: LumenApi; onClose: () => void; appearance?: ReturnType<typeof useAppearance> }) {
-  const [pane, setPane] = useState<'model' | 'prompt' | 'preference'>('model')
+  const [pane, setPane] = useState<'model' | 'prompt' | 'agents' | 'preference'>('model')
   const [editing, setEditing] = useState(false)
   const [settings, setSettings] = useState<PublicSettings | null>(null), [profile, setProfile] = useState<PublicModelProfile>(emptyProfile)
   const [key, setKey] = useState(''), [keyFocused, setKeyFocused] = useState(false), [instructions, setInstructions] = useState('')
-  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(false)
+  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [saved, setSaved] = useState(false), [agentsBusy, setAgentsBusy] = useState(false)
   const pending = useRef(false), modelInputs = useRef<(HTMLInputElement | null)[]>([])
   function edit(next: PublicModelProfile) { setProfile({ ...next, models: next.models.length ? [...next.models] : [''] }); setKey(''); setKeyFocused(false); setSaved(false); setError('') }
   useEffect(() => {
@@ -69,12 +70,14 @@ export function Settings({ api, onClose, appearance }: { api: LumenApi; onClose:
   }
   const masked = profile.hasApiKey && !key && !keyFocused
   const configurationBusy = settings?.busy === true
-  return <Dialog.Root open onOpenChange={open => { if (!open && !pending.current) onClose() }}><Dialog className="settings-modal mw-settings p-0" aria-label={C.settings}>
-    <nav className="settings-nav" aria-label="设置分类"><div className="settings-nav-title">设置</div>{([['model', '模型'], ['prompt', '研究偏好'], ['preference', '外观']] as const).map(([id, label]) => <button type="button" disabled={busy} key={id} className={`settings-nav-item${pane === id ? ' is-active' : ''}`} onClick={() => { setPane(id); setSaved(false); setError(''); if (id === 'model') setEditing(false) }}>{label}</button>)}</nav>
+  const locked = busy || agentsBusy
+  return <Dialog.Root open onOpenChange={open => { if (!open && !pending.current && !agentsBusy) onClose() }}><Dialog className="settings-modal mw-settings p-0" aria-label={C.settings}>
+    <nav className="settings-nav" aria-label="设置分类"><div className="settings-nav-title">设置</div>{([['model', '模型'], ['prompt', '研究偏好'], ['agents', '专家'], ['preference', '外观']] as const).map(([id, label]) => <button type="button" disabled={locked} key={id} className={`settings-nav-item${pane === id ? ' is-active' : ''}`} onClick={() => { setPane(id); setSaved(false); setError(''); if (id === 'model') setEditing(false) }}>{label}</button>)}</nav>
     <section className="settings-body">
-    <button type="button" className="settings-close" disabled={busy} onClick={onClose} aria-label="关闭设置"><CloseIcon size={18} /></button>
+    <button type="button" className="settings-close" disabled={locked} onClick={onClose} aria-label="关闭设置"><CloseIcon size={18} /></button>
     {pane === 'preference' && (appearance ? <PreferencePane state={appearance.state} onChange={appearance.setAppearance} /> : <p className="set-hint">外观偏好不可用</p>)}
-    {pane !== 'preference' && !settings && <p className="set-hint">加载中…</p>}
+    {pane === 'agents' && <AgentsPane api={api} onBusy={setAgentsBusy} />}
+    {(pane === 'model' || pane === 'prompt') && !settings && <p className="set-hint">加载中…</p>}
     {pane === 'model' && settings && !editing && <><div className="mp-head"><h2 className="settings-h">模型</h2><Button type="button" disabled={busy || configurationBusy} variant="outline" size="sm" onClick={() => { edit(emptyProfile()); setEditing(true) }}>添加模型</Button></div><p className="set-hint">{configurationBusy ? '模型选择可立即保存；编辑配置请先完成或停止当前研究，包括侧栏中等待回答的会话。' : C.settingsHint}</p><div className="mpc-list">{settings.profiles.map(item => <div className={`mpc-card glass-card ${settings.activeProfileId === item.id ? 'is-in-use' : ''}`} key={item.id}><button type="button" disabled={busy || configurationBusy} className="mpc-main" onClick={() => { edit(item); setEditing(true) }}><span className="mpc-name">{item.name}</span><span className="mpc-url">{item.baseUrl}</span><span className="mpc-model">{item.models.join(' · ') || '未填模型 ID'}{!item.hasApiKey && ' · 未配置 Key'}</span></button><div className="mpc-aside"><div className="mpc-aside-idle">{settings.activeProfileId === item.id && <span className="mp-active">使用中</span>}</div><div className="mpc-aside-hot">{settings.activeProfileId !== item.id && <button type="button" disabled={busy} className="mpc-act mpc-act-enable" onClick={() => void save({ activeProfileId: item.id })}><PlayIcon size={ICON_SM} /><span>启用</span></button>}{settings.profiles.length > 1 && <button type="button" disabled={busy || configurationBusy} className="mpc-act mpc-act-danger" aria-label={`删除 ${item.name}`} onClick={() => void save({ deleteProfileId: item.id })}><TrashIcon size={16} /></button>}</div></div></div>)}</div></>}
     {pane === 'model' && editing && <form className="mp-editor" onSubmit={event => { event.preventDefault(); saveProfile() }}>
       <div className="mp-head"><button type="button" disabled={busy || configurationBusy} className="mp-back" onClick={() => setEditing(false)}><BackIcon size={16} />返回</button><h2 className="settings-h mp-edit-title">{profile.id ? profile.name || '编辑配置' : '新建模型配置'}</h2></div>

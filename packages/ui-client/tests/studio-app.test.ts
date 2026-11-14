@@ -1,7 +1,8 @@
 /**
  * [INPUT]: 真实 StudioApp（主题栏/白板/材料/精灵/阅读器）与 React DOM、真实 HTTP 服务与 Mastra Controller、确定性模型
  * [OUTPUT]: S4 外壳行为证据（含 S5 返工：单张不显示张标签、面板首行头部、梯子断点在两级之间、不重复「AI 画的」、主题 ＋ 回车建/Esc 取消；返工二：中栏头部无主题名、不显示已用块数、素材单列表倒序；P0 后续：⌘B/⌘⌥B 收放与 localStorage、铺满/Esc、无 ws-tag；精灵：拖浮窗带着锚点走、收起后头像在锚点角、拖头像不打开）：四种区块经真实 board_draw 落库后渲染（梯子/表格/小部件/出处签与 AI 推断）、白板只靠工具完成信号刷新（ETag 轮询被截住）、
- *           对话里只出现白板卡片且点卡跳到那块、主题运行时「新对话」禁用（R1）、材料分「你带来的 / AI 找来的」并在分屏打开原件、精灵收起/停靠/拖动并持久
+ *           对话里只出现白板卡片且点卡跳到那块、主题运行时「新对话」禁用（R1）、素材行只有标题（无链接时）并在分屏打开原件、精灵收起/停靠/拖动并持久；
+ *           chrome：视图导航五项都有图标与 aria-label、上传在素材标题行且没有加链接入口、搜索即时过滤/无匹配/Esc 清空、左下角只有设置、设置里的专家分页经真实服务启停/重载且运行中写入被拒
  * [POS]: S4 组件级验收；可控模型只证明机制，不冒充真实模型研究验收；不宣称覆盖 WebKit
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -117,27 +118,46 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     // ---- G2：每个面板首行都是头部 ----
     assert.deepEqual($$('.studio-panel').map(panel => (panel.firstElementChild!.matches('.studio-head') || panel.firstElementChild!.firstElementChild!.matches('.studio-head'))), [true, true, true])
 
-    // ---- 视图标签：只有白板可用，其余如实占位 ----
+    // ---- 视图导航：五项图标在左、文字在右，aria-label 恒在；只有白板可用，其余如实占位 ----
     assert.deepEqual($$('.studio-views [role=tab]').map(tab => tab.textContent), ['白板', '沉淀', '概念图', '灵感', '全部'])
+    assert.deepEqual($$('.studio-views [role=tab]').map(tab => [tab.getAttribute('aria-label'), tab.firstElementChild!.matches('svg.lumen-icon'), tab.dataset.available]),
+      [['白板', true, 'true'], ['沉淀', true, 'false'], ['概念图', true, 'false'], ['灵感', true, 'false'], ['全部', true, 'false']])
     await act(async () => $$('.studio-views [role=tab]')[2]!.click())
     assert.equal($('.studio-later')!.textContent, S.views.map.later)
     await act(async () => $$('.studio-views [role=tab]')[0]!.click())
 
     // ---- 材料：分「你带来的 / AI 找来的」，点开在中间分屏读原件 ----
     await until(() => $$('.material').length === 2, '材料没有列出')
-    // ---- U3：右栏叫「素材」，一个列表按加入时间倒序，不分组不计数；AI 找来的在 meta 最前标一句 ----
+    // ---- U3：右栏叫「素材」，一个列表按加入时间倒序，不分组不计数；C6：没有链接的条目只有标题一行，不标谁找来的 ----
     assert.equal($('.studio-materials .studio-head-title')!.textContent, '素材')
     assert.equal($$('.studio-materials .studio-label').length, 0)
     assert.deepEqual($$('.material-title').map(node => node.textContent), ['控制论导论', '水箱笔记'])
-    const metas = $$('.material-meta')
-    assert.ok(metas[0]!.textContent!.startsWith(S.materials.foundByAi) && metas[0]!.dataset.addedBy === 'ai')
-    assert.ok(!metas[1]!.textContent!.includes(S.materials.foundByAi) && metas[1]!.dataset.addedBy === 'you')
+    assert.deepEqual($$('.material-text').map(node => [...node.children].map(child => child.textContent)), [['控制论导论'], ['水箱笔记']])
+    assert.equal($$('.material-link, .material-meta, [data-added-by]').length, 0)
+    assert.ok($$('.material-open').every(row => !/AI 找来|读到|未打开|TXT/.test(row.textContent!)))
+    // ---- C4：上传在「素材」标题行，收起之前；右栏没有任何加链接入口 ----
+    assert.deepEqual([...$('.studio-materials .studio-head')!.querySelectorAll('button')].map(node => node.getAttribute('aria-label')), [S.materials.upload, S.panes.right.collapse])
+    assert.ok($('.studio-materials .studio-head input[type=file][multiple]'))
+    assert.equal($$('.studio-materials form, .materials-add').length, 0)
+    assert.ok(!/链接/.test($$('.studio-materials input, .studio-materials button').map(node => `${node.getAttribute('placeholder') ?? ''}${node.getAttribute('aria-label') ?? ''}`).join('')))
+    // ---- C3：纯搜索，输入即过滤（不分大小写、首尾空格、中文子串），无匹配如实说，Esc 清空 ----
+    const search = $<HTMLInputElement>('.materials-search input')!
+    assert.deepEqual([search.placeholder, search.getAttribute('aria-label'), !!$('.materials-search svg.li-search')], [S.materials.search, S.materials.search, true])
+    const type = (value: string) => act(async () => {
+      Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!.call(search, value)
+      search.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
+    })
+    await type('  水箱 ')
+    assert.deepEqual($$('.material-title').map(node => node.textContent), ['水箱笔记'])
+    await type('没有这一份')
+    assert.deepEqual([$$('.material').length, $('.materials-none')?.textContent], [0, S.materials.noMatch])
+    await act(async () => { search.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })) })
+    assert.deepEqual([search.value, $$('.material').length], ['', 2])
     await act(async () => $$('.material-open')[1]!.click())
     await until(() => /浮球把阀门顶上/.test($('.studio-reader')?.textContent ?? ''), '分屏没有读出原件')
     assert.ok($('.studio-center.studio-split'))
     assert.equal($$('.ws-tag').length, 0, 'I1：素材与阅读器头部不用文字徽标')
     assert.ok($('.studio-reader .reader-icon svg') && $$('.material-icon svg').length === 2)
-    assert.match($$('.material-meta')[1]!.textContent!, /^TXT · /, 'I2：格式进 meta')
 
     // ---- K：⌘B 收主题栏、⌘⌥B 收素材栏，状态进 localStorage；收起的栏 inert，展开按钮在中栏头部两端 ----
     const key = (init: KeyboardEventInit) => act(async () => { window.dispatchEvent(new dom.window.KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })) })
@@ -162,7 +182,7 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     assert.ok($('.studio-center.studio-full') && $('.studio-board'), '铺满时白板保持挂载')
     assert.equal($('.studio-splitter'), null)
     assert.ok(button(S.reader.restore))
-    await act(async () => { $('.studio-materials input')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
+    await act(async () => { $('.materials-search input')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) })
     assert.ok($('.studio-center.studio-full'), '输入框里的 Esc 留给输入框')
     await key({ key: 'Escape' })
     assert.ok($('.studio-center.studio-split') && !$('.studio-center.studio-full'))
@@ -170,6 +190,35 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     await click('关闭阅读器')
     assert.equal($('.studio-reader'), null)
     assert.ok(!$('.studio-center.studio-full'), '关掉阅读器不留铺满状态')
+
+    // ---- C1：左下角只有「设置」；专家是设置里的分页，经真实服务启停与重载 ----
+    assert.deepEqual($$('.studio-foot button').map(node => node.textContent), [S.settings])
+    await click(S.settings)
+    const nav = () => [...document.querySelectorAll<HTMLButtonElement>('.settings-nav-item')]
+    assert.deepEqual(nav().map(node => node.textContent), ['模型', '研究偏好', '专家', '外观'])
+    await act(async () => nav()[2]!.click())
+    await until(() => document.querySelectorAll('.settings-body .agent-card').length > 0, '专家分页没有列出专家')
+    assert.equal(document.querySelector('.settings-body .settings-h')!.textContent, '专家')
+    // R1：专家卡自己的头部——名称与启停按钮在同一个 .agent-card-head 里，不借 .mw-question / .mw-dialog
+    assert.equal(document.querySelectorAll('.settings-body .mw-question').length, 0)
+    assert.ok([...document.querySelectorAll('.settings-body .agent-card')].every(card => {
+      const head = card.querySelector(':scope > .agent-card-head')!
+      return head.children.length === 2 && head.children[0]!.matches('h3.agent-card-name') && head.children[1]!.matches('button') && /^(停用|启用)$/.test(head.children[1]!.textContent!)
+    }))
+    const expert = () => document.querySelector<HTMLElement>('.settings-body .agent-card')!
+    const toggle = () => [...expert().querySelectorAll<HTMLButtonElement>('header button')][0]!
+    assert.deepEqual([toggle().textContent, /已启用/.test(expert().querySelector('small')!.textContent!)], ['停用', true])
+    await act(async () => toggle().click())
+    await until(() => toggle().textContent === '启用', '停用没有生效')
+    assert.match(expert().querySelector('small')!.textContent!, /已停用/)
+    await act(async () => toggle().click())
+    await until(() => toggle().textContent === '停用', '启用没有生效')
+    const reload = [...document.querySelectorAll<HTMLButtonElement>('.settings-body .mp-head button')].find(node => node.textContent === '重新加载专家')!
+    await act(async () => reload.click())
+    await until(() => !reload.disabled, '重载没有结束')
+    assert.equal(document.querySelector('.settings-body [role=alert]'), null)
+    await act(async () => (document.querySelector<HTMLButtonElement>('.settings-close'))!.click())
+    assert.equal(document.querySelector('.settings-modal'), null)
 
     // ---- 精灵：球 → 浮窗；Welcome 发第一句，模型被闸住时主题在运行 ----
     await click(S.sprite.open)
@@ -185,6 +234,14 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     const fresh = button(S.sprite.newConversation)!
     assert.ok(fresh.disabled, 'R1：主题运行时不能开新对话')
     assert.equal(fresh.title, S.sprite.busy)
+    // ---- C1：运行中改专家由服务拒绝，专家分页如实显示，状态不变 ----
+    await click(S.settings)
+    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.settings-nav-item')].find(node => node.textContent === '专家')!.click())
+    await until(() => document.querySelectorAll('.settings-body .agent-card').length > 0, '运行中专家分页没有列出专家')
+    await act(async () => [...document.querySelector('.settings-body .agent-card')!.querySelectorAll<HTMLButtonElement>('header button')][0]!.click())
+    await until(() => !!document.querySelector('.settings-body [role=alert]'), '运行中写入没有被拒绝')
+    assert.match(document.querySelector('.settings-body .agent-card small')!.textContent!, /已启用/)
+    await act(async () => (document.querySelector<HTMLButtonElement>('.settings-close'))!.click())
     const readsBefore = sheetReads.length
     hold.open()
 

@@ -81,7 +81,6 @@ export class LumenApi {
     const response = await fetch(`${this.connection.baseUrl}/lumen/topics/${encodeURIComponent(topicId)}/materials/${encodeURIComponent(itemId)}`, { method: 'DELETE', headers: this.headers() })
     if (!response.ok && response.status !== 404) throw new Error(`取消引用失败 (${response.status})`)
   }
-  addLink(url: string, topicId?: string) { return this.request<{ item: LibraryItem; created: boolean; referenced: boolean }>('/lumen/library', 'POST', { url, ...(topicId ? { topicId } : {}) }) }
   libraryContentUrl(itemId: string) { return `${this.connection.baseUrl}/lumen/library/${encodeURIComponent(itemId)}/content` }
   sessions(topicId: string, page = 0, archived = false, search = '') { return this.request<Page<SessionInfo>>(`/lumen/topics/${encodeURIComponent(topicId)}/sessions?${new URLSearchParams({ page: String(page), archived: String(archived), search })}`) }
   updateSession(identity: Identity, updates: Partial<Pick<SessionInfo, 'title' | 'pinned' | 'archived'>>) { return this.request<SessionInfo>(this.sessionPath(identity), 'PATCH', updates) }

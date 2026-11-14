@@ -1,0 +1,16 @@
+/**
+ * [INPUT]: tokens（间距 --s-*、字阶 --t-body*、文字色）与设置页共用的 glass-card 卡面
+ * [OUTPUT]: 设置「专家」分页的专家卡：头部名称与启停按钮同一行（按钮靠右、垂直居中），说明/元数据/权限/工具与指令按设置页的字阶与间距排
+ * [POS]: 只在 .agent-* 命名空间里生效；不依赖 .mw-dialog，不改 .mw-question 在对话里的用法
+ * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ */
+.agent-list { display: flex; flex-direction: column; gap: var(--s-3); }
+.agent-card { flex: none; display: flex; flex-direction: column; gap: var(--s-2); border-radius: var(--radius-lg); padding: var(--s-3) var(--s-4); }
+.agent-card-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); min-height: 32px; }
+.agent-card-name { min-width: 0; margin: 0; color: var(--text); font-weight: var(--w-semi); font-size: var(--t-body-lg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-card-head > button { flex: none; }
+.agent-card-text { margin: 0; color: var(--text-soft); font-size: var(--t-body-sm); line-height: 1.6; overflow-wrap: anywhere; }
+.agent-card-meta { color: var(--text-muted); font-size: var(--t-body-sm); }
+.agent-card .curtain-disclosure { font-size: var(--t-body-sm); color: var(--text-soft); }
+.agent-card pre { margin: var(--s-2) 0 0; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; font-size: var(--t-body-sm); }
+.agent-notes { display: flex; flex-direction: column; gap: var(--s-1); margin-top: var(--s-3); }

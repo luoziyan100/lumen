@@ -1,11 +1,11 @@
 /**
  * [INPUT]: LumenApi 的主题目录（含运行/等你投影）、外部刷新信号
- * [OUTPUT]: useTopics：主题列表与 3 秒轮询（状态灯要跟上后台运行）；TopicPanel：左栏面板——头部「主题 ＋ 收起」（点＋在列表顶出输入框，回车建、Esc 取消；收起后宽 0、inert）、状态灯、底部同一行的研究角色与设置
+ * [OUTPUT]: useTopics：主题列表与 3 秒轮询（状态灯要跟上后台运行）；TopicPanel：左栏面板——头部「主题 ＋ 收起」（点＋在列表顶出输入框，回车建、Esc 取消；收起后宽 0、inert）、状态灯、底部只有设置（专家在设置里）
  * [POS]: 新外壳的左栏；主题是唯一的入口，对话在精灵里切换
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useEffect, useState, type FormEvent } from 'react'
-import { AccountIcon, GearIcon, PlusIcon } from '../../components/icons'
+import { GearIcon, PlusIcon } from '../../components/icons'
 import { STUDIO_COPY as S } from '../../copy/studioCopy'
 import { PaneToggle } from './Panes'
 import { MASTRA_COPY as C } from '../../copy/mastraCopy'
@@ -35,7 +35,7 @@ export function Light({ topic }: { topic: Pick<Topic, 'running' | 'waiting'> }) 
   return null
 }
 
-export function TopicPanel({ api, topics, error, selected, collapsed, onToggle, onSelect, onCreated, onSettings, onAgents }: {
+export function TopicPanel({ api, topics, error, selected, collapsed, onToggle, onSelect, onCreated, onSettings }: {
   api: LumenApi
   topics: Topic[] | null
   error: string
@@ -45,7 +45,6 @@ export function TopicPanel({ api, topics, error, selected, collapsed, onToggle, 
   onSelect: (topicId: string) => void
   onCreated: (topic: Topic) => void
   onSettings: () => void
-  onAgents: () => void
 }) {
   const [adding, setAdding] = useState(false), [title, setTitle] = useState(''), [busy, setBusy] = useState(false), [createError, setCreateError] = useState('')
   function close() { setAdding(false); setTitle(''); setCreateError('') }
@@ -76,7 +75,6 @@ export function TopicPanel({ api, topics, error, selected, collapsed, onToggle, 
       </li>)}</ul>
     </div>
     <footer className="studio-foot">
-      <button type="button" className="studio-item" onClick={onAgents}><AccountIcon size={16} /><span>{S.agents}</span></button>
       <button type="button" className="studio-item" onClick={onSettings}><GearIcon size={16} /><span>{S.settings}</span></button>
     </footer>
   </nav>

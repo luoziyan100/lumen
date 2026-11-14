@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 真实设置窗口/外观面板、useAppearance、明暗基线、服务忙碌 DTO 与媒体查询事件
- * [OUTPUT]: 真实明暗/材质切换恢复、阅读字体组合/对齐/持久化、三个设置分类且无预算入口、忙碌时本机换肤与配置写入隔离、模型增减/凭证保留证据
+ * [OUTPUT]: 真实明暗/材质切换恢复、阅读字体组合/对齐/持久化、四个设置分类（模型、研究偏好、专家、外观）且无预算入口、忙碌时本机换肤与配置写入隔离、模型增减/凭证保留证据
  * [POS]: 设置与外观的用户路径回归；验证导航、服务配置与本机偏好各自的边界
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -78,7 +78,7 @@ test('系统变化切换实际明暗基线，选择浅色纸面后重挂载恢�
   } finally { await act(async () => root.unmount()); element.remove(); localStorage.clear(); dark = true }
 })
 
-test('研究进行中三个设置分类可切换且无预算入口，配置写入受限而本机换肤立即保存', async () => {
+test('研究进行中四个设置分类可切换且无预算入口，配置写入受限而本机换肤立即保存', async () => {
   localStorage.clear()
   const profile = { id: 'one', name: '研究模型', provider: 'openai' as const, baseUrl: '', models: ['first'], activeModel: 'first', vision: 'auto' as const, hasApiKey: true, apiKeyMasked: 'sk-••••test' }
   const patches: import('../src/mastra/data/client.ts').SettingsPatch[] = []
@@ -98,8 +98,8 @@ test('研究进行中三个设置分类可切换且无预算入口，配置写�
     const dialog = document.querySelector('.settings-modal')!
     assert.ok(dialog)
     assert.equal(element.contains(dialog), false, '设置窗口经 Kumo portal 挂在 document 中')
-    assert.deepEqual([...document.querySelectorAll('.settings-nav-item')].map(item => item.textContent), ['模型', '研究偏好', '外观'])
-    for (const label of ['模型', '研究偏好', '外观']) assert.equal(nav(label).disabled, false, `${label} 分类可进入`)
+    assert.deepEqual([...document.querySelectorAll('.settings-nav-item')].map(item => item.textContent), ['模型', '研究偏好', '专家', '外观'])
+    for (const label of ['模型', '研究偏好', '专家', '外观']) assert.equal(nav(label).disabled, false, `${label} 分类可进入`)
 
     await act(async () => nav('研究偏好').click())
     assert.equal(document.querySelector('.settings-h')?.textContent, '研究偏好')

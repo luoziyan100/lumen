@@ -1,7 +1,7 @@
 /**
  * [INPUT]: tokens.css / yan-design-system tokens 与 appearance 皮肤变量（data-material 玻璃/纸面）
  * [OUTPUT]: 新外壳样式——原型 v7 骨架（canvas 底、8px 外边距与间距、圆角面板、50px 同线头部、14px 同一左缘、四级字阶、30px 控件）、
- *           左右栏收放（宽 0、--dur-base 过渡、减弱动效时瞬时）、材料副行最多两行且只在「·」处折行、白板画布与区块（文字/梯子/表格/小部件）、阅读器分屏（分隔条、两个下限）与铺满、材料栏、对话精灵（52px 五表情、交叉淡入、外圈光环与空闲呼吸，减少动态关闭动效）
+ *           左右栏收放（宽 0、--dur-base 过渡、减弱动效时瞬时）、视图导航（图标 + 文字，放不下只留图标）、素材搜索与标题 + 链接两行、白板画布与区块（文字/梯子/表格/小部件）、阅读器分屏（分隔条、两个下限）与铺满、材料栏、对话精灵（52px 五表情、交叉淡入、外圈光环与空闲呼吸，减少动态关闭动效）
  * [POS]: 只用现有 tokens；控件与文档岛保持实色表面，玻璃/纸面皮肤走 appearance 管道。字号只引用下面四个变量（G4）
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -56,7 +56,6 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 .studio .icon-btn:hover:not(:disabled) { background: var(--surface-fill); color: var(--text); }
 .studio-foot { flex: none; display: flex; gap: 2px; padding: 6px 0; border-top: 1px solid var(--border); }
 .studio-foot .studio-item { width: auto; margin-right: 0; }
-.studio-foot .studio-item + .studio-item { margin-left: 0; }
 
 /* ---- 左栏：主题 ---- */
 .topics-new { display: flex; margin: 0 6px 4px; }
@@ -86,14 +85,19 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 .studio-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .studio-stage { position: relative; flex: 1; min-height: 0; display: flex; }
 .studio-later { margin: auto; max-width: 420px; text-align: center; color: var(--text-muted); font-size: var(--st-note); padding: 24px; }
-/* 视图分段控件（G6，原型 .seg）：属于白板段，按所在段的中线居中（U1），分屏时不漂到阅读器上方 */
+/* 视图导航（G6，原型 .seg）：属于白板段，按所在段的中线居中（U1），分屏时不漂到阅读器上方。
+   图标在左（16，currentColor，随三态文字色）；放不下时（ViewNav 用不可见的完整副本量宽度）只留图标，不换行、不挤偏中线 */
 .studio-center-head { position: relative; justify-content: center; }
 .studio-center-head .studio-seg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: max-content; max-width: calc(100% - 16px); }
+.studio-center-head .studio-views-ghost { visibility: hidden; pointer-events: none; max-width: none; }
 .studio-seg { flex: none; display: flex; gap: 2px; padding: 3px; box-sizing: border-box; height: var(--st-control); background: var(--surface-fill); border: 1px solid var(--border); border-radius: 10px; }
-.studio-seg button { flex: none; white-space: nowrap; height: 22px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: var(--text-muted); font-size: var(--st-body); line-height: 22px; cursor: pointer; }
+.studio-seg button { flex: none; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; height: 22px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: var(--text-muted); font-size: var(--st-body); line-height: 22px; cursor: pointer; }
+.studio-seg button .lumen-icon { flex: none; }
 .studio-seg button:hover { color: var(--text); }
+.studio-seg button[data-available="false"]:not(.on) { color: var(--text-faint); }
+.studio-seg button[data-available="false"]:not(.on):hover { color: var(--text-muted); }
 .studio-seg button.on { background: var(--surface-elevated); color: var(--text); box-shadow: var(--shadow-1); }
-.studio-split .studio-seg button { padding: 0 8px; }
+.studio-split .studio-seg button, .studio-seg.is-compact button { padding: 0 8px; }
 
 /* ---- 白板 ---- */
 .studio-board { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; }
@@ -183,7 +187,14 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 .studio-reader > .mw-error { margin: 8px var(--st-inset); }
 
 /* ---- 右栏：材料（M1–M4） ---- */
-.materials-add { display: flex; gap: 4px; margin: 0 6px 4px; }
+/* 搜索框：和列表项同一左缘，放大镜在框内左侧 */
+.materials-search { position: relative; display: flex; margin: 0 6px 4px; }
+.materials-search > .lumen-icon { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: var(--text-faint); pointer-events: none; }
+.materials-search .studio-field { padding-left: 30px; }
+/* 上传中：按钮禁用，回形针亮成强调色并呼吸（减弱动效时只亮不动） */
+.studio .materials-upload.is-uploading { color: var(--accent); opacity: 1; cursor: progress; }
+.materials-upload.is-uploading .lumen-icon { animation: studio-pulse 1s var(--ease-out) infinite; }
+@media (prefers-reduced-motion: reduce) { .materials-upload.is-uploading .lumen-icon { animation: none; } }
 .materials-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
 .material { display: flex; align-items: center; margin: 0 6px; border-radius: 8px; }
 .material:hover, .material.on { background: var(--fill-subtle); }
@@ -191,10 +202,8 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 .material-icon { flex: none; display: inline-flex; color: var(--text-soft); }
 .material-text { min-width: 0; display: flex; flex-direction: column; }
 .material-title { font-size: var(--st-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* 副行最多两行，只在「·」后折行（段内 nowrap，站点段可断）；超过两行才省略。行仍 align-items: center，单行条目几何不变 */
-.material-meta { font-size: var(--st-note); color: var(--text-muted); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
-.material-seg { white-space: nowrap; }
-.material-seg.is-breakable { white-space: normal; }
+/* 副行只有链接短写，单行省略；没有链接的条目只有标题一行 */
+.material-link { font-size: var(--st-note); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .material-remove { opacity: 0; }
 .material:hover .material-remove, .material-remove:focus-visible { opacity: 1; }
 

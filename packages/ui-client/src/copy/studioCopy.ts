@@ -1,6 +1,6 @@
 /**
  * [INPUT]: doc/studio/model.md 的功能命名（白板 · 沉淀 · 概念图 · 灵感 · 全部）与 P0 交互
- * [OUTPUT]: STUDIO_COPY：新外壳的词表——视图名、白板/区块/材料/精灵/状态灯、面板收放与阅读器文案；精灵打开说明带空闲/正在画/在等你/正在说状态
+ * [OUTPUT]: STUDIO_COPY：新外壳的词表——视图名、白板/区块/素材（搜索、上传）/精灵/状态灯、面板收放与阅读器文案；精灵打开说明带空闲/正在画/在等你/正在说状态
  * [POS]: 新形态文案单源。视图名集中在 views，P3 换世界观（书房 / 实验室 / 工坊）时只换这张表，不改结构
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -34,11 +34,9 @@ export const STUDIO_COPY = {
   },
   materials: {
     title: '素材',
-    foundByAi: 'AI 找来', none: '还没有素材。粘贴链接或上传文件。',
-    upload: '上传文件', link: '粘贴链接，回车添加', remove: '不再引用',
-    progress: (value: number) => value > 0 ? `读到 ${Math.round(value * 100)}%` : '未打开',
-    cited: (count: number) => count ? `板上引用 ${count} 处` : '',
-    format: { pdf: 'PDF', web: '网页' },
+    none: '还没有素材。上传文件，或把链接发给对话里的 AI。',
+    search: '搜索素材', noMatch: '没有匹配的素材',
+    upload: '上传文件', uploading: '正在上传…', remove: '不再引用',
     close: '关闭', loading: '正在打开…', unsupported: '这种格式还不能在这里预览。',
   },
   panes: {
@@ -57,5 +55,5 @@ export const STUDIO_COPY = {
     hint: '换对话不会换白板：白板和材料属于整个主题，对话只是说话的记录。',
     untitled: '新对话', diagnostics: '诊断',
   },
-  app: 'Lumen', settings: '设置', agents: '研究角色',
+  app: 'Lumen', settings: '设置',
 } as const
