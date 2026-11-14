@@ -1,13 +1,13 @@
 # studio/
 > L2 | 父级: ../CLAUDE.md
 
-新形态的产品领域：主题是基本单元，材料在全局资料库、主题只引用，产出写在主题的白板上而不是对话里。产品合同在主检出的 `doc/studio/model.md`（规则 R1–R16），本模块只落存储与 HTTP；消息、运行、挂起仍归 Mastra。
+新形态的产品领域：主题是基本单元，材料在全局资料库、主题只引用，产出写在主题的白板上而不是对话里。产品合同在主检出的 `doc/studio/model.md`（规则 R1–R17），本模块只落存储与 HTTP；消息、运行、挂起仍归 Mastra。
 
 - `types.ts`：主题、资料、主题材料、白板、区块、出处、版本与写入来路的纯类型，服务与桌面共用。
-- `errors.ts`：`StudioError`，带 HTTP 状态的中文错误；同一句话既给人看，也作为白板工具的拒绝文本给模型看，所以要写清下一步。
+- `errors.ts`：`StudioError`，带 HTTP 状态的中文错误；同一句话既给人看，也作为白板工具的拒绝文本给模型看，所以要写清下一步。Optional `detail` fields go into the HTTP body next to `error` (R17: `reason`, `blocks`).
 - `content.ts`：区块内容合同唯一真源（text/ladder/table/widget 的 zod 形状、大小上限、出处形状）与一句话摘要；存储写入前校验，AI 工具复用同一形状。
 - `db.ts`：在 `catalog.sqlite` 建 studio 表（与阅读游标同文件，不碰 `mastra.sqlite`），外键开启；`transaction` 是同步立即事务；`sheet_selection` (the user's selected sheet per topic) and `run_targets` (each run's fixed write target, keyed by thread) are additive tables created the same way; 旧库缺的列（资料的作者/年份/arXiv 编号/标题来源）只在服务启动时按 `PRAGMA table_info` 补加（幂等，只加列不改数据）；`schema=false` 只打开不改结构、缺列就拒绝。
-- `board.ts`：白板唯一写入口（R4）。画/改/取代都在单个事务里裁决容量（R11，只数 current）、`rev` 乐观并发、出处边界（R15：只认本主题引用的材料与本主题的对话）；服务端三列自动排版，`near` 只选列；R16: `select`/`selection`/`selectedSheet` (selection, else newest live sheet), `runTarget(threadId)` captures the selection once per run and keeps it through waits, suspension and restart, `endRun` releases it; `peekTarget` serves reads that may run outside the run (experts' board_view): stored target, else today's selection, never captured; draw/update/supersede with a target only touch that sheet and refuse a folded one; `pendingSheets(threadId)`（自该对话上个版本以来改过的白板，挂起续跑换 runId 也不丢）+ `writeVersion` 给「每次运行一个版本」（R7）。
+- `board.ts`：白板唯一写入口（R4）。画/改/取代都在单个事务里裁决容量（R11，只数 current）、`rev` 乐观并发、出处边界（R15：只认本主题引用的材料与本主题的对话）；服务端三列自动排版，`near` 只选列；R16: `select`/`selection`/`selectedSheet` (selection, else newest live sheet), `runTarget(threadId)` captures the selection once per run and keeps it through waits, suspension and restart, `endRun` releases it; `peekTarget` serves reads that may run outside the run (experts' board_view): stored target, else today's selection, never captured; draw/update/supersede with a target only touch that sheet and refuse a folded one; `pendingSheets(threadId)`（自该对话上个版本以来改过的白板，挂起续跑换 runId 也不丢）+ `writeVersion` 给「每次运行一个版本」（R7）。R17: `deleteSheet(topicId, sheetId, { confirmed, busy, since })` deletes in one transaction — refuses the target of a running/waiting run (or a target captured after the activity read began), asks for confirmation when the sheet has any block, moves the selection to the next sheet by ord (else the previous, else none) when the deleted sheet was the selected one, then deletes blocks, versions, target and selection rows and the sheet; `blockSheet` tells cards where a block lives. Default titles of new sheets skip numbers already in use (deletes can lower the count).
 - `topics.ts`：主题增改（新主题同事务建第一张进行中白板）与主题引用：引用/取消引用/阅读进度/被当前区块引用数。取消引用不动区块（R10）。
 - `library.ts`：全局资料库。按 sha256 去重（并发同内容由唯一约束裁决），原件落 `library/<id>/` 后 chmod 0400；链接收入时 PDF 存原件，网页存抽出的正文与来源 URL；arXiv 任何写法都取 `arxiv.org/pdf/<id>` 存 PDF、出处记摘要页，标题按 `resolveTitle`（给定 → API → PDF 信息 → 首页大字 → 文件名）；`location` 给原生「系统打开」核对后的真实路径（只认 `library/<id>/` 下的普通文件）；`refresh`/`replaceOriginal` 只给补取用；INSERT 一律写明列名（旧服务按位置插入在补列后失败的教训）。
 - `titles.ts`：标题回退链里与 PDF 有关的纯规则：清洗（空白/`[编号] `前缀/≤200 字）、Info Title 排除（空、乱码、文件名、软件名）、首页最大字号横排行；`TITLE_RANK` 让补取只升不降。
@@ -15,12 +15,13 @@
 - `studio.ts`：一条 catalog 连接上组合三个存储（也暴露连接给补取备份）；server 与之后的白板工具共用同一实例。
 - `tools.ts`：资料库访问边界（R15）：`createMaterialAccess`（研究网络必传，arXiv 收入用） 只放行受信会话所在主题引用的条目（未引用/不存在/越界同一句 404），PDF 分页缓存按 sha256；list_materials/read_material（按页或偏移读，推进阅读进度）；`intake` 供研究工具 to_library 收入并引用，arXiv 链接一律收 PDF（已取到的字节直接复用）。
 - `board-tools.ts`：AI 写白板的唯一通道：board_view（专家也有）/board_draw/board_update/board_supersede，主题、运行与本轮写入目标（R16）从受信主会话推出（专家的 board_view 读父会话的目标）；`topicState` 每次请求注入主题现状（本轮目标白板每块一行 + 引用材料；目标已收起时如实说只读），按估算 token 硬上限 1500、新的优先，超出提示用 board_view 看全。
-- `routes.ts`：认证后的 HTTP。主题（状态灯由 `topicId:` 前缀汇总原生运行/等待）、白板（列表的 writable 在没有进行中的那张时为 null，不报错；`selected` is where the next message writes, `target` the sheet of the run in progress (only while it runs or waits); `PUT /topics/:id/selection` records the user's tab; GET 带 ETag/304，＋ 新开一张并选中）、资料库（multipart 上传或 JSON 链接，可顺手引用到主题）、原件（ETag=sha256）、原件本机位置（只按条目 id，供原生系统打开）、主题引用增删。**没有区块写接口**：P0 白板对人只读。
+- `routes.ts`：认证后的 HTTP。主题（状态灯由 `topicId:` 前缀汇总原生运行/等待）、白板（列表的 writable 在没有进行中的那张时为 null，不报错；`selected` is where the next message writes, `target` the sheet of the run in progress (only while it runs or waits); `PUT /topics/:id/selection` records the user's tab; GET 带 ETag/304，＋ 新开一张并选中）、资料库（multipart 上传或 JSON 链接，可顺手引用到主题）、原件（ETag=sha256）、原件本机位置（只按条目 id，供原生系统打开）、主题引用增删。**没有区块写接口**：P0 白板对人只读。R17: `DELETE /topics/:id/sheets/:sheetId` (only the user; `?confirm=true` for a sheet with blocks, otherwise 409 with `reason: 'confirm'` and `blocks`; 409 `reason: 'target'` for the run's target) and `GET /blocks/:blockId` (404 `reason: 'deleted'` once the sheet is gone).
 
 决策：
 - 白板存数据库不存文件：通用文件工具碰不到（R4），容量/rev/版本才能在一个事务里成立。
 - R16 (2026-11-13): the AI writes on the sheet the user selected when the run started, fixed for the whole run; switching tabs mid-run does not move it. Clients that never select get the newest live sheet. Full sheets are refused and the AI never opens or switches sheets (R11); ＋ is the user's.
 - arXiv 补取在同一条目上换原件：id、主题引用、阅读进度与白板出处都不动；换成的 PDF 若已是另一条目则跳过不合并。
+- R17 (2026-11-14): only the user deletes a sheet; nothing is soft-deleted and its versions go with it. Confirmation is a query flag the client sends after the service answered 409 with the block count, so the count shown is the service's (superseded blocks count as content). The running/waiting test is the sheet list's; a target row newer than the activity read also blocks, which closes the gap between the async read and the synchronous transaction.
 - 区块 ID 短（`b` + 10 位 hex）便于模型回填；主题/白板/资料 ID 用 UUID，主题 ID 满足会话身份 `topicId:taskId` 的 safeId 规则。
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

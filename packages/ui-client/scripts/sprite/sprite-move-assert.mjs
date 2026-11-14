@@ -3,6 +3,7 @@
  * [OUTPUT]: M1–M12 新尺寸回归、P9/P10 外观断言、截图与开合帧序列
  * [POS]: 继承上一任务的浏览器合同，只按60×92包围盒调整横纵几何
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * lumen-board-delete: the board tab selector is `.board-tabs .board-tab > button:first-child` (each tab also has an R17 「⋯」 menu button).
  */
 // lumen-sprite-move 浏览器断言：真实 Chromium 打开 dev 页面（5183，隔离数据根），1440×900 / 1280×800 各跑一遍。
 // M1–M12：9 个位置拖放（误差 ≤1px、不打开、光标、刷新后不变、盖在左右栏/顶栏/白板上）→ 每个位置打开（全在视口内、贴着头像那一侧）再收起（回到原位）；
@@ -216,8 +217,8 @@ async function frameSequence(page, dir, file, trigger) {
 /** 选中主题、切到第一张（有区块的）白板，等头像或停靠栏出现 */
 async function readyOn(page, { orb = true } = {}) {
   await page.waitForSelector('.studio-topics .topic')
-  if (!(await page.locator('.board-tabs button').count())) await page.locator('.studio-topics .topic', { hasText: topicTitle }).click()
-  await page.waitForSelector('.board-tabs button'); await page.locator('.board-tabs button').first().click(); await page.waitForSelector('.board-block')
+  if (!(await page.locator('.board-tabs .board-tab > button:first-child').count())) await page.locator('.studio-topics .topic', { hasText: topicTitle }).click()
+  await page.waitForSelector('.board-tabs .board-tab > button:first-child'); await page.locator('.board-tabs .board-tab > button:first-child').first().click(); await page.waitForSelector('.board-block')
   await page.waitForSelector(orb ? '.sprite-orb' : '.sprite-docked'); await page.waitForTimeout(1500)
 }
 

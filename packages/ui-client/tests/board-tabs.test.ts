@@ -64,7 +64,7 @@ test('Board tabs: glyph + number, full title in title/aria-label, folded dimmed,
   const state = (patch: Partial<BoardState>): BoardState => ({ sheets, writable: 'c', selected: 'c', target: null, error: '', refresh() {}, select() {}, async createSheet() {},
     view: { sheet: sheets.find(item => item.id === (patch.selected ?? 'c'))!, blocks: [] }, ...patch })
   const render = (board: BoardState, drawing: string | null) => act(async () => root.render(createElement(Board, { board, materials: [], drawing, focus: null, onOpenSource() {} })))
-  const tabs = () => [...element.querySelectorAll<HTMLButtonElement>('.board-tabs button')]
+  const tabs = () => [...element.querySelectorAll<HTMLButtonElement>('.board-tabs .board-tab > button:first-child')]
   try {
     await render(state({ target: 'a' }), 'new')
     assert.deepEqual(tabs().map(tab => tab.textContent), ['1', '2', '3'], 'numbers, not titles')

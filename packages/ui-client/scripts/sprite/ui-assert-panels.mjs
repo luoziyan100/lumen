@@ -11,6 +11,8 @@
 // 改为只量文字 span 的行数（紧凑态没有文字就量按钮），scrollWidth 不溢出的条件不变。
 // lumen-board-target rewrites one: W1 "one line per sheet tab" measured the whole button; R16 tabs are a 16px board glyph plus a number, whose line tops differ,
 // so it now measures only the number span (`.board-tab-number`); the ≤160px width and non-empty title (full name) conditions are unchanged.
+// lumen-board-delete rewrites the tab selector: each tab is a .board-tab wrapper with the tab button and its R17 「⋯」 menu button, so W1 and
+// openBoard take `.board-tabs .board-tab > button:first-child` instead of `.board-tabs button`; the conditions are unchanged.
 // 用法：node ui-assert-panels.mjs <evidence-dir> [topicTitle]
 import { chromium } from '/tmp/lumen-s0-pw/node_modules/playwright-core/index.mjs'
 const exe = process.env.HOME + '/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
@@ -104,7 +106,7 @@ async function geometry(page) {
     const visible = el => { if (!el) return false; const b = r(el); return b.width > 0 && b.height > 0 && getComputedStyle(el).visibility !== 'hidden' && !el.closest('[inert]') }
     const reopen = side => [...document.querySelectorAll(`.studio-center .pane-toggle[data-pane="${side}"]`)].find(visible) ?? null
     const focusable = el => { if (!el) return false; el.focus(); const ok = document.activeElement === el; el.blur(); return ok }
-    const tabs = [...document.querySelectorAll('.board-tabs button')]
+    const tabs = [...document.querySelectorAll('.board-tabs .board-tab > button:first-child')]
     const sheets = document.querySelector('.board-sheets')
     const hit = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top)
     const viewport = document.querySelector('.board-viewport')
@@ -161,7 +163,7 @@ for (const [w, h] of sizes) {
   await page.goto(`http://localhost:${port}/`)
   await page.waitForSelector('.studio-topics .topic')
   // 这个主题有三张白板，最新一张是空的：切到第一张（有区块）再量
-  const openBoard = async () => { await page.waitForSelector('.board-tabs button'); await page.locator('.board-tabs button').first().click(); await page.waitForSelector('.board-block'); await page.waitForTimeout(2500) }
+  const openBoard = async () => { await page.waitForSelector('.board-tabs .board-tab > button:first-child'); await page.locator('.board-tabs .board-tab > button:first-child').first().click(); await page.waitForSelector('.board-block'); await page.waitForTimeout(2500) }
   await page.locator('.studio-topics .topic', { hasText: topicTitle }).click()
   await openBoard()
   const shot = name => page.screenshot({ path: `${out}/${w}-${name}.png` })

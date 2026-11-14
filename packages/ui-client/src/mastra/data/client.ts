@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 官方MastraClient、原生注入的本机服务发现与所选技能文件清单
- * [OUTPUT]: LumenApi、Connection、主题/会话目录、资料库与主题引用、白板只读视图与用户选中的白板（R16；旧服务缺路由时静默，其它失败抛出）、带状态码的 RequestError、完整技能包/诊断与问题评估入口、附专家用量的快照和带 ETag 的文件版本读取；身份是 {topicId, taskId}，同会话阅读写入串行，手动未读不被先发自动确认覆盖
+ * [OUTPUT]: LumenApi、Connection、主题/会话目录、资料库与主题引用、白板只读视图与用户选中的白板（R16；旧服务缺路由时静默，其它失败抛出）、用户删除白板与区块所在白板（R17；旧服务缺路由如实返回 unsupported/unknown）、带状态码与 JSON 正文的 RequestError、完整技能包/诊断与问题评估入口、附专家用量的快照和带 ETag 的文件版本读取；身份是 {topicId, taskId}，同会话阅读写入串行，手动未读不被先发自动确认覆盖
  * [POS]: 新客户端唯一网络边界；不暴露提前创建空会话的目录写入，提交准备沿 open 绑定；附件先完整读取再进资料库并引用到当前主题，失败不发残缺请求
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -38,8 +38,15 @@ export interface TracePage { items: TraceSummary[]; page: number; perPage: numbe
 /** A non-2xx answer from the service; network failures stay as the fetch error. */
 export class RequestError extends Error {
   status: number
-  constructor(message: string, status: number) { super(message); this.status = status }
+  /** The JSON body of the answer, when it had one (Lumen's own errors always do; a route the service does not have answers plain text). */
+  detail: Record<string, unknown> | null
+  constructor(message: string, status: number, detail: Record<string, unknown> | null = null) { super(message); this.status = status; this.detail = detail }
+  /** The service has no such route (an older build): 405, or a 404 that is not one of Lumen's own JSON errors. */
+  get routeMissing() { return this.status === 405 || (this.status === 404 && typeof this.detail?.error !== 'string') }
 }
+
+/** What deleting a sheet came to (R17). confirm: it has blocks and the user must agree first; unsupported: the service predates the route. */
+export type SheetDeletion = { kind: 'deleted'; selected: string | null } | { kind: 'confirm'; blocks: number } | { kind: 'unsupported' }
 
 export class LumenApi {
   private readonly readChanges = new Map<string, Promise<{ changed: boolean }>>()
@@ -56,7 +63,7 @@ export class LumenApi {
     const response = await fetch(`${this.connection.baseUrl}${path}`, { method, headers: { ...this.headers(), ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
     if (!response.ok) {
       const detail = await response.json().catch(() => null)
-      throw new RequestError(typeof detail?.error === 'string' ? detail.error : `请求失败 (${response.status})`, response.status)
+      throw new RequestError(typeof detail?.error === 'string' ? detail.error : `请求失败 (${response.status})`, response.status, detail && typeof detail === 'object' ? detail : null)
     }
     return response.json()
   }
@@ -78,6 +85,27 @@ export class LumenApi {
   }
   sheet(sheetId: string) { return this.request<SheetView>(`/lumen/sheets/${encodeURIComponent(sheetId)}`) }
   /** 你点 ＋ 新开一张白板（服务把它记为选中）；AI 不会自己开。 */
+  /** Only the user deletes a sheet (R17). Without `confirmed`, a sheet with blocks comes back as `confirm` with the count; other refusals throw. */
+  async deleteSheet(topicId: string, sheetId: string, confirmed = false): Promise<SheetDeletion> {
+    try {
+      const result = await this.request<{ selected: string | null }>(`/lumen/topics/${encodeURIComponent(topicId)}/sheets/${encodeURIComponent(sheetId)}${confirmed ? '?confirm=true' : ''}`, 'DELETE')
+      return { kind: 'deleted', selected: result.selected }
+    } catch (error) {
+      if (!(error instanceof RequestError)) throw error
+      if (error.routeMissing) return { kind: 'unsupported' }
+      if (error.status === 409 && error.detail?.reason === 'confirm' && typeof error.detail.blocks === 'number') return { kind: 'confirm', blocks: error.detail.blocks }
+      throw error
+    }
+  }
+  /** Which sheet a block is on. deleted: its sheet is gone (R17); unknown: the service predates the route. */
+  async blockSheet(blockId: string): Promise<{ kind: 'found'; sheetId: string } | { kind: 'deleted' } | { kind: 'unknown' }> {
+    try { return { kind: 'found', sheetId: (await this.request<{ sheetId: string }>(`/lumen/blocks/${encodeURIComponent(blockId)}`)).sheetId } }
+    catch (error) {
+      if (error instanceof RequestError && error.routeMissing) return { kind: 'unknown' }
+      if (error instanceof RequestError && error.status === 404) return { kind: 'deleted' }
+      throw error
+    }
+  }
   createSheet(topicId: string, title?: string) { return this.request<Sheet>(`/lumen/topics/${encodeURIComponent(topicId)}/sheets`, 'POST', title ? { title } : {}) }
   /** 带 ETag 读白板：没变时返回 view=null，不重新解析。 */
   async sheetVersion(sheetId: string, etag?: string | null): Promise<{ view: SheetView | null; etag: string | null }> {

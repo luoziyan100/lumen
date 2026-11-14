@@ -1,6 +1,6 @@
 /**
  * [INPUT]: studio/db 的连接与事务、studio/content 的内容与出处合同、主题引用清单
- * [OUTPUT]: BoardStore：白板张的新建与列举、用户选中的白板、每轮固定的写入目标（R16）、区块画/改/取代、自动排版、按运行/按对话收集改动与版本快照；insertSheet
+ * [OUTPUT]: BoardStore：白板张的新建、列举与删除（R17：只有用户，护栏/确认/改选相邻同一事务）、区块所在白板、用户选中的白板、每轮固定的写入目标（R16）、区块画/改/取代、自动排版、按运行/按对话收集改动与版本快照；insertSheet
  * [POS]: 白板唯一写入口（R4）；主题由调用方从受信身份给出，写入目标（R16）、容量（R11）、rev 并发、出处边界（R15）都在单个事务里裁决
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -73,12 +73,53 @@ export class BoardStore {
     const now = new Date().toISOString()
     const id = transaction(this.db, () => {
       const count = Number(this.db.prepare('SELECT COUNT(*) AS n FROM sheets WHERE topic_id = ?').get(topicId)!.n)
-      const created = insertSheet(this.db, topicId, title?.trim() || `白板 ${count + 1}`, now)
+      // After a delete (R17) the count can fall below a default title already in use: take the first free number
+      const used = new Set(this.db.prepare('SELECT title FROM sheets WHERE topic_id = ?').all(topicId).map(row => String(row.title)))
+      let number = count + 1
+      while (used.has(`白板 ${number}`)) number++
+      const created = insertSheet(this.db, topicId, title?.trim() || `白板 ${number}`, now)
       this.storeSelection(topicId, created, now)
       this.touchTopic(topicId, now)
       return created
     })
     return this.sheet(id)
+  }
+
+  // -------------------------------------------------------------------------
+  // R17: only the user deletes a sheet (HTTP, no board tool). Guard, block count, neighbour selection and the delete share one transaction
+  // -------------------------------------------------------------------------
+  /**
+   * busy: threads whose run is running or waiting, read just before; since: when that read started. A target row created at or after
+   * `since` counts as busy too, so a run that captured this sheet while the activity was being read still blocks the delete.
+   */
+  deleteSheet(topicId: string, sheetId: string, guard: { confirmed: boolean; busy: ReadonlySet<string>; since: string }): { deleted: string; selected: string | null } {
+    return transaction(this.db, () => {
+      const target = this.sheet(sheetId)
+      if (target.topicId !== topicId) throw new StudioError('没有这张白板', 404)
+      const held = this.db.prepare('SELECT thread_id, created_at FROM run_targets WHERE sheet_id = ?').all(sheetId)
+        .some(row => guard.busy.has(String(row.thread_id)) || String(row.created_at) >= guard.since)
+      if (held) throw new StudioError(`白板「${target.title}」正被 AI 这一轮写着，不能删；等这一轮结束或把它停下再删。`, 409, { reason: 'target' })
+      const blocks = Number(this.db.prepare('SELECT COUNT(*) AS n FROM blocks WHERE sheet_id = ?').get(sheetId)!.n)
+      if (blocks && !guard.confirmed) throw new StudioError(`白板「${target.title}」上有 ${blocks} 块内容，删除要先确认，删了不能恢复。`, 409, { reason: 'confirm', blocks })
+      // ---- the sheet the next message would write to is going away: move to the next sheet by ord, else the previous one, else none ----
+      const selected = this.selectedSheet(topicId)?.id === sheetId
+      const neighbour = this.db.prepare('SELECT id FROM sheets WHERE topic_id = ? AND ord > ? ORDER BY ord LIMIT 1').get(topicId, target.ord)
+        ?? this.db.prepare('SELECT id FROM sheets WHERE topic_id = ? AND ord < ? ORDER BY ord DESC LIMIT 1').get(topicId, target.ord)
+      // Explicit deletes (the cascades would do the same): nothing soft-deleted, and a failure at any step rolls back all of them
+      for (const table of ['blocks', 'sheet_versions', 'run_targets', 'sheet_selection']) this.db.prepare(`DELETE FROM ${table} WHERE sheet_id = ?`).run(sheetId)
+      this.db.prepare('DELETE FROM sheets WHERE id = ?').run(sheetId)
+      const now = new Date().toISOString()
+      if (selected && neighbour) this.storeSelection(topicId, String(neighbour.id), now)
+      this.touchTopic(topicId, now)
+      return { deleted: sheetId, selected: this.selectedSheet(topicId)?.id ?? null }
+    })
+  }
+
+  /** Where a block lives, for conversation cards (R17: a card whose sheet was deleted says so). */
+  blockSheet(blockId: string): { blockId: string; sheetId: string; topicId: string } {
+    const row = this.db.prepare('SELECT b.sheet_id, s.topic_id FROM blocks b JOIN sheets s ON s.id = b.sheet_id WHERE b.id = ?').get(blockId)
+    if (!row) throw new StudioError('这块所在的白板已删除', 404, { reason: 'deleted' })
+    return { blockId, sheetId: String(row.sheet_id), topicId: String(row.topic_id) }
   }
 
   view(sheetId: string): SheetView {

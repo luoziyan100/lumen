@@ -1,7 +1,7 @@
 /**
  * [INPUT]: Hono、zod、studio 存储组合、研究网络、原生运行/等待状态投影
- * [OUTPUT]: studioRoutes：主题、白板（带 ETag；列表带用户选中的那张与正在跑的一轮的写入目标；记下选中；＋ 新开的那张即选中）、资料库上传/链接（arXiv 链接收 PDF）/原件/原件本机位置（只给原生「系统打开」核对用）、主题引用的 HTTP 接口
- * [POS]: 认证之后的产品路由；P0 白板对人只读，这里没有区块写接口——区块只经白板工具写（R4）
+ * [OUTPUT]: studioRoutes：主题、白板（带 ETag；列表带用户选中的那张与正在跑的一轮的写入目标；记下选中；＋ 新开的那张即选中；用户删除一张（R17）；区块所在白板）、资料库上传/链接（arXiv 链接收 PDF）/原件/原件本机位置（只给原生「系统打开」核对用）、主题引用的 HTTP 接口
+ * [POS]: 认证之后的产品路由；P0 白板对人只读，这里没有区块写接口——区块只经白板工具写（R4）；删整张白板只在这里，AI 没有对应工具（R17）
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { createHash } from 'node:crypto'
@@ -49,7 +49,7 @@ export function studioRoutes(options: { studio: Studio; http: ResearchHttp; acti
   const { topics, board, library } = options.studio
   const app = new Hono()
   app.onError((error, c) => {
-    if (error instanceof StudioError) return c.json({ error: error.message }, error.status)
+    if (error instanceof StudioError) return c.json({ ...error.detail, error: error.message }, error.status)
     if (error instanceof z.ZodError || error instanceof SyntaxError) return c.json({ error: '请求格式不对，请检查后重试' }, 400)
     throw error
   })
@@ -83,7 +83,16 @@ export function studioRoutes(options: { studio: Studio; http: ResearchHttp; acti
     topics.get(topicId)
     return c.json(board.createSheet(topicId, sheetCreate.parse(await c.req.json().catch(() => ({}))).title), 201)
   })
+  // ---- R17: only the user deletes. A sheet with blocks needs ?confirm=true; the target of a run that runs or waits cannot go ----
+  app.delete('/topics/:topicId/sheets/:sheetId', async c => {
+    const topicId = id.parse(c.req.param('topicId')), sheetId = z.string().min(1).max(128).parse(c.req.param('sheetId'))
+    topics.get(topicId)
+    const since = new Date().toISOString(), states = await options.activity?.()
+    const busy = new Set([...states ?? []].filter(([, state]) => state.running || state.waiting).map(([threadId]) => threadId))
+    return c.json(board.deleteSheet(topicId, sheetId, { confirmed: c.req.query('confirm') === 'true', busy, since }))
+  })
   app.get('/sheets/:sheetId', c => tagged(c, board.view(z.string().min(1).max(128).parse(c.req.param('sheetId')))))
+  app.get('/blocks/:blockId', c => c.json(board.blockSheet(z.string().min(1).max(128).parse(c.req.param('blockId')))))
 
   // ---- 资料库：上传或粘链接，给了 topicId 就顺手引用到这个主题 ----
   app.get('/library', c => c.json({ items: library.list() }))

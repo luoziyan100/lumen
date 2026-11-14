@@ -1,6 +1,6 @@
 /**
  * [INPUT]: doc/studio/model.md 的功能命名（白板 · 沉淀 · 概念图 · 灵感 · 全部）与 P0 交互
- * [OUTPUT]: STUDIO_COPY：新外壳的词表——视图名、白板/区块/素材（搜索、上传）/精灵/状态灯、面板收放与阅读器文案；精灵打开说明带空闲/正在画/在等你/正在说状态
+ * [OUTPUT]: STUDIO_COPY：新外壳的词表——视图名、白板（含删除一张的菜单、确认与「白板已删除」）/区块/素材（搜索、上传）/精灵/状态灯、面板收放与阅读器文案；精灵打开说明带空闲/正在画/在等你/正在说状态
  * [POS]: 新形态文案单源。视图名集中在 views，P3 换世界观（书房 / 实验室 / 工坊）时只换这张表，不改结构
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -20,6 +20,13 @@ export const STUDIO_COPY = {
     frameNote: '这张白板', frameFull: '这张白板已经写满', folded: '已收起',
     foldedHint: '这张白板已收起，AI 不会写在这里。',
     selectFailed: '没能记下你选的这张白板，AI 下一轮可能仍写在之前那张：',
+    more: (name: string) => `${name} · 更多操作`, remove: '删除白板',
+    removeBusy: 'AI 这一轮正写在这张白板上，等这一轮结束或停下后才能删',
+    removeTitle: (number: number, title: string) => `删除白板 ${number}「${title}」？`,
+    removeBody: (blocks: number) => `上面的 ${blocks} 块内容和这张白板的历史版本会一起删除，删了不能恢复。`,
+    removeCancel: '取消', removeConfirm: '删除',
+    removeUnsupported: '当前服务不支持删除，重启服务后可用',
+    blockGone: '这块所在的白板已删除',
     empty: '白板还是空的。和 AI 聊起来，它会把想清楚的东西画在这里。',
     noLive: '这个主题现在没有进行中的白板。点 ＋ 新开一张。',
     newSheet: '新开一张白板', drawing: 'AI 正在画', updating: 'AI 正在改这一块',
