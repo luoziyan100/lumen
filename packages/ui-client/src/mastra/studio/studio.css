@@ -109,11 +109,16 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 /* 左上角浮层（G7/U2）：多张时的张标签 · ＋；不显示已用块数 */
 /* W1：张标签单行、每张最宽 160 省略、title 全名，放不下就在浮层里横向滚动，不换行（浮层高度恒为 30，W2 的画布起点据此留空） */
 .board-sheets { position: absolute; left: var(--st-inset); top: 12px; z-index: 5; display: flex; align-items: center; gap: 6px; box-sizing: border-box; height: var(--st-control); max-width: calc(100% - 2 * var(--st-inset)); padding: 0; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-1); }
-.board-tabs { display: flex; gap: 2px; min-width: 0; padding-left: 3px; overflow-x: auto; scrollbar-width: none; }
+.board-tabs { position: relative; display: flex; gap: 2px; min-width: 0; padding-left: 3px; overflow-x: auto; scrollbar-width: none; }
 .board-tabs::-webkit-scrollbar { display: none; }
-.board-tabs button { flex: none; max-width: 160px; height: 22px; padding: 0 8px; border: 0; border-radius: 7px; background: none; color: var(--text-muted); font-size: var(--st-note); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.board-tabs button { position: relative; flex: none; display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 7px; border: 0; border-radius: 7px; background: none; color: var(--text-muted); font-size: var(--st-note); font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; }
 .board-tabs button.on { background: var(--surface-fill); color: var(--text); }
-.board-tabs small { font-size: var(--st-label); color: var(--text-faint); }
+.board-tabs button.is-folded { color: var(--text-faint); }
+.board-tabs button.is-folded.on { color: var(--text-muted); }
+.board-tab-number { min-width: 1ch; text-align: center; }
+/* R16: the sheet the AI is writing on this run, visible while another sheet is shown */
+.board-tab-dot { position: absolute; top: 2px; right: 2px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: studio-pulse 1s var(--ease-out) infinite; }
+@media (prefers-reduced-motion: reduce) { .board-tab-dot { animation: none; } }
 .board-sheets .icon-btn { width: 28px; height: 28px; }
 .board-empty { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); max-width: 360px; margin: 0; text-align: center; color: var(--text-muted); font-size: var(--st-note); pointer-events: none; }
 .board-hint { top: auto; bottom: 24px; transform: translateX(-50%); }

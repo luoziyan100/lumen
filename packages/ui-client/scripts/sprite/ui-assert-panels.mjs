@@ -9,6 +9,8 @@
 // 不再要求在白板区内；脚本开头清掉 lumen.studio.sprite、全程不拖头像，所以每个状态量的都是默认位置。
 // lumen-studio-chrome 改写一条：U1「每项一行」原来量整个按钮内容的行顶，C2 给每项加了 16px 图标后图标与文字行顶不同会被误数成两行；
 // 改为只量文字 span 的行数（紧凑态没有文字就量按钮），scrollWidth 不溢出的条件不变。
+// lumen-board-target rewrites one: W1 "one line per sheet tab" measured the whole button; R16 tabs are a 16px board glyph plus a number, whose line tops differ,
+// so it now measures only the number span (`.board-tab-number`); the ≤160px width and non-empty title (full name) conditions are unchanged.
 // 用法：node ui-assert-panels.mjs <evidence-dir> [topicTitle]
 import { chromium } from '/tmp/lumen-s0-pw/node_modules/playwright-core/index.mjs'
 const exe = process.env.HOME + '/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
@@ -107,7 +109,7 @@ async function geometry(page) {
     const hit = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top)
     const viewport = document.querySelector('.board-viewport')
     const titlesUnder = sheets && viewport ? [...document.querySelectorAll('.block-title')].filter(t => { const a = r(t); return a.bottom > r(viewport).top && a.top < r(viewport).bottom && hit(a, r(sheets)) }).map(t => t.textContent.slice(0, 16)) : []
-    const tabLines = tabs.map(b => { const range = document.createRange(); range.selectNodeContents(b); return { text: b.textContent, lines: new Set([...range.getClientRects()].filter(x => x.width > 0).map(x => Math.round(x.top))).size, w: Math.round(r(b).width), title: b.title, full: b.title.length > 0 } })
+    const tabLines = tabs.map(b => { const range = document.createRange(); range.selectNodeContents(b.querySelector('.board-tab-number') ?? b); return { text: b.textContent, lines: new Set([...range.getClientRects()].filter(x => x.width > 0).map(x => Math.round(x.top))).size, w: Math.round(r(b).width), title: b.title, full: b.title.length > 0 } })
     const scroll = document.querySelector('.studio-reader .pdf-scroll')
     const reader = document.querySelector('.studio-reader')
     const head = reader?.querySelector('.studio-head')

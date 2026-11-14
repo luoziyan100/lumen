@@ -1,6 +1,6 @@
 /**
  * [INPUT]: Hono、zod、studio 存储组合、研究网络、原生运行/等待状态投影
- * [OUTPUT]: studioRoutes：主题、白板（带 ETag）、资料库上传/链接（arXiv 链接收 PDF）/原件/原件本机位置（只给原生「系统打开」核对用）、主题引用的 HTTP 接口
+ * [OUTPUT]: studioRoutes：主题、白板（带 ETag；列表带用户选中的那张与正在跑的一轮的写入目标；记下选中；＋ 新开的那张即选中）、资料库上传/链接（arXiv 链接收 PDF）/原件/原件本机位置（只给原生「系统打开」核对用）、主题引用的 HTTP 接口
  * [POS]: 认证之后的产品路由；P0 白板对人只读，这里没有区块写接口——区块只经白板工具写（R4）
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -17,6 +17,7 @@ const title = z.string().trim().min(1).max(200)
 const topicCreate = z.object({ title }).strict()
 const topicPatch = z.object({ title: title.optional(), archived: z.boolean().optional() }).strict().refine(value => Object.keys(value).length > 0)
 const sheetCreate = z.object({ title: title.optional() }).strict()
+const selection = z.object({ sheetId: z.string().min(1).max(128) }).strict()
 const link = z.object({ url: z.string().url(), topicId: id.optional() }).strict()
 const reference = z.object({ itemId: z.string().min(1).max(128) }).strict()
 const archived = z.enum(['true', 'false', 'all']).default('false').transform(value => value === 'all' ? value : value === 'true')
@@ -60,13 +61,22 @@ export function studioRoutes(options: { studio: Studio; http: ResearchHttp; acti
   app.patch('/topics/:topicId', async c => c.json(topics.update(id.parse(c.req.param('topicId')), topicPatch.parse(await c.req.json()))))
 
   // ---- 白板：人只读；＋ 新开一张 ----
-  app.get('/topics/:topicId/sheets', c => {
+  app.get('/topics/:topicId/sheets', async c => {
     const topicId = id.parse(c.req.param('topicId'))
     topics.get(topicId)
     // ---- 没有进行中的白板（都收起了）不是错误：writable 为 null，界面提示用户点 ＋ ----
     let writable: string | null = null
     try { writable = board.writableSheet(topicId).id } catch (error) { if (!(error instanceof StudioError) || error.status !== 409) throw error }
-    return c.json({ items: board.sheets(topicId), writable })
+    // ---- R16: selected = where the next message writes; target = where the run in progress writes (only while it runs or waits) ----
+    const states = await options.activity?.()
+    const target = board.runTargets(topicId).find(row => { const state = states?.get(row.threadId); return state?.running || state?.waiting })
+    return c.json({ items: board.sheets(topicId), writable, selected: board.selectedSheet(topicId)?.id ?? null, target: target?.sheetId ?? null })
+  })
+  app.put('/topics/:topicId/selection', async c => {
+    const topicId = id.parse(c.req.param('topicId'))
+    topics.get(topicId)
+    board.select(topicId, selection.parse(await c.req.json()).sheetId)
+    return c.json({ selected: board.selectedSheet(topicId)?.id ?? null })
   })
   app.post('/topics/:topicId/sheets', async c => {
     const topicId = id.parse(c.req.param('topicId'))

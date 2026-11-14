@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 官方MastraClient、原生注入的本机服务发现与所选技能文件清单
- * [OUTPUT]: LumenApi、Connection、主题/会话目录、资料库与主题引用、白板只读视图、完整技能包/诊断与问题评估入口、附专家用量的快照和带 ETag 的文件版本读取；身份是 {topicId, taskId}，同会话阅读写入串行，手动未读不被先发自动确认覆盖
+ * [OUTPUT]: LumenApi、Connection、主题/会话目录、资料库与主题引用、白板只读视图与用户选中的白板（R16；旧服务缺路由时静默，其它失败抛出）、带状态码的 RequestError、完整技能包/诊断与问题评估入口、附专家用量的快照和带 ETag 的文件版本读取；身份是 {topicId, taskId}，同会话阅读写入串行，手动未读不被先发自动确认覆盖
  * [POS]: 新客户端唯一网络边界；不暴露提前创建空会话的目录写入，提交准备沿 open 绑定；附件先完整读取再进资料库并引用到当前主题，失败不发残缺请求
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -13,6 +13,8 @@ export type { SessionSummary as SessionInfo, Page } from '../../../../mastra-ser
 import type { SessionSummary as SessionInfo, Page } from '../../../../mastra-service/src/catalog/types.ts'
 export type { Topic, LibraryItem, TopicMaterial, Sheet, SheetView } from '../../../../mastra-service/src/studio/types.ts'
 import type { Topic, LibraryItem, TopicMaterial, Sheet, SheetView } from '../../../../mastra-service/src/studio/types.ts'
+/** writable: newest live sheet (old field). selected/target come from R16 services; optional so an older service still parses. */
+export interface SheetList { items: Sheet[]; writable: string | null; selected?: string | null; target?: string | null }
 import type { PublicSettings, SettingsPatch } from '../../../../mastra-service/src/settings/types.ts'
 import type { SkillMeta, SkillLayer } from '../../../../mastra-service/src/skills/types.ts'
 import type { AgentCatalog } from '../../../../mastra-service/src/agents/catalog/types.ts'
@@ -33,6 +35,12 @@ export type ChildTokenUsage = NativeDisplayState['tokenUsage'] | null
 export type DisplayState = NativeDisplayState & { childTokenUsage?: ChildTokenUsage }
 export interface TracePage { items: TraceSummary[]; page: number; perPage: number; total: number; hasMore: boolean; collectionEnabled: boolean }
 
+/** A non-2xx answer from the service; network failures stay as the fetch error. */
+export class RequestError extends Error {
+  status: number
+  constructor(message: string, status: number) { super(message); this.status = status }
+}
+
 export class LumenApi {
   private readonly readChanges = new Map<string, Promise<{ changed: boolean }>>()
   readonly sdk: MastraClient
@@ -48,7 +56,7 @@ export class LumenApi {
     const response = await fetch(`${this.connection.baseUrl}${path}`, { method, headers: { ...this.headers(), ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
     if (!response.ok) {
       const detail = await response.json().catch(() => null)
-      throw new Error(typeof detail?.error === 'string' ? detail.error : `请求失败 (${response.status})`)
+      throw new RequestError(typeof detail?.error === 'string' ? detail.error : `请求失败 (${response.status})`, response.status)
     }
     return response.json()
   }
@@ -60,9 +68,16 @@ export class LumenApi {
   topics(archived = false) { return this.request<{ items: Topic[] }>(`/lumen/topics?archived=${archived}`) }
   createTopic(title: string) { return this.request<Topic>('/lumen/topics', 'POST', { title }) }
   updateTopic(topicId: string, updates: { title?: string; archived?: boolean }) { return this.request<Topic>(`/lumen/topics/${encodeURIComponent(topicId)}`, 'PATCH', updates) }
-  sheets(topicId: string) { return this.request<{ items: Sheet[]; writable: string | null }>(`/lumen/topics/${encodeURIComponent(topicId)}/sheets`) }
+  /** selected: where the next message writes; target: where the run in progress writes. Both absent on services older than R16. */
+  sheets(topicId: string) { return this.request<SheetList>(`/lumen/topics/${encodeURIComponent(topicId)}/sheets`) }
+  /** Record the user's tab choice so the next run writes there (R16). */
+  /** Records the user's tab on the service (R16). null: an older service without the route (404/405); any other failure throws. */
+  async selectSheet(topicId: string, sheetId: string): Promise<{ selected: string | null } | null> {
+    try { return await this.request<{ selected: string | null }>(`/lumen/topics/${encodeURIComponent(topicId)}/selection`, 'PUT', { sheetId }) }
+    catch (error) { if (error instanceof RequestError && (error.status === 404 || error.status === 405)) return null; throw error }
+  }
   sheet(sheetId: string) { return this.request<SheetView>(`/lumen/sheets/${encodeURIComponent(sheetId)}`) }
-  /** 你点 ＋ 新开一张白板；AI 不会自己开。 */
+  /** 你点 ＋ 新开一张白板（服务把它记为选中）；AI 不会自己开。 */
   createSheet(topicId: string, title?: string) { return this.request<Sheet>(`/lumen/topics/${encodeURIComponent(topicId)}/sheets`, 'POST', title ? { title } : {}) }
   /** 带 ETag 读白板：没变时返回 view=null，不重新解析。 */
   async sheetVersion(sheetId: string, etag?: string | null): Promise<{ view: SheetView | null; etag: string | null }> {

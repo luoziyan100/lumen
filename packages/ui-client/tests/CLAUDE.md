@@ -11,6 +11,7 @@ tests/
 ├── mastra-*.test.ts         # 新服务客户端边界
 ├── studio-app.test.ts       # 白板工作台外壳（S4）
 ├── library-titles.test.ts   # 素材标题/链接副行、阅读器标题、系统打开只交条目 id、保存补扩展名
+├── board-tabs.test.ts       # R16 tabs, selection persistence, drawing dot
 ├── studio-chrome.test.ts    # 素材搜索与链接短写、视图导航图标与紧凑态
 ├── markdown-*.test.ts       # 正文与数学
 ├── mermaid-*.test.ts        # 图表算法与宿主
@@ -32,6 +33,7 @@ tests/
 - `mastra-diagnostics.test.ts`：真实 React/HTTP 的标注保存/评估互斥、失败留稿、切主题迟到隔离、持久结果和无工具模型请求；同时覆盖 trace、导出/离线查看、跨会话拒绝、有界文件与采集热关闭。
 - `mastra-files.test.ts`：文件引用/当前稿路径边界；真实 DocumentReader 读资料库条目（不需会话身份）与工作区文件，运行中按 ETag 检查、304 不重建沙箱、内容变了才换，关闭回调；不可读/残缺/超大附件不发送请求，完整上传保持字节和名称，失败展示服务原因。（S4 前的工作目录轨用例随 Files/workspace 退场，原文件备份于 studio-retired/2026-11-12-S4/partial/）
 - `library-titles.test.ts`：真实 StudioApp + 真实 HTTP 服务与资料库，arXiv 在研究网络边界是可控桩：摘要页链接经服务端资料库接口收进主题（右栏不再加链接）后素材主行是 API 标题且 title 给全名、副行只有链接短写且 title 给完整 URL、行里只有这两段文字（chrome C6）、阅读器头部用新标题；在 `__TAURI_INTERNALS__` 边界记录原生调用：系统打开只交条目 id 给 `open_library_item`、保存仍调 `save_workspace_file` 且文件名补 `.pdf`；pdf.js 用真实 worker。省略号渲染、明暗与原生预览不在这里宣称。
+- `board-tabs.test.ts`: `initialSelection` (pinned pick, service selection, older-service fallback); Board tabs as glyph + number with the full title in title/aria-label, folded dimmed, the drawing dot on the run target while another sheet is shown, the folded-selection hint, one sheet hides the strip; `useBoard` against a real service: selection survives a reload, ＋ selects the new sheet, a service without the route (404/405) still switches locally, any other failure reaches board.error and survives board reads until a later pick is stored; `LumenApi.selectSheet` status handling, including a refused connection.
 - `studio-chrome.test.ts`：`filterMaterials`（标题/链接、大小写、首尾空格、中文子串、无匹配、空查询原样）、`shortLink`（arXiv 摘要页、带路径与查询、末尾斜杠、无链接）、`navFits` 边界；`ViewNav` 五项图标几何与 16/currentColor、aria-label 恒在、完整宽度副本不进可访问树，放不下只留图标并补 title、展开按钮收走后靠子节点变化重量、头部宽 0 不切换（宽度在元素尺寸边界注入；真实排版在浏览器断言）。
 - `studio-app.test.ts`：真实 StudioApp + 真实 HTTP 服务与 Controller：模型经真实 board_draw 画出文字/梯子/表格/小部件四块并渲染（雾线、你在这里、断点、留给你猜、出处签与 AI 推断、小部件名额）；ETag 兜底轮询被截住时，运行中第一块写完白板即刷新（证明靠工具完成信号）；对话里只有白板卡片、点卡跳块；主题运行时新对话禁用并说明（R1），结束后恢复；视图导航五项都有图标、aria-label 与是否开放，占位如实；素材行只有标题（无链接时没有副行、不标谁找来的）并分屏读原件；上传在素材标题行、收起之前，右栏没有任何加链接入口；搜索即时过滤（首尾空格、中文子串）、无匹配如实说、Esc 清空；左下角只有设置，设置的专家分页经真实服务停用/启用/重载，运行中写入被服务拒绝并显示、状态不变；出处签打开原件；精灵停靠/拖动/收起写入 localStorage；面板与原文：⌘B / ⌘⌥B 收放并写入 localStorage、收起的栏 inert、展开按钮的 aria 与带快捷键的 title、分屏时展开按钮落在阅读器头、铺满时白板保持挂载、Esc 回分屏而输入框里的 Esc 不抢、关阅读器不留铺满、页面没有 ws-tag。
 - `sprite-desktop.test.ts`：四态协议拒绝非法序号/时间与未知状态；桌面过渡只动合成属性、减弱动效只淡120ms。生命周期、位置与菜单直接测 src-tauri 的运行模型，避免另造镜像。

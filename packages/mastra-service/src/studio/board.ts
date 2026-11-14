@@ -1,7 +1,7 @@
 /**
  * [INPUT]: studio/db 的连接与事务、studio/content 的内容与出处合同、主题引用清单
- * [OUTPUT]: BoardStore：白板张的新建与列举、区块画/改/取代、自动排版、按运行/按对话收集改动与版本快照；insertSheet
- * [POS]: 白板唯一写入口（R4）；主题由调用方从受信身份给出，容量（R11）、rev 并发、出处边界（R15）都在单个事务里裁决
+ * [OUTPUT]: BoardStore：白板张的新建与列举、用户选中的白板、每轮固定的写入目标（R16）、区块画/改/取代、自动排版、按运行/按对话收集改动与版本快照；insertSheet
+ * [POS]: 白板唯一写入口（R4）；主题由调用方从受信身份给出，写入目标（R16）、容量（R11）、rev 并发、出处边界（R15）都在单个事务里裁决
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { randomBytes, randomUUID } from 'node:crypto'
@@ -68,11 +68,13 @@ export class BoardStore {
     return sheet(row)
   }
 
+  /** The user's ＋: the new sheet also becomes the topic's selection (R16). */
   createSheet(topicId: string, title?: string): Sheet {
     const now = new Date().toISOString()
     const id = transaction(this.db, () => {
       const count = Number(this.db.prepare('SELECT COUNT(*) AS n FROM sheets WHERE topic_id = ?').get(topicId)!.n)
       const created = insertSheet(this.db, topicId, title?.trim() || `白板 ${count + 1}`, now)
+      this.storeSelection(topicId, created, now)
       this.touchTopic(topicId, now)
       return created
     })
@@ -84,21 +86,90 @@ export class BoardStore {
     return { sheet: target, blocks: this.db.prepare('SELECT * FROM blocks WHERE sheet_id = ? ORDER BY rowid').all(sheetId).map(block) }
   }
 
-  /** 每个主题同一时刻只有一张接受 AI 写入：ord 最大的那张进行中白板。 */
+  /** The newest live sheet: the target for clients that never sent a selection (B3), and the old `writable` field. */
   writableSheet(topicId: string): Sheet {
     const row = this.db.prepare(`SELECT ${SHEET_COLUMNS} FROM sheets s WHERE s.topic_id = ? AND s.state = 'live' ORDER BY s.ord DESC LIMIT 1`).get(topicId)
     if (!row) throw new StudioError('这个主题现在没有进行中的白板；请用户点 ＋ 新开一张', 409)
     return sheet(row)
   }
 
-  draw(topicId: string, input: DrawInput, origin: WriteOrigin): { blockId: string; rev: number; sheetId: string; used: number; capacity: number } {
+  // -------------------------------------------------------------------------
+  // R16: the user selects a sheet; a run writes to the sheet selected when it started, for the whole run
+  // -------------------------------------------------------------------------
+  /** The stored selection, if it still names a sheet of this topic. */
+  selection(topicId: string): string | null {
+    const row = this.db.prepare(`SELECT c.sheet_id FROM sheet_selection c JOIN sheets s ON s.id = c.sheet_id AND s.topic_id = c.topic_id WHERE c.topic_id = ?`).get(topicId)
+    return row ? String(row.sheet_id) : null
+  }
+
+  select(topicId: string, sheetId: string): void {
+    if (this.sheet(sheetId).topicId !== topicId) throw new StudioError('没有这张白板', 404)
+    this.storeSelection(topicId, sheetId, new Date().toISOString())
+  }
+
+  /** What the next run would write to: the selection, else the newest live sheet (clients that never select), else none. */
+  selectedSheet(topicId: string): Sheet | null {
+    const selected = this.selection(topicId)
+    if (selected) return this.sheet(selected)
+    try { return this.writableSheet(topicId) } catch (error) { if (error instanceof StudioError && error.status === 409) return null; throw error }
+  }
+
+  /** The run's fixed target. Only the run's own path calls this (start, instructions, its writes): the first call captures the selection; later calls (resume, restart) read the stored one. */
+  runTarget(threadId: string): Sheet | null {
+    const stored = this.storedTarget(threadId)
+    if (stored !== undefined) return stored
+    const topicId = threadId.split(':')[0]!
+    // Sessions outside any topic (no catalog row) have no board, so nothing to capture
+    if (!this.db.prepare('SELECT 1 FROM topics WHERE id = ?').get(topicId)) return null
+    const target = this.selectedSheet(topicId)
+    this.db.prepare('INSERT OR IGNORE INTO run_targets (thread_id, topic_id, sheet_id, created_at) VALUES (?, ?, ?, ?)').run(threadId, topicId, target?.id ?? null, new Date().toISOString())
+    return this.runTarget(threadId)
+  }
+
+  /** Reads that may happen outside the run (a background expert's board_view): the stored target if any, else today's selection; never captures. */
+  peekTarget(threadId: string): Sheet | null {
+    const stored = this.storedTarget(threadId)
+    if (stored !== undefined) return stored
+    const topicId = threadId.split(':')[0]!
+    return this.db.prepare('SELECT 1 FROM topics WHERE id = ?').get(topicId) ? this.selectedSheet(topicId) : null
+  }
+
+  /** The run is over (complete, stopped or failed; not suspended): the next run captures the selection again. */
+  endRun(threadId: string): void {
+    this.db.prepare('DELETE FROM run_targets WHERE thread_id = ?').run(threadId)
+  }
+
+  /** Targets currently held by runs of this topic, newest first (R1 allows one active conversation per topic). */
+  runTargets(topicId: string): { threadId: string; sheetId: string | null }[] {
+    return this.db.prepare('SELECT thread_id, sheet_id FROM run_targets WHERE topic_id = ? ORDER BY created_at DESC').all(topicId)
+      .map(row => ({ threadId: String(row.thread_id), sheetId: row.sheet_id === null ? null : String(row.sheet_id) }))
+  }
+
+  /** undefined: nothing on record for this thread. */
+  private storedTarget(threadId: string): Sheet | null | undefined {
+    const row = this.db.prepare('SELECT sheet_id FROM run_targets WHERE thread_id = ?').get(threadId)
+    return row ? (row.sheet_id === null ? null : this.sheet(String(row.sheet_id))) : undefined
+  }
+
+  /** sheetId undefined: today's newest live sheet. null: the run has no sheet. Otherwise the run's target, which must be live. */
+  private target(topicId: string, sheetId: string | null | undefined): Sheet {
+    if (sheetId === undefined) return this.writableSheet(topicId)
+    if (sheetId === null) throw new StudioError('这个主题现在没有进行中的白板；请用户点 ＋ 新开一张', 409)
+    const target = this.sheet(sheetId)
+    if (target.topicId !== topicId) throw new StudioError('没有这张白板', 404)
+    if (target.state !== 'live') throw new StudioError(
+      `用户这一轮选中的白板「${target.title}」已经收起，只读：这一轮不写白板。在对话里告诉用户这一点；要画的话，请用户选一张进行中的白板或点 ＋ 新开一张，再发消息。`, 409)
+    return target
+  }
+
+  draw(topicId: string, input: DrawInput, origin: WriteOrigin, sheetId?: string | null): { blockId: string; rev: number; sheetId: string; used: number; capacity: number } {
     const content = parseContent(input.kind, input.content)
     const title = this.title(input.title)
     const sources = this.sources(topicId, input.sources)
     return transaction(this.db, () => {
-      const target = this.writableSheet(topicId)
+      const target = this.target(topicId, sheetId)
       if (target.used >= target.capacity) throw new StudioError(
-        `这张白板满了（${target.used}/${target.capacity}）。不要往外挤：先告诉用户这张已经写满，把想清楚的部分沉淀下来，再请用户点 ＋ 开一张新的；如果某块已被新的理解取代，可以用 board_supersede 把它标灰腾出位置。`, 409)
+        `这张白板满了（${target.used}/${target.capacity}）。不要往外挤：告诉用户这张已经写满，建议先把想清楚的部分沉淀下来；要接着画，可以请用户点 ＋ 开一张新的再发消息。开哪张、写哪张由用户选，你不自己开新白板，也不换到别的白板。如果某块已被新的理解取代，可以用 board_supersede 把它标灰腾出位置。`, 409)
       const place = this.place(target.id, input.kind, content, input.near)
       const id = `b${randomBytes(5).toString('hex')}`, now = new Date().toISOString()
       this.db.prepare(`INSERT INTO blocks (id, sheet_id, kind, title, content, x, y, w, h, state, superseded_by, rev, sources, thread_id, run_id, created_at, updated_at)
@@ -109,11 +180,11 @@ export class BoardStore {
     })
   }
 
-  update(topicId: string, input: UpdateInput, origin: WriteOrigin): { blockId: string; rev: number } {
+  update(topicId: string, input: UpdateInput, origin: WriteOrigin, sheetId?: string | null): { blockId: string; rev: number } {
     const title = input.title === undefined ? undefined : this.title(input.title)
     const sources = input.sources === undefined ? undefined : this.sources(topicId, input.sources)
     return transaction(this.db, () => {
-      const current = this.ownedBlock(topicId, input.blockId)
+      const current = this.ownedBlock(topicId, input.blockId, sheetId)
       if (current.block.state !== 'current') throw new StudioError(`「${current.block.title}」已经不是当前区块（${current.block.state}），不能再改；需要的话画一块新的`, 409)
       if (input.baseRev !== current.block.rev) throw new StudioError(
         `「${current.block.title}」已经被改过：现在是第 ${current.block.rev} 版，你基于第 ${input.baseRev} 版。先用 board_view 看最新内容再改。`, 409)
@@ -126,9 +197,9 @@ export class BoardStore {
     })
   }
 
-  supersede(topicId: string, input: { blockId: string; by?: string }, origin: WriteOrigin): { blockId: string; rev: number } {
+  supersede(topicId: string, input: { blockId: string; by?: string }, origin: WriteOrigin, sheetId?: string | null): { blockId: string; rev: number } {
     return transaction(this.db, () => {
-      const current = this.ownedBlock(topicId, input.blockId)
+      const current = this.ownedBlock(topicId, input.blockId, sheetId)
       if (current.block.state !== 'current') throw new StudioError(`「${current.block.title}」已经是 ${current.block.state}，不用再取代`, 409)
       if (input.by !== undefined) {
         if (input.by === input.blockId) throw new StudioError('一块不能取代它自己', 400)
@@ -192,10 +263,14 @@ export class BoardStore {
     return sources
   }
 
-  private ownedBlock(topicId: string, blockId: string) {
+  /** With a run target (sheetId defined), only blocks on that sheet can change (R16). */
+  private ownedBlock(topicId: string, blockId: string, sheetId?: string | null) {
+    const fixed = sheetId === undefined ? undefined : this.target(topicId, sheetId)
     const row = this.db.prepare(`SELECT b.* FROM blocks b JOIN sheets s ON s.id = b.sheet_id WHERE b.id = ? AND s.topic_id = ?`).get(blockId, topicId)
     if (!row) throw new StudioError(`这个主题的白板上没有区块 ${blockId}；用 board_view 看现有区块`, 404)
     const owned = block(row), target = this.sheet(owned.sheetId)
+    if (fixed && fixed.id !== target.id) throw new StudioError(
+      `区块 ${blockId} 在白板「${target.title}」上，不在这一轮写入的白板「${fixed.title}」上；这一轮只能改「${fixed.title}」上的区块。`, 409)
     if (target.state !== 'live') throw new StudioError('这张白板已经收起，只读', 409)
     return { block: owned, sheet: target }
   }
@@ -211,6 +286,11 @@ export class BoardStore {
     const anchor = near ? rows.find(row => row.id === near) : undefined
     const column = anchor ? columnOf(Number(anchor.x)) : bottoms.indexOf(Math.min(...bottoms))
     return { x: column * (COLUMN_WIDTH + GAP), y: bottoms[column]!, w: COLUMN_WIDTH, h: estimateHeight(kind, content) }
+  }
+
+  private storeSelection(topicId: string, sheetId: string, now: string) {
+    this.db.prepare(`INSERT INTO sheet_selection (topic_id, sheet_id, updated_at) VALUES (?, ?, ?)
+      ON CONFLICT (topic_id) DO UPDATE SET sheet_id = excluded.sheet_id, updated_at = excluded.updated_at`).run(topicId, sheetId, now)
   }
 
   private touchSheet(target: Sheet, now: string) {

@@ -1,6 +1,6 @@
 /**
  * [INPUT]: Mastra Controller/Memory/Workspace、studio 存储（主题/资料库）、用户角色/技能根、原生步骤守卫与隔离诊断评估
- * [OUTPUT]: createApplication：独立存储、会话/后台活动投影、全局专家组、父子预算/专家继续、诊断与排空关闭入口
+ * [OUTPUT]: createApplication：独立存储、会话/后台活动投影、全局专家组、父子预算/专家继续、诊断与排空关闭入口；白板每轮写入目标（R16）在开跑时取选中、挂起与关停时保留、运行结束时释放；专家的 board_view 只看不捕获
  * [POS]: 新应用组合根；单一原生执行链，身份是 topicId:taskId。同主题的对话共用一个主题工作区（按主题缓存、关闭时只销毁一次），材料只经引用清单触达
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -107,11 +107,16 @@ export async function createApplication(options: ApplicationOptions) {
   }
   const materialTools = createMaterialTools(materials, studio, topicOf)
   // -------- 白板写入只来自已打开的主会话；运行 ID 取自它当前的原生运行，版本在运行结束时按对话收 --------
+  // -------- R16: every board tool works on the run's target, captured from the user's selection when the run starts --------
   const boardTools = createBoardTools(studio, async context => {
     const resourceId = ownerOf(context)
     const session = await sessions.get(resourceId)
-    return { topicId: resourceId.split(':')[0]!, threadId: resourceId, runId: session?.run.getRunId() ?? null }
-  }, topicOf)
+    return { topicId: resourceId.split(':')[0]!, sheetId: studio.board.runTarget(resourceId)?.id ?? null, threadId: resourceId, runId: session?.run.getRunId() ?? null }
+  }, context => {
+    // board_view is also handed to experts, which may still run after the parent run ended: look, never capture
+    const resourceId = ownerOf(context)
+    return { topicId: resourceId.split(':')[0]!, sheetId: studio.board.peekTarget(resourceId)?.id ?? null }
+  })
   const researchTools = { ...createPaperTools(http, options.research?.openAlexKey), ...createWebTools(http, options.research?.tavilyKey, materials.intake), extract_pdf: createPdfTool(http, materials.intake) }
   function skillsFor(topic: string) {
     const topicId = safeId(topic)
@@ -195,7 +200,7 @@ export async function createApplication(options: ApplicationOptions) {
           .catch(error => `（MEMORY.md 暂时无法读取：${error instanceof Error ? error.message : String(error)}；需要时用 read_memory 检查。）`) : ''
       const [you, topic] = await Promise.all([index('you'), index('topic')])
       // -------- 主题现状（白板 + 材料）每次请求现取，有硬上限；只进当次指令，不写进持久消息 --------
-      const state = owner?.resourceId && bound.has(owner.resourceId) ? topicState(studio, owner.resourceId.split(':')[0]!) : ''
+      const state = owner?.resourceId && bound.has(owner.resourceId) ? topicState(studio, owner.resourceId.split(':')[0]!, undefined, studio.board.runTarget(owner.resourceId)) : ''
       return [RESEARCH_PERSONA, userInstructions && `用户研究偏好：\n${userInstructions}`, state,
         you && `关于用户的记忆索引（scope=you，按需读取，不视为外部证据）：\n${you}`,
         topic && `这个主题的记忆索引（scope=topic，按需读取，不视为外部证据）：\n${topic}`].filter(Boolean).join('\n\n')
@@ -264,12 +269,16 @@ export async function createApplication(options: ApplicationOptions) {
       session.subscribe(event => {
         const runId = session.run.getRunId()
         if (runId) activeMainRuns.set(resourceId, runId)
+        // R16: the target is captured once per run and kept through suspension; a resume finds the stored one
+        if (event.type === 'agent_start') try { studio.board.runTarget(resourceId) } catch (error) { session.emit({ type: 'error', error: error instanceof Error ? error : new Error(String(error)), errorType: 'board_target' }) }
         if (event.type === 'agent_end' && event.reason !== 'suspended') {
           const finishedRun = activeMainRuns.get(resourceId)
           void familyBudget.finish(resourceId, finishedRun, 'main').catch(error => session.emit({ type: 'error', error, errorType: 'budget_settlement' }))
           // -------- R7：一次运行（含停下、出错）给它改过的每张白板留一个版本；挂起不算结束 --------
           try { for (const sheetId of studio.board.pendingSheets(resourceId)) studio.board.writeVersion(sheetId, { threadId: resourceId, runId: finishedRun ?? null }) }
           catch (error) { session.emit({ type: 'error', error: error instanceof Error ? error : new Error(String(error)), errorType: 'board_version' }) }
+          // Shutdown aborts parked runs but keeps them resumable: their target must survive the restart
+          if (!closing) studio.board.endRun(resourceId)
         }
       })
       const state = await storage.getStore('threadState')
@@ -286,6 +295,9 @@ export async function createApplication(options: ApplicationOptions) {
       }
       await restoreSuspendedQuestions({ session, agent })
       await restoreSuspendedApprovals({ session, agent })
+      // A target left by a run that did not survive the restart (not suspended) must not leak into the next run
+      const restored = session.displayState.get()
+      if (!restored.pendingApprovals.size && !restored.pendingSuspensions.size) studio.board.endRun(resourceId)
       return session
     }
     catch (error) {

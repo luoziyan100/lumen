@@ -17,7 +17,9 @@ export const STUDIO_COPY = {
   pickTopic: '选一个主题，或新建一个。',
   light: { running: 'AI 在运行', waiting: '等你' },
   board: {
-    frameNote: '这张白板只放一个问题', frameFull: '这张白板已经写满', folded: '已收起',
+    frameNote: '这张白板', frameFull: '这张白板已经写满', folded: '已收起',
+    foldedHint: '这张白板已收起，AI 不会写在这里。',
+    selectFailed: '没能记下你选的这张白板，AI 下一轮可能仍写在之前那张：',
     empty: '白板还是空的。和 AI 聊起来，它会把想清楚的东西画在这里。',
     noLive: '这个主题现在没有进行中的白板。点 ＋ 新开一张。',
     newSheet: '新开一张白板', drawing: 'AI 正在画', updating: 'AI 正在改这一块',

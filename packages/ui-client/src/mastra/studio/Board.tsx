@@ -1,13 +1,13 @@
 /**
  * [INPUT]: useBoard 的白板张与视图、主题材料、精灵传来的「正在画/跳到某块」信号、layout.ts 的按宽排列
- * [OUTPUT]: Board：白板画布——左上角浮层（多张时的张标签，单行、过长省略、title 全名、放不下横向滚动；＋；不显示已用块数，上限与 R11 在服务端不变，写满时边框标签如实写「已经写满」）、
+ * [OUTPUT]: Board：白板画布——左上角浮层（多张时的张标签：白板图标 + 序号，完整标题在 title/aria-label，收起的变淡，本轮写入目标在 AI 画时带小点，放不下横向滚动不换行；＋ 新开即选中；不显示已用块数，上限与 R11 在服务端不变，写满时边框标签如实写「已经写满」）、
  *           画布起点在浮层之下（BOARD.TOP ≥ 浮层顶 12 + 高 30 + 12，首屏不压区块标题）、DOM + CSS transform 平移缩放（默认 100%，看全貌可缩小）、
  *           按视口宽度 1–3 列重排、贴着内容的白板边框、AI 正在画提示、小部件同时运行名额、右下角缩放条
- * [POS]: 中间「白板」视图；P0 对人只读（不圈、不钉、不改）。列与位置只在显示层重排，服务端坐标不动
+ * [POS]: 中间「白板」视图；P0 对人只读（不圈、不钉、不改）。看着哪张，下一条消息就写哪张（R16）；收起的那张提示 AI 不会写在这里。列与位置只在显示层重排，服务端坐标不动
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
-import { MinusIcon, PlusIcon, ExpandIcon } from '../../components/icons'
+import { BoardViewIcon, MinusIcon, PlusIcon, ExpandIcon } from '../../components/icons'
 import { STUDIO_COPY as S } from '../../copy/studioCopy'
 import type { TopicMaterial } from '../data/client.ts'
 import { BlockCard } from './Block'
@@ -24,7 +24,7 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
   focus: { blockId: string; nonce: number } | null
   onOpenSource: (itemId: string, page?: number) => void
 }) {
-  const viewport = useRef<HTMLDivElement>(null), world = useRef<HTMLDivElement>(null)
+  const viewport = useRef<HTMLDivElement>(null), world = useRef<HTMLDivElement>(null), strip = useRef<HTMLSpanElement>(null)
   const [camera, setCamera] = useState(HOME)
   const [width, setWidth] = useState(0)
   const [heights, setHeights] = useState<Record<string, number>>({})
@@ -36,7 +36,6 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
   const titles = useMemo(() => new Map(blocks.map(block => [block.id, block.title])), [blocks])
   const layout = useMemo(() => flowLayout(blocks, heights, width), [blocks, heights, width])
   const positioned = blocks.map(block => ({ ...block, ...(layout.placed.get(block.id) ?? {}) }))
-  const writable = view && board.writable === view.sheet.id
   const selectedSheet = board.sheets.find(sheet => sheet.id === board.selected)
   const tabs = board.sheets.length > 1 || (selectedSheet && selectedSheet.state !== 'live')
 
@@ -51,6 +50,13 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
     return () => observer?.disconnect()
   }, [])
   useEffect(() => { setCamera(HOME) }, [view?.sheet.id])
+  // ---- the selected tab stays in sight when the strip scrolls (narrow board, many sheets): it is where the next message writes ----
+  useLayoutEffect(() => {
+    const row = strip.current, on = row?.querySelector<HTMLElement>('button.on')
+    if (!row || !on) return
+    if (on.offsetLeft < row.scrollLeft) row.scrollLeft = on.offsetLeft
+    else if (on.offsetLeft + on.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollLeft = on.offsetLeft + on.offsetWidth - row.clientWidth
+  }, [board.selected, board.sheets.length, width])
 
   // ---- 小部件名额：默认前两块运行，点开的挤掉最早的 ----
   useEffect(() => {
@@ -127,13 +133,18 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
       </div>
       {view && !blocks.length && <p className="board-empty">{S.board.empty}</p>}
       {!view && !board.sheets.length && !board.error && <p className="board-empty">{S.board.noLive}</p>}
-      {view && !writable && board.writable === null && <p className="board-empty board-hint">{S.board.noLive}</p>}
+      {view && view.sheet.state !== 'live' && <p className="board-empty board-hint">{S.board.foldedHint}</p>}
       {drawing && <div className="board-drawing" role="status"><span className="board-drawing-dot" />{drawing === 'new' ? S.board.drawing : S.board.updating}</div>}
       {board.error && <p className="mw-error board-error" role="alert">{board.error}</p>}
     </div>
     <nav className="board-sheets" aria-label="白板">
-      {tabs && <span className="board-tabs">{board.sheets.map(sheet => <button type="button" key={sheet.id} className={sheet.id === board.selected ? 'on' : ''} aria-pressed={sheet.id === board.selected} title={sheet.state !== 'live' ? `${sheet.title} · ${S.board.folded}` : sheet.title} onClick={() => board.select(sheet.id)}>
-        {sheet.title}{sheet.state !== 'live' && <small> · {S.board.folded}</small>}</button>)}</span>}
+      {tabs && <span className="board-tabs" ref={strip}>{board.sheets.map((sheet, index) => {
+        const name = sheet.state !== 'live' ? `${sheet.title} · ${S.board.folded}` : sheet.title
+        const writing = !!drawing && board.target === sheet.id
+        return <button type="button" key={sheet.id} className={[sheet.id === board.selected && 'on', sheet.state !== 'live' && 'is-folded'].filter(Boolean).join(' ') || undefined}
+          aria-pressed={sheet.id === board.selected} aria-label={writing ? `${name} · ${S.board.drawing}` : name} title={name} data-writing={writing || undefined} onClick={() => board.select(sheet.id)}>
+          <BoardViewIcon /><span className="board-tab-number">{index + 1}</span>{writing && <span className="board-tab-dot" aria-hidden />}</button>
+      })}</span>}
       <button type="button" className="icon-btn board-sheet-new" title={S.board.newSheet} aria-label={S.board.newSheet} onClick={() => void board.createSheet()}><PlusIcon /></button>
     </nav>
     <div className="board-zoom">

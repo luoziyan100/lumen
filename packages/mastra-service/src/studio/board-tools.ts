@@ -1,18 +1,21 @@
 /**
- * [INPUT]: studio 存储（白板/主题引用）、content 的区块合同与一句话摘要、受信会话身份与当前主运行 ID 的解析
- * [OUTPUT]: createBoardTools：board_view/board_draw/board_update/board_supersede；topicState：每次请求注入的主题现状（有上限）
- * [POS]: AI 写白板的唯一通道（R4）。主题一律从会话身份推出，参数里没有主题和白板；每次写入记下对话与运行，版本由应用在运行结束时写
+ * [INPUT]: studio 存储（白板/主题引用/每轮写入目标）、content 的区块合同与一句话摘要、受信会话身份、当前主运行 ID 与本轮写入目标的解析
+ * [OUTPUT]: createBoardTools：board_view/board_draw/board_update/board_supersede，都只针对本轮写入目标（R16）；topicState：每次请求注入的主题现状（本轮目标，有上限）
+ * [POS]: AI 写白板的唯一通道（R4）。主题与白板一律从会话身份推出，参数里没有主题和白板；每次写入记下对话与运行，版本由应用在运行结束时写
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { createTool, type ToolExecutionContext } from '@mastra/core/tools'
 import { z } from 'zod'
 import { blockKinds, LIMITS, summarize } from './content.ts'
+import { StudioError } from './errors.ts'
 import type { Studio } from './studio.ts'
-import type { Block, BlockSource, WriteOrigin } from './types.ts'
+import type { Block, BlockSource, Sheet, WriteOrigin } from './types.ts'
 
 type Context = { requestContext?: ToolExecutionContext['requestContext'] } | undefined
-/** 受信写入方：主题、对话（= resourceId）与当前主运行；只有已打开的主会话能解析出来。 */
-export type BoardWriter = (context: Context) => Promise<{ topicId: string } & WriteOrigin>
+/** 受信写入方：主题、对话（= resourceId）、当前主运行与本轮写入目标（R16；null = 没有可写的白板）；只有已打开的主会话能解析出来。 */
+export type BoardWriter = (context: Context) => Promise<{ topicId: string; sheetId: string | null } & WriteOrigin>
+/** Read side (main run and specialists): the topic and the run's target sheet. */
+export type BoardReader = (context: Context) => { topicId: string; sheetId: string | null }
 
 // ---------------------------------------------------------------------------
 // 模型看到的入参：内容按种类给形状说明，真正的校验在存储里（同一份 zod 合同），错误原样回给模型
@@ -40,12 +43,13 @@ function line(block: Pick<Block, 'id' | 'kind' | 'title' | 'content' | 'state' |
   return { id: block.id, kind: block.kind, title: block.title, summary: summarize(block.kind, block.content), state: block.state, rev: block.rev, sources: block.sources }
 }
 
-export function createBoardTools(studio: Studio, writer: BoardWriter, topicOf: (context: Context) => string) {
+export function createBoardTools(studio: Studio, writer: BoardWriter, reader: BoardReader) {
   const view = createTool({ id: 'board_view', description: '看这个主题进行中的白板：标题、用了几格、每块的 id/类型/标题/一句摘要/状态/版本号/出处。给 blockId 时返回那一块的完整内容（改之前先看）。',
     inputSchema: z.object({ blockId: z.string().max(64).optional() }),
     execute: async ({ blockId }, context) => {
-      const topicId = topicOf(context)
-      const current = studio.board.view(studio.board.writableSheet(topicId).id)
+      const { sheetId } = reader(context)
+      if (sheetId === null) throw new StudioError('这个主题现在没有进行中的白板；请用户点 ＋ 新开一张', 409)
+      const current = studio.board.view(sheetId)
       const sheet = { id: current.sheet.id, title: current.sheet.title, used: current.sheet.used, capacity: current.sheet.capacity }
       if (blockId) {
         const target = current.blocks.find(block => block.id === blockId)
@@ -60,31 +64,31 @@ export function createBoardTools(studio: Studio, writer: BoardWriter, topicOf: (
     board_draw: createTool({ id: 'board_draw', description: '在这个主题进行中的白板上画一块。一块只讲一件事；版面由系统排，near 填一个已有区块 id 时落在它那一列。白板满了会被拒绝——那时先和用户沉淀，不要硬挤。',
       inputSchema: z.object({ kind, title: z.string().max(LIMITS.title), content, sources: sources.optional(), near: z.string().max(64).optional() }),
       execute: async (input, context) => {
-        const { topicId, ...origin } = await writer(context)
-        const result = studio.board.draw(topicId, { kind: input.kind as Block['kind'], title: input.title, content: input.content, sources: cleanSources(input.sources) as BlockSource[] | undefined, near: input.near }, origin)
+        const { topicId, sheetId, ...origin } = await writer(context)
+        const result = studio.board.draw(topicId, { kind: input.kind as Block['kind'], title: input.title, content: input.content, sources: cleanSources(input.sources) as BlockSource[] | undefined, near: input.near }, origin, sheetId)
         return { blockId: result.blockId, rev: result.rev, title: input.title, used: result.used, capacity: result.capacity }
       },
     }),
     board_update: createTool({ id: 'board_update', description: '改白板上一块的标题、内容或出处。baseRev 填你看到的版本号（board_view 里的 rev）；别人改过会被拒绝，先重新看再改。内容要按这块原来的类型给完整内容，不是补丁。',
       inputSchema: z.object({ blockId: z.string().max(64), baseRev: z.number().int().min(1), title: z.string().max(LIMITS.title).optional(), content: content.optional(), sources: sources.optional() }),
       execute: async (input, context) => {
-        const { topicId, ...origin } = await writer(context)
-        const result = studio.board.update(topicId, { blockId: input.blockId, baseRev: input.baseRev, title: input.title, content: input.content, sources: cleanSources(input.sources) as BlockSource[] | undefined }, origin)
+        const { topicId, sheetId, ...origin } = await writer(context)
+        const result = studio.board.update(topicId, { blockId: input.blockId, baseRev: input.baseRev, title: input.title, content: input.content, sources: cleanSources(input.sources) as BlockSource[] | undefined }, origin, sheetId)
         return { blockId: result.blockId, rev: result.rev }
       },
     }),
     board_supersede: createTool({ id: 'board_supersede', description: '把一块标成「已被取代」：它留在白板上变灰，不删，也不再占容量。by 填取代它的新区块 id（可选）。理解变了就这样留下来路，而不是抹掉。',
       inputSchema: z.object({ blockId: z.string().max(64), by: z.string().max(64).optional() }),
       execute: async (input, context) => {
-        const { topicId, ...origin } = await writer(context)
-        return studio.board.supersede(topicId, input, origin)
+        const { topicId, sheetId, ...origin } = await writer(context)
+        return studio.board.supersede(topicId, input, origin, sheetId)
       },
     }),
   }
 }
 
 // ---------------------------------------------------------------------------
-// 主题现状：进行中白板 + 每块一行 + 引用材料；硬上限按估算 token 截断，新的优先
+// 主题现状：本轮写入的白板 + 每块一行 + 引用材料；硬上限按估算 token 截断，新的优先
 // ---------------------------------------------------------------------------
 export const TOPIC_STATE_TOKENS = 1500
 
@@ -95,14 +99,17 @@ export function estimateTokens(text: string): number {
   return cjk + Math.ceil((text.length - cjk) / 4)
 }
 
-export function topicState(studio: Studio, topicId: string, limit = TOPIC_STATE_TOKENS): string {
+/** target: the run's target sheet (R16); undefined keeps the newest live sheet (callers without a run). */
+export function topicState(studio: Studio, topicId: string, limit = TOPIC_STATE_TOKENS, target?: Sheet | null): string {
   let topic
   try { topic = studio.topics.get(topicId) } catch { return '' }
   let sheet
-  try { sheet = studio.board.view(studio.board.writableSheet(topicId).id) } catch { sheet = null }
+  try { sheet = target === undefined ? studio.board.view(studio.board.writableSheet(topicId).id) : target && studio.board.view(target.id) } catch { sheet = null }
   const materials = studio.topics.materials(topicId)
   const head = [`主题「${topic.title}」的现状（每次请求自动附上，只是概览；要看全用 board_view，要读材料用 read_material）：`,
-    sheet ? `进行中的白板「${sheet.sheet.title}」：${sheet.sheet.used}/${sheet.sheet.capacity} 格` : '这个主题现在没有进行中的白板。']
+    !sheet ? '这个主题现在没有进行中的白板。'
+      : sheet.sheet.state === 'live' ? `进行中的白板「${sheet.sheet.title}」：${sheet.sheet.used}/${sheet.sheet.capacity} 格`
+      : `用户这一轮选中的白板「${sheet.sheet.title}」已经收起，只读：这一轮不写白板，在对话里说明。`]
   // ---- 区块新的在前；状态非 current 的也列出，标出被谁取代 ----
   const blocks = (sheet?.blocks ?? []).slice().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map(block => {
     const cited = block.sources.map(source => 'itemId' in source ? `${source.itemId}${source.page ? `#p${source.page}` : ''}` : '对话').join(',')

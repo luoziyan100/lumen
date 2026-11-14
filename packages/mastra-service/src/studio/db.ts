@@ -1,6 +1,6 @@
 /**
  * [INPUT]: Node SQLite、显式数据根
- * [OUTPUT]: openStudioDb：catalog.sqlite 中主题/资料/引用/白板/区块/版本表，旧库按需加列（资料的作者/年份/arXiv 编号/标题来源，只在服务启动这条路径上做）；
+ * [OUTPUT]: openStudioDb：catalog.sqlite 中主题/资料/引用/白板/区块/版本表、用户选中的白板（sheet_selection）与每轮写入目标（run_targets），旧库按需加列（资料的作者/年份/arXiv 编号/标题来源，只在服务启动这条路径上做）；
  *           schema=false 时只打开不建表不加列，表结构不全就拒绝（补取等只填数据的工具用）；schemaGaps；transaction：同步立即事务
  * [POS]: studio 存储的唯一建表处；与 catalog/ 的阅读游标共用文件，不碰 Mastra 的 mastra.sqlite
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -43,6 +43,14 @@ CREATE TABLE IF NOT EXISTS blocks (
 ) STRICT;
 CREATE INDEX IF NOT EXISTS blocks_sheet ON blocks (sheet_id);
 CREATE INDEX IF NOT EXISTS blocks_run ON blocks (run_id);
+CREATE TABLE IF NOT EXISTS sheet_selection (
+  topic_id TEXT PRIMARY KEY REFERENCES topics(id) ON DELETE CASCADE,
+  sheet_id TEXT NOT NULL REFERENCES sheets(id) ON DELETE CASCADE, updated_at TEXT NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS run_targets (
+  thread_id TEXT PRIMARY KEY, topic_id TEXT NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+  sheet_id TEXT REFERENCES sheets(id) ON DELETE CASCADE, created_at TEXT NOT NULL
+) STRICT;
 CREATE TABLE IF NOT EXISTS sheet_versions (
   sheet_id TEXT NOT NULL REFERENCES sheets(id) ON DELETE CASCADE, version INTEGER NOT NULL,
   thread_id TEXT, run_id TEXT, snapshot TEXT NOT NULL, created_at TEXT NOT NULL,
