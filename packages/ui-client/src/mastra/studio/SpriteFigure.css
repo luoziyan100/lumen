@@ -1,20 +1,20 @@
 /**
- * [INPUT]: SpriteFigure 的状态属性、两张派生 WebP 与现有 appearance tokens
- * [OUTPUT]: 两种尺寸共用的四态轻量动效；文档隐藏时暂停循环
- * [POS]: 形象显示层样式；只动 transform/opacity，不决定位置、订阅或窗口生命周期
+ * [INPUT]: Shared expression/state attributes, A04 images and appearance tokens
+ * [OUTPUT]: Four motions on one wrapper; stable neutral shadow and opacity-only facial overlays
+ * [POS]: Display styles only; no position, subscription or window lifecycle ownership
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
 .sprite-visual { position: relative; display: inline-block; width: 100%; height: 100%; pointer-events: none; }
-.sprite-visual img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; transform-origin: 50% 76%; animation: sprite-float 5.2s ease-in-out infinite; filter: drop-shadow(0 12px 12px color-mix(in srgb, var(--accent, #7894ff) 22%, transparent)); }
+.sprite-visual-body { position: absolute; inset: 0; width: 100%; height: 100%; display: block; transform-origin: 50% 76%; animation: sprite-float 5.2s ease-in-out infinite; }
 .sprite-visual-glow { position: absolute; left: 24%; right: 24%; bottom: 5%; height: 12%; border-radius: 50%; background: color-mix(in srgb, var(--accent, #7894ff) 35%, transparent); filter: blur(10px); opacity: .28; pointer-events: none; animation: sprite-ground 5.2s ease-in-out infinite; }
-.sprite-visual[data-state='running'] img { animation: sprite-think 1.8s ease-in-out infinite; filter: drop-shadow(0 12px 14px color-mix(in srgb, var(--accent, #7894ff) 42%, transparent)); }
+.sprite-visual[data-state='running'] .sprite-visual-body { animation: sprite-think 1.8s ease-in-out infinite; }
 .sprite-visual[data-state='running'] .sprite-visual-glow { opacity: .52; animation: sprite-body-pulse 1.8s ease-in-out infinite; }
-.sprite-visual[data-state='waiting'] img { animation: sprite-wait 2.8s ease-in-out infinite; }
+.sprite-visual[data-state='waiting'] .sprite-visual-body { animation: sprite-wait 2.8s ease-in-out infinite; }
 .sprite-visual[data-state='waiting'] .sprite-visual-glow { background: color-mix(in srgb, var(--warning, #d49a3a) 70%, transparent); opacity: .58; animation: sprite-body-pulse 2.8s ease-in-out infinite; }
-.sprite-visual[data-state='speaking'] img { animation: sprite-speak .52s ease-in-out infinite alternate; }
+.sprite-visual[data-state='speaking'] .sprite-visual-body { animation: sprite-speak .52s ease-in-out infinite alternate; }
 .sprite-visual[data-state='speaking'] .sprite-visual-glow { opacity: .42; }
-.sprite-visual[data-reduced='true'] img, .sprite-visual[data-reduced='true'] .sprite-visual-glow { animation: none; }
+.sprite-visual[data-reduced='true'] .sprite-visual-body, .sprite-visual[data-reduced='true'] .sprite-visual-glow { animation: none; }
 .sprite-visual-compact { width: 60px; height: 92px; flex: none; }
 .sprite-visual-desktop { width: 156px; height: 238px; }
 
@@ -26,10 +26,26 @@
 @keyframes sprite-speak { from { transform: translateY(0) scale(1); } to { transform: translateY(-3px) scale(1.015); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .sprite-visual img, .sprite-visual-glow { animation: none !important; }
+  .sprite-visual-body, .sprite-visual-glow { animation: none !important; }
 }
 
 /* --- 不可见时只暂停绘制，唯一订阅仍由 Sprite 持有 --- */
 .sprite-visual[data-document-hidden='true'] * { animation-play-state: paused !important; }
 
-.sprite-visual-desktop img { inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); }
+.sprite-visual-desktop .sprite-visual-body { inset: 6px; width: calc(100% - 12px); height: calc(100% - 12px); }
+
+/* Keep the neutral silhouette fixed, including semi-transparent hair edges. */
+.sprite-visual-body img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; display: block; opacity: 0; transition: opacity 200ms ease; }
+.sprite-visual-body img.on, .sprite-visual-body img.sprite-base, .sprite-face img.sprite-base { opacity: 1; }
+.sprite-visual-body img.sprite-expression { clip-path: inset(23.872951% 18.500797% 50.614754% 20.414673%); }
+.sprite-face img.sprite-expression { clip-path: inset(30.997877% 7.855626% 16.135881% 10.828025%); }
+.sprite-visual[data-reduced='true'] img, .sprite-face[data-reduced='true'] img { transition: none; }
+.sprite-face[data-reduced='true'], .sprite-face[data-reduced='true']::after { animation: none; }
+.sprite-face[data-document-hidden='true'], .sprite-face[data-document-hidden='true']::after { animation-play-state: paused !important; }
+@media (prefers-reduced-motion: reduce) { .sprite-visual-body img { transition: none; } }
+
+/* A persistent neutral layer keeps transparent-edge rounding independent of face opacity. */
+.sprite-base { transform: translateZ(0); will-change: transform; }
+.sprite-expression { will-change: opacity; }
+.sprite-visual-body img.sprite-base { filter: drop-shadow(0 12px 12px color-mix(in srgb, var(--accent, #7894ff) 22%, transparent)); }
+.sprite-visual[data-state='running'] .sprite-visual-body img.sprite-base { filter: drop-shadow(0 12px 14px color-mix(in srgb, var(--accent, #7894ff) 42%, transparent)); }

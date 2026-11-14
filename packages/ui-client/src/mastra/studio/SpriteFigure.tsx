@@ -1,28 +1,43 @@
 /**
- * [INPUT]: SpriteState、尺寸档、减弱动效、文档可见性与 assets/sprite/runtime 的两张派生 WebP
- * [OUTPUT]: SpriteFigure：应用内缩小版与桌面版共用的全身显示层，只表达状态动效，不处理位置、拖动或窗口生命周期
- * [POS]: 精灵形象的可替换边界；以后换 VRM 只替换此组件，Sprite/useSpriteMove/Tauri 不感知内部绘制
+ * [INPUT]: A shared SpriteExpression, state, compact density sources and Retina desktop derivatives
+ * [OUTPUT]: SpriteFigure and BODY_SOURCES; size-specific sources with invariant neutral and facial overlays
+ * [POS]: Pure display boundary shared by the compact and retained desktop forms; no timer or positioning
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
-import { useEffect, useState } from 'react'
 import './SpriteFigure.css'
-import { useReducedMotion, type SpriteState } from './sprite-face'
-import compact from '../../assets/sprite/runtime/body-compact@2x.webp'
-import desktop from '../../assets/sprite/runtime/body-desktop@2x.webp'
+import { SPRITE_FACES, type SpriteExpression, type SpriteFaceName, type SpriteState } from './sprite-face'
+import neutral2 from '../../assets/sprite/body-neutral@2x.webp'
+import neutral3 from '../../assets/sprite/body-neutral@3x.webp'
+import blink2 from '../../assets/sprite/body-blink@2x.webp'
+import blink3 from '../../assets/sprite/body-blink@3x.webp'
+import thinking2 from '../../assets/sprite/body-thinking@2x.webp'
+import thinking3 from '../../assets/sprite/body-thinking@3x.webp'
+import warm2 from '../../assets/sprite/body-warm@2x.webp'
+import warm3 from '../../assets/sprite/body-warm@3x.webp'
+import speaking2 from '../../assets/sprite/body-speaking@2x.webp'
+import speaking3 from '../../assets/sprite/body-speaking@3x.webp'
+import neutralDesktop from '../../assets/sprite/body-desktop-neutral@2x.webp?no-inline'
+import blinkDesktop from '../../assets/sprite/body-desktop-blink@2x.webp?no-inline'
+import thinkingDesktop from '../../assets/sprite/body-desktop-thinking@2x.webp?no-inline'
+import warmDesktop from '../../assets/sprite/body-desktop-warm@2x.webp?no-inline'
+import speakingDesktop from '../../assets/sprite/body-desktop-speaking@2x.webp?no-inline'
 
-const SOURCES = { compact, desktop } as const
+export const BODY_SOURCES: Record<SpriteFaceName, { two: string; three: string; desktop: string }> = {
+  neutral: { two: neutral2, three: neutral3, desktop: neutralDesktop },
+  blink: { two: blink2, three: blink3, desktop: blinkDesktop },
+  thinking: { two: thinking2, three: thinking3, desktop: thinkingDesktop },
+  warm: { two: warm2, three: warm3, desktop: warmDesktop },
+  speaking: { two: speaking2, three: speaking3, desktop: speakingDesktop },
+}
 
-export function SpriteFigure({ state, size, reducedMotion }: { state: SpriteState; size: 'compact' | 'desktop'; reducedMotion?: boolean }) {
-  const [hidden, setHidden] = useState(() => document.hidden)
-  useEffect(() => {
-    const reflect = () => setHidden(document.hidden)
-    document.addEventListener('visibilitychange', reflect)
-    return () => document.removeEventListener('visibilitychange', reflect)
-  }, [])
-  const systemReduced = useReducedMotion()
-  const reduced = reducedMotion ?? systemReduced
-  return <span className={`sprite-visual sprite-visual-${size}`} data-state={state} data-document-hidden={hidden} data-reduced={reduced ? 'true' : 'false'} aria-hidden="true">
-    <img src={SOURCES[size]} alt="" draggable={false} />
+export function SpriteFigure({ state, size, expression }: { state: SpriteState; size: 'compact' | 'desktop'; expression: SpriteExpression }) {
+  const desktop = size === 'desktop'
+  return <span className={`sprite-visual sprite-visual-${size}`} data-state={state} data-face={expression.face} data-document-hidden={expression.hidden} data-reduced={expression.reduced} aria-hidden="true">
+    <span className="sprite-visual-body">
+      {SPRITE_FACES.map(name => <img key={name} src={desktop ? BODY_SOURCES[name].desktop : BODY_SOURCES[name].two}
+        srcSet={desktop ? `${BODY_SOURCES[name].desktop} 2x` : `${BODY_SOURCES[name].two} 2x, ${BODY_SOURCES[name].three} 3x`} alt="" draggable={false}
+        data-layer={name} className={`${name === 'neutral' ? 'sprite-base' : 'sprite-expression'}${name === expression.face ? ' on' : ''}`} />)}
+    </span>
     <span className="sprite-visual-glow" />
   </span>
 }

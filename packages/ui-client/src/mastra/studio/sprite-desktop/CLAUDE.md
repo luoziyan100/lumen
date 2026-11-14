@@ -3,7 +3,7 @@
 
 当前桌面形态隐藏。恢复时将 preference.ts 的 DESKTOP_SPRITE_ENABLED 与 src-tauri/src/sprite.rs 的 DESKTOP_ENABLED 同时改为 true 并重建；设置开关、状态桥与入口才启用，运行时偏好不能越过功能常量。
 
-- `App.tsx`：桌面窗口只消费原生投影与可见性；按下即交原生拖动，松手用实际位移区分4px内点击与拖动，点击和菜单交原生层，不连接研究服务。
+- `App.tsx`: consumes native state/visibility and owns one shared A04 expression snapshot; its desktop-sized SpriteFigure selects the 452px derivatives for the 226 CSS-pixel image area at DPR2. Invisible windows schedule no expression timers. Native drag, 4px click threshold, menu and open actions stay native; no research connection is created.
 - `bridge.ts`：主窗口将唯一会话订阅的状态发布到原生缓存；原生打开事件直接进入 Sprite 的开合交互，可见性仅返回给该精灵避免淡出重叠；本机开关在根入口应用，服务未连接也生效。
 - `state.ts`：只接受四态字符串；App 注册实时事件后才取快照，有实时状态就忽略迟到快照。
 - `preference.ts`：集中功能常量默认false；保留的外观开关在本机持久化，关闭时不渲染用户入口。

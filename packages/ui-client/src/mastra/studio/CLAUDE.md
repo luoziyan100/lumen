@@ -1,25 +1,28 @@
-# studio/ — 新形态外壳（主题 + 白板学习工作台）
-> L2 | 父级: ../CLAUDE.md
+# studio/ — Topic and whiteboard workspace
+> L2 | Parent: ../CLAUDE.md
 
-产品宪法 `doc/studio/`（主检出），P0 合同 `briefs/active/studio-p0/`。白板是主题的共同草稿，对话退成精灵；P0 白板对人只读（不圈、不钉、不改）。
+The board is the topic's shared draft; conversation lives in the sprite. The board stays read-only to the user. Product rules live in doc/studio/.
 
-- `StudioApp.tsx`：桌面唯一工作台，照原型 v7 骨架：canvas 底上 8px 间距的圆角面板（左栏主题、中栏、右栏材料、停靠的精灵），每个面板首行 50px 头部同线。中栏头部只有按所在段中线居中的视图导航（`ViewNav`；白板可用，其余如实占位；主题名进 aria-label 与窗口标题），分屏时阅读器在中栏右段、头部同一行；精灵自己定位在整个窗口上（不再挂进白板区）；记住上次的主题，刚建的主题不被「选第一个」顶掉；主题忙且没开着对话时直接打开那段在运行/等你的对话（R1）。左右栏可收起到宽 0（展开按钮在中栏头部最左/最右，分屏时右侧的落在阅读器头，铺满时左侧的也在阅读器头）；阅读器三态：关闭 / 分屏 / 铺满中栏（白板 display:none 但保持挂载与相机，精灵球改挂阅读器右下；Esc 或还原按钮回分屏）；从素材或出处签打开一律进分屏。
-- `Panes.tsx`：`usePanes`（左右收起与分屏比例存 `lumen.studio.panes`；⌘B 主题栏、⌘⌥B 素材栏，按物理键位认 B）、`splitBoardWidth`（白板段 = 比例 × 内宽，夹在 [360, 内宽 − 420]，放不下时白板保 360、先压阅读器；studio.css 的 clamp 同一规则）、`PaneToggle`（PanelIcon，右栏镜像；aria-expanded、aria-controls、带快捷键的 title）、`Splitter`（8px 命中区、悬停 1px 线、拖动/双击各一半/方向键）。
-- `TopicPanel.tsx`：`useTopics` 3 秒轮询（状态灯跟上后台运行）；头部「主题 ＋ 收起」（＋ 在列表顶出输入框，回车建、Esc 取消；去掉 Lumen 品牌字，窗口标题已经是 Lumen）；底部只有设置（专家是设置里的一个分页）。
-- `ViewNav.tsx`：主导航五项（白板 · 沉淀 · 概念图 · 灵感 · 全部），16px 图标在左、文字在右，图标 currentColor 随选中/未选中/未开放三态文字色，悬停做物件动作（减弱动效不动）；`navFits`：居中时两侧给较宽一侧的展开按钮让出同样宽度再留 8px，完整导航放不下就只留图标（aria-label 恒在，紧凑时加 title），完整宽度由同一头部里不可见的完整副本量出，不换行、不溢出、不挤偏中线。
-- `Board.tsx`：左上角浮层（多张时才有张标签 · ＋；张标签单行、最宽 160 省略、title 全名、放不下横向滚动，浮层恒高 30，画布起点 BOARD.TOP=64 在它之下（W2）；铺满时视口宽 0 不重排；不显示已用块数，上限与 R11 在服务端，写满时边框标签如实写「已经写满」）、DOM + CSS transform 平移（拖空白处/滚轮）与缩放（⌘/Ctrl+滚轮、按钮、看全貌）；默认 100% 从左上角开始，按 `layout.ts` 重排；贴着内容的白板边框；AI 正在画提示；小部件同时最多运行两个（点开的挤掉最早的）；点卡跳块高亮；右下角缩放条。
-- `layout.ts`：显示层排版纯函数——视口宽度决定 1–3 列与列宽（300–440），按服务端顺序（列 x、再 y）排进最矮的列；服务端坐标不动。
-- `Block.tsx`：单块渲染——标题是块里最强的字，不重复「AI 画的」（署名在 aria-label）；文字（Markdown，mermaid 按宽缩放、无横向滚动）、梯子（高到低、你在这里、雾线、断点画在两级之间）、表格（单元格换行、留给你猜的格）、小部件（WidgetFrame 固定浅档、高度跟内容，或占位）；底部一行出处签，点开原件，无出处即「AI 推断」（R9）；已被取代变灰（R10）。
-- `useBoard.ts`：白板列表与选中那张；刷新靠对话里白板工具完成信号（signal）+ 运行中 5 秒 ETag 兜底，不建第二套事件协议。
-- `Materials.tsx`：`useMaterials` 与右栏「素材」（界面用词；对象名仍叫材料）——头部「素材 · 上传（回形针，多选；上传中禁用、亮成强调色并呼吸）· 收起」；一个纯搜索框（放大镜在左，`filterMaterials` 即时过滤标题与链接，不分大小写、忽略首尾空格、中文按子串；Esc 清空；无匹配说「没有匹配的素材」）；不提供加链接（有链接直接交给对话里的模型）；按加入时间倒序的列表（不分组不计数）；每行类别轮廓（18，随文字色）+ 标题（单行省略、title 全名）+ 链接短写（`shortLink` 去协议与末尾斜杠，单行省略、title 完整 URL；本机上传没有链接就只有标题一行）；只断本主题引用，原件留在资料库（R15），点开在中间分屏读。
-- `Sprite.tsx`：对话精灵——头像 ↔ 浮窗 ↔ 停靠成第四个面板；头像可拖到整个窗口任意位置、放哪停哪，浮窗从头像中心长出、收起缩回头像，拖浮窗标题栏带着锚点走（交互在 `useSpriteMove`，位置模型在 `sprite-place`）；层级 `--st-z-sprite`（面板之上、Kumo 弹层之下）；60×92px 全身缩小版与未读点；展开头部保留五表情头像；会话订阅由精灵持有并交给 Conversation；四态直接投影到桌面，打开事件直接接回自身开合，收起仍观察文字且不确认已读；本主题对话列表（3 秒轮询）、新对话（主题忙时禁用并说明，R1）、Welcome/Conversation、专家目录与诊断。
-- `SpriteFigure.tsx` / `SpriteFigure.css`：两形共用的可替换显示边界，只消费状态、尺寸与减弱动效；绘制层观察文档可见性暂停动画，不拥有窗口、位置或订阅。
-- `sprite-desktop/`：保留的桌面入口、原生状态桥与本机开关；当前功能常量关闭，不投影或监听、不显示设置入口，应用内形象照常；目录不拥有共享形象。
-- `SpriteFace.tsx`：装饰头像，五图叠放预加载与交叉淡入；FaceDriver 独占节奏，运行/说话和等待光环画在外圈，只有空闲球呼吸。
-- `sprite-face.ts`：状态到表情与单计时器节奏；状态切换/卸载立即撤销上一节奏，减少动态时只给静态表情。
-- `sprite-place.ts`：精灵唯一位置的纯函数——锚点存「离左或离右、离上或离下」取松手时更近的一边（窗口缩小只在显示时夹 8px，放大回原位）、旧 x/y/w/h 迁移与非法回退、按实际宽高的形象象限决定浮窗往哪长并夹取、拖浮窗反算锚点、Alt+方向键 16px、4px 拖点阈值、展开 260ms 缓出/收起 200ms 缓入/减弱动效 120ms 淡入淡出的关键帧。
-- `useSpriteMove.ts`：精灵交互——拖动中只用 ref 写 transform（不重渲染），松手才写锚点与 localStorage；pointer capture、cancel 停在最后位置、拖后 click 即使迟到也不打开（下一次 pointerdown 清标记；pointercancel 不设标记，键盘激活 detail 0 从不吞）；Web Animations 只动 transform/opacity，原点在头像中心，中途反向倒放同一组动画、不叠第二层；展开时挂载浮窗放进 transition（输入框自动聚焦的强制布局不在点击里堵成长任务）；没有 animate 时直接到终态。展开中头像、收起中浮窗用 inert 让点击穿过（不改计算样式）。
-- `useSpeaking.ts`：把原生当前助手消息交给 stream-pulse 投影；组件收起不丢文字增量，展开不另开订阅。
-- `studio.css`：骨架变量在顶部；视图导航的图标与紧凑态、素材搜索框、上传中状态与链接副行也在这里——四级字阶（14/600、13.5、11、12）、14px 内边距、50px 头部、30px 控件、左右栏宽（收起为 0，`--dur-base` 过渡，减弱动效时瞬时；中栏用负外边距吃掉那一侧间距，外边距仍 8px），全文件只引用它们；只用现有 tokens；控件与文档岛实色。
+- `StudioApp.tsx`: sole workspace shell; aligned 50px panel headers and 8px gaps, persisted topic, busy-session selection, side panes, split/full reader and the window-level sprite. Full reader preserves the mounted board and its camera.
+- `Panes.tsx`: persisted side visibility and split ratio, physical-key shortcuts, accessible toggles and 8px splitter; board/reader minimums are 360/420px.
+- `TopicPanel.tsx`: topic list and 3s status polling, inline creation and the settings entry; experts live inside settings.
+- `ViewNav.tsx`: five icon/text views; symmetric room for pane toggles keeps navigation centered. A hidden full-width copy determines when only icons fit; aria labels remain available.
+- `Board.tsx`: sheet tabs, read-only blocks, pan/zoom, frame and tool activity; at most two live widgets. Hidden zero-width boards do not reflow.
+- `layout.ts`: pure 1–3 column display layout with 300–440px columns; stored server coordinates remain untouched.
+- `Block.tsx`: text, ladder, table and sandboxed widget rendering, source navigation and superseded presentation; Markdown/Mermaid must fit their column.
+- `useBoard.ts`: sheet selection and refresh from conversation tool signals, with a 5s ETag fallback only while running.
+- `Materials.tsx`: title/link filtering, upload in the header, descending material list, fixed-width kind icons and title/link rows. Removing a reference keeps the library original; opening a source enters split reading.
+- `Sprite.tsx`: owns the sole conversation subscription and one useSpriteExpression snapshot shared by both renderers. Body/avatar mount changes during opening and closing never reset the expression clock. Existing 60×92 hitbox, anchors, drag, dock, unread handling and session controls remain here.
+- `SpriteFigure.tsx`: pure A04 renderer; compact uses the supplied 2x/3x sources and desktop uses 452px Retina derivatives. Both sizes share five faces, one persistent neutral silhouette and fixed facial overlays; PNG masters are never imported.
+- `SpriteFigure.css`: float/think/wait/speak motion on one wrapper, invariant neutral shadow, glow, face masks and opacity cross-fades. Hidden documents pause motion; reduced motion removes animation and transitions for both renderers.
+- `SpriteFace.tsx`: pure circular A04 avatar renderer and head source map; consumes the exact snapshot used by the body. Its facial overlays leave the neutral hair/outline invariant.
+- `sprite-face.ts`: state mapping, single-timer FaceDriver and useSpriteExpression lifecycle. Idle blinks after 4–7s for 120ms; speech alternates after 180–260ms. Hidden/reduced owners schedule no expression timers; unmount cancels the owner.
+- `sprite-desktop/`: retained native entry/bridge and local preference; centrally disabled, with no settings entry or projection. Its own window uses the same A04 renderer and pauses its owner while invisible.
+- `sprite-place.ts`: pure nearest-edge anchors, viewport clamping, legacy migration, 4px drag threshold, 16px keyboard moves and open/close/reduced keyframes. Resizing changes display clamping, never the stored anchor.
+- `useSpriteMove.ts`: pointer capture and drag/click separation, ref-only motion during drag, anchor persistence on release, and reversible Web Animations. During transitions inert shields the outgoing form; no duplicate animation layer is created.
+- `useSpeaking.ts`: current native assistant text projects through stream-pulse; collapsing keeps text updates and opening reuses the subscription.
+- `studio.css`: token-based shell geometry, typography, controls, pane/reader layout, view navigation, materials and sprite interaction chrome. Shared character rendering lives in SpriteFigure.css.
+
+Expression flow: session → spriteState → one useSpriteExpression → SpriteFigure + SpriteFace. Position and window lifecycle never flow back from the art layer.
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

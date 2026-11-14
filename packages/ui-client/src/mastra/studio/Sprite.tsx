@@ -1,5 +1,5 @@
 /**
- * [INPUT]: LumenApi 的主题会话目录、Welcome/Conversation/Specialists/Diagnostics、主题运行投影（R1）、useSession 的唯一订阅与 useSpeaking 的文字增量、SpriteFigure 与 SpriteFace
+ * [INPUT]: LumenApi 的主题会话目录、Welcome/Conversation/Specialists/Diagnostics、主题运行投影（R1）、useSession 的唯一订阅与 useSpeaking 的文字增量、SpriteFigure and SpriteFace sharing one useSpriteExpression snapshot
  * [OUTPUT]: Sprite：对话精灵——收起是 60×92px 全身缩小版（主题/会话的 running、waiting 与说话折成 idle/running/waiting/speaking 一个状态，动效与光环跟它走，状态写进 aria-label），
  *           可拖到整个窗口任意位置、放哪停哪；展开时浮窗从头像中心柔和长出、收起缩回头像（useSpriteMove），浮窗贴着头像那一侧、拖标题栏带着锚点走，或停靠右侧的栏；
  *           展开头部同脸；收起仍观察文字流，展开复用同一订阅；切换本主题的对话、开新对话（主题忙时禁用并说明）、专家目录与诊断入口；锚点、大小与形态存 localStorage（sprite-place）
@@ -20,7 +20,7 @@ import { Light } from './TopicPanel'
 import { SpriteFigure } from './SpriteFigure'
 import { useDesktopSprite, useSpriteDesktopOpenBridge } from './sprite-desktop/bridge'
 import { SpriteFace } from './SpriteFace'
-import { spriteState, useReducedMotion } from './sprite-face'
+import { spriteState, useReducedMotion, useSpriteExpression } from './sprite-face'
 import { loadShape, saveShape, type Shape } from './sprite-place'
 import { useSpriteMove } from './useSpriteMove'
 import { useSession } from '../data/useSession.ts'
@@ -76,10 +76,12 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
 
   // ---- 锚点只在松手、键盘移动、开合时写回；窗口缩放不改它，只在显示时夹取 ----
   const update = useCallback((patch: Partial<Shape>) => setShape(previous => { const next = { ...previous, ...patch }; saveShape(next); return next }), [])
-  const move = useSpriteMove(shape, update, useReducedMotion())
+  const reduced = useReducedMotion()
+  const move = useSpriteMove(shape, update, reduced)
   useEffect(() => { setListing(false); setDiagnostics(false) }, [topic.id])
   useEffect(() => { onDocked?.(shape.open && shape.docked) }, [shape.open, shape.docked, onDocked])
   const mainVisible = useDesktopSprite(state)
+  const expression = useSpriteExpression(state, reduced, mainVisible)
   const openFromDesktop = useCallback(() => move.setOpen(true), [move.setOpen])
   useSpriteDesktopOpenBridge(openFromDesktop)
 
@@ -89,7 +91,7 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
   const showOrb = !docked && move.phase !== 'open', showWindow = docked || move.phase !== 'closed'
   const orb = showOrb && <button ref={move.orbRef} type="button" className="sprite-orb" data-visible={mainVisible} data-state={state} data-phase={move.phase} inert={move.phase === 'opening'} aria-label={S.sprite.openWith[state]} title={S.sprite.openWith[state]}
     style={{ left: move.orb.x, top: move.orb.y }} {...move.orbHandlers}>
-    <SpriteFigure state={state} size="compact" />
+    <SpriteFigure state={state} size="compact" expression={expression} />
     {sessions.some(item => item.unread) && <span className="sprite-unread" aria-label="未读" />}
   </button>
   // 同一个片段结构：开合时头像按钮不重挂（焦点与动画目标不丢）
@@ -98,7 +100,7 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
   const style = docked ? undefined : { left: move.frame.x, top: move.frame.y, width: move.frame.w, height: move.frame.h }
   return <>{orb}<section ref={move.winRef} className={`sprite${docked ? ' sprite-docked studio-panel' : ' sprite-floating'}`} data-phase={docked ? 'open' : move.phase} inert={!docked && move.phase === 'closing'} style={style} aria-label="对话">
     <header className="studio-head sprite-head" {...move.headHandlers}>
-      <SpriteFace state={state} className="sprite-face-head" />
+      <SpriteFace state={state} expression={expression} className="sprite-face-head" />
       <button type="button" className="sprite-title" aria-expanded={listing} onClick={() => setListing(value => !value)} title={S.sprite.conversations}>
         {listing ? <BackIcon /> : null}<span>{listing ? S.sprite.conversations : current?.title ?? S.sprite.untitled}</span><Light topic={topic} />
       </button>

@@ -17,12 +17,12 @@ tests/
 ├── widget-*.test.ts         # 网页沙箱输入与主题
 ├── icons.test.ts            # 自绘图标结构合同
 ├── pdf-fit.test.ts          # PdfViewer 按宽适配（真实 pdf.js）
-├── sprite-face.test.ts      # 精灵表情节奏（眨眼/说话交替/降级）
+├── sprite-face.test.ts      # Expression cadence, hidden/reduced scheduling and timer disposal
 ├── sprite-place.test.ts     # 精灵位置模型（锚点、缩放夹取、迁移、象限、动画参数）
 ├── sprite-move.test.ts      # 精灵交互（拖与点、不重渲染、浮窗带锚点、倒放、减弱动效）
 ├── stream-pulse.test.ts     # 「正在说话」判定（增量/回落/换消息）
 ├── sprite-desktop.test.ts   # 原生投影负载和桌面出入动效参数
-├── sprite-view.test.ts      # 真实组件与 HTTP/SSE 接线、收起持续监听、展开不重复订阅
+├── sprite-view.test.ts      # A04 compact/Retina desktop source selection, shared-driver ticks and lifecycle, plus real HTTP/SSE continuity
 ├── appearance-resolve.test.ts
 ├── source-cite.test.ts / scroll-debug.test.ts
 └── fixtures/               # 合成阅读材料

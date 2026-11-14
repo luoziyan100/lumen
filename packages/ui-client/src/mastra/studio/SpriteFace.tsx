@@ -1,45 +1,22 @@
 /**
- * [INPUT]: 五张 256px 圆形 WebP（assets/sprite/）、sprite-face 的状态映射与计时器、prefers-reduced-motion
- * [OUTPUT]: SpriteFace：叠放五张图做 200ms 交叉淡入，外圈光环跟状态走（运行转、等你呼吸），空闲极轻呼吸；preloadSprite 一次性预加载五张
- * [POS]: 精灵的脸——只管画表情与光环，节奏在 sprite-face.ts，状态由 Sprite 从主题/会话投影
+ * [INPUT]: The owner's shared SpriteExpression and A04 heads from the fixed master crop
+ * [OUTPUT]: SpriteFace and HEAD_SOURCES; circular avatar with the existing opacity cross-fade
+ * [POS]: Pure header renderer; all expression timing belongs to sprite-face.ts and its owner
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
-import { useEffect, useRef, useState } from 'react'
-import neutral from '../../assets/sprite/neutral.webp'
-import blink from '../../assets/sprite/blink.webp'
-import thinking from '../../assets/sprite/thinking.webp'
-import warm from '../../assets/sprite/warm.webp'
-import speaking from '../../assets/sprite/speaking.webp'
-import { FaceDriver, browserClock, faceFor, useReducedMotion, type SpriteFaceName, type SpriteState } from './sprite-face'
+import './SpriteFigure.css'
+import { SPRITE_FACES, type SpriteExpression, type SpriteFaceName, type SpriteState } from './sprite-face'
+import neutral from '../../assets/sprite/head-neutral.webp'
+import blink from '../../assets/sprite/head-blink.webp'
+import thinking from '../../assets/sprite/head-thinking.webp'
+import warm from '../../assets/sprite/head-warm.webp'
+import speaking from '../../assets/sprite/head-speaking.webp'
 
-const SOURCES: Record<SpriteFaceName, string> = { neutral, blink, thinking, warm, speaking }
-const NAMES = Object.keys(SOURCES) as SpriteFaceName[]
+export const HEAD_SOURCES: Record<SpriteFaceName, string> = { neutral, blink, thinking, warm, speaking }
 
-let preloaded = false
-/** 五张一次性进缓存：之后切换只改透明度，不重新请求、不闪白（契约 S9）。 */
-export function preloadSprite() {
-  if (preloaded || typeof Image === 'undefined') return
-  preloaded = true
-  for (const source of Object.values(SOURCES)) { const image = new Image(); image.src = source }
-}
-
-export function SpriteFace({ state, breathe = false, className = '' }: { state: SpriteState; breathe?: boolean; className?: string }) {
-  const reduced = useReducedMotion()
-  const [face, setFace] = useState<SpriteFaceName>(() => faceFor(state))
-  const latest = useRef(state)
-  latest.current = state
-  const driver = useRef<FaceDriver | null>(null)
-
-  useEffect(() => {
-    setFace(faceFor(latest.current))
-    const next = new FaceDriver(setFace, latest.current, browserClock, Math.random, reduced)
-    driver.current = next
-    return () => { next.dispose(); driver.current = null }
-  }, [reduced])
-  useEffect(() => { driver.current?.setState(state) }, [state])
-  useEffect(() => { preloadSprite() }, [])
-
-  return <span className={`sprite-face${breathe && state === 'idle' ? ' sprite-breathe' : ''} ${className}`.trim()} data-state={state} data-face={face} aria-hidden="true">
-    {NAMES.map(name => <img key={name} src={SOURCES[name]} alt="" draggable={false} className={name === face ? 'on' : ''} />)}
+export function SpriteFace({ state, expression, breathe = false, className = '' }: { state: SpriteState; expression: SpriteExpression; breathe?: boolean; className?: string }) {
+  return <span className={`sprite-face${breathe && state === 'idle' ? ' sprite-breathe' : ''} ${className}`.trim()} data-state={state} data-face={expression.face} data-document-hidden={expression.hidden} data-reduced={expression.reduced} aria-hidden="true">
+    {SPRITE_FACES.map(name => <img key={name} src={HEAD_SOURCES[name]} alt="" draggable={false} data-layer={name}
+      className={`${name === 'neutral' ? 'sprite-base' : 'sprite-expression'}${name === expression.face ? ' on' : ''}`} />)}
   </span>
 }

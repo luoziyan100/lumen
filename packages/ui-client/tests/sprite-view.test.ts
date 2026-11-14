@@ -1,5 +1,5 @@
 /**
- * [INPUT]: 真实 Sprite/SpriteFace/useSpeaking、React DOM、原生 HTTP/SSE 与可控模型流
+ * [INPUT]: Real Sprite, shared expression owner, compact/desktop/avatar sources, React DOM and controlled HTTP/SSE
  * [OUTPUT]: 文字增量/静默回落、真实组件卸载清计时器、减少动态切换、收起仍说话及展开不重复订阅的证据
  * [POS]: 精灵的数据与组件接线回归；图片、布局与 WebKit 效果另在桌面验收
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -34,7 +34,10 @@ after(() => dom.window.close())
 register('./helpers/tsx-loader.mjs', import.meta.url)
 register('data:text/javascript,' + encodeURIComponent(`export async function resolve(specifier, context, next) { if (specifier.endsWith('?url')) return { url: 'data:text/javascript,export default "test-worker-url"', shortCircuit: true }; return next(specifier, context) }`), import.meta.url)
 const { createRoot } = await import('react-dom/client')
-const { SpriteFace } = await import('../src/mastra/studio/SpriteFace.tsx')
+const { SpriteFace, HEAD_SOURCES } = await import('../src/mastra/studio/SpriteFace.tsx')
+const { SpriteFigure, BODY_SOURCES } = await import('../src/mastra/studio/SpriteFigure.tsx')
+const { useSpriteExpression, useReducedMotion, SPRITE_FACES } = await import('../src/mastra/studio/sprite-face.ts')
+import type { SpriteState } from '../src/mastra/studio/sprite-face.ts'
 const { Sprite } = await import('../src/mastra/studio/Sprite.tsx')
 
 async function until(check: () => boolean, message: string) {
@@ -66,32 +69,97 @@ test('真实 hook：工具与思考不说话，文字增量开口，静默 600ms
   } finally { await act(async () => root.unmount()) }
 })
 
-test('真实头像：减少动态立即退出眨眼，卸载清掉计时器和系统订阅', async () => {
+test('A04 sources cover five faces, compact densities, Retina desktop and matching heads', () => {
+  assert.equal(SPRITE_FACES.length, 5)
+  for (const face of SPRITE_FACES) {
+    assert.ok(BODY_SOURCES[face].two.endsWith(`/body-${face}@2x.webp`))
+    assert.ok(BODY_SOURCES[face].three.endsWith(`/body-${face}@3x.webp`))
+    assert.ok(BODY_SOURCES[face].desktop.endsWith(`/body-desktop-${face}@2x.webp`))
+    assert.ok(HEAD_SOURCES[face].endsWith(`/head-${face}.webp`))
+  }
+})
+
+test('Desktop selects its Retina sources; compact keeps both supplied density sources', async () => {
+  const element = document.createElement('div'), root = createRoot(element)
+  try {
+    for (const face of SPRITE_FACES) {
+      const expression = { face, hidden: false, reduced: true }
+      await act(async () => root.render(createElement('div', {},
+        createElement(SpriteFigure, { state: 'idle', size: 'compact', expression }),
+        createElement(SpriteFigure, { state: 'idle', size: 'desktop', expression }))))
+      for (const [index, name] of SPRITE_FACES.entries()) {
+        const compact = element.querySelectorAll<HTMLImageElement>('.sprite-visual-compact img')[index]!
+        const desktop = element.querySelectorAll<HTMLImageElement>('.sprite-visual-desktop img')[index]!
+        assert.equal(compact.src, BODY_SOURCES[name].two)
+        assert.equal(compact.srcset, `${BODY_SOURCES[name].two} 2x, ${BODY_SOURCES[name].three} 3x`)
+        assert.equal(desktop.src, BODY_SOURCES[name].desktop)
+        assert.equal(desktop.srcset, `${BODY_SOURCES[name].desktop} 2x`)
+      }
+      assert.equal(element.querySelectorAll(`img[data-layer="${face}"].on`).length, 2)
+    }
+  } finally { await act(async () => root.unmount()) }
+})
+
+test('One owner: body/avatar blink on the same tick, survive remount, stop when hidden or reduced', async () => {
   const element = document.createElement('div'), root = createRoot(element)
   const originalSet = window.setTimeout, originalClear = window.clearTimeout
-  const pending = new Map<number, () => void>()
-  let sequence = 0
-  window.setTimeout = ((callback: () => void) => { pending.set(++sequence, callback); return sequence }) as typeof window.setTimeout
+  const pending = new Map<number, { callback: () => void; ms: number }>()
+  let sequence = 0, hidden = false
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden })
+  window.setTimeout = ((callback: () => void, ms: number) => { pending.set(++sequence, { callback, ms }); return sequence }) as typeof window.setTimeout
   window.clearTimeout = (handle: number) => { pending.delete(handle) }
+  function Pair({ state, body = true }: { state: SpriteState; body?: boolean }) {
+    const expression = useSpriteExpression(state, useReducedMotion())
+    return createElement('div', {},
+      body && createElement(SpriteFigure, { state, size: 'compact', expression }),
+      createElement(SpriteFace, { state, expression }))
+  }
+  const faces = () => [...element.querySelectorAll('[data-face]')].map(el => el.getAttribute('data-face'))
+  const tick = async () => {
+    const [id, task] = [...pending][0]!
+    pending.delete(id)
+    await act(async () => task.callback())
+  }
   reduced = false
   try {
-    await act(async () => root.render(createElement(SpriteFace, { state: 'idle', breathe: true })))
+    await act(async () => root.render(createElement(Pair, { state: 'idle' })))
+    assert.equal(pending.size, 1, 'A single driver for both renderers')
+    assert.ok([...pending.values()][0]!.ms >= 4000 && [...pending.values()][0]!.ms <= 7000)
+    assert.deepEqual(faces(), ['neutral', 'neutral'])
+    assert.equal(element.querySelectorAll('img[srcset]').length, 5)
+    await tick()
+    assert.deepEqual(faces(), ['blink', 'blink'])
+    assert.equal([...pending.values()][0]!.ms, 120)
+    await act(async () => root.render(createElement(Pair, { state: 'idle', body: false })))
+    assert.deepEqual(faces(), ['blink'], 'Unmounting the full body must not restart the owner')
+    await act(async () => root.render(createElement(Pair, { state: 'idle' })))
+    assert.deepEqual(faces(), ['blink', 'blink'])
+    hidden = true
+    await act(async () => document.dispatchEvent(new dom.window.Event('visibilitychange')))
+    assert.equal(pending.size, 0)
+    assert.deepEqual(faces(), ['neutral', 'neutral'])
+    await act(async () => root.render(createElement(Pair, { state: 'speaking' })))
+    assert.deepEqual(faces(), ['speaking', 'speaking'])
+    assert.equal(pending.size, 0, 'State changes while hidden must not schedule timers')
+    hidden = false
+    await act(async () => document.dispatchEvent(new dom.window.Event('visibilitychange')))
     assert.equal(pending.size, 1)
-    const [id, blink] = [...pending][0]!
-    pending.delete(id)
-    await act(async () => blink())
-    assert.equal(element.querySelector('.sprite-face')!.getAttribute('data-face'), 'blink')
+    await tick()
+    assert.deepEqual(faces(), ['neutral', 'neutral'])
     reduced = true
     await act(async () => { for (const change of changes) change() })
-    assert.equal(element.querySelector('.sprite-face')!.getAttribute('data-face'), 'neutral')
+    assert.deepEqual(faces(), ['speaking', 'speaking'])
     assert.equal(pending.size, 0)
-    await act(async () => root.render(createElement(SpriteFace, { state: 'speaking' })))
-    assert.equal(pending.size, 0)
-    assert.equal(element.querySelectorAll('img[alt=""]').length, 5)
+    for (const [state, face] of [['idle', 'neutral'], ['running', 'thinking'], ['waiting', 'warm'], ['speaking', 'speaking']] as const) {
+      await act(async () => root.render(createElement(Pair, { state })))
+      assert.deepEqual(faces(), [face, face])
+      assert.equal(pending.size, 0)
+    }
   } finally {
     await act(async () => root.unmount())
     assert.equal(pending.size, 0)
     assert.equal(changes.size, 0)
+    Reflect.deleteProperty(document, 'hidden')
     window.setTimeout = originalSet; window.clearTimeout = originalClear; reduced = false
   }
 })

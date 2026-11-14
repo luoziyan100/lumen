@@ -1,5 +1,5 @@
 /**
- * [INPUT]: 原生四态缓存、可见性通知、透明窗口与共享 SpriteFigure
+ * [INPUT]: 原生四态缓存、可见性通知、transparent window and shared A04 expression driver/SpriteFigure
  * [OUTPUT]: SpriteDesktopApp；按下即交原生拖动，以实际位移超过4px区分拖点，单击唤回，右键原生菜单
  * [POS]: 桌面窗口唯一入口；不读取研究连接，不创建 HTTP/SSE，位置归 Rust
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -9,7 +9,7 @@ import { listen } from '@tauri-apps/api/event'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { SpriteState } from '../sprite-face'
-import { useReducedMotion } from '../sprite-face'
+import { useReducedMotion, useSpriteExpression } from '../sprite-face'
 import { isDrag } from '../sprite-place'
 import { isSpriteState } from './state'
 import { desktopMotion } from './motion'
@@ -28,6 +28,7 @@ export function SpriteDesktopApp() {
   const position = useRef<{ x: number; y: number }>({ x: 0, y: 0 }), scale = useRef(1)
   const gesture = useRef<{ x: number; y: number } | null>(null)
   const reduced = useReducedMotion()
+  const expression = useSpriteExpression(state, reduced, visible)
 
   useEffect(() => {
     if (!isTauri()) return
@@ -88,7 +89,7 @@ export function SpriteDesktopApp() {
     if (isTauri()) void invoke('show_sprite_menu').catch(() => {})
   }}>
     <button className="sprite-art-button" type="button" aria-label={COPY[state]} onClick={open} onPointerDown={start} onPointerUp={finish}>
-      <SpriteFigure state={state} size="desktop" />
+      <SpriteFigure state={state} size="desktop" expression={expression} />
     </button>
   </main>
 }

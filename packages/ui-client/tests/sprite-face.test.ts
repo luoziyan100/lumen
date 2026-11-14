@@ -1,7 +1,7 @@
 /**
- * [INPUT]: sprite-face 的状态映射、FaceDriver 与假时钟（不挂 React、不碰 DOM）
+ * [INPUT]: State mapping and FaceDriver with an injectable fake clock; no DOM required
  * [OUTPUT]: 表情节奏证据：状态→表情映射（空闲/运行/等你/说话）、眨眼 4–7s 且持续 120ms、说话 180–260ms 交替、reduced-motion 不排计时器、卸载后回调不再触发
- * [POS]: S3/S5/S6 的单元证据；视觉与截图另见 evidence
+ * [POS]: Expression timing and hidden/reduced scheduling evidence; browser pixels are checked separately
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import test from 'node:test'
@@ -132,4 +132,29 @@ test('卸载：dispose 后计时器被清掉，回调不再触发', () => {
   instance.setState('speaking')
   clock.advance(30000)
   assert.deepEqual(faces, [])
+})
+
+
+test('Hidden drivers cancel pending blinks and speech; hidden state changes stay timer-free', () => {
+  const { clock, instance } = driver('idle')
+  clock.advance(BLINK_MIN_MS)
+  assert.equal(instance.current, 'blink')
+  instance.setHidden(true)
+  assert.equal(clock.pending, 0)
+  assert.equal(instance.current, 'neutral')
+  instance.setState('speaking')
+  assert.equal(clock.pending, 0)
+  assert.equal(instance.current, 'speaking')
+  clock.advance(30000)
+  assert.equal(clock.pending, 0)
+  instance.setHidden(false)
+  assert.equal(clock.pending, 1)
+  instance.setHidden(true)
+  assert.equal(clock.pending, 0)
+  instance.dispose()
+  instance.setHidden(false)
+  assert.equal(clock.pending, 0)
+  const initiallyHidden = new FaceDriver(() => {}, 'idle', clock, () => 0, false, true)
+  assert.equal(clock.pending, 0)
+  initiallyHidden.dispose()
 })

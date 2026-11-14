@@ -1,13 +1,15 @@
 /**
- * [INPUT]: React 的系统减少动态订阅；浏览器计时器由调用方注入，FaceDriver 可用假时钟脱离 DOM 验证
- * [OUTPUT]: SpriteState（空闲/运行/等你/说话）→ 表情的映射、眨眼与说话交替的计时规则（4–7s/120ms/180–260ms）、FaceDriver（状态机 + 计时器所有权）与 useReducedMotion
- * [POS]: 精灵表情的唯一真相：组件只画，节奏在这里；纯逻辑可脱开 React 用假时钟验证
+ * [INPUT]: Session state, React, document visibility, reduced motion and an injectable clock
+ * [OUTPUT]: FaceDriver and useSpriteExpression; one expression snapshot for both body and avatar
+ * [POS]: Sole owner of expression timing; renderers never schedule their own blink or speech
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export type SpriteState = 'idle' | 'running' | 'waiting' | 'speaking'
 export type SpriteFaceName = 'neutral' | 'blink' | 'thinking' | 'warm' | 'speaking'
+export const SPRITE_FACES: readonly SpriteFaceName[] = ['neutral', 'blink', 'thinking', 'warm', 'speaking']
+export interface SpriteExpression { face: SpriteFaceName; hidden: boolean; reduced: boolean }
 
 export const BLINK_MIN_MS = 4000
 export const BLINK_MAX_MS = 7000
@@ -40,27 +42,27 @@ export const browserClock: FaceClock = {
   clear: handle => window.clearTimeout(handle),
 }
 
-/**
- * 表情节奏的所有者：同一时刻只有一个计时器。
- * 状态一变就整体重启——运行/等你/说话都不该留着上一态的眨眼。
- * reduced 为真时不排任何计时器，只按状态给一张静态表情（契约 S6）。
+/** One timer owns the cadence. State, visibility and unmount cancel the previous schedule.
+ * Reduced/hidden drivers emit only the state's static face and never schedule a callback.
  */
 export class FaceDriver {
   private state: SpriteState
   private face: SpriteFaceName
   private handle: number | null = null
   private disposed = false
+  private hidden: boolean
 
   private readonly emit: (face: SpriteFaceName) => void
   private readonly clock: FaceClock
   private readonly random: () => number
   private readonly reduced: boolean
 
-  constructor(emit: (face: SpriteFaceName) => void, state: SpriteState, clock: FaceClock = browserClock, random: () => number = Math.random, reduced = false) {
+  constructor(emit: (face: SpriteFaceName) => void, state: SpriteState, clock: FaceClock = browserClock, random: () => number = Math.random, reduced = false, hidden = false) {
     this.emit = emit
     this.clock = clock
     this.random = random
     this.reduced = reduced
+    this.hidden = hidden
     this.state = state
     this.face = faceFor(state)
     this.start()
@@ -71,6 +73,12 @@ export class FaceDriver {
   setState(next: SpriteState) {
     if (this.disposed || next === this.state) return
     this.state = next
+    this.start()
+  }
+
+  setHidden(hidden: boolean) {
+    if (this.disposed || hidden === this.hidden) return
+    this.hidden = hidden
     this.start()
   }
 
@@ -96,7 +104,7 @@ export class FaceDriver {
 
   private start() {
     this.cancel()
-    if (this.reduced) { this.show(faceFor(this.state)); return }
+    if (this.reduced || this.hidden) { this.show(faceFor(this.state)); return }
     if (this.state === 'idle') { this.show('neutral'); this.blinkLater(); return }
     if (this.state === 'speaking') { this.show('speaking'); this.talkLater(); return }
     this.show(faceFor(this.state))
@@ -121,6 +129,32 @@ export class FaceDriver {
       this.talkLater()
     }, this.between(TALK_MIN_MS, TALK_MAX_MS))
   }
+}
+
+/** Mount once in the owner; the same snapshot survives body/avatar mount changes. */
+export function useSpriteExpression(state: SpriteState, reduced: boolean, visible = true): SpriteExpression {
+  const [face, setFace] = useState(() => faceFor(state))
+  const [hidden, setHidden] = useState(() => document.hidden)
+  const latest = useRef({ state, visible })
+  latest.current = { state, visible }
+  const driver = useRef<FaceDriver | null>(null)
+  useEffect(() => {
+    const next = new FaceDriver(setFace, latest.current.state, browserClock, Math.random, reduced, document.hidden || !latest.current.visible)
+    driver.current = next
+    setFace(next.current)
+    return () => { next.dispose(); driver.current = null }
+  }, [reduced])
+  useEffect(() => { driver.current?.setState(state) }, [state])
+  useEffect(() => { driver.current?.setHidden(document.hidden || !visible) }, [visible])
+  useEffect(() => {
+    const reflect = () => {
+      driver.current?.setHidden(document.hidden || !latest.current.visible)
+      setHidden(document.hidden)
+    }
+    document.addEventListener('visibilitychange', reflect)
+    return () => document.removeEventListener('visibilitychange', reflect)
+  }, [])
+  return { face, hidden: hidden || !visible, reduced }
 }
 
 /** 系统开关；没有 matchMedia 的环境按「不减少」处理。 */
