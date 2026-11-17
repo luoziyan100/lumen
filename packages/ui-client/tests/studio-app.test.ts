@@ -5,9 +5,9 @@
  *           post-P0: ⌘B/⌘⌥B collapse with localStorage, full/Esc, no ws-tag; the sprite: dragging the window carries the anchor, the collapsed avatar sits at the anchor corner, dragging the avatar never opens):
  *           all four block kinds render after real board_draw calls (ladder/table/widget/source chips and AI inference), the board refreshes only on tool-completion signals (the ETag poll is intercepted),
  *           conversation shows only board cards that jump to their block, "新对话" disables while the topic runs (R1), material rows show title only (without a link) and open the original in split, the sprite collapses/docks/drags and persists;
- *           chrome: all five views with icon and aria-label, upload in the materials header with no add-link entry, instant filtering/no match/Esc clear, settings alone at bottom-left, the specialists pane toggling/reloading through the real service with writes refused while running
+ *           chrome: all six views (Reading first and the default) with icon and aria-label, upload in the materials header with no add-link entry, instant filtering/no match/Esc clear, settings alone at bottom-left, the specialists pane toggling/reloading through the real service with writes refused while running
  * [POS]: component-level acceptance for S4; the controllable model proves mechanism only and never stands in for real-model acceptance; no WebKit coverage claimed
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -101,6 +101,7 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
   const root = createRoot(element)
   const $ = <T extends Element = HTMLElement>(selector: string) => element.querySelector<T & HTMLElement>(selector)
   const $$ = (selector: string) => [...element.querySelectorAll<HTMLElement>(selector)]
+  const tab = (view: keyof typeof S.views) => $$('.studio-views [role=tab]').find(node => node.getAttribute('aria-label') === S.views[view])!
   const button = (name: string) => [...element.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent?.trim() === name || item.getAttribute('aria-label') === name)
   async function click(name: string) { const target = button(name); assert.ok(target, `未找到按钮：${name}`); assert.ok(!target.disabled, `按钮被禁用：${name}`); await act(async () => target.click()) }
   async function pointer(target: Element, type: string, x: number, y: number) {
@@ -108,6 +109,9 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
   }
   try {
     await act(async () => root.render(createElement(StudioApp, { connection })))
+    await until(() => $$('.studio-views [role=tab]').length > 0, '视图导航没有出现')
+    assert.equal(tab('reading').getAttribute('aria-selected'), 'true', 'Reading is the default view')
+    await act(async () => tab('board').click())
     await until(() => !!$('.board-sheet-new'), '白板没有出现')
     // ---- U1: the topic name stays out of the center header; it lives in aria-label and the window title ----
     assert.equal($('.studio-center')!.getAttribute('aria-label'), '负反馈为什么能稳住系统')
@@ -122,13 +126,13 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     // ---- G2: every panel's first row is its header ----
     assert.deepEqual($$('.studio-panel').map(panel => (panel.firstElementChild!.matches('.studio-head') || panel.firstElementChild!.firstElementChild!.matches('.studio-head'))), [true, true, true])
 
-    // ---- View navigation: five entries, icon left, text right, aria-label always; board and takeaways open, the rest honest placeholders ----
-    assert.deepEqual($$('.studio-views [role=tab]').map(tab => tab.textContent), ['白板', '沉淀', '概念图', '灵感', '全部'])
+    // ---- View navigation: six entries, Reading first, icon left, text right, aria-label always; reading, board and takeaways open, the rest honest placeholders ----
+    assert.deepEqual($$('.studio-views [role=tab]').map(tab => tab.textContent), ['解读', '白板', '沉淀', '概念图', '灵感', '全部'])
     assert.deepEqual($$('.studio-views [role=tab]').map(tab => [tab.getAttribute('aria-label'), tab.firstElementChild!.matches('svg.lumen-icon'), tab.dataset.available]),
-      [['白板', true, 'true'], ['沉淀', true, 'true'], ['概念图', true, 'false'], ['灵感', true, 'false'], ['全部', true, 'false']])
-    await act(async () => $$('.studio-views [role=tab]')[2]!.click())
+      [['解读', true, 'true'], ['白板', true, 'true'], ['沉淀', true, 'true'], ['概念图', true, 'false'], ['灵感', true, 'false'], ['全部', true, 'false']])
+    await act(async () => tab('map').click())
     assert.equal($('.studio-later')!.textContent, S.later.map)
-    await act(async () => $$('.studio-views [role=tab]')[0]!.click())
+    await act(async () => tab('board').click())
 
     // ---- Materials: brought by you / found by the AI; opening one reads the original in the center split ----
     await until(() => $$('.material').length === 2, '材料没有列出')

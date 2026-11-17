@@ -1,8 +1,10 @@
 /**
- * [INPUT]: studio 存储、受信主题解析、research/pdf 的逐页抽取、research/arxiv 的链接识别、研究网络（arXiv 收入用）、ingestion 的 DOCX 正文抽取
- * [OUTPUT]: createMaterialAccess（只认本主题引用的原件读取与资料库收入；arXiv 来源一律收 PDF 并带元数据）、createMaterialTools：list_materials/read_material
- * [POS]: 模型触达资料库的唯一通道；主题一律从会话身份推出，参数里没有主题。引用清单就是边界（R15），读完推进本主题的阅读进度
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [INPUT]: the studio stores, the trusted topic resolver, research/pdf's per-page extraction, research/arxiv's link detection, the research network (arXiv intake), ingestion's DOCX text extraction
+ * [OUTPUT]: createMaterialAccess (opens only originals this topic references; pages = the PDF page cache; text = a non-PDF material's plain text; intake into the library, arXiv sources always as PDF with metadata),
+ *           createMaterialTools: list_materials/read_material
+ * [POS]: the model's only way into the library; the topic always derives from the session identity and never from parameters. The reference list is the boundary (R15),
+ *        and reading advances this topic's progress. reading-tools checks quotes against the same page cache and text, so a quote is checked against exactly what the model read
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { createTool, type ToolExecutionContext } from '@mastra/core/tools'
 import { z } from 'zod'
@@ -11,7 +13,7 @@ import { arxivId } from '../research/arxiv.ts'
 import type { ResearchHttp } from '../research/http.ts'
 import type { LibraryIntake } from '../research/intake.ts'
 import { extractPdfPages, pdfText } from '../research/pdf.ts'
-import { StudioError } from './errors.ts'
+import { notReferenced, StudioError } from './errors.ts'
 import type { Studio } from './studio.ts'
 import type { LibraryItem } from './types.ts'
 
@@ -22,7 +24,7 @@ const TEXT = /^(text\/|application\/(json|xml|x-yaml|yaml|csv))/
 const IMAGE = /^image\/(png|jpeg|gif|webp)$/
 
 export function createMaterialAccess(studio: Studio, topicOf: TopicResolver, http: ResearchHttp) {
-  // ---- 同一份 PDF 反复分页读：按内容指纹缓存抽取结果，最多留 8 份 ----
+  // ---- The same PDF is read page by page again and again: cache the extraction by content hash, keep at most 8 ----
   const pdfCache = new Map<string, Promise<string[]>>()
   function pages(item: LibraryItem, bytes: Uint8Array, signal?: AbortSignal) {
     let cached = pdfCache.get(item.sha256)
@@ -35,15 +37,23 @@ export function createMaterialAccess(studio: Studio, topicOf: TopicResolver, htt
     return cached
   }
 
-  /** 只认本主题引用的材料（R15）；不在清单里与不存在给同一句话，不泄露别的主题有什么。 */
+  /** Only materials this topic references (R15); unreferenced and missing get the same sentence, so nothing leaks about other topics. */
   async function open(context: Parameters<TopicResolver>[0], itemId: string) {
     const topicId = topicOf(context)
-    if (!studio.topics.isReferenced(topicId, itemId)) throw new StudioError(`材料 ${itemId} 不在这个主题的引用清单里；用 list_materials 看能读哪些`, 404, 'material.not_referenced', { itemId })
+    if (!studio.topics.isReferenced(topicId, itemId)) throw notReferenced(itemId)
     const item = studio.library.get(itemId)
     return { topicId, item, bytes: await studio.library.read(item) }
   }
 
-  /** 研究工具收入：arXiv 论文（模型传 abs/html 页或 PDF 链接）一律收 PDF——已取到的 PDF 字节直接用，网页正文丢弃改取 PDF（L1） */
+  /** Plain text of a non-PDF material (DOCX, text, web text); images and other binaries are refused with the next step to take. */
+  async function text(item: LibraryItem, bytes: Uint8Array, signal?: AbortSignal) {
+    if (IMAGE.test(item.mediaType)) throw new StudioError(`「${item.title}」是图片，用 look_at_image({ itemId: "${item.id}" }) 看`, 400, 'material.is_image', { title: item.title })
+    if (item.mediaType === DOCX) return extractDocxText(bytes, signal)
+    if (TEXT.test(item.mediaType) || item.kind === 'web') return new TextDecoder().decode(bytes)
+    throw new StudioError(`「${item.title}」（${item.mediaType}）不是能直接读的文本格式`, 400, 'material.not_text', { title: item.title, mediaType: item.mediaType })
+  }
+
+  /** Research intake: an arXiv paper (abs/html page or PDF link) is always stored as PDF — PDF bytes already fetched are reused, a web page's text is dropped for the PDF (L1). */
   const intake: LibraryIntake = async (context, input) => {
     const topicId = topicOf(context)
     const paper = arxivId(input.sourceUrl)
@@ -55,7 +65,7 @@ export function createMaterialAccess(studio: Studio, topicOf: TopicResolver, htt
     return { itemId: item.id, title: item.title, created }
   }
 
-  return { open, pages, intake }
+  return { open, pages, text, intake }
 }
 
 export function createMaterialTools(access: ReturnType<typeof createMaterialAccess>, studio: Studio, topicOf: TopicResolver) {
@@ -83,11 +93,7 @@ export function createMaterialTools(access: ReturnType<typeof createMaterialAcce
           studio.topics.setProgress(topicId, item.id, text.length ? Math.min(text.length, offset + limit) / text.length : 1)
           return { ...base, totalPages: all.length, content: text.slice(offset, offset + limit), totalChars: text.length, offset, truncated: offset + limit < text.length, empty: !text.trim() }
         }
-        if (IMAGE.test(item.mediaType)) throw new StudioError(`「${item.title}」是图片，用 look_at_image({ itemId: "${item.id}" }) 看`, 400, 'material.is_image', { title: item.title })
-        let text: string
-        if (item.mediaType === DOCX) text = await extractDocxText(bytes, context?.abortSignal)
-        else if (TEXT.test(item.mediaType) || item.kind === 'web') text = new TextDecoder().decode(bytes)
-        else throw new StudioError(`「${item.title}」（${item.mediaType}）不是能直接读的文本格式`, 400, 'material.not_text', { title: item.title, mediaType: item.mediaType })
+        const text = await access.text(item, bytes, context?.abortSignal)
         studio.topics.setProgress(topicId, item.id, text.length ? Math.min(text.length, offset + limit) / text.length : 1)
         return { ...base, content: text.slice(offset, offset + limit), totalChars: text.length, offset, truncated: offset + limit < text.length }
       },

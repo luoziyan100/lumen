@@ -1,8 +1,9 @@
 /**
- * [INPUT]: Real Sprite, shared expression owner, compact/desktop/avatar sources, React DOM and controlled HTTP/SSE
- * [OUTPUT]: 文字增量/静默回落、真实组件卸载清计时器、减少动态切换、收起仍说话及展开不重复订阅的证据
- * [POS]: 精灵的数据与组件接线回归；图片、布局与 WebKit 效果另在桌面验收
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [INPUT]: Real Sprite fed by the host's one useSession subscription (as StudioApp lends it), shared expression owner, compact/desktop/avatar sources, React DOM and controlled HTTP/SSE
+ * [OUTPUT]: evidence for text increments and the quiet fallback, timers cleared when the real component unmounts, reduced-motion switching, speaking while collapsed, and no second
+ *           subscription on opening
+ * [POS]: regression for the sprite's data and component wiring; images, layout and WebKit effects are accepted separately on the desktop
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -40,6 +41,12 @@ const { SpriteFigure, BODY_SOURCES } = await import('../src/mastra/studio/Sprite
 const { useSpriteExpression, useReducedMotion, SPRITE_FACES } = await import('../src/mastra/studio/sprite-face.ts')
 import type { SpriteState } from '../src/mastra/studio/sprite-face.ts'
 const { Sprite } = await import('../src/mastra/studio/Sprite.tsx')
+const { useSession } = await import('../src/mastra/data/useSession.ts')
+type SpriteProps = Parameters<typeof Sprite>[0]
+/** The sprite no longer subscribes itself: the host owns the one subscription and lends it, as StudioApp does */
+function Hosted(props: Omit<SpriteProps, 'session'>) {
+  return createElement(Sprite, { ...props, session: useSession(props.api, props.identity) })
+}
 
 async function until(check: () => boolean, message: string) {
   const deadline = Date.now() + 10000
@@ -194,7 +201,7 @@ test('原生 SSE 接线：收起时照样说话，打开只用一个订阅，工
   const root = createRoot(element)
   localStorage.clear(); reduced = true
   try {
-    await act(async () => root.render(createElement(Sprite, { api, identity, topic, sessions: [], onIdentity() {}, onActivity() {}, onOpenFile() {}, onFocusBlock() {}, onBoard() {}, onSettings() {} })))
+    await act(async () => root.render(createElement(Hosted, { api, identity, topic, sessions: [], onIdentity() {}, onActivity() {}, onOpenFile() {}, onFocusBlock() {}, onBoard() {}, onSettings() {} })))
     await until(() => subscriptions === 1, '精灵没有订阅原生会话')
     await api.session(identity).sendMessage('分段回复')
     await until(() => !!stream, '模型没有打开可控文字流')

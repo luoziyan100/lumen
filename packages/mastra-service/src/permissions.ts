@@ -1,19 +1,19 @@
 /**
- * [INPUT]: the tool names the main agent exposes to the model (research, skills, memory, library materials, board, sediment, execution, ingestion, history and the Controller built-ins)
+ * [INPUT]: the tool names the main agent exposes to the model (research, skills, memory, library materials, board, sediment, readings, execution, ingestion, history and the Controller built-ins)
  * [OUTPUT]: TOOL_CATEGORIES / ALWAYS_ALLOWED_TOOLS / toolCategory
  * [POS]: the single source of tool permission categories; the Controller allows read/edit/execute per category, unlisted tools fall into `other` and are never allowed by default
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 export type ToolCategory = 'read' | 'edit' | 'execute' | 'other'
 
 export const TOOL_CATEGORIES: Readonly<Record<string, Exclude<ToolCategory, 'other'>>> = {
   read_file: 'read', list_files: 'read', grep: 'read', read_memory: 'read', read_history: 'read',
-  list_materials: 'read', read_material: 'read', board_view: 'read', search_papers: 'read', get_citations: 'read',
+  list_materials: 'read', read_material: 'read', board_view: 'read', reading_view: 'read', search_papers: 'read', get_citations: 'read',
   fetch_url: 'read', search_web: 'read', extract_pdf: 'read', extract_docx: 'read', look_at_image: 'read',
   list_skills: 'read', run_skill: 'read', read_skill_file: 'read', task_check: 'read',
   write_file: 'edit', edit_file: 'edit', write_memory: 'edit', install_skill: 'edit',
   board_draw: 'edit', board_update: 'edit', board_supersede: 'edit',
-  sediment_invite: 'edit', sediment_quote: 'edit',
+  sediment_invite: 'edit', sediment_quote: 'edit', reading_write: 'edit',
   task_write: 'edit', task_update: 'edit', task_complete: 'edit',
   run_code: 'execute',
 }

@@ -1,16 +1,23 @@
 /**
- * [INPUT]: LumenApi 的主题会话目录、Welcome/Conversation/Specialists/Diagnostics、主题运行投影（R1）、useSession 的唯一订阅与 useSpeaking 的文字增量、SpriteFigure and SpriteFace sharing one useSpriteExpression snapshot
- * [OUTPUT]: Sprite：对话精灵——收起是 60×92px 全身缩小版（主题/会话的 running、waiting 与说话折成 idle/running/waiting/speaking 一个状态，动效与光环跟它走，状态写进 aria-label），
- *           可拖到整个窗口任意位置、放哪停哪；展开时浮窗从头像中心柔和长出、收起缩回头像（useSpriteMove），浮窗贴着头像那一侧、拖标题栏带着锚点走，或停靠右侧的栏；
- *           展开头部同脸；收起仍观察文字流，展开复用同一订阅；切换本主题的对话、开新对话（主题忙时禁用并说明）、专家目录与诊断入口；锚点、大小与形态存 localStorage（sprite-place）
- * [POS]: 直接投影四态到桌面、接回打开动作，可见性只控制本地绘制；对话从主角退成精灵：白板是主题的共同草稿，对话只是说话的记录。所有消息、审批、追问仍走原生 Conversation
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [INPUT]: LumenApi's topic conversation list, Welcome/Conversation/Specialists/Diagnostics, the topic's run projection (R1), the shared conversation subscription (lent by StudioApp)
+ *          and useSpeaking's text increments, SpriteFigure and SpriteFace sharing one useSpriteExpression snapshot
+ * [OUTPUT]: Sprite: the conversation sprite. Collapsed it is the 60×92px full-body miniature (the topic's and conversation's running, waiting and speaking fold into one state of
+ *           idle/running/waiting/speaking; motion and glow follow it, and the state is in aria-label); it can be dragged anywhere in the window and stays where dropped. Opening grows
+ *           the window softly from the figure's centre and closing shrinks it back (useSpriteMove); the window keeps to the figure's side and the title bar drags the anchor, or it docks
+ *           as the right column. The open header shows the same face; collapsed it still watches the text stream, and opening reuses the same subscription. It switches this topic's
+ *           conversations, starts a new one (disabled with the reason while the topic is busy), and opens the specialist list and diagnostics; anchor, size and shape live in localStorage
+ *           (sprite-place); it reports the figure's box (onFigure) so the Reading view keeps text clear of it. useSessions: the topic's conversation list, polled every 3s
+ * [POS]: projects the four states straight to the desktop and takes open requests back; visibility only gates local drawing. The conversation stepped back into a sprite: the board is
+ *        the topic's shared draft and the conversation is only the record of talk. Messages, approvals and questions still go through the native Conversation; the subscription
+ *        itself belongs to StudioApp, so the Reading view's window shows the same stream without opening a second one
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import { BackIcon, CloseIcon, PanelIcon, PlusIcon } from '../../components/icons'
 import { useT } from '../../i18n/index.ts'
 import type { LumenApi, Identity, SessionInfo, Topic } from '../data/client.ts'
+import type { useSession } from '../data/useSession.ts'
 import type { FileTarget } from '../data/file-links'
 import { Conversation, type BoardSignal } from '../views/Conversation'
 import { Welcome } from '../views/conversation/welcome/Welcome'
@@ -21,9 +28,8 @@ import { SpriteFigure } from './SpriteFigure'
 import { useDesktopSprite, useSpriteDesktopOpenBridge } from './sprite-desktop/bridge'
 import { SpriteFace } from './SpriteFace'
 import { spriteState, useReducedMotion, useSpriteExpression } from './sprite-face'
-import { loadShape, saveShape, type Shape } from './sprite-place'
+import { loadShape, saveShape, SPRITE_H, SPRITE_W, type Shape } from './sprite-place'
 import { useSpriteMove } from './useSpriteMove'
-import { useSession } from '../data/useSession.ts'
 import { messageText } from '../data/feed.ts'
 import { useSpeaking } from './useSpeaking'
 
@@ -47,10 +53,15 @@ export function useSessions(api: LumenApi, topicId: string | null, signal: numbe
   return { sessions, error }
 }
 
-export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity, onOpenFile, onFocusBlock, onBoard, onSettings, onDocked }: {
+/** Where the figure sits in the viewport, so content can keep its text out from under it */
+export interface SpriteBox { left: number; top: number; right: number; bottom: number }
+
+export function Sprite({ api, topic, identity, session, sessions, onIdentity, onActivity, onOpenFile, onFocusBlock, onBoard, onSettings, onDocked, onFigure }: {
   api: LumenApi
   topic: Topic
   identity: Identity | null
+  /** The one subscription of `identity`, owned by StudioApp */
+  session: ReturnType<typeof useSession>
   sessions: SessionInfo[]
   onIdentity: (identity: Identity | null) => void
   onActivity: () => void
@@ -58,36 +69,41 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
   onFocusBlock: (blockId: string) => void
   onBoard: (signal: BoardSignal) => void
   onSettings: () => void
-  /** 停靠时外壳给右侧让出位置 */
+  /** When docked, the shell yields the right side */
   onDocked?: (docked: boolean) => void
+  /** The figure's box (open or closed, since the anchor is the same), null when docked in its own column */
+  onFigure?: (box: SpriteBox | null) => void
 }) {
   const S = useT().studio
   const [shape, setShape] = useState<Shape>(loadShape)
   const [listing, setListing] = useState(false), [diagnostics, setDiagnostics] = useState(false)
-  // ---- 收起也保留同一条原生订阅；展开时交给 Conversation，不重复连流 ----
-  const session = useSession(api, identity)
   const activeMessage = session.view.display?.currentMessage
   const message = activeMessage ? session.view.messages.find(item => item.id === activeMessage.id) : undefined
   const streaming = useSpeaking(session.view.display?.isRunning ? activeMessage?.id ?? null : null, message ? messageText(message) : '')
   const busy = !!(topic.running || topic.waiting)
   const current = identity ? sessions.find(session => session.taskId === identity.taskId) : undefined
   const idle = !current?.running && !current?.waiting
-  // 表情只认这四个状态；等你优先于运行（审批挂起时 running 仍为真）
+  // The face knows only these four states; waiting wins over running (running stays true while an approval is pending)
   const state = spriteState({ waiting: !!(current?.waiting || topic.waiting), running: !!(current?.running || topic.running), streaming: streaming && !!identity })
 
-  // ---- 锚点只在松手、键盘移动、开合时写回；窗口缩放不改它，只在显示时夹取 ----
+  // ---- The anchor is written only on release, keyboard moves and open/close; resizing the window never changes it, only clamps the display ----
   const update = useCallback((patch: Partial<Shape>) => setShape(previous => { const next = { ...previous, ...patch }; saveShape(next); return next }), [])
   const reduced = useReducedMotion()
   const move = useSpriteMove(shape, update, reduced)
   useEffect(() => { setListing(false); setDiagnostics(false) }, [topic.id])
   useEffect(() => { onDocked?.(shape.open && shape.docked) }, [shape.open, shape.docked, onDocked])
+  const figureDocked = shape.open && shape.docked
+  useEffect(() => {
+    onFigure?.(figureDocked ? null : { left: move.orb.x, top: move.orb.y, right: move.orb.x + SPRITE_W, bottom: move.orb.y + SPRITE_H })
+  }, [move.orb.x, move.orb.y, figureDocked, onFigure])
+  useEffect(() => () => onFigure?.(null), [onFigure])
   const mainVisible = useDesktopSprite(state)
   const expression = useSpriteExpression(state, reduced, mainVisible)
   const openFromDesktop = useCallback(() => move.setOpen(true), [move.setOpen])
   useSpriteDesktopOpenBridge(openFromDesktop)
 
-  // ---- 停靠且展开时只有右侧一栏；否则头像在锚点上（展开动画期间与浮窗同在，交叉淡出淡入）。
-  //      展开中头像 inert、收起中浮窗 inert：不改计算样式（M8），点另一个即从当前进度倒放（M7） ----
+  // ---- Docked and open, there is only the right column; otherwise the figure sits on the anchor (during the opening animation it coexists with the window and they cross-fade).
+  //      While opening the figure is inert, while closing the window is: no computed style changes (M8), and clicking the other reverses from the current progress (M7) ----
   const docked = shape.docked && shape.open
   const showOrb = !docked && move.phase !== 'open', showWindow = docked || move.phase !== 'closed'
   const orb = showOrb && <button ref={move.orbRef} type="button" className="sprite-orb" data-visible={mainVisible} data-state={state} data-phase={move.phase} inert={move.phase === 'opening'} aria-label={S.sprite.openWith[state]} title={S.sprite.openWith[state]}
@@ -95,7 +111,7 @@ export function Sprite({ api, topic, identity, sessions, onIdentity, onActivity,
     <SpriteFigure state={state} size="compact" expression={expression} />
     {sessions.some(item => item.unread) && <span className="sprite-unread" aria-label={S.sprite.unread} />}
   </button>
-  // 同一个片段结构：开合时头像按钮不重挂（焦点与动画目标不丢）
+  // One fragment shape: the figure button never remounts across open/close (focus and the animation target survive)
   if (!showWindow) return <>{orb}{null}</>
 
   const style = docked ? undefined : { left: move.frame.x, top: move.frame.y, width: move.frame.w, height: move.frame.h }

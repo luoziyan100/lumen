@@ -1,19 +1,19 @@
 /**
- * [INPUT]: yan-design-system/icons 的几何(静态常量 SVG 标记)与 React ref；doc/ui-design.md §3.1 的纯线条、尺寸、动效和操作语义
- * [OUTPUT]: currentColor 纯线条的操作、视图导航、文件类别与 Kumo 菜单图标(兼容 Phosphor Icon 类型)，ICON_SM/MD/LG
- * [POS]: 业务图标唯一入口；同一包装约束 JSX 与菜单引用，文件类别映射不含格式文字徽标
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [INPUT]: yan-design-system/icons geometry (static SVG markup) and React refs; doc/ui-design.md §3.1 rules for pure strokes, sizes, motion and action meaning
+ * [OUTPUT]: currentColor stroke icons for actions, view navigation (Reading · Board · Takeaways · Concept map · Ideas · All), file kinds and Kumo menus (Phosphor Icon compatible), ICON_SM/MD/LG
+ * [POS]: the only entry for product icons; one wrapper constrains JSX and menu use alike, and file kinds carry no format-text badges
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { forwardRef } from 'react'
 import type { Icon, IconProps } from '@phosphor-icons/react'
 import { GLYPHS, type GlyphName } from 'yan-design-system/icons'
 
-// ---- 16 行内 / 18 文件与按钮 / 20 主导航 ----
+// ---- 16 inline / 18 files and buttons / 20 main navigation ----
 export const ICON_SM = 16
 export const ICON_MD = 18
 export const ICON_LG = 20
 
-/** Kumo 菜单按 Phosphor 的 Icon 类型收组件；这里接受同一组 props，只取尺寸、样式与镜像。 */
+/** Kumo menus take Phosphor's Icon type, so the same props are accepted; only size, style and mirroring are used. */
 function makeIcon(name: GlyphName, defaultSize = ICON_MD): Icon {
   return forwardRef<SVGSVGElement, IconProps>(({ size = defaultSize, className = '', mirrored, style, weight: _w, color: _c, alt: _a, children: _ch, ...props }, ref) => (
     <svg {...props} ref={ref} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}
@@ -23,7 +23,7 @@ function makeIcon(name: GlyphName, defaultSize = ICON_MD): Icon {
   )) as Icon
 }
 
-// ---- 操作：相同语义在各区域使用同一个轮廓 ----
+// ---- Actions: one meaning keeps one outline everywhere ----
 export const PanelIcon = makeIcon('panel', ICON_LG)
 export const SearchIcon = makeIcon('search', ICON_LG)
 export const AccountIcon = makeIcon('user', ICON_LG)
@@ -55,14 +55,15 @@ export const ZoomInIcon = makeIcon('zoomIn', ICON_SM)
 export const ZoomOutIcon = makeIcon('zoomOut', ICON_SM)
 export const ManageSkillsIcon = makeIcon('briefcase', ICON_SM)
 
-// ---- 视图导航：白板 · 沉淀 · 概念图 · 灵感 · 全部，16 行内 ----
+// ---- View navigation, 16 inline ----
+export const ReadingViewIcon = makeIcon('book', ICON_SM)
 export const BoardViewIcon = makeIcon('presentation', ICON_SM)
 export const SettledViewIcon = makeIcon('stack', ICON_SM)
 export const MapViewIcon = makeIcon('conceptMap', ICON_SM)
 export const IdeasViewIcon = makeIcon('lightbulb', ICON_SM)
 export const AllViewIcon = makeIcon('grid', ICON_SM)
 
-/** 右面板与左侧栏使用同一轮廓镜像，保持两侧导航对称。 */
+/** The right pane mirrors the left rail's outline so both sides stay symmetric. */
 export function RailIcon({ size = ICON_LG }: { size?: number }) {
   return <PanelIcon size={size} mirrored />
 }
@@ -70,7 +71,7 @@ export function RailIcon({ size = ICON_LG }: { size?: number }) {
 const ClosedFolderIcon = makeIcon('folder')
 const OpenFolderIcon = makeIcon('folderOpen')
 
-/** 目录开合共用图标家族，保留同一槽位内的交叉淡入。 */
+/** Folder open/closed share one icon family so the slot can cross-fade. */
 export function FolderIcon({ size = ICON_MD, open = false }: { size?: number; open?: boolean }) {
   return <span className={`folder-glyph${open ? ' is-open' : ''}`} style={{ width: size, height: size }} aria-hidden>
     <span className="folder-glyph-closed"><ClosedFolderIcon size={size} /></span>
@@ -78,19 +79,19 @@ export function FolderIcon({ size = ICON_MD, open = false }: { size?: number; op
   </span>
 }
 
-/** 标题右侧：展开朝下，收起朝右；只表示折叠，不兼任管理菜单。 */
+/** Right of a title: down when open, right when folded; it means folding only, never a menu. */
 export function SectionChevronIcon({ open }: { open?: boolean }) {
   return <ChevronDownIcon style={{ transform: open ? undefined : 'rotate(-90deg)', transition: 'transform var(--dur-collapse-in) var(--ease-spring)' }} />
 }
 
 const RightChevronIcon = makeIcon('caretRight', ICON_SM)
 
-/** 树与详情左侧：展开向下，收起向右。 */
+/** Left of trees and details: down when open, right when folded. */
 export function ChevronIcon({ open }: { open?: boolean }) {
   return <RightChevronIcon style={{ transform: open ? 'rotate(90deg)' : undefined, transition: 'transform var(--dur-collapse-in) var(--ease-spring)' }} />
 }
 
-// ---- 文件：轮廓表达类别；具体格式由文件名与阅读器标签表达 ----
+// ---- Files: the outline shows the kind; the exact format is in the name and the reader's label ----
 const DocumentGlyph = makeIcon('fileText')
 const CodeGlyph = makeIcon('fileCode')
 const ImageGlyph = makeIcon('fileImage')
@@ -119,7 +120,7 @@ export function FileTypeIcon({ name, size = ICON_MD }: { name: string; size?: nu
   return <Glyph size={size} />
 }
 
-// ---- 菜单：保留 Kumo 的 Icon ref 合同，同样固定轮廓和颜色 ----
+// ---- Menus: keep Kumo's Icon ref contract with the same fixed outline and colour ----
 export const PaperclipGlyph = makeIcon('paperclip', ICON_SM)
 export const BriefcaseGlyph = makeIcon('briefcase', ICON_SM)
 export const GearGlyph = makeIcon('gear', ICON_SM)
@@ -150,7 +151,7 @@ const SKILL_GLYPHS: readonly [RegExp, Icon][] = [
   [/code|script|run|exec/, ScriptGlyph],
 ]
 
-/** 技能名称只决定语义，轮廓规范始终由统一包装决定。 */
+/** A skill's name picks the meaning; the shared wrapper always sets the outline. */
 export function skillGlyphForName(name: string): Icon {
   return SKILL_GLYPHS.find(([pattern]) => pattern.test(name.toLowerCase()))?.[1] ?? SkillGlyph
 }

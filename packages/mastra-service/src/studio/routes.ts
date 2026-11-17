@@ -1,8 +1,8 @@
 /**
  * [INPUT]: Hono, zod, the studio stores (sediment included), the research network, the native running/waiting projection
- * [OUTPUT]: studioRoutes: topics; sheets (ETag-tagged; the list carries the user's selection and the running turn's target; storing the selection; the ＋ sheet becomes the selection; the user deletes one, R17; which sheet a block is on); sediment entries create/list/edit/delete with offer confirm/dismiss (R13: user HTTP only) and per-sheet invites; the library upload/link routes (arXiv links fetch the PDF), originals and their on-disk location (for the native "open in system" check); topic references
- * [POS]: the product routes behind auth; there is no block-write route — blocks are written only through board tools (R4); sheet deletion lives only here, the AI has no such tool (R17); so does sediment entry text (S2)
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [OUTPUT]: studioRoutes: topics; readings (the topic's list and one material's reading, ETag-tagged, read-only); sheets (ETag-tagged; the list carries the user's selection and the running turn's target; storing the selection; the ＋ sheet becomes the selection; the user deletes one, R17; which sheet a block is on); sediment entries create/list/edit/delete with offer confirm/dismiss (R13: user HTTP only) and per-sheet invites; the library upload/link routes (arXiv links fetch the PDF), originals and their on-disk location (for the native "open in system" check); topic references
+ * [POS]: the product routes behind auth; there is no block-write route — blocks are written only through board tools (R4), and no reading-write route — readings only through reading_write; sheet deletion lives only here, the AI has no such tool (R17); so does sediment entry text (S2)
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { createHash } from 'node:crypto'
 import { Hono, type Context } from 'hono'
@@ -52,7 +52,7 @@ function tagged(c: Context, body: unknown) {
 }
 
 export function studioRoutes(options: { studio: Studio; http: ResearchHttp; activity?: Activity }) {
-  const { topics, board, sediment, library } = options.studio
+  const { topics, board, sediment, readings, library } = options.studio
   const app = new Hono()
   app.onError((error, c) => {
     if (error instanceof StudioError) return c.json(errorBody(error.message, error.code, error.params, error.detail), error.status)
@@ -138,6 +138,20 @@ export function studioRoutes(options: { studio: Studio; http: ResearchHttp; acti
     const sheetId = z.string().min(1).max(128).parse(c.req.param('sheetId'))
     board.sheet(sheetId)
     return c.json({ invite: sediment.inviteOf(sheetId) })
+  })
+
+  // ---- Readings (P1-2): read-only here, the AI writes them only through reading_write. The list says which materials have one; a reading is ETag-tagged like a sheet ----
+  app.get('/topics/:topicId/readings', c => {
+    const topicId = id.parse(c.req.param('topicId'))
+    topics.get(topicId)
+    return c.json({ items: readings.list(topicId) })
+  })
+  app.get('/topics/:topicId/readings/:itemId', c => {
+    const topicId = id.parse(c.req.param('topicId')), itemId = z.string().min(1).max(128).parse(c.req.param('itemId'))
+    topics.get(topicId)
+    const reading = readings.view(topicId, itemId)
+    if (!reading) throw new StudioError('这份材料在这个主题里还没有解读', 404, 'reading.not_found', { itemId })
+    return tagged(c, reading)
   })
 
   // ---- S14 speech habits: one global table, read-only for the user and deletable line by line; the AI has no tool that writes it ----

@@ -4,6 +4,8 @@
 - `sprite-fixture.ts`：显式临时根上的真实服务，仅替换 provider 网络；逐段推进文字与提问，按资源统计真正 GET SSE。
 - `sprite-move-assert.mjs`：两档视口的全部拖放、开合、层级与减弱动效回归，横纵按60×92分别计算。
 - `ui-assert-sediment.mts`：P1-1 浏览器验收：自带隔离 fixture（画满/邀请/递回）+ 5190 vite，两档视口（暗色在 1280）+ 英文轮 + 截图进 evidence；结束前重跑 `ui-assert-panels.mjs`（其 R16/R17 断言不变，材料种子为标题 1706.03762 的合成 PDF）。
+- `ui-assert-reading.mts`: P1-2 browser acceptance with its own isolated fixture (a nine-section reading seeded through the store; the model writes a notes reading and answers questions) and vite (PORT, default 5190): 1440×900 and 1280×800 × light/dark × zh/en. Reading first and default, the empty line, the ≤700px serif column, numbered sections and chips, in-view scrolling with panes and headers unmoved, no text line in view under the sprite's figure (top and bottom of the reading), real mouse selections opening the window below (or above near the bottom) without covering the sentence, elementFromPoint on the window, input and send, focus in the input, the reply in the window, footprints rebuilt across page loads, and the live write from the Materials row once. Screenshots go to the evidence directory.
+- Since P1-2, Reading is the default view: `ui-assert-panels.mjs`, `sprite-move-assert.mjs` and `ui-assert-sediment.mts` click the Board view after picking the topic; their assertions are unchanged.
 - `ui-assert-panels.mjs`：上一任务全部面板回归，形象尺寸改为60×92；视图导航加图标后「每项一行」只量文字行数。 Since R16 sheet tabs are a glyph plus a number, W1 "one line per tab" measures only the number span. Since R17 each tab also holds a 「⋯」 menu button, so tab buttons are selected as `.board-tab > button:first-child` (here and in `sprite-move-assert.mjs`).
 - `sprite-native.swift`：CGWindowList 量窗口，AX/合成事件驱动原生用户路径与 Dock 退出菜单；不需要屏幕录制，拖动需要辅助功能权限。
 - `sprite-native-assert.mjs`：默认验证H1–H4：只创建主WebView、开关隐藏、关窗/最小化不浮出；恢复两端常量后可加--desktop-enabled跑原完整桌面路径。
@@ -14,4 +16,4 @@
 
 运行于仓库根：先编译 Swift 驱动到 `/tmp/lumen-sprite-native`，启动 fixture 和5183，再依次执行原生与浏览器断言，避免受控模型流互相覆盖。输出目录从参数传入，证据不进入产品。
 
-[PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+[PROTOCOL]: Update this header on change, then check CLAUDE.md

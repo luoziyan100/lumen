@@ -1,9 +1,9 @@
 /**
  * [INPUT]: the real Materials filterMaterials/shortLink and ViewNav's navFits plus its component (React DOM + jsdom, widths injected at element-size boundaries)
  * [OUTPUT]: unit evidence for the chrome task: material search (title/link, case, surrounding spaces, CJK substrings, no match), short links (arXiv abstract pages, paths and queries, trailing slash, no link),
- *           all five views with icon and aria-label, icons alone when narrow (title added, aria-label kept), no compact switch at header width 0
+ *           all six views (Reading first) with icon and aria-label, icons alone when narrow (title added, aria-label kept), no compact switch at header width 0
  * [POS]: pure functions and component wiring; real layout (centering, no wrap, three states) is verified in the browser assertions, not faked here
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -82,14 +82,14 @@ test('视图导航：五项都有图标与 aria-label；放不下只留图标并
     createElement(ViewNav, { view: 'board', onView: (view: string) => selected.push(view) }))))
   try {
     await render(false)
-    // ---- Five entries: icon left (16, currentColor), text right, aria-label always present ----
+    // ---- Six entries, Reading first: icon left (16, currentColor), text right, aria-label always present ----
     assert.deepEqual(tabs().map(tab => [tab.getAttribute('aria-label'), tab.textContent, tab.title]), VIEWS.map(view => [S.views[view], S.views[view], '']))
-    assert.deepEqual(tabs().map(tab => tab.firstElementChild!.getAttribute('class')!.match(/li-(\w+)/)![1]), ['presentation', 'stack', 'conceptMap', 'lightbulb', 'grid'])
+    assert.deepEqual(tabs().map(tab => tab.firstElementChild!.getAttribute('class')!.match(/li-(\w+)/)![1]), ['book', 'presentation', 'stack', 'conceptMap', 'lightbulb', 'grid'])
     assert.ok(tabs().every(tab => { const svg = tab.querySelector('svg')!; return svg.getAttribute('width') === '16' && svg.getAttribute('stroke') === 'currentColor' }))
-    assert.deepEqual(tabs().map(tab => tab.getAttribute('aria-selected')), ['true', 'false', 'false', 'false', 'false'])
-    // P1-1: the takeaways view is open (S8); the rest stay placeholders
-    assert.deepEqual(tabs().map(tab => tab.dataset.available), ['true', 'true', 'false', 'false', 'false'])
-    await act(async () => tabs()[3]!.click())
+    assert.deepEqual(tabs().map(tab => tab.getAttribute('aria-selected')), ['false', 'true', 'false', 'false', 'false', 'false'])
+    // Reading (P1-2) and the takeaways (P1-1 S8) are open next to the board; the rest stay placeholders
+    assert.deepEqual(tabs().map(tab => tab.dataset.available), ['true', 'true', 'true', 'false', 'false', 'false'])
+    await act(async () => tabs()[4]!.click())
     assert.deepEqual(selected, ['ideas'])
     // The measuring twin stays out of the accessibility tree and unfocusable
     const ghost = element.querySelector<HTMLElement>('.studio-views-ghost')!

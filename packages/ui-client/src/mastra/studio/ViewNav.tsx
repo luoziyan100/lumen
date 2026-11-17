@@ -1,20 +1,20 @@
 /**
- * [INPUT]: the view names of i18n studio.views, this file's VIEWS/VIEW_AVAILABLE (the board and takeaways open since P1), the five view icons (16, currentColor)
- * [OUTPUT]: ViewNav: the center header's main navigation (Board · Takeaways · Concept map · Ideas · All), icon left, text right; icons alone when narrow (aria-label always,
+ * [INPUT]: the view names of i18n studio.views, this file's VIEWS/VIEW_AVAILABLE (reading, board and takeaways open), the six view icons (16, currentColor)
+ * [OUTPUT]: ViewNav: the center header's main navigation (Reading · Board · Takeaways · Concept map · Ideas · All), icon left, text right; icons alone when narrow (aria-label always,
  *           title when compact); navFits: does the full navigation fit when centered with equal room reserved for the pane toggles
  * [POS]: part of StudioApp's center header; the full width is measured by an invisible twin navigation (same header, same styles), so toggling compact never jitters
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { Icon } from '@phosphor-icons/react'
-import { AllViewIcon, BoardViewIcon, IdeasViewIcon, MapViewIcon, SettledViewIcon } from '../../components/icons'
+import { AllViewIcon, BoardViewIcon, IdeasViewIcon, MapViewIcon, ReadingViewIcon, SettledViewIcon } from '../../components/icons'
 import { useT } from '../../i18n/index.ts'
 
-export const VIEWS = ['board', 'settled', 'map', 'ideas', 'all'] as const
+export const VIEWS = ['reading', 'board', 'settled', 'map', 'ideas', 'all'] as const
 export type View = typeof VIEWS[number]
-/** P1 opens the board and the takeaways; the rest are honest placeholders */
-export const VIEW_AVAILABLE: Record<View, boolean> = { board: true, settled: true, map: false, ideas: false, all: false }
-export const VIEW_ICONS: Record<View, Icon> = { board: BoardViewIcon, settled: SettledViewIcon, map: MapViewIcon, ideas: IdeasViewIcon, all: AllViewIcon }
+/** Reading, board and takeaways are open; the rest are honest placeholders */
+export const VIEW_AVAILABLE: Record<View, boolean> = { reading: true, board: true, settled: true, map: false, ideas: false, all: false }
+export const VIEW_ICONS: Record<View, Icon> = { reading: ReadingViewIcon, board: BoardViewIcon, settled: SettledViewIcon, map: MapViewIcon, ideas: IdeasViewIcon, all: AllViewIcon }
 /** At least this much air between the navigation and either toggle */
 const BREATH = 8
 

@@ -3,7 +3,7 @@
  * [OUTPUT]: browser evidence for P1-1 (1440x900 and 1280x800, clear and dark, zh and en): the full-board row and its invite, keeping one, the offer strikethrough and keep,
  *           the chip jump, the deleted link after a sheet delete, the takeaways view, speech habits in settings; ui-assert-panels.mjs then re-runs as a child (the R16/R17 assertions live there)
  * [POS]: an acceptance script that swaps the model network only and touches no product protocol; screenshots land in the evidence directory, never in the repo
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 // Usage: node --experimental-strip-types ui-assert-sediment.mts <evidence-dir>
 import { chromium } from '/tmp/lumen-s0-pw/node_modules/playwright-core/index.mjs'
@@ -146,6 +146,8 @@ if (process.argv.includes('--hold')) {
 }
 const browser = await chromium.launch({ executablePath: exe })
 const settle = page => page.waitForTimeout(600)
+// Reading is the default view since P1-2: the board's cases start from the Board view
+const openBoardView = page => page.locator('.studio-views [role=tab]', { hasText: M.studio.views.board }).click()
 try {
   // ==== Sediment cases: main language x both viewports; clear skin by default, one dark pass and one English pass ====
   for (const [w, h] of sizes) {
@@ -163,6 +165,7 @@ try {
     await page.waitForSelector('.studio-topics .topic')
     const shot = name => page.screenshot({ path: `${out}/${w}-${dark ? 'dark-' : ''}${name}.png` })
     await page.locator('.studio-topics .topic', { hasText: '注意力为什么能对齐' }).click()
+    await openBoardView(page)
     try {
       await page.waitForSelector('.board-sediment-row', { timeout: 15000 })
     } catch {
@@ -252,6 +255,7 @@ try {
     await page.goto(`http://localhost:${port}/`)
     await page.waitForSelector('.studio-topics .topic')
     await page.locator('.studio-topics .topic', { hasText: '注意力为什么能对齐' }).click()
+    await openBoardView(page)
     await page.waitForSelector('.board-sediment-row')
     check(`${w} ${other ? 'dark' : 'light'} 写满行可见`, await visibleAt(page, '.sediment-input') && await visibleAt(page, '.board-sediment-skip'), '')
     await page.screenshot({ path: `${out}/${w}-${other ? 'dark' : 'light'}-full-row.png` })
@@ -280,6 +284,7 @@ try {
     await page.goto(`http://localhost:${port}/`)
     await page.waitForSelector('.studio-topics .topic')
     await page.locator('.studio-topics .topic', { hasText: '注意力为什么能对齐' }).click()
+    await page.locator('.studio-views [role=tab]', { hasText: 'Board' }).click()
     await page.waitForSelector('.board-sediment-row')
     const row = await page.textContent('.board-sediment-row')
     check('en 写满行', row.includes('This board is full') || row.length > 0, row.slice(0, 60))

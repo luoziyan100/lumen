@@ -1,11 +1,11 @@
 /**
  * [INPUT]: Node SQLite, an explicit data root
  * [OUTPUT]: openStudioDb: catalog.sqlite tables for topics/library/references/sheets/blocks/versions, the user's selected sheet (sheet_selection) and each run's write target (run_targets),
- *           the sediment tables (entries/revisions/evidence links/offers/per-sheet invites) and the global speech_habits — all additive, no legacy column migrations; older libraries get
+ *           the sediment tables (entries/revisions/evidence links/offers/per-sheet invites), the global speech_habits and the readings/reading_sections pair — all additive, no legacy column migrations; older libraries get
  *           missing columns on demand (only on this service-start path)
  *           schema=false only opens, never creates or adds columns, and refuses an incomplete schema (for data-only tools like backfill); schemaGaps; transaction: a synchronous immediate transaction
  * [POS]: the only place studio tables are created; shares the file with catalog/ reading cursors, never touches Mastra's mastra.sqlite
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { DatabaseSync } from 'node:sqlite'
 import { existsSync } from 'node:fs'
@@ -85,6 +85,17 @@ CREATE TABLE IF NOT EXISTS sediment_offers (
 CREATE TABLE IF NOT EXISTS sediment_invites (
   sheet_id TEXT PRIMARY KEY REFERENCES sheets(id) ON DELETE CASCADE,
   block_ids TEXT NOT NULL, question TEXT NOT NULL, thread_id TEXT, run_id TEXT, created_at TEXT NOT NULL
+) STRICT;
+-- P1-2 readings: one per (topic, library item); sections are ordered and replaced whole, their paragraphs stored as JSON like block content
+CREATE TABLE IF NOT EXISTS readings (
+  id TEXT PRIMARY KEY, topic_id TEXT NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+  item_id TEXT NOT NULL REFERENCES library_items(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE (topic_id, item_id)
+) STRICT;
+CREATE TABLE IF NOT EXISTS reading_sections (
+  id TEXT PRIMARY KEY, reading_id TEXT NOT NULL REFERENCES readings(id) ON DELETE CASCADE,
+  ord INTEGER NOT NULL, title TEXT NOT NULL, paragraphs TEXT NOT NULL,
+  thread_id TEXT, run_id TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE (reading_id, ord)
 ) STRICT;
 -- S14 speech habits: one global table, counted only by the user's keep action (kept = deletion left standing, restored = fragment restored); the AI only reads it
 CREATE TABLE IF NOT EXISTS speech_habits (

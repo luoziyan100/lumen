@@ -1,13 +1,22 @@
 /**
  * [INPUT]: none
- * [OUTPUT]: MODEL_TEXT: the fixed text the UI puts into messages it sends to the model (uploaded-material list, current draft, diagram fix request)
+ * [OUTPUT]: MODEL_TEXT: the fixed text the UI puts into messages it sends to the model (uploaded-material list, current draft, diagram fix request,
+ *           the request to write a reading and a question about a reading's sentence — the reading parser in studio/reading-ask.ts reads the latter back)
  * [POS]: not a UI catalog and not switched by language: what the model reads stays Chinese until prompts are translated (i18n I8, owner's call).
  *        It lives next to the catalogs so a future prompt translation finds every model-facing string in one folder. The transcript also strips
  *        the material list back out of user messages by matching `uploadedMaterials`, so that marker must not change with the UI language
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
+/** Begins the line under the quote in a reading question; the footprint parser finds questions by it. */
+const READING_MARK = '— 解读'
+/** The place line of askReading read back: the material's title and the section label */
+export const READING_PLACE = /^— 解读《(.*)》· (.*)$/
+
 export const MODEL_TEXT = {
   uploadedMaterials: '已上传材料（资料库条目，用 read_material 读）：',
   activeDraft: (path: string) => `当前稿（主题工作区路径）：${path}\n用户正在查看这份稿件；若要求修改它，请先读取现有内容。`,
+  writeReading: (title: string, itemId: string) => `请为《${title}》写一份解读。（材料 id：${itemId}）`,
+  /** A question asked from a reading: the quote as a Markdown quote, then where it sits, then the person's own words. `READING_MARK` begins the second line. */
+  askReading: (quote: string, section: string, item: string, words: string) => `${quote.split('\n').map(line => `> ${line}`).join('\n')}\n${READING_MARK}《${item}》· ${section}\n\n${words}`,
   mermaidFix: (source: string, error: string) => `上面回复里的这张 Mermaid 图无法渲染，解析错误：\n\n${error.trim().slice(0, 800)}\n\n请只重发修正后的这一张图，保持节点和关系不变，不要重写其他内容。\n\n\`\`\`mermaid\n${source}\n\`\`\``,
 }

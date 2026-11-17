@@ -1,20 +1,20 @@
 /**
- * [INPUT]: 5183 的真实面板与隔离 PDF 材料
+ * [INPUT]: the real panels on 5183 and an isolated PDF material
  *          lumen-i18n: PORT overrides 5183; LOCALE=en|zh (default zh) picks the UI language and the catalog the checks read
- * [OUTPUT]: 上一任务全部面板回归，只将形象尺寸断言推广为60×92
- * [POS]: 现有面板合同的回归入口，不修改面板布局要求
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [OUTPUT]: the previous task's full panels regression; only the figure size assertion was widened to 60×92; the Board view is opened first (Reading is the default since P1-2)
+ * [POS]: the regression entry for the existing panels contract; it never changes the panel layout requirements
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
-// sprite-move 回归：上一轮 lumen-sprite-ui 的 ui-assert-panels.js 全部断言（源自 lumen-studio-panels 的独立脚本 + S2 精灵圆 52px + 1706.03762 原文），
-// 改为独立运行、dev 端口 5183。唯一改写：G8 原为「精灵球在白板区内、不压右栏、不压缩放条」，按 M1（整窗自由放置）改为「默认位置不压右栏和缩放条」，
-// 不再要求在白板区内；脚本开头清掉 lumen.studio.sprite、全程不拖头像，所以每个状态量的都是默认位置。
-// lumen-studio-chrome 改写一条：U1「每项一行」原来量整个按钮内容的行顶，C2 给每项加了 16px 图标后图标与文字行顶不同会被误数成两行；
-// 改为只量文字 span 的行数（紧凑态没有文字就量按钮），scrollWidth 不溢出的条件不变。
+// sprite-move regression: every assertion of the previous lumen-sprite-ui ui-assert-panels.js (from lumen-studio-panels' standalone script + the S2 52px sprite + the 1706.03762 original),
+// now run standalone on dev port 5183. One rewrite only: G8 was "the sprite sits inside the board, off the right pane and the zoom bar"; after M1 (free placement in the window) it is "the default position is off the right pane and the zoom bar",
+// no longer inside the board; the script clears lumen.studio.sprite first and never drags the figure, so every state measures the default position.
+// lumen-studio-chrome rewrote one: U1 "one line per item" measured line tops of the whole button; after C2 added a 16px icon, icon and text tops differ and would count as two lines;
+// it now counts the text span's lines only (the button when compact has no text); the no-overflow scrollWidth condition is unchanged.
 // lumen-board-target rewrites one: W1 "one line per sheet tab" measured the whole button; R16 tabs are a 16px board glyph plus a number, whose line tops differ,
 // so it now measures only the number span (`.board-tab-number`); the ≤160px width and non-empty title (full name) conditions are unchanged.
 // lumen-board-delete rewrites the tab selector: each tab is a .board-tab wrapper with the tab button and its R17 「⋯」 menu button, so W1 and
 // openBoard take `.board-tabs .board-tab > button:first-child` instead of `.board-tabs button`; the conditions are unchanged.
-// 用法：node ui-assert-panels.mjs <evidence-dir> [topicTitle]
+// Usage: node ui-assert-panels.mjs <evidence-dir> [topicTitle]
 import { chromium } from '/tmp/lumen-s0-pw/node_modules/playwright-core/index.mjs'
 // lumen-i18n: LOCALE=en|zh (default zh, the language these checks were first written in) seeds the UI language before the page loads, and every
 // visible word the checks click or read comes from that language's catalog instead of a Chinese literal; the conditions are unchanged.
@@ -97,14 +97,14 @@ function assertLayout(tag, m, { board = true } = {}) {
     check(`${tag} B1 默认 100%`, m.scale === '100%', m.scale)
     check(`${tag} B1 没有区块被视口左缘切掉（${m.blocks} 块）`, m.blocks > 0 && !m.clipped.length, m.clipped.join('; '))
     check(`${tag} B3 区块里没有横向滚动`, !m.overflow.length, m.overflow.join('; '))
-    // G8（按 M1 改写）：头像可以放在整窗任何位置，只要求默认位置不压右栏和缩放条
+    // G8 (rewritten for M1): the figure may sit anywhere in the window; only its default position must stay off the right pane and the zoom bar
     check(`${tag} G8′ 默认位置不压右栏、不压缩放条`, m.orb && !m.orbHitsRight && !m.orbOverZoom, `orb=${m.orb} hitsRight=${m.orbHitsRight} overZoom=${m.orbOverZoom} inBoard=${m.orbInBoard}`)
     check(`${tag} B4 边框标签不出视口、不压张标签浮层`, !m.labelClipped && !m.labelHitsSheets, `clipped=${m.labelClipped} hits=${m.labelHitsSheets}`)
     results.push(`INFO ${tag} 视口右侧以外的区块（可平移看到）：${m.offRight.length}`)
   }
 }
 
-/** K/R/I/W 新断言用的量取 */
+/** Measurements for the K/R/I/W assertions */
 async function geometry(page) {
   return page.evaluate(() => {
     const r = el => el ? el.getBoundingClientRect() : null
@@ -169,13 +169,13 @@ for (const [w, h] of sizes) {
   await page.addInitScript(() => { if (!sessionStorage.getItem('seeded')) { localStorage.removeItem('lumen.studio.sprite'); localStorage.removeItem('lumen.studio.panes'); sessionStorage.setItem('seeded', '1') } })
   await page.goto(`http://localhost:${port}/`)
   await page.waitForSelector('.studio-topics .topic')
-  // 这个主题有三张白板，最新一张是空的：切到第一张（有区块）再量
-  const openBoard = async () => { await page.waitForSelector('.board-tabs .board-tab > button:first-child'); await page.locator('.board-tabs .board-tab > button:first-child').first().click(); await page.waitForSelector('.board-block'); await page.waitForTimeout(2500) }
+  // This topic has three sheets and the newest is empty: open the Board view (Reading is the default since P1-2), switch to the first sheet (with blocks), then measure
+  const openBoard = async () => { await page.locator(`.studio-views [role=tab][aria-label="${M.studio.views.board}"]`).click(); await page.waitForSelector('.board-tabs .board-tab > button:first-child'); await page.locator('.board-tabs .board-tab > button:first-child').first().click(); await page.waitForSelector('.board-block'); await page.waitForTimeout(2500) }
   await page.locator('.studio-topics .topic', { hasText: topicTitle }).click()
   await openBoard()
   const shot = name => page.screenshot({ path: `${out}/${w}-${name}.png` })
 
-  // ---- 默认 ----
+  // ---- Default ----
   let m = await measure(page), g = await geometry(page)
   assertLayout(`${tag} 默认`, m); assertCommon(`${tag} 默认`, g)
   check(`${tag} 默认 三栏都在、无展开按钮`, g.topics.w > 0 && g.materials.w > 0 && !g.reopenLeft && !g.reopenRight, '')
@@ -183,7 +183,7 @@ for (const [w, h] of sizes) {
   check(`${tag} K4 主题栏收起按钮 aria/title`, collapseBtn?.expanded === 'true' && collapseBtn.title === `${M.studio.panes.left.collapse} ⌘B` && collapseBtn.label === M.studio.panes.left.collapse, JSON.stringify(collapseBtn))
   await shot('default')
 
-  // ---- 左收起（⌘B） ----
+  // ---- Left collapsed (⌘B) ----
   await page.keyboard.press('Meta+b'); await settle(page)
   m = await measure(page); g = await geometry(page)
   assertLayout(`${tag} 左收起`, m); assertCommon(`${tag} 左收起`, g)
@@ -193,12 +193,12 @@ for (const [w, h] of sizes) {
   check(`${tag} K3 localStorage 记住左收起`, JSON.parse(g.panes).left === true, g.panes)
   await shot('left-collapsed')
 
-  // ---- 刷新后仍收起（K3） ----
+  // ---- Still collapsed after reload (K3) ----
   await page.reload(); await openBoard()
   g = await geometry(page)
   check(`${tag} K3 刷新后左栏仍收起`, g.topics.w === 0 && g.reopenLeft, '')
 
-  // ---- 右也收起（⌘⌥B）：两侧收起 ----
+  // ---- Right collapsed too (⌘⌥B): both sides ----
   await page.keyboard.press('Meta+Alt+b'); await settle(page)
   m = await measure(page); g = await geometry(page)
   assertLayout(`${tag} 两侧收起`, m); assertCommon(`${tag} 两侧收起`, g)
@@ -206,9 +206,9 @@ for (const [w, h] of sizes) {
   check(`${tag} K5 两侧收起后外边距仍 8px`, near(g.center.l, 8) && near(g.center.r, w - 8), `${g.center.l}–${g.center.r}`)
   await shot('both-collapsed')
 
-  // ---- 只收右：点展开按钮恢复左栏 ----
+  // ---- Right only: the reopen button restores the left pane ----
   await page.locator('.studio-center .pane-toggle[data-pane="left"]').click(); await settle(page)
-  // 先看焦点：geometry() 会逐个试聚焦展开按钮
+  // Check focus first: geometry() tries focusing each reopen button
   const focusAfter = await page.evaluate(() => document.activeElement?.closest('.studio-topics') && document.activeElement.getAttribute('aria-label'))
   m = await measure(page); g = await geometry(page)
   assertLayout(`${tag} 右收起`, m); assertCommon(`${tag} 右收起`, g)
@@ -217,7 +217,7 @@ for (const [w, h] of sizes) {
   await shot('right-collapsed')
   await page.locator('.studio-center .pane-toggle[data-pane="right"]').click(); await settle(page)
 
-  // ---- 分屏：从素材打开，PDF 按宽适配 ----
+  // ---- Split: open from Materials, the PDF fits its width ----
   if (await page.locator('.studio-reader').count()) await page.locator(`.studio-reader button[aria-label="${M.studio.reader.close}"]`).click()
   await page.locator('.material-open').filter({ hasText: '1706.03762' }).click(); await pdfReady(page)
   m = await measure(page); g = await geometry(page)
@@ -229,7 +229,7 @@ for (const [w, h] of sizes) {
   check(`${tag} R-e/R1 分屏行为不变：内宽 < 960 时页面贴满内宽（差 < 1%）`, g.pdf.inner < 960 && g.pdf.pageW <= g.pdf.inner && g.pdf.pageW >= g.pdf.inner * 0.99 - 7, JSON.stringify(g.pdf))
   await shot('split')
 
-  // ---- 拖到阅读器最小：白板尽量宽，阅读器停在 420（放不下时白板保 360） ----
+  // ---- Drag to the reader's minimum: the board as wide as it gets, the reader stops at 420 (the board keeps 360 when both cannot fit) ----
   const sep = await page.locator('.studio-splitter').boundingBox()
   await page.mouse.move(sep.x + 4, sep.y + 200); await page.mouse.down(); await page.mouse.move(w - 20, sep.y + 200, { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(800)
   m = await measure(page); g = await geometry(page)
@@ -239,7 +239,7 @@ for (const [w, h] of sizes) {
   check(`${tag} R-e 拖动后重新适配、无横向滚动`, g.pdf.fitting === true && g.pdf.sw <= g.pdf.cw + 1, JSON.stringify(g.pdf))
   check(`${tag} R-d localStorage 记住比例（= 白板段 / 内宽）`, near(JSON.parse(g.panes).ratio * inner, g.board.w, 1), g.panes)
   await shot('split-reader-min')
-  // 拖到最左：白板停在 360
+  // Drag to the far left: the board stops at 360
   const sep2 = await page.locator('.studio-splitter').boundingBox()
   await page.mouse.move(sep2.x + 4, sep2.y + 200); await page.mouse.down(); await page.mouse.move(20, sep2.y + 200, { steps: 8 }); await page.mouse.up(); await page.waitForTimeout(600)
   g = await geometry(page)
@@ -248,7 +248,7 @@ for (const [w, h] of sizes) {
   g = await geometry(page)
   check(`${tag} R-d 双击回到各一半`, JSON.parse(g.panes).ratio === 0.5, g.panes)
 
-  // ---- 手动缩放后不再自动适配；「适配宽度」回到适配 ----
+  // ---- After manual zoom it no longer auto-fits; 「适配宽度」 returns to fitting ----
   await page.locator(`.studio-reader .pdf-zoom-btn[aria-label="${M.common.zoomIn}"]`).click(); await page.waitForTimeout(600)
   const zoomed = (await geometry(page)).pdf
   await page.keyboard.press('Meta+b'); await page.waitForTimeout(900)
@@ -259,7 +259,7 @@ for (const [w, h] of sizes) {
   g = await geometry(page)
   check(`${tag} R-e 「适配宽度」回到适配`, g.pdf.fitting === true && g.pdf.sw <= g.pdf.cw + 1 && g.pdf.zoom !== zoomed.zoom, JSON.stringify(g.pdf))
 
-  // ---- 铺满：白板隐藏但保持挂载与相机；中栏头部只剩阅读器头；Esc 回分屏 ----
+  // ---- Full: the board hides but keeps its mount and camera; the centre header is only the reader's; Esc returns to split ----
   await page.locator(`.board-zoom button[aria-label="${M.studio.board.zoomOut}"]`).click(); await page.waitForTimeout(300)
   const cameraBefore = (await geometry(page)).camera
   await page.locator(`.studio-reader button[aria-label="${M.studio.reader.full}"]`).click(); await page.waitForTimeout(900)
@@ -271,7 +271,7 @@ for (const [w, h] of sizes) {
   check(`${tag} R-b 铺满后按钮换成还原`, g.order.includes(M.studio.reader.restore), JSON.stringify(g.order))
   await shot('full')
 
-  // ---- 铺满 + 两侧收起（沉浸） ----
+  // ---- Full + both sides collapsed (immersive) ----
   await page.keyboard.press('Meta+b'); await page.keyboard.press('Meta+Alt+b'); await page.waitForTimeout(900)
   m = await measure(page); g = await geometry(page)
   assertLayout(`${tag} 铺满+两侧收起`, m, { board: false }); assertCommon(`${tag} 铺满+两侧收起`, g)

@@ -13,7 +13,7 @@ i18n/
     ├── index.ts    # LOCALES: id, BCP 47 tag, native name, loader; DEFAULT_LOCALE = 'en'
     ├── en.ts       # en and `type Messages = typeof en`
     ├── zh.ts       # zh: Messages (the compiler rejects missing or extra keys)
-    └── model.ts    # MODEL_TEXT: text the UI sends to the model; stays Chinese and is not switched
+    └── model.ts    # MODEL_TEXT: text the UI sends to the model (incl. the reading request and question formats, READING_PLACE); stays Chinese and is not switched
 ```
 
 ## Rules

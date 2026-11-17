@@ -1,9 +1,10 @@
 /**
  * [INPUT]: no runtime dependencies; the objects and states of the product model in doc/studio/model.md
  * [OUTPUT]: topic, library (with authors/year/arXiv id/title source), reference, sheet, block, source and version, sediment entry/link/offer/invite DTOs,
+ *           the reading of a material (sections, paragraphs and their paper/inference sources) and its list summary,
  *           plus the BlockKind/BlockState/SedimentOrigin literals
  * [POS]: the pure type boundary shared by the service and the desktop; carries no database or framework objects
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 export interface Topic {
   id: string
@@ -160,4 +161,42 @@ export interface SpeechHabit {
   kept: number
   restored: number
   lastSeen: string
+}
+
+/** Where a reading paragraph comes from: a verbatim quote on a page of the material (page absent for materials without pages), or the AI's own inference. */
+export type ReadingSource = { kind: 'paper'; page?: number; quote: string } | { kind: 'inference' }
+
+export interface ReadingParagraph {
+  id: string
+  text: string
+  source: ReadingSource
+}
+
+/** One section of a reading; it is replaced whole, so paragraph ids change with every replace. */
+export interface ReadingSection {
+  id: string
+  /** Display order, 1-based and gapless */
+  ord: number
+  title: string
+  paragraphs: ReadingParagraph[]
+  updatedAt: string
+}
+
+/** The AI's reading of one library item inside one topic (P1: one per pair, no versions). */
+export interface Reading {
+  id: string
+  topicId: string
+  itemId: string
+  itemTitle: string
+  sections: ReadingSection[]
+  createdAt: string
+  updatedAt: string
+}
+
+/** A line of the topic's reading list: enough for the materials pane to say "write" or "open". */
+export interface ReadingSummary {
+  itemId: string
+  title: string
+  sections: number
+  updatedAt: string
 }

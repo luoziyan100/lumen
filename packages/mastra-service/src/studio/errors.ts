@@ -1,8 +1,9 @@
 /**
- * [INPUT]: 无
- * [OUTPUT]: StudioError：带 HTTP 状态、可直接给人和模型读的中文错误、稳定 code 与 params（i18n I6），可附给客户端用的字段（detail）
- * [POS]: studio 模块唯一错误类型；存储、HTTP 与白板工具共用，文案说明下一步怎么办
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [INPUT]: the error codes of http/error-codes
+ * [OUTPUT]: StudioError: an HTTP status, a Chinese message people and models both read, a stable code and params (i18n I6), optional client fields (detail);
+ *           notReferenced: the one R15 refusal for a material outside the topic's references
+ * [POS]: the studio module's only error type; stores, HTTP and the AI tools share it, and every message says what to do next
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import type { ErrorCode, ErrorParams } from '../http/error-codes.ts'
 
@@ -22,4 +23,9 @@ export class StudioError extends Error {
     this.params = params
     this.detail = detail
   }
+}
+
+/** R15: unreferenced, missing and out-of-bounds items get the same sentence, so a topic learns nothing about other topics. */
+export function notReferenced(itemId: string) {
+  return new StudioError(`材料 ${itemId} 不在这个主题的引用清单里；用 list_materials 看能读哪些`, 404, 'material.not_referenced', { itemId })
 }

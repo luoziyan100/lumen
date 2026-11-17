@@ -4,7 +4,7 @@
  *           the offer's strikethrough restore/re-delete and keep as a quoted entry with the original expandable (S9), evidence chips jumping or reporting the deleted board, the R17 dialog carrying the affected takeaway count (S3),
  *           the speech-habits list and per-line delete in settings (S14), and the English catalog render
  * [POS]: P1-1's UI mechanism acceptance; the controllable model proves mechanism only and never stands in for real-model acceptance; no WebKit coverage claimed
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
@@ -145,6 +145,7 @@ test('S8/S9/S14 全流程：精灵驱动画满→邀请→跳过与回返；块�
   const root = createRoot(element)
   const $ = <T extends Element = HTMLElement>(selector: string) => element.querySelector<T & HTMLElement>(selector)
   const $$ = (selector: string) => [...element.querySelectorAll<HTMLElement>(selector)]
+  const tab = (view: keyof typeof S.views) => $$('.studio-views [role=tab]').find(node => node.getAttribute('aria-label') === S.views[view])!
   const button = (name: string) => [...element.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent?.trim() === name || item.getAttribute('aria-label') === name)
   const click = async (name: string) => { const target = button(name); assert.ok(target, `未找到按钮：${name}`); await act(async () => target!.click()) }
   const say = async (message: string) => {
@@ -157,12 +158,15 @@ test('S8/S9/S14 全流程：精灵驱动画满→邀请→跳过与回返；块�
   }
   try {
     await act(async () => root.render(createElement(StudioApp, { connection })))
+    await until(() => $$('.studio-views [role=tab]').length > 0, '视图导航没有出现')
+    assert.equal(tab('reading').getAttribute('aria-selected'), 'true', 'Reading is the default view')
+    await act(async () => tab('board').click())
     await until(() => !!$('.board-sheet-new'), '白板没有出现')
     // ---- The empty state says what goes here first (S8) ----
-    await act(async () => $$('.studio-views [role=tab]')[1]!.click())
+    await act(async () => tab('settled').click())
     await until(() => !!$('.sediment-empty'), '空态一句话')
     assert.ok($('.sediment-empty')!.textContent!.includes('你自己的话'))
-    await act(async () => $$('.studio-views [role=tab]')[0]!.click())
+    await act(async () => tab('board').click())
     // ---- Sprite: the first sentence is quote material, then fill the board ----
     await click(S.sprite.open)
     await until(() => !!$('.sprite textarea'), '精灵没有展开')
@@ -197,13 +201,13 @@ test('S8/S9/S14 全流程：精灵驱动画满→邀请→跳过与回返；块�
     const stored = (await api.sediment('attn'))!.items[0]!
     assert.equal(stored.links.length, 1, '块入口的块被预挂为证据')
     // ---- It shows in the view; the chip jumps back to the board (S8) ----
-    await act(async () => $$('.studio-views [role=tab]')[1]!.click())
+    await act(async () => tab('settled').click())
     await until(() => $$('.sediment-entry').length === 1, '视图里应出现条目')
     await act(async () => $('.sediment-entry .sediment-chip')!.click())
     await until(() => $('.studio-board') !== null, 'chip 应跳回白板视图')
-    assert.equal($$('.studio-views [role=tab]')[0]!.getAttribute('aria-selected'), 'true')
+    assert.equal(tab('board').getAttribute('aria-selected'), 'true')
     // ---- The offer: strikethrough restore/re-delete, keep as a quoted entry, the original expands (S9) ----
-    await act(async () => $$('.studio-views [role=tab]')[1]!.click())
+    await act(async () => tab('settled').click())
     await say('递回')
     await until(() => !$('.topic .topic-light-running'), '递回没结束')
     await until(() => $$('.sediment-offer').length === 1, '报价单应出现在输入上方')
@@ -221,7 +225,7 @@ test('S8/S9/S14 全流程：精灵驱动画满→邀请→跳过与回返；块�
     await act(async () => quoted.querySelector('.sediment-origin')!.click())
     assert.ok($('.sediment-quote-original')!.textContent!.includes('我觉得那个注意力'), '原文可展开')
     // ---- R17: delete the sheet holding the evidence — the dialog carries the takeaway count, entries stay, the chip reports the deletion (S3/S8) ----
-    await act(async () => $$('.studio-views [role=tab]')[0]!.click())
+    await act(async () => tab('board').click())
     await act(async () => $('.board-sheet-new')!.click())
     await until(async () => (await api.sheets('attn')).items.length === 2, '第二张没建好')
     const full = (await api.sheets('attn')).items.find(item => item.used > 0)!
@@ -241,7 +245,7 @@ test('S8/S9/S14 全流程：精灵驱动画满→邀请→跳过与回返；块�
     assert.match(document.querySelector('.board-remove-modal')!.textContent!, new RegExp(String(S.board.removeSettled(1)).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/1/g, '\\d+')), '确认框要说清受影响的条目数')
     await act(async () => [...document.querySelectorAll<HTMLButtonElement>('.board-remove-modal button')].find(item => item.textContent === S.board.removeConfirm)!.click())
     await until(async () => (await api.sheets('attn')).items.length === 1, '板没删掉')
-    await act(async () => $$('.studio-views [role=tab]')[1]!.click())
+    await act(async () => tab('settled').click())
     await until(() => $$('.sediment-entry').length === 2, '删板后条目保留')
     await until(() => $('.sediment-chip.is-gone') !== null, '链接应标为已删')
     assert.match($('.sediment-chip.is-gone')!.textContent!, /白板已删除/)

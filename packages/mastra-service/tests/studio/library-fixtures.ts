@@ -1,8 +1,8 @@
 /**
- * [INPUT]: 无；手写 PDF 对象与 arXiv API 的 Atom 文本
- * [OUTPUT]: titledPdf（可带文档信息 Title、多种字号与旋转水印的单页 PDF）、atom（arXiv API 单条结果）
- * [POS]: 资料库标题测试共用夹具；不是测试文件，不含断言
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [INPUT]: none; hand-written PDF objects and arXiv API Atom text
+ * [OUTPUT]: titledPdf (a one-page PDF with an optional Info Title, several font sizes and a rotated watermark), pagedPdf (one text line per entry, one page per array), atom (one arXiv API result)
+ * [POS]: shared fixtures for the library title and reading tests; not a test file, no assertions
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 export function titledPdf({ info, lines = [], rotated }: { info?: string; lines?: [size: number, text: string][]; rotated?: string }): Buffer {
   const escape = (text: string) => text.replace(/[\\()]/g, match => `\\${match}`)
@@ -16,6 +16,24 @@ export function titledPdf({ info, lines = [], rotated }: { info?: string; lines?
   objects.forEach((object, i) => { offsets.push(Buffer.byteLength(pdf)); pdf += `${i + 1} 0 obj\n${object}\nendobj\n` })
   const xref = Buffer.byteLength(pdf)
   pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R /Info 6 0 R >>\nstartxref\n${xref}\n%%EOF`
+  return Buffer.from(pdf)
+}
+
+/** Several pages, each a list of text lines, so quote checks can tell pages apart. */
+export function pagedPdf(pages: string[][]): Buffer {
+  const escape = (text: string) => text.replace(/[\\()]/g, match => `\\${match}`)
+  const objects = ['<< /Type /Catalog /Pages 2 0 R >>', `<< /Type /Pages /Kids [${pages.map((_, i) => `${4 + i * 2} 0 R`).join(' ')}] /Count ${pages.length} >>`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>']
+  for (const [i, lines] of pages.entries()) {
+    const stream = lines.map((text, n) => `BT /F1 11 Tf 40 ${740 - n * 18} Td (${escape(text)}) Tj ET`).join('\n')
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${5 + i * 2} 0 R >>`,
+      `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`)
+  }
+  let pdf = '%PDF-1.4\n'
+  const offsets: number[] = []
+  objects.forEach((object, i) => { offsets.push(Buffer.byteLength(pdf)); pdf += `${i + 1} 0 obj\n${object}\nendobj\n` })
+  const xref = Buffer.byteLength(pdf)
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`
   return Buffer.from(pdf)
 }
 

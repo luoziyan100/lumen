@@ -21,6 +21,8 @@ export const ERROR_CODES = [
   'board.block_other_sheet', 'board.invalid_content', 'board.invalid_sources',
   'sediment.text_invalid', 'sediment.entry_not_found', 'sediment.offer_not_found', 'sediment.quote_invalid', 'sediment.quote_source',
   'sediment.link_invalid', 'sediment.link_stale', 'sediment.invite_blocks',
+  'reading.not_found', 'reading.section_not_found', 'reading.invalid', 'reading.too_many_sections', 'reading.too_many_paragraphs', 'reading.paragraph_too_long',
+  'reading.quote_too_short', 'reading.quote_not_on_page', 'reading.quote_not_in_text', 'reading.page_required', 'reading.page_not_applicable', 'reading.page_out_of_range',
   'files.not_local', 'files.not_found',
   'agents.role_not_found', 'agents.invalid_request', 'agents.load_failed',
   'specialists.busy', 'specialists.no_context', 'specialists.not_continued',

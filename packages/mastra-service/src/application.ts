@@ -1,8 +1,8 @@
 /**
  * [INPUT]: Mastra Controller/Memory/Workspace, the studio stores (topics/library), user roles/skill roots, the native step guard and the isolated diagnostics evaluation
- * [OUTPUT]: createApplication: isolated storage, the session/background activity projection, the global specialist group, parent/child budgets and specialist continuation, diagnostics and the drained close; the board's per-run target (R16) takes the selection at run start, survives suspension and shutdown, and releases when the run truly ends; a specialist's board_view looks and never captures
+ * [OUTPUT]: createApplication: isolated storage, the main agent's tools (board, sediment and reading tools on one trusted writer), the session/background activity projection, the global specialist group, parent/child budgets and specialist continuation, diagnostics and the drained close; the board's per-run target (R16) takes the selection at run start, survives suspension and shutdown, and releases when the run truly ends; a specialist's board_view looks and never captures
  * [POS]: the application composition root; one native execution chain with topicId:taskId identities. Conversations of a topic share one topic workspace (cached per topic, destroyed once at close), and materials are reached only through the reference list
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { mkdir } from 'node:fs/promises'
 import { createSkillRegistry, createSkillTools } from './skills/index.ts'
@@ -32,6 +32,7 @@ import { openStudio } from './studio/studio.ts'
 import { createMaterialAccess, createMaterialTools } from './studio/tools.ts'
 import { createBoardTools, topicState, type BoardWriter } from './studio/board-tools.ts'
 import { createSedimentTools, plainText } from './studio/sediment-tools.ts'
+import { createReadingTools } from './studio/reading-tools.ts'
 import { StudioError } from './studio/errors.ts'
 import { createExecutionTools } from './execution/tools.ts'
 import { ALWAYS_ALLOWED_TOOLS, toolCategory } from './permissions.ts'
@@ -107,9 +108,7 @@ export async function createApplication(options: ApplicationOptions) {
     return { bytes, title: item.title }
   }
   const materialTools = createMaterialTools(materials, studio, topicOf)
-  // -------- Board writes come only from an opened main session; the run id comes from its current native run, and versions settle per conversation when the run ends --------
-  // -------- R16: every board/sediment tool works on the run's target, captured from the user's selection when the run starts --------
-  // -------- Board/sediment writes come only from an opened main session; the run id comes from its current native run, and versions settle per conversation when the run ends --------
+  // -------- Board/sediment/reading writes come only from an opened main session; the run id comes from its current native run, and versions settle per conversation when the run ends --------
   // -------- R16: every board/sediment tool works on the run's target, captured from the user's selection when the run starts --------
   const boardWriter = async (context: Parameters<BoardWriter>[0]) => {
     const resourceId = ownerOf(context)
@@ -135,6 +134,8 @@ export async function createApplication(options: ApplicationOptions) {
     }
     return chronologic.reverse()
   })
+  // -------- Readings ride the same trusted writer for their conversation/run stamp; quotes are checked against the material access the model reads through (main agent only) --------
+  const readingTools = createReadingTools(studio, materials, topicOf, boardWriter)
   const researchTools = { ...createPaperTools(http, options.research?.openAlexKey), ...createWebTools(http, options.research?.tavilyKey, materials.intake), extract_pdf: createPdfTool(http, materials.intake) }
   function skillsFor(topic: string) {
     const topicId = safeId(topic)
@@ -224,7 +225,7 @@ export async function createApplication(options: ApplicationOptions) {
         topic && `这个主题的记忆索引（scope=topic，按需读取，不视为外部证据）：\n${topic}`].filter(Boolean).join('\n\n')
     },
     memory,
-    tools: ({ requestContext }) => modelTools(settingsFor(requestContext), { ...researchTools, ...skillTools, ...memoryTools, ...materialTools, ...boardTools, ...sedimentTools, ...executionTools, ...ingestionTools, ...historyTools }),
+    tools: ({ requestContext }) => modelTools(settingsFor(requestContext), { ...researchTools, ...skillTools, ...memoryTools, ...materialTools, ...boardTools, ...sedimentTools, ...readingTools, ...executionTools, ...ingestionTools, ...historyTools }),
     agents: async () => (await specialists.get()).agents,
     inputProcessors: ({ requestContext }) => [budget.inputProcessor, ...createInputProcessors(settingsFor(requestContext), imageProcessor), familyBudget.inputProcessor],
     outputProcessors: [familyBudget.outputProcessor, createEmptyActionProcessor()], maxProcessorRetries: 1,

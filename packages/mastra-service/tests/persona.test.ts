@@ -2,7 +2,7 @@
  * [INPUT]: the full application Controller and the model HTTP fixture
  * [OUTPUT]: the main agent's actual system prompt carries the full drawing contract (closed nodes first/branching/subgraph-end/sequence/scale/semantic classes, no colors) and the board-scratch-paper beliefs plus the board and sediment tools (P1-1: stop when full, delete tics only, settled stays untouched); the persona always says 「用户」
  * [POS]: a mirror regression of the drawing rules and the UI host's color decisions (ui-client mermaidTheme); the rules only persuade — rendering still has its own guardrails
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -30,6 +30,11 @@ test('主 Agent 实际请求的 system 提示包含完整画图规则', { timeou
     // ---- Sediment (P1-1, the S7 approved draft): beliefs and tools arrive together ----
     for (const belief of ['白板：你们俩的草稿纸', '先画，再说', '一块只讲一件事', '断在哪一级', '先收进资料库', 'board_draw', 'board_supersede', 'to_library: true',
       '沉淀是用户自己的话，字只能是用户的', '用 sediment_invite 指出这张里值得留下的几块', '除了口癖一个不动', '宁可少删，让用户自己划', 'sediment_invite({ blockIds, question })', 'sediment_quote({ text, blockIds? })', '已沉淀（settled）的块是用户留作证据的']) {
+      assert.ok(system.includes(belief), belief)
+    }
+    // ---- Readings (P1-2, the S4 approved draft with the manager's two edits): beliefs and tools arrive together ----
+    for (const belief of ['## 写一份解读', '写好一节就落一节', '第一节写它为什么值得读', '引文保留原文的语言，不翻译；解读本身用用户的语言写', '就标成推断',
+      '最后写边界和判断', '只就那一句和用户的问题回答，两三句够了', 'reading_view({ itemId })', 'reading_write({ itemId, sectionId?, title, paragraphs })']) {
       assert.ok(system.includes(belief), belief)
     }
   } finally { await application.close(); await rm(root, { recursive: true, force: true }) }

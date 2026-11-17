@@ -2,11 +2,11 @@
  * [INPUT]: the official MastraClient, the native-injected local service discovery and the chosen skill file manifest
  * [OUTPUT]: LumenApi, Connection, the topic/session catalog, library and topic references, the read-only board view and the user's selected sheet (R16; silent on an older service
  *           without the route, other failures throw), the user's sheet delete and block lookup (R17; an older service answers unsupported/unknown as due), the sediment endpoints
- *           (entries/offers/invites, R13: user HTTP only) and speech habits, RequestError carrying status and JSON body (messages map through the code into the UI language, i18n I6),
+ *           (entries/offers/invites, R13: user HTTP only) and speech habits, the topic's readings and one reading by ETag (read-only), RequestError carrying status and JSON body (messages map through the code into the UI language, i18n I6),
  *           whole skill packages, diagnostics and issue evaluation, snapshots with specialist usage, and ETag file versions; identities are {topicId, taskId}, reads and writes of one
  *           conversation serialize, and a manual unread is never overwritten by a late automatic ack
  * [POS]: the new client's single network boundary; it exposes no catalog write that would create empty sessions early, submit preparation rides the open binding; an attachment is read fully before entering the library referenced into the current topic, and a failure sends no truncated request
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { MastraClient, type KnownAgentControllerEvent } from '@mastra/client-js'
 import type { SkillFile } from '../../shell/pickSkill.ts'
@@ -16,8 +16,8 @@ export interface Connection { baseUrl: string; token: string; error?: string }
 export interface Identity { topicId: string; taskId: string }
 export type { SessionSummary as SessionInfo, Page } from '../../../../mastra-service/src/catalog/types.ts'
 import type { SessionSummary as SessionInfo, Page } from '../../../../mastra-service/src/catalog/types.ts'
-export type { Topic, LibraryItem, TopicMaterial, Sheet, SheetView, SedimentEntry, SedimentOffer, SedimentInvite, SpeechHabit } from '../../../../mastra-service/src/studio/types.ts'
-import type { Topic, LibraryItem, TopicMaterial, Sheet, SheetView, SedimentEntry, SedimentOffer, SedimentInvite, SpeechHabit } from '../../../../mastra-service/src/studio/types.ts'
+export type { Topic, LibraryItem, TopicMaterial, Sheet, SheetView, SedimentEntry, SedimentOffer, SedimentInvite, SpeechHabit, Reading, ReadingSection, ReadingParagraph, ReadingSummary } from '../../../../mastra-service/src/studio/types.ts'
+import type { Topic, LibraryItem, TopicMaterial, Sheet, SheetView, SedimentEntry, SedimentOffer, SedimentInvite, SpeechHabit, Reading, ReadingSummary } from '../../../../mastra-service/src/studio/types.ts'
 /** writable: newest live sheet (old field). selected/target come from R16 services; optional so an older service still parses. */
 export interface SheetList { items: Sheet[]; writable: string | null; selected?: string | null; target?: string | null }
 import type { PublicSettings, SettingsPatch } from '../../../../mastra-service/src/settings/types.ts'
@@ -152,6 +152,19 @@ export class LumenApi {
       throw new Error(serviceErrorText(detail, t().data.requestFailed(response.status)))
     }
     return { view: await response.json() as SheetView, etag: response.headers.get('ETag') }
+  }
+  // ---- Readings (P1-2): read-only for the person; the AI writes them through reading_write. An older service without the routes reads as no readings ----
+  async readings(topicId: string): Promise<ReadingSummary[]> {
+    try { return (await this.request<{ items: ReadingSummary[] }>(`/lumen/topics/${encodeURIComponent(topicId)}/readings`)).items }
+    catch (error) { if (error instanceof RequestError && error.routeMissing) return []; throw error }
+  }
+  /** ETag read like a sheet: unchanged answers reading=null; no reading yet (or an older service) answers missing. */
+  async readingVersion(topicId: string, itemId: string, etag?: string | null): Promise<{ reading: Reading | null; etag: string | null; missing: boolean }> {
+    const response = await fetch(`${this.connection.baseUrl}/lumen/topics/${encodeURIComponent(topicId)}/readings/${encodeURIComponent(itemId)}`, { headers: { ...this.headers(), ...(etag ? { 'If-None-Match': etag } : {}) } })
+    if (response.status === 304) return { reading: null, etag: etag ?? null, missing: false }
+    if (response.status === 404 || response.status === 405) return { reading: null, etag: null, missing: true }
+    if (!response.ok) throw new Error(serviceErrorText(await response.json().catch(() => null), t().data.requestFailed(response.status)))
+    return { reading: await response.json() as Reading, etag: response.headers.get('ETag'), missing: false }
   }
   library() { return this.request<{ items: LibraryItem[] }>('/lumen/library') }
   materials(topicId: string) { return this.request<{ items: TopicMaterial[] }>(`/lumen/topics/${encodeURIComponent(topicId)}/materials`) }

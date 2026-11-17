@@ -1,17 +1,17 @@
 /**
- * [INPUT]: 5183 的真实 UI、隔离主题与 Chromium
+ * [INPUT]: the real UI on 5183, isolated topics and Chromium
  *          lumen-i18n: PORT overrides 5183; LOCALE=en|zh (default zh) picks the UI language and the catalog the checks read
- * [OUTPUT]: M1–M12 新尺寸回归、P9/P10 外观断言、截图与开合帧序列
- * [POS]: 继承上一任务的浏览器合同，只按60×92包围盒调整横纵几何
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [OUTPUT]: the M1–M12 regression at the new size, P9/P10 appearance assertions, screenshots and open/close frame sequences
+ * [POS]: inherits the previous task's browser contract, adjusting only the horizontal/vertical geometry for the 60×92 box; opens the Board view first (Reading is the default since P1-2)
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  * lumen-board-delete: the board tab selector is `.board-tabs .board-tab > button:first-child` (each tab also has an R17 「⋯」 menu button).
  */
-// lumen-sprite-move 浏览器断言：真实 Chromium 打开 dev 页面（5183，隔离数据根），1440×900 / 1280×800 各跑一遍。
-// M1–M12：9 个位置拖放（误差 ≤1px、不打开、光标、刷新后不变、盖在左右栏/顶栏/白板上）→ 每个位置打开（全在视口内、贴着头像那一侧）再收起（回到原位）；
-// 宽度在 w 与 1024 之间来回（含一次变矮）始终在视口内、回来恢复；拖浮窗后收起头像在新锚点；打开/收起逐帧采样（≥12 帧、只变 transform/opacity、
-// 包围盒单调、原点在头像中心 ±2px、内部布局首帧即终态、无 >50ms 长任务）；中途反向点击只一层、不跳帧；层级（设置弹窗、下拉菜单、外链确认框盖住头像；
-// 头像盖住沉浸阅读）；停靠/取消停靠；减弱动效（只淡 120ms）；复核 R1：真实 pointercancel（CDP 触摸取消）后 Enter/Space 照常打开、鼠标拖完紧随的 click 被吞。另出截图、帧序列 GIF 与录像。
-// 用法：node sprite-move-assert.mjs <evidence-dir>
+// lumen-sprite-move browser assertions: real Chromium opens the dev page (5183, isolated data root), once at 1440×900 and once at 1280×800.
+// M1–M12: drag-and-drop to 9 positions (≤1px error, no opening, cursor, unchanged after reload, over the side panes/header/board) → open at each (fully in the viewport, on the figure's side) and close (back in place);
+// width going between w and 1024 and back (one shorter height too) stays in the viewport and restores; after dragging the window the closed figure sits on the new anchor; open/close sampled per frame (≥12 frames, only transform/opacity change,
+// monotonic box, origin within ±2px of the figure's centre, inner layout final from the first frame, no >50ms long task); reversing midway keeps one layer and skips no frame; stacking (settings dialog, dropdowns and the external-link dialog cover the figure;
+// the figure covers immersive reading); dock/undock; reduced motion (120ms fade only); review R1: after a real pointercancel (CDP touch cancel) Enter/Space still open, and the click right after a mouse drag is swallowed. Also screenshots, frame GIFs and a recording.
+// Usage: node sprite-move-assert.mjs <evidence-dir>
 import { auditNaming } from './naming.mjs'
 import { chromium } from '/tmp/lumen-s0-pw/node_modules/playwright-core/index.mjs'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
@@ -38,7 +38,7 @@ const info = text => results.push(`INFO ${text}`)
 const near = (a, b, d = 1) => Math.abs(a - b) <= d
 const round = v => Math.round(v * 100) / 100
 
-// ---- 页面内工具：长任务观察、逐帧采样 ----
+// ---- In-page tools: long-task observer, per-frame sampling ----
 const initScript = skin => {
   if (!sessionStorage.getItem('seeded')) {
     localStorage.removeItem('lumen.studio.sprite'); localStorage.removeItem('lumen.studio.panes'); localStorage.removeItem('lumen:trustedLinkHosts')
@@ -47,7 +47,7 @@ const initScript = skin => {
   }
   window.__long = []
   new PerformanceObserver(list => { for (const entry of list.getEntries()) window.__long.push({ start: entry.startTime, duration: entry.duration }) }).observe({ type: 'longtask', buffered: true })
-  /** 每帧记一次：浮窗与头像的 transform/opacity/原点/包围盒/布局盒、除 transform/opacity 外的全部计算样式是否变化、浮窗内部布局签名、动画列表 */
+  /** One record per frame: window and figure transform/opacity/origin/box/layout box, whether any computed style other than transform/opacity changed, the window's inner layout signature, the animation list */
   window.__sample = ms => new Promise(resolve => {
     const frames = [], t0 = performance.now()
     let baseline = null
@@ -79,7 +79,7 @@ const orbState = page => page.evaluate(() => {
     open: !!document.querySelector('.sprite-floating, .sprite-docked'), stored: localStorage.getItem('lumen.studio.sprite'), vw: innerWidth, vh: innerHeight }
 })
 const winBox = page => page.evaluate(() => { const win = document.querySelector('.sprite-floating'); if (!win) return null; const r = win.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height, phase: win.dataset.phase, transform: win.style.transform } })
-/** 头像中心点上叠着谁：最上层是不是头像、头像下面是哪块区域 */
+/** What stacks at the figure's centre: whether the top is the figure, and which region lies under it */
 const stackAt = (page, x, y) => page.evaluate(([x, y]) => {
   const list = document.elementsFromPoint(x, y), orbIndex = list.findIndex(el => el.closest('.sprite-orb'))
   const below = list.find(el => !el.closest('.sprite-orb'))
@@ -114,7 +114,7 @@ async function collapseSprite(page) {
   await page.waitForFunction(() => !document.querySelector('.sprite-floating'))
   await page.waitForTimeout(150)
 }
-/** 浮窗在视口内（四边 8px），并且贴着头像那一侧（象限决定；放不下时夹在 8px 且仍盖住头像） */
+/** The window is inside the viewport (8px on each side) and on the figure's side (the quadrant decides; when it cannot fit it clamps at 8px and still covers the figure) */
 function attached(win, orb, vw, vh) {
   const right = orb.x + HALF > vw / 2, bottom = orb.y + HALF_H > vh / 2
   const inView = win.l >= EDGE - 0.5 && win.t >= EDGE - 0.5 && win.r <= vw - EDGE + 0.5 && win.b <= vh - EDGE + 0.5
@@ -122,14 +122,14 @@ function attached(win, orb, vw, vh) {
   const vOk = bottom ? near(win.b, orb.y + SPRITE_H) || (near(win.t, EDGE) && win.b >= orb.y + SPRITE_H - 0.5) : near(win.t, orb.y) || (near(win.b, vh - EDGE) && win.t <= orb.y + 0.5)
   return { ok: inView && hOk && vOk, inView, hOk, vOk, side: `${right ? '右' : '左'}${bottom ? '下' : '上'}` }
 }
-/** 与 sprite-place.orbPoint 同一换算：存的锚点 → 当前视口里的头像左上角 */
+/** Same conversion as sprite-place.orbPoint: stored anchor → the figure's top-left in the current viewport */
 function expectedOrb(stored, vw, vh) {
   const a = JSON.parse(stored).anchor
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi))
   return { x: clamp(a.h === 'left' ? a.dx : vw - a.dx - SPRITE_W, EDGE, vw - EDGE - SPRITE_W), y: clamp(a.v === 'top' ? a.dy : vh - a.dy - SPRITE_H, EDGE, vh - EDGE - SPRITE_H) }
 }
 
-/** 逐帧采样一段开合：trigger 在采样开始后执行；返回帧与长任务 */
+/** Sample one open/close per frame: trigger runs after sampling starts; returns frames and long tasks */
 async function sampleRun(page, trigger, ms = 700) {
   await page.evaluate(ms => { window.__run = window.__sample(ms) }, ms)
   await page.waitForTimeout(40)
@@ -147,7 +147,7 @@ function assertMotion(tag, run, dir, orbBox, { reduced = false } = {}) {
   check(`${tag} 动画参数：${want}ms ${reduced ? 'linear' : dir === 'open' ? 'cubic-bezier(0.2, 0.8, 0.2, 1)' : '缓入'}`, timing && timing.d === want && (reduced ? timing.e === 'linear' : dir === 'open' ? timing.e === 'cubic-bezier(0.2, 0.8, 0.2, 1)' : timing.e === 'cubic-bezier(0.4, 0, 1, 1)'), JSON.stringify(timing))
   if (!reduced) check(`${tag} 采样 ≥12 帧`, anim.length >= 12, `${anim.length} 帧，跨 ${span}ms`)
   else info(`${tag} 采样 ${anim.length} 帧，跨 ${span}ms`)
-  // interactivity 是 HTML inert 属性的计算值（收起中浮窗 inert，点击才能穿到底下的头像上倒放）：只在换阶段时变一次、整段恒定，不参与布局与绘制
+  // interactivity is the computed value of HTML inert (the closing window is inert so a click reaches the figure below and reverses): it changes once per phase, stays constant within it, and takes no part in layout or paint
   const changed = [...new Set(anim.flatMap(f => f.win.changed))].filter(key => key !== 'interactivity')
   const inertValues = new Set(anim.map(f => f.win.inert))
   check(`${tag} 浮窗只有 transform/opacity 在变（inert 的 interactivity 整段恒定：${[...inertValues]}）`, anim.length > 0 && !changed.length && inertValues.size === 1, changed.join(' '))
@@ -164,7 +164,7 @@ function assertMotion(tag, run, dir, orbBox, { reduced = false } = {}) {
     const centre = { x: orbBox.x + HALF, y: orbBox.y + HALF_H }
     const origins = anim.map(f => { const [ox, oy] = f.win.origin.split(' ').map(parseFloat); return { x: f.win.layout[0] + ox, y: f.win.layout[1] + oy } })
     const worst = Math.max(...origins.map(o => Math.max(Math.abs(o.x - centre.x), Math.abs(o.y - centre.y))))
-    // 从包围盒反推实际缩放中心：rect.l = o + s·(L − o)
+    // Recover the actual scale origin from the box: rect.l = o + s·(L − o)
     const implied = anim.filter(f => scaleOf(f) < 0.9).map(f => { const s = scaleOf(f); return { x: (f.win.rect.l - s * f.win.layout[0]) / (1 - s), y: (f.win.rect.t - s * f.win.layout[1]) / (1 - s) } })
     const worstImplied = implied.length ? Math.max(...implied.map(o => Math.max(Math.abs(o.x - centre.x), Math.abs(o.y - centre.y)))) : null
     check(`${tag} transform-origin 在头像中心 ±2px（含按包围盒反推的缩放中心）`, worst <= 2 && (worstImplied === null || worstImplied <= 2), `设定偏差 ${round(worst)}px，反推偏差 ${worstImplied === null ? '无' : round(worstImplied)}px（${implied.length} 帧）`)
@@ -176,7 +176,7 @@ function assertMotion(tag, run, dir, orbBox, { reduced = false } = {}) {
   return { frames: anim.length, span }
 }
 
-/** 录像：CDP screencast 逐帧收 JPEG，按真实时间戳用系统 ffmpeg 拼成 mp4（Playwright 自带录像要另装它的 ffmpeg，不用） */
+/** Recording: CDP screencast collects JPEG frames, stitched by real timestamps into mp4 with the system ffmpeg (Playwright's own recording needs its own ffmpeg; not used) */
 async function startRecording(page) {
   const cdp = await page.context().newCDPSession(page), frames = []
   cdp.on('Page.screencastFrame', ({ data, sessionId, metadata }) => { frames.push({ data, t: metadata.timestamp }); cdp.send('Page.screencastFrameAck', { sessionId }).catch(() => {}) })
@@ -194,12 +194,12 @@ async function startRecording(page) {
   }
 }
 
-/** 帧序列：暂停精灵自身的两段动画，按时间逐帧截图，拼成 GIF */
+/** Frame sequence: pause the sprite's own two animations, screenshot frame by frame over time, stitch a GIF */
 async function frameSequence(page, dir, file, trigger) {
   const dirPath = `${out}/frames-${file}`
   rmSync(dirPath, { recursive: true, force: true }); mkdirSync(dirPath, { recursive: true })
   await trigger()
-  // 展开的挂载走 transition：等浮窗自己的动画出现再暂停
+  // Opening mounts through a transition: wait for the window's own animation before pausing
   await page.waitForFunction(() => document.getAnimations().some(a => a.effect?.target?.matches?.('.sprite-floating')))
   const total = await page.evaluate(() => {
     const own = document.getAnimations().filter(a => a.effect?.target?.matches?.('.sprite-floating, .sprite-orb'))
@@ -220,10 +220,12 @@ async function frameSequence(page, dir, file, trigger) {
   return count
 }
 
-/** 选中主题、切到第一张（有区块的）白板，等头像或停靠栏出现 */
+/** Pick the topic, open the Board view and its first sheet (with blocks), wait for the figure or the docked column */
 async function readyOn(page, { orb = true } = {}) {
   await page.waitForSelector('.studio-topics .topic')
   if (!(await page.locator('.board-tabs .board-tab > button:first-child').count())) await page.locator('.studio-topics .topic', { hasText: topicTitle }).click()
+  // Reading is the default view since P1-2: open the Board view first
+  await page.locator(`.studio-views [role=tab][aria-label="${M.studio.views.board}"]`).click()
   await page.waitForSelector('.board-tabs .board-tab > button:first-child'); await page.locator('.board-tabs .board-tab > button:first-child').first().click(); await page.waitForSelector('.board-block')
   await page.waitForSelector(orb ? '.sprite-orb' : '.sprite-docked'); await page.waitForTimeout(1500)
 }
@@ -239,7 +241,7 @@ for (const [w, h] of sizes) {
   const ready = options => readyOn(page, options)
   await page.goto(base); await ready()
 
-  // ---- 默认位置：与上一版一致（离右 311、离底 69），不压右栏和缩放条 ----
+  // ---- Default position: as before (311 from the right, 69 from the bottom), off the right pane and the zoom bar ----
   let state = await orbState(page)
   check(`${tag} M4 默认位置：右下、离右 311、离底 69`, near(state.orb.x, w - 311 - SPRITE_W, 0.5) && near(state.orb.y, h - 69 - SPRITE_H, 0.5), `${state.orb.x},${state.orb.y}`)
   check(`${tag} M1 头像不再挂在白板宿主里`, await page.evaluate(() => !document.querySelector('.studio-orb-host, .studio-orb-full') && getComputedStyle(document.querySelector('.sprite-orb')).position === 'fixed' && document.querySelector('.sprite-orb').parentElement.closest('.studio-board-pane') === null), '')
@@ -257,7 +259,7 @@ for (const [w, h] of sizes) {
   })
   check(`${tag} P10 四态关键帧只动transform/opacity`, bodyMotion.length === 6 && bodyMotion.every(rule => rule.properties.every(key => ['transform', 'opacity'].includes(key))), JSON.stringify(bodyMotion))
 
-  // ---- 9 个位置：拖放 → 刷新 → 打开 → 收起 ----
+  // ---- 9 positions: drop → reload → open → close ----
   const spots = [['左上', 38, 54], ['上中', w / 2, 54], ['右上', w - 38, 54], ['左中', 38, h / 2], ['正中', w / 2, h / 2], ['右中', w - 38, h / 2], ['左下', 38, h - 54], ['下中', w / 2, h - 54], ['右下', w - 38, h - 54]]
   const regions = {}
   for (const [name, tx, ty] of spots) {
@@ -284,7 +286,7 @@ for (const [w, h] of sizes) {
   }
   check(`${tag} 9 个位置覆盖左栏、右栏、顶栏与白板`, ['左栏', '右栏', '顶栏', '白板'].every(r => Object.values(regions).includes(r)), JSON.stringify(regions))
 
-  // ---- 窗口在 w 与 1024 之间来回（含一次变矮）：始终在视口内，回来恢复 ----
+  // ---- The window between w and 1024 and back (one shorter height too): always in the viewport, restored on return ----
   for (const [name, tx, ty] of [['右中', w - 120, h / 2], ['左上', 140, 120], ['右下', w - 38, h - 54], ['正中', w / 2, h / 2]]) {
     await dragOrb(page, tx, ty)
     const start = await orbState(page)
@@ -302,11 +304,11 @@ for (const [w, h] of sizes) {
     check(`${tag} M4 缩放 ${name}：回到 ${w}×${h} 恢复原位`, end.x === start.orb.x && end.y === start.orb.y, `${start.orb.x},${start.orb.y} → ${end.x},${end.y}`)
   }
 
-  // ---- 拖浮窗标题栏：锚点跟着走，收起后头像在新锚点，再展开得到同一个浮窗 ----
+  // ---- Drag the window's title bar: the anchor follows, the closed figure sits on the new anchor, reopening gives the same window ----
   await page.evaluate(() => localStorage.removeItem('lumen.studio.sprite')); await page.reload(); await ready()
   await openSprite(page)
   const from = await winBox(page), face = await page.locator('.sprite-floating .sprite-face-head').boundingBox()
-  // 往左上拖：横向不会碰边，纵向故意拖过顶边，浮窗应夹在 8px
+  // Drag up-left: horizontally it never meets the edge, vertically it goes past the top on purpose, and the window should clamp at 8px
   const dx = -Math.round(w * 0.4), dy = -Math.round(h * 0.3)
   const wantL = Math.max(EDGE, Math.min(from.l + dx, w - EDGE - from.w)), wantT = Math.max(EDGE, Math.min(from.t + dy, h - EDGE - from.h))
   await page.mouse.move(face.x + face.width / 2, face.y + face.height / 2); await page.mouse.down()
@@ -329,7 +331,7 @@ for (const [w, h] of sizes) {
   const persisted = (await orbState(page)).orb
   check(`${tag} M5 新锚点刷新后仍在`, persisted.x === anchorOrb.x && persisted.y === anchorOrb.y, `${persisted.x},${persisted.y}`)
 
-  // ---- 打开/收起逐帧：清透与暗色各一遍 ----
+  // ---- Open/close per frame: once clear, once dark ----
   const motion = {}
   for (const skin of ['clear', 'dark']) {
     await page.evaluate(([key, value]) => { localStorage.setItem(key, value); localStorage.removeItem('lumen.studio.sprite') }, ['lumen:appearance.v2', JSON.stringify(SKINS[skin])])
@@ -345,7 +347,7 @@ for (const [w, h] of sizes) {
     motion[`${skin}-close`] = assertMotion(`${tag} ${skin} M7 收起`, close, 'close', orbBox)
     const after = await orbState(page)
     check(`${tag} ${skin} M7 收起后头像在原位、不透明、无残留 transform`, after.orb.x === orbBox.x && after.orb.y === orbBox.y && await page.evaluate(() => { const o = document.querySelector('.sprite-orb'), s = getComputedStyle(o); return s.opacity === '1' && s.transform === 'none' && !document.querySelector('.sprite-floating') }), '')
-    // 帧序列与 GIF
+    // Frame sequence and GIF
     await page.waitForTimeout(300)
     const openFrames = await frameSequence(page, 'open', `${w}-${skin}-open`, () => page.mouse.click(orbBox.x + HALF, orbBox.y + HALF_H))
     await page.waitForTimeout(300)
@@ -357,9 +359,9 @@ for (const [w, h] of sizes) {
   await page.evaluate(([key, value]) => localStorage.setItem(key, value), ['lumen:appearance.v2', JSON.stringify(SKINS.clear)])
   await page.reload(); await ready()
 
-  // ---- 中途反向：打开到一半点收起，收起到一半再点头像；始终一层、不跳帧 ----
+  // ---- Reverse midway: click close half-open, click the figure half-closed; always one layer, no skipped frame ----
   {
-    // 头像放右上角：浮窗从这里往左下长，收起键贴近缩放原点、动画中几乎不动，真实鼠标才点得准（默认右下时收起键离原点约 500px，110ms 时仍在快速移动）
+    // Put the figure top-right: the window grows down-left from there and the close button stays near the scale origin, barely moving, so a real mouse can hit it (from the default bottom-right it is ~500px from the origin and still moving fast at 110ms)
     await dragOrb(page, w - 38, 54)
     const orbBox = (await orbState(page)).orb
     const clean = await sampleRun(page, () => page.mouse.click(orbBox.x + HALF, orbBox.y + HALF_H))
@@ -380,7 +382,7 @@ for (const [w, h] of sizes) {
     const steps = scales.map((s, i) => i ? Math.abs(s - scales[i - 1]) : 0)
     check(`${tag} M7 中途反向：开→收→开，各一次倒放`, JSON.stringify(phases) === JSON.stringify(['opening', 'closing', 'opening']), JSON.stringify(phases))
     check(`${tag} M7 中途反向：始终只有一层浮窗、一段动画`, run.frames.every(f => f.wins <= 1 && (!f.win || f.win.anims.length <= 1)), `最多 ${Math.max(...run.frames.map(f => f.wins))} 层`)
-    // 反向那一帧与下一帧：变化不超过正常打开的最大单帧变化，且没有跳到起点或终点
+    // The reversing frame and the next: the change stays within a normal opening's largest per-frame change and never jumps to the start or end
     const turns = live.map((f, i) => i && f.win.phase !== live[i - 1].win.phase ? i : 0).filter(Boolean)
     const turnSteps = turns.flatMap(i => [steps[i], steps[i + 1] ?? 0])
     check(`${tag} M7 中途反向：不跳帧（反向处单帧缩放变化 ≤ 正常打开的最大单帧变化）`, turns.length === 2 && turnSteps.every(s => s <= maxStep + 0.01) && !turns.some(i => scales[i] >= 0.999 || scales[i] <= 0.201), `反向处 ${turnSteps.map(round).join(' ')}，正常最大 ${round(maxStep)}；逐帧 ${scales.map(round).join(' ')}`)
@@ -389,7 +391,7 @@ for (const [w, h] of sizes) {
     await collapseSprite(page)
   }
 
-  // ---- 层级：设置弹窗、下拉菜单、外链确认框盖住头像 ----
+  // ---- Stacking: settings dialog, dropdowns and the external-link dialog cover the figure ----
   const openSettings = async () => { await page.locator('.studio-topics .studio-item', { hasText: M.studio.settings }).click(); await page.waitForSelector('[role="dialog"]'); await page.waitForTimeout(400) }
   const closeAll = async () => { for (let i = 0; i < 3 && await page.locator('[role="dialog"]').count(); i++) { await page.keyboard.press('Escape'); await page.waitForTimeout(300) } }
   await openSettings()
@@ -401,7 +403,7 @@ for (const [w, h] of sizes) {
   let stack = await stackAt(page, orbNow.x + HALF, orbNow.y + HALF_H)
   check(`${tag} M9 设置弹窗盖住头像`, !stack.topInOrb && stack.topDialog, JSON.stringify(stack))
   await shot('layer-settings')
-  // 下拉菜单：设置里「添加模型」→「接口协议」下拉
+  // Dropdown: settings 「添加模型」 → the 「接口协议」 dropdown
   await page.locator('[role="dialog"] button', { hasText: M.settings.addModel }).click(); await page.waitForTimeout(300)
   await page.locator('[role="dialog"] [role="combobox"]').first().click(); await page.waitForSelector('[role="listbox"]'); await page.waitForTimeout(300)
   const listBox = await page.locator('[role="listbox"]').boundingBox()
@@ -415,7 +417,7 @@ for (const [w, h] of sizes) {
   check(`${tag} M9 下拉菜单盖住头像`, !stack.topInOrb && stack.topListbox && stack.orbIndex > 0, JSON.stringify(stack))
   await shot('layer-menu')
   await closeAll()
-  // 外链确认框：对话 b 里 arxiv 链接是真实消息，点开后确认框盖住浮窗；收起精灵后同样盖住头像
+  // External-link dialog: the arxiv link in conversation b is a real message; once opened the dialog covers the window, and after collapsing the sprite it covers the figure too
   await dragOrb(page, Math.round(w / 2), Math.round(h / 2))
   await openSprite(page)
   await page.locator('.sprite-title').click(); await page.locator('.sprite-session', { hasText: '换了一段新对话' }).click()
@@ -426,7 +428,7 @@ for (const [w, h] of sizes) {
   stack = await stackAt(page, winNow.l + winNow.w / 2, winNow.t + 30)
   check(`${tag} M9 外链确认框盖住浮窗（与头像同一层级 token）`, !stack.top?.includes('sprite') && await page.evaluate(([x, y]) => !document.elementFromPoint(x, y)?.closest('.sprite-floating'), [winNow.l + winNow.w / 2, winNow.t + 30]), JSON.stringify(stack))
   await shot('layer-confirm-window')
-  // 确认框是模态的，只能用 DOM click 收起精灵（真实鼠标会被模态挡住），再看确认框与头像的叠放
+  // The dialog is modal, so collapse the sprite with a DOM click (a real mouse is blocked by the modal), then check how dialog and figure stack
   await page.evaluate(label => document.querySelector(`.sprite-floating button[aria-label="${label}"]`).click(), M.studio.sprite.collapse)
   await page.waitForSelector('.sprite-orb[data-phase="closed"]'); await page.waitForTimeout(300)
   orbNow = (await orbState(page)).orb
@@ -437,7 +439,7 @@ for (const [w, h] of sizes) {
   await page.waitForTimeout(300)
   check(`${tag} 外链确认框已取消、未打开外部链接`, !(await page.locator('.ext-link-modal').count()) && context.pages().length === 1, `pages=${context.pages().length}`)
 
-  // ---- 沉浸阅读：头像盖在阅读器上 ----
+  // ---- Immersive reading: the figure sits over the reader ----
   await page.locator('.material-open').filter({ hasText: '1706.03762' }).click()
   await page.waitForSelector('.studio-reader .pdf-page', { timeout: 15000 }); await page.waitForTimeout(1200)
   await page.locator(`.studio-reader button[aria-label="${M.studio.reader.full}"]`).click(); await page.waitForTimeout(500)
@@ -456,7 +458,7 @@ for (const [w, h] of sizes) {
   await page.keyboard.press('Meta+b'); await page.keyboard.press('Meta+Alt+b'); await page.waitForTimeout(500)
   await page.locator(`.studio-reader button[aria-label="${M.studio.reader.close}"]`).click(); await page.waitForTimeout(400)
 
-  // ---- 停靠 / 取消停靠 ----
+  // ---- Dock / undock ----
   await dragOrb(page, 200, Math.round(h * 0.7))
   const anchorBefore = (await orbState(page)).orb
   await openSprite(page)
@@ -475,7 +477,7 @@ for (const [w, h] of sizes) {
   const afterDock = (await orbState(page)).orb
   check(`${tag} M10 取消停靠后收起：头像在原锚点`, afterDock.x === anchorBefore.x && afterDock.y === anchorBefore.y, `${afterDock.x},${afterDock.y}`)
 
-  // ---- 键盘：Enter/Space 打开，Alt+方向键 16px 并保存 ----
+  // ---- Keyboard: Enter/Space open, Alt+arrows move 16px and save ----
   await page.locator('.sprite-orb').focus()
   const k0 = (await orbState(page)).orb
   await page.keyboard.press('Alt+ArrowRight'); await page.keyboard.press('Alt+ArrowUp'); await page.waitForTimeout(150)
@@ -495,7 +497,7 @@ for (const [w, h] of sizes) {
   await closeAll()
   await context.close()
 
-  // ---- 减弱动效：只淡 120ms，拖动照常 ----
+  // ---- Reduced motion: a 120ms fade only, dragging as usual ----
   const reduced = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1, reducedMotion: 'reduce' })
   await reduced.addInitScript(initScript, SKINS.clear)
   await reduced.addInitScript(seedLocale, LOCALE)
@@ -515,7 +517,7 @@ for (const [w, h] of sizes) {
   check(`${tag} 减弱动效页面无脚本错误`, !rerrors.length, rerrors.join('; '))
   await reduced.close()
 
-  // ---- 复核 R1：拖动以真实 pointercancel 结束后 Enter 照常打开；鼠标拖完紧随的 click 被吞、随后 Enter 照常打开 ----
+  // ---- Review R1: after a drag ends in a real pointercancel, Enter still opens; the click right after a mouse drag is swallowed, then Enter still opens ----
   const touch = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1, hasTouch: true })
   await touch.addInitScript(initScript, SKINS.clear)
   await touch.addInitScript(seedLocale, LOCALE)
@@ -540,7 +542,7 @@ for (const [w, h] of sizes) {
     await tpage.locator('.sprite-orb').focus(); await tpage.keyboard.press('Space')
     check(`${tag} R1 再按 Space 也照常打开`, await tpage.waitForSelector('.sprite-floating[data-phase="open"]', { timeout: 3000 }).then(() => true, () => false), '')
     await collapseSprite(tpage)
-    // 鼠标拖：紧随的 click 被吞（真实鼠标），随后 Enter 照常打开
+    // Mouse drag: the click right after is swallowed (real mouse), then Enter still opens
     await tpage.evaluate(() => { window.__ptr = []; const orb = document.querySelector('.sprite-orb'); for (const type of ['pointerup', 'click']) orb.addEventListener(type, e => window.__ptr.push(`${type}:${e.pointerType ?? ''}`)) })
     const drag = await dragOrb(tpage, Math.round(w * 0.6), Math.round(h * 0.5))
     const mouseEvents = await tpage.evaluate(() => window.__ptr)
@@ -552,7 +554,7 @@ for (const [w, h] of sizes) {
   check(`${tag} R1 页面无脚本错误`, !terrors.length, terrors.join('; '))
   await touch.close()
 
-  // ---- 录像：拖动、打开、收起（CDP screencast，实时） ----
+  // ---- Recording: drag, open, close (CDP screencast, real time) ----
   const rec = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 })
   await rec.addInitScript(initScript, SKINS.clear)
   await rec.addInitScript(seedLocale, LOCALE)
