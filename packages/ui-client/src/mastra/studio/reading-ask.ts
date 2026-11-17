@@ -1,7 +1,7 @@
 /**
  * [INPUT]: native messages (feed's messageRole/messageText), MODEL_TEXT's question format and its READING_PLACE line, the service error catalog
  * [OUTPUT]: askText / parseAsk (a reading question and back), asksOf (each question with the assistant reply that followed it), footprintRanges (where a paragraph shows
- *           the person's footprints), readingSignal (completed reading_write calls, the refresh signal), sendErrorText (a native send refusal in the UI language)
+ *           the person's footprints), readingSignal (completed reading_write calls, the refresh signal), answered (a request has an assistant message after it), sendErrorText (a native send refusal in the UI language)
  * [POS]: pure helpers behind the Reading view. Footprints are not stored anywhere: they are rebuilt from the conversation's own messages, so a reload or another device
  *        shows the same underlines and nothing new is persisted
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -110,6 +110,15 @@ export function readingSignal(messages: MastraDBMessage[]): string {
     if (!record(part.toolInvocation.result).error) done.push(part.toolInvocation.toolCallId)
   }
   return done.join(',')
+}
+
+/** The conversation holds this user message and an assistant message after it: with no run live, that run is over even if it was never seen running */
+export function answered(messages: MastraDBMessage[], request: string): boolean {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]!
+    if (messageRole(message) === 'user' && messageText(message) === request) return messages.slice(i + 1).some(next => messageRole(next) === 'assistant')
+  }
+  return false
 }
 
 /** A native send refused by the service (R1's 409 among others) carries Lumen's JSON body: show it in the UI language, as the composer's other errors are. */

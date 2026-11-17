@@ -3,28 +3,32 @@
  * [OUTPUT]: Materials: the right pane 「素材 / Materials」. The header holds the title, upload (paperclip, multiple files, disabled and lit while uploading) and collapse; one plain
  *           search field (filters as you type, Esc clears, says so when nothing matches); the list newest first. Each row: the kind outline (18, text colour), the title (one line,
  *           full name in title), the short link (one line, full URL in title; no row without a link), 「写解读 / Write a reading」 or 「打开解读 / Open reading」, and remove.
- *           Clicking a row opens the original in split view. shortLink: drops the scheme and trailing slashes; filterMaterials: title and link, case-insensitive, trimmed, CJK by substring
+ *           Clicking a row opens the original in split view. Once the list has loaded empty, the card cabinet stands above the empty line (decoration; upload stays in the header). shortLink: drops the scheme and trailing slashes; filterMaterials: title and link, case-insensitive, trimmed, CJK by substring
  * [POS]: the UI says 「素材」; docs and code keep "material". Materials enter only through a topic reference (R15) and the original stays in the library. No link adding here (the model
  *        fetches links in conversation), no deleting originals, only unreferencing from this topic. The reading action only asks the host: it shows the service's refusal (R1's 409)
  *        and sends nothing else
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AttachIcon, CloseIcon, FileTextIcon, FileTypeIcon, ICON_MD, ICON_SM, SearchIcon } from '../../components/icons'
 import { useT } from '../../i18n/index.ts'
 import type { LumenApi, TopicMaterial } from '../data/client.ts'
+import { IsoObject } from './objects/IsoObject'
+import { cabinetSvg } from './objects/cabinet.ts'
 import { PaneToggle } from './Panes'
 
 export function useMaterials(api: LumenApi, topicId: string | null, signal: string) {
   const [items, setItems] = useState<TopicMaterial[]>([]), [error, setError] = useState(''), [tick, setTick] = useState(0)
-  useEffect(() => { setItems([]); setError('') }, [api, topicId])
+  // Whether this topic's list has arrived once: an empty list before then is not "no materials", so the empty state does not flash while loading
+  const [loaded, setLoaded] = useState(false)
+  useEffect(() => { setItems([]); setError(''); setLoaded(false) }, [api, topicId])
   useEffect(() => {
     if (!topicId) return
     let active = true
-    void api.materials(topicId).then(result => { if (active) { setItems(result.items); setError('') } }).catch(error => { if (active) setError(error instanceof Error ? error.message : String(error)) })
+    void api.materials(topicId).then(result => { if (active) { setItems(result.items); setError(''); setLoaded(true) } }).catch(error => { if (active) setError(error instanceof Error ? error.message : String(error)) })
     return () => { active = false }
   }, [api, topicId, signal, tick])
-  return { items, error, refresh: () => setTick(value => value + 1) }
+  return { items, error, loaded, refresh: () => setTick(value => value + 1) }
 }
 
 /** Short link: drop the scheme and trailing slashes, keep path and query as they are (arxiv.org/abs/2611.14235, example.com/post/1) */
@@ -61,11 +65,23 @@ function Row({ item, active, read, readingBusy, onOpen, onReading, onRemove }: {
   </li>
 }
 
-export function Materials({ api, topicId, items, error: loadError, activeId, collapsed, onToggle, onOpen, onChanged, readings, readingBusy, onReading }: {
+/** Empty Materials: the card cabinet above the existing line; hover and click only, and it leaves when a material arrives */
+function EmptyMaterials() {
+  const { studio: S } = useT()
+  const markup = useMemo(() => cabinetSvg({ labels: S.objects.cabinet }), [S.objects.cabinet])
+  return <div className="materials-empty">
+    <IsoObject markup={markup} className="materials-cabinet" />
+    <p className="studio-note materials-none">{S.materials.none}</p>
+  </div>
+}
+
+export function Materials({ api, topicId, items, error: loadError, loaded, activeId, collapsed, onToggle, onOpen, onChanged, readings, readingBusy, onReading }: {
   api: LumenApi
   topicId: string
   items: TopicMaterial[]
   error: string
+  /** The topic's list has arrived once (useMaterials) */
+  loaded: boolean
   activeId: string | null
   collapsed: boolean
   onToggle: () => void
@@ -111,7 +127,7 @@ export function Materials({ api, topicId, items, error: loadError, activeId, col
           onKeyDown={event => { if (event.key === 'Escape' && query) { event.preventDefault(); setQuery('') } }} />
       </div>
       {(error || loadError) && <p className="mw-error studio-note" role="alert">{error || loadError}</p>}
-      {!items.length ? !loadError && <p className="studio-note materials-none">{S.materials.none}</p>
+      {!items.length ? !loadError && loaded && <EmptyMaterials />
         : !shown.length ? <p className="studio-note materials-none" role="status">{S.materials.noMatch}</p>
         : <ul className="materials-list" aria-label={S.materials.title}>{shown.map(item => <Row key={item.id} item={item} active={item.id === activeId} read={readings.includes(item.id)} readingBusy={readingBusy}
           onOpen={() => onOpen(item)} onReading={() => { setError(''); void onReading(item).then(failure => { if (failure) setError(failure) }) }} onRemove={() => void act(() => api.unreference(topicId, item.id))} />)}</ul>}

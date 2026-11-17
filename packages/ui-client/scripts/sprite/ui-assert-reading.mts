@@ -200,7 +200,7 @@ try {
     if (!dark) {
       await page.locator('.studio-topics .topic', { hasText: EMPTY }).click()
       await page.waitForSelector('.reading-empty')
-      check(`${tag} 空态一句话`, (await page.textContent('.reading-empty')).trim() === S.reading.empty)
+      check(`${tag} 空态一句话`, (await page.textContent('.reading-start [role=status]')).trim() === S.reading.start)
       await page.screenshot({ path: name('empty') })
     }
     await page.locator('.studio-topics .topic', { hasText: TOPIC }).click()

@@ -165,8 +165,11 @@ test('Reading view: write → live sections → chips → in-paragraph window �
     // ---- Reading is first and the default; with no reading, one line says what to do ----
     assert.equal($$('.studio-views [role=tab]')[0], tab('reading'))
     assert.equal(tab('reading').getAttribute('aria-selected'), 'true')
-    await until(() => $('.reading-empty')?.textContent === S.reading.empty, '空态一句话')
+    await until(() => $('.reading-start [role=status]')?.textContent === S.reading.start, '空态一句话')
     await until(() => $$('.material').length === 2, '素材没有列出')
+    // Two materials and none picked: the empty view's button waits for a pick and says where
+    assert.ok($<HTMLButtonElement>('.reading-start-write')!.disabled, '没选素材时写解读按钮不可用')
+    assert.equal($('.reading-start-hint')?.textContent, S.reading.pickFirst)
     assert.deepEqual($$('.material-reading').map(node => node.textContent), [S.reading.write, S.reading.write])
 
     // ---- S3: the row action sends one visible message and switches to Reading; S5: the first section shows while the second is still being written ----

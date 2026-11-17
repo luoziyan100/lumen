@@ -1,20 +1,24 @@
 /**
- * [INPUT]: components/Markdown for replies, useReading's state, the topic's questions (useTopicAsks), the pure helpers of reading-ask.ts, i18n `studio.reading`, the host's send/keep/open-source callbacks
+ * [INPUT]: components/Markdown for replies, objects/ (IsoObject, typewriterSvg/paperLines), useReading's state, the topic's questions (useTopicAsks), the pure helpers of reading-ask.ts, i18n `studio.reading`, the host's send/keep/open-source callbacks
  * [OUTPUT]: ReadingView: the centre 「解读 / Reading」 view — one centred serif column (≤700px) with numbered sections; a paper paragraph is followed by its quote in the paper's own words, ending in the source chip
  *           (「原文 p.N」 opens split reading at that page), an inference paragraph ends in a dashed chip; the quote line opens no window; the person's footprints (thin underlines on sentences asked about, inline spans with role="button" that wrap like text and open on click/Enter/Space);
  *           selecting text inside one paragraph opens AskWindow under the selection
  *           and kept clear of the sprite's figure (padding on the side it sits);
- *           AskWindow: the quote (two lines), the exchange so far (the person's words and the streamed reply, rendered by components/Markdown as Block.tsx does), a one-line growing input, send, and 「存为我的沉淀」 (only typed words)
+ *           with no reading, ReadingStart: the typewriter (title on the paper, typing while a requested reading has no section), 「选一篇资料，让 AI 写解读」 and 「写解读」 on the host's
+           start target (the row's own writeReading; disabled with a hint when no material is picked and there is not exactly one), refusals shown as the row shows them;
+           AskWindow: the quote (two lines), the exchange so far (the person's words and the streamed reply, rendered by components/Markdown as Block.tsx does), a one-line growing input, send, and 「存为我的沉淀」 (only typed words)
  * [POS]: the reading half of P1-2's first loop. It sends nothing itself: the host posts visible user messages through the conversation's own path, and replies come from the
  *        shared conversation subscription; nothing here is a second channel
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import { CloseIcon, SendIcon } from '../../components/icons'
 import { Markdown } from '../../components/Markdown'
 import { useT } from '../../i18n/index.ts'
-import type { Identity, ReadingParagraph, ReadingSection } from '../data/client.ts'
+import type { Identity, ReadingParagraph, ReadingSection, TopicMaterial } from '../data/client.ts'
+import { IsoObject } from './objects/IsoObject'
+import { paperLines, typewriterSvg } from './objects/typewriter.ts'
 import { footprintRanges, readingAsks, sectionLabel, squash, type Ask } from './reading-ask.ts'
 import type { ReadingState } from './useReading.ts'
 import type { SpriteBox } from './Sprite'
@@ -157,10 +161,39 @@ export function AskWindow({ target, asks, busy, onSend, onKeep, onClose, column 
   </section>
 }
 
-export function ReadingView({ state, requested, asks, busyFor, onSend, onKeep, onOpenSource, sprite }: {
+/** What the empty view's 「写解读」 acts on: the material, whether its conversation is busy, and the Materials row's own action */
+export interface ReadingStartProps {
+  /** The picked material, else the one open beside, else the only one; null leaves the button disabled with the hint */
+  item: TopicMaterial | null
+  /** The conversation a request would go to is running or waiting (the row's rule) */
+  busy: boolean
+  /** The same function the Materials row calls: switch to Reading and ask for a reading; resolves to the refusal text or null */
+  onWrite: (item: TopicMaterial) => Promise<string | null>
+}
+
+/** The empty Reading view: the typewriter with the material's title on its paper, one line and 「写解读」. It types while a requested reading has no section yet */
+function ReadingStart({ start, requested, error }: { start: ReadingStartProps; requested: boolean; error: string }) {
+  const S = useT().studio.reading
+  const [failure, setFailure] = useState('')
+  const { item, busy, onWrite } = start
+  useEffect(() => setFailure(''), [item?.id])
+  const markup = useMemo(() => typewriterSvg({ lines: paperLines(item?.title ?? '') }), [item?.title])
+  const reason = !item ? S.pickFirst : busy ? S.busy : ''
+  return <div className="studio-later reading-empty reading-start">
+    <IsoObject markup={markup} className="reading-typewriter" typing={requested} />
+    <p role="status">{requested ? S.waiting : S.start}</p>
+    {!requested && <Button variant="primary" className="reading-start-write" disabled={!!reason} title={reason || undefined}
+      onClick={() => { if (!item) return; setFailure(''); void onWrite(item).then(text => { if (text) setFailure(text) }) }}>{S.write}</Button>}
+    {!requested && !item && <p className="reading-start-hint">{S.pickFirst}</p>}
+    {(failure || error) && <p className="mw-error" role="alert">{failure || error}</p>}
+  </div>
+}
+
+export function ReadingView({ state, requested, start, asks, busyFor, onSend, onKeep, onOpenSource, sprite }: {
   state: ReadingState
   /** A write was asked for the shown material and no section has landed yet */
   requested: boolean
+  start: ReadingStartProps
   asks: Ask[]
   /** Whether the conversation a message would go to is running or waiting (null = the open one, or a new one) */
   busyFor: (identity: Identity | null) => boolean
@@ -219,7 +252,7 @@ export function ReadingView({ state, requested, asks, busyFor, onSend, onKeep, o
     setTarget({ quote, section: sectionLabel(section), paragraphId, box: boxOf(element.getBoundingClientRect()), identity: last?.identity ?? null })
   }
 
-  if (!reading) return <div className="studio-later reading-empty" role="status"><p>{requested ? S.waiting : S.empty}</p>{state.error && <p className="mw-error" role="alert">{state.error}</p>}</div>
+  if (!reading) return <ReadingStart start={start} requested={requested} error={state.error} />
   const exchange = target ? mine.filter(ask => ask.quote === target.quote) : []
   const conversation = target ? exchange.at(-1)?.identity ?? target.identity : null
   return <div ref={setScroller} className="reading-scroll" style={{ paddingInlineStart: pad.start, paddingInlineEnd: pad.end }}>

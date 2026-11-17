@@ -1,15 +1,22 @@
 /**
  * [INPUT]: LumenApi's sediment endpoints (entries/offers/invites), the external refresh signal, the board view (revs when linking evidence and conflict recovery)
- * [OUTPUT]: useSediment: loads entries (newest first) and pending offers; create/confirm/dismiss/edit/remove actions and their errors (an older service without the routes marks
+ * [OUTPUT]: newestTakeaway (the topic's most recently written entry, for the sidebar box's front card); useSediment: loads entries (newest first) and pending offers; create/confirm/dismiss/edit/remove actions and their errors (an older service without the routes marks
  *           unsupported and the view shows the clean line); the revConflict flag lets the composer keep the typed line and reload the board (S10)
  * [POS]: the UI's single sediment data source; writes go only through user HTTP (R13), and an offer's fragments restore one by one before the confirm (S9)
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { useCallback, useEffect, useState } from 'react'
 import type { LumenApi, SedimentEntry, SedimentOffer } from '../data/client.ts'
 import { t } from '../../i18n/index.ts'
 
 export type SedimentFailure = { code: string; message: string } | null
+
+/** The topic's most recently written takeaway (by createdAt; an edit does not make an entry newer); entries of another topic never count */
+export function newestTakeaway(items: SedimentEntry[], topicId: string | null): SedimentEntry | null {
+  let newest: SedimentEntry | null = null
+  for (const item of items) if (item.topicId === topicId && (!newest || item.createdAt > newest.createdAt || (item.createdAt === newest.createdAt && item.id > newest.id))) newest = item
+  return newest
+}
 
 export interface SedimentState {
   items: SedimentEntry[]

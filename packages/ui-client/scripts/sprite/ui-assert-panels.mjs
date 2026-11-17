@@ -63,7 +63,7 @@ async function measure(page) {
     const orbHitsRight = orb && right ? hit(r(orb), r(right)) : false
     const orbInBoard = orb && viewport ? (() => { const a = r(orb), b = r(viewport); return a.left >= b.left && a.right <= b.right && a.top >= b.top && a.bottom <= b.bottom })() : false
     const zoom = document.querySelector('.board-zoom'), orbOverZoom = orb && zoom ? hit(r(orb), r(zoom)) : false
-    const fonts = new Set([...document.querySelectorAll('.studio *')].filter(el => r(el).width > 0 && [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) && !el.closest('.md-body, .studio-reader .mw-reader, .sprite, .mermaid-svg, .katex, .ws-tag')).map(el => getComputedStyle(el).fontSize))
+    const fonts = new Set([...document.querySelectorAll('.studio *')].filter(el => r(el).width > 0 && [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) && !el.closest('.md-body, .studio-reader .mw-reader, .sprite, .mermaid-svg, .katex, .ws-tag, .iso-host')).map(el => getComputedStyle(el).fontSize))
     const label = document.querySelector('.board-frame-label'), sheets = document.querySelector('.board-sheets')
     const labelClipped = label && viewport ? r(label).right > r(viewport).right + 0.5 || r(label).left < r(viewport).left : false
     const labelHitsSheets = label && sheets ? hit(r(label), r(sheets)) : false

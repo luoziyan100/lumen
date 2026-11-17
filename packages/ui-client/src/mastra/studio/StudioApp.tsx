@@ -1,10 +1,12 @@
 /**
- * [INPUT]: the service connection, topic/session/board/material/reading data hooks, the one conversation feed (useSessionFeed, read through useFeedSelect), the sprite and reader, settings (specialists pane included), the appearance subscription
+ * [INPUT]: the service connection, topic/session/board/material/reading data hooks, the one conversation feed (useSessionFeed, read through useFeedSelect), the sprite and reader, settings (specialists pane included), the appearance subscription, the newest takeaway (useSediment.newestTakeaway)
  * [OUTPUT]: StudioApp: the new shell — the prototype v7 skeleton: rounded panels with 8px gaps over the canvas (topics left, center, materials right, docked sprite), every panel's
  *           first row on one 50px header line; the center header holds only the centered view navigation (icon + text, icons alone when narrow; the topic name goes to aria-label and
  *           the window title), and in split view the reader header shares the board header's line; the sprite positions itself on the whole window (no longer inside the board area);
  *           both side panes collapse to width 0 (reopen buttons at the center header's ends, ⌘B / ⌘⌥B); the reader has three states: closed / split (draggable divider) / full center
- *           (the board hides but stays mounted with its camera; Esc restores); the Reading view (first in the navigation, the default) with its material action and selection window
+ *           (the board hides but stays mounted with its camera; Esc restores); the Reading view (first in the navigation, the default) with its material action and selection window;
+ *           the empty Reading view's start target (the picked material, else the one open beside, else the only one) and the request's end (first section, run end, or an idle
+ *           conversation that already answered: a short run can end unseen)
  * [POS]: the desktop's only workbench (it replaced the S2 transitional entry). It owns the topic's single conversation feed and lends it to the sprite, which reads the full view;
  *        the shell selects only the values it shows, so streamed text never re-renders the workbench. The sprite and the Reading view
  *        both post visible user messages on the native path (`say`), never a hidden prompt. Board and reading refresh ride only on the conversation's tool completion signals plus
@@ -26,13 +28,13 @@ import { Settings } from '../views/Settings'
 import { Board } from './Board'
 import { Materials, useMaterials } from './Materials'
 import { ReadingView, type AskTarget } from './Reading'
-import { askText, asksOf, readingSignal, sameAsks, sendErrorText } from './reading-ask'
+import { answered, askText, asksOf, readingSignal, sameAsks, sendErrorText } from './reading-ask'
 import { useReading, useTopicAsks } from './useReading'
 import { Sprite, useSessions, type SpriteBox } from './Sprite'
 import { Takeaways } from './Takeaways'
 import { TopicPanel, useTopics } from './TopicPanel'
 import { useBoard } from './useBoard'
-import { useSediment } from './useSediment'
+import { newestTakeaway, useSediment } from './useSediment'
 import { PaneToggle, Splitter, usePanes, type Side } from './Panes'
 import { VIEW_AVAILABLE, ViewNav, type View } from './ViewNav'
 import '../views/workbench.css'
@@ -72,9 +74,13 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const readings = useReading(api, topic?.id ?? null, readingItem, `${written}|${revision}`, live)
   const asks = useTopicAsks(api, topic?.id ?? null, sessions, identity, liveAsks)
   const running = live || isRunning
-  // A requested reading stops showing "waiting" once the topic's run ends, whether or not a section landed
-  const wasRunning = useRef(false)
+  // A requested reading stops showing "waiting" once the topic's run ends, whether or not a section landed. A short run can end before this view
+  // ever sees it running (the topic's flag lags the send), so an idle conversation that already answered the request also ends it
+  const wasRunning = useRef(false), requestText = useRef('')
   useEffect(() => { if (wasRunning.current && !running) setRequested(null); wasRunning.current = running }, [running])
+  // Selected per frame like the shell's other conversation values; it reads the request text from a ref, which only changes together with a send (a new view follows)
+  const replied = useFeedSelect(feed, view => !!requestText.current && answered(view.messages, requestText.current))
+  useEffect(() => { if (requested && !running && replied) setRequested(null) }, [requested, running, replied])
   // ---- S9c: the selected sheet's invite (the question and pre-linked blocks above the full-board row) ----
   const [invite, setInvite] = useState<SedimentInvite | null>(null)
   useEffect(() => {
@@ -164,10 +170,13 @@ export function StudioApp({ connection }: { connection: Connection }) {
   async function writeReading(item: TopicMaterial): Promise<string | null> {
     setReadingItem(item.id); setView('reading')
     if (readings.items.some(reading => reading.itemId === item.id)) return null
-    const failure = await say(null, MODEL_TEXT.writeReading(item.title, item.id))
-    if (!failure) setRequested(item.id)
+    const text = MODEL_TEXT.writeReading(item.title, item.id), failure = await say(null, text)
+    if (!failure) { requestText.current = text; setRequested(item.id) }
     return failure
   }
+  // ---- The empty Reading view's 「写解读」 acts on the picked material, else the one open beside, else the only one; it calls the row's own writeReading ----
+  const opened = reading?.target.scope === 'library' ? reading.target.path : null
+  const startItem = materials.items.find(item => item.id === (readingItem ?? opened)) ?? (materials.items.length === 1 ? materials.items[0]! : null)
   const askReading = (target: AskTarget, words: string) => say(target.identity, askText(target.quote, target.section, readings.reading?.itemTitle ?? '', words))
   // The window keeps only the person's own words, through the takeaways' own route (R13); the quote never goes in
   async function keepWords(text: string): Promise<string | null> {
@@ -179,7 +188,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const split = topic && reading
 
   return <ExternalLinkGate><main className={`app studio${docked ? ' studio-docked' : ''}${topic ? '' : ' studio-no-topic'}${panes.left ? ' studio-left-collapsed' : ''}${panes.right ? ' studio-right-collapsed' : ''}`}>
-    <TopicPanel api={api} topics={topics} error={topicsError} selected={topic?.id ?? null} collapsed={panes.left} onToggle={() => flip('left')} onSelect={setTopicId}
+    <TopicPanel api={api} topics={topics} error={topicsError} selected={topic?.id ?? null} takeaway={newestTakeaway(sediment.items, topic?.id ?? null)} collapsed={panes.left} onToggle={() => flip('left')} onSelect={setTopicId}
       onCreated={next => { created.current = next.id; setTopicId(next.id); activity() }} onSettings={() => setSettingsOpen(true)} />
     <section ref={setCenter} className={`studio-panel studio-center${split ? full ? ' studio-full' : ' studio-split' : ''}`} aria-label={topic?.title}
       style={{ '--split-ratio': panes.ratio } as CSSProperties}>
@@ -192,6 +201,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
         <div className="studio-stage">
           {!topic ? <div className="studio-later studio-pick"><p>{S.pickTopic}</p></div>
             : view === 'reading' ? <ReadingView state={readings} requested={!!requested && requested === readings.itemId} asks={asks} busyFor={busyFor}
+              start={{ item: startItem, busy: busyFor(null), onWrite: writeReading }}
               onSend={askReading} onKeep={keepWords} onOpenSource={openSource} sprite={figure} />
             : view === 'board' ? <Board board={board} materials={materials.items} drawing={signal.drawing} focus={focus} onOpenSource={openSource} sediment={sediment} invite={invite} />
             : view === 'settled' ? <Takeaways sediment={sediment} onJump={(blockId, sheetId) => { setView('board'); board.select(sheetId); setFocus({ blockId, nonce: Date.now() }) }} />
@@ -203,7 +213,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
         onNavigate={target => setReading({ target })} full={full} onToggleFull={() => setFull(value => !value)} leading={full && reopenLeft} trailing={reopenRight} />}
     </section>
     {topic && <Materials api={api} topicId={topic.id} items={materials.items} error={materials.error} activeId={reading?.target.scope === 'library' ? reading.target.path : null}
-      collapsed={panes.right} onToggle={() => flip('right')}
+      loaded={materials.loaded} collapsed={panes.right} onToggle={() => flip('right')}
       onOpen={item => openMaterial(item)} onChanged={materials.refresh}
       readings={readings.items.map(reading => reading.itemId)} readingBusy={busyFor(null)} onReading={writeReading} />}
     {topic && <Sprite api={api} topic={topic} identity={identity} feed={feed} sessions={sessions} onIdentity={setIdentity} onActivity={activity}

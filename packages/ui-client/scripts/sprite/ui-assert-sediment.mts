@@ -24,7 +24,9 @@ const seedLocale = locale => localStorage.setItem('lumen:locale.v1', JSON.string
 const seedDark = () => localStorage.setItem('lumen:appearance.v2', JSON.stringify({ version: 1, mode: 'dark', skinId: 'yan-clear', overlay: 0, blurPx: 0, latinFont: 'source-serif', cjkFont: 'wenkai', justify: false }))
 const exe = process.env.HOME + '/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
 const port = process.env.PORT ?? '5190'
-const root = '/tmp/lumen-p1-sediment-data'
+// LUMEN_ASSERT_ROOT keeps parallel worktrees apart: the root is wiped at start, so two runs (or a --hold) on one root destroy each other's data
+const root = process.env.LUMEN_ASSERT_ROOT ?? '/tmp/lumen-p1-sediment-data'
+if (!root.startsWith('/tmp/lumen-')) throw new Error('isolated root under /tmp/lumen-* required')
 const sizes = [[1440, 900], [1280, 800]]
 const results = []
 let failed = 0

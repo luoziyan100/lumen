@@ -59,13 +59,13 @@ export const en = {
     reading: {
       write: 'Write a reading', open: 'Open reading',
       busy: 'The AI is still running in this conversation or waiting for you. Wait for it to finish, or stop it, then write a reading.',
-      empty: 'Pick a material on the right and choose “Write a reading”. The AI writes it here, section by section.',
       waiting: 'The first section appears here as soon as it is written.', more: 'The next section appears below as soon as it is written.',
       byline: (title: string) => `The AI's reading of “${title}”`,
       note: "Every paragraph names its source; dashed ones are the AI's own inference. Select a sentence to ask about it.",
       page: (page: number) => `Paper p.${page}`, paper: 'Paper', inference: "AI's inference",
       openSource: 'Open the paper alongside',
       footprint: 'You asked about this sentence. Open the exchange',
+      start: 'Pick a material and let the AI write a reading', pickFirst: 'Pick a material in Materials first',
       ask: {
         label: 'Ask the AI about this sentence', placeholder: 'Ask about this sentence (Enter sends)', send: 'Send', close: 'Close',
         keep: 'Keep as my takeaway', kept: 'Kept as your takeaway', keepFailed: "Couldn't keep it: ", keepEmpty: 'Write your own words first, then keep them.',
@@ -100,6 +100,14 @@ export const en = {
       title: 'Materials', none: 'No materials yet. Upload a file, or send a link to the AI in the conversation.',
       search: 'Search materials', noMatch: 'No matching materials', upload: 'Upload file', uploading: 'Uploading…', remove: 'Remove from topic',
       close: 'Close', loading: 'Opening…', unsupported: "This format can't be previewed here yet.",
+    },
+    // Words drawn on the decorative objects (studio/objects): part of the drawing, sized to fit their plates and tabs
+    objects: {
+      box: { plaque: 'KEPT', lid: 'Only your own words', lidSub: 'Lumen · Takeaways', tabs: ['Nov', 'Attention'], stamp: (date: string) => `My own words · ${date}` },
+      cabinet: {
+        drawers: [['Ideas', 'Why'], ['Focus', 'Quote'], ['Guess', 'Misc']], tabs: ['Q · K', 'Attn'],
+        stamp: 'My own words · 11-17', card: ['A lookup:', 'the asker picks.'],
+      },
     },
     panes: {
       left: { collapse: 'Collapse topics', expand: 'Expand topics' },

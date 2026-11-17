@@ -1,6 +1,6 @@
 /**
  * [INPUT]: LumenApi's reading list and ETag reading read, each conversation's stored history (read only, no subscription), the open conversation's live questions (selected from the shared subscription by the shell), the refresh signal and the running state
- * [OUTPUT]: useReading: the topic's reading list, the reading shown (the picked material, else the newest reading), whether a write was asked for, errors and refresh;
+ * [OUTPUT]: useReading: the topic's reading list (keyed by its topic), the reading shown (the picked material, else the newest reading; fetched only once the list has it), whether a write was asked for, errors and refresh;
  *           useTopicAsks: every question asked from a reading in this topic, rebuilt from conversation messages (the open conversation live, the others from their stored history)
  * [POS]: the Reading view's data. Refresh rides the conversation's reading_write completions plus a 5-second list/ETag fallback only while the topic runs — the board's rule, no new protocol
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -20,15 +20,17 @@ export interface ReadingState {
 }
 
 export function useReading(api: LumenApi, topicId: string | null, picked: string | null, signal: string, live: boolean): ReadingState {
-  const [items, setItems] = useState<ReadingSummary[]>([]), [reading, setReading] = useState<Reading | null>(null)
+  // The list remembers which topic it was read for: right after a topic switch the old list must not pick the new topic's reading (a 404 per switch)
+  const [list, setList] = useState<{ topicId: string | null; items: ReadingSummary[] }>({ topicId: null, items: [] }), [reading, setReading] = useState<Reading | null>(null)
   const [error, setError] = useState(''), [tick, setTick] = useState(0)
   const etag = useRef<{ item: string; etag: string | null } | null>(null)
-  useEffect(() => { setItems([]); setReading(null); setError(''); etag.current = null }, [api, topicId])
+  const items = list.topicId === topicId ? list.items : []
+  useEffect(() => { setReading(null); setError(''); etag.current = null }, [api, topicId])
 
   useEffect(() => {
     if (!topicId) return
     let active = true
-    const load = () => void api.readings(topicId).then(result => { if (active) { setItems(result); setError('') } })
+    const load = () => void api.readings(topicId).then(result => { if (active) { setList({ topicId, items: result }); setError('') } })
       .catch(error => { if (active) setError(error instanceof Error ? error.message : String(error)) })
     load()
     const timer = live ? window.setInterval(load, 5000) : undefined
@@ -37,9 +39,10 @@ export function useReading(api: LumenApi, topicId: string | null, picked: string
 
   const itemId = picked ?? items[0]?.itemId ?? null
   // Refetch the shown reading when the list says it changed (a new section lands as a new updatedAt)
+  // A material missing from the list has no reading yet: asking for it is a 404 per request, and the list's next refresh brings the stamp that fetches it
   const stamp = items.find(item => item.itemId === itemId)?.updatedAt ?? ''
   useEffect(() => {
-    if (!topicId || !itemId) { setReading(null); return }
+    if (!topicId || !itemId || !stamp) { setReading(null); return }
     let active = true
     const previous = etag.current?.item === itemId ? etag.current.etag : null
     void api.readingVersion(topicId, itemId, previous).then(result => {

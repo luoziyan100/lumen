@@ -2,9 +2,9 @@
  * [INPUT]: useBoard's sheets and views, topic materials, the sprite's drawing/focus signals, layout.ts's width-based flow
  * [OUTPUT]: Board: the canvas — the top-left overlay (sheet tabs when several: board glyph + number, full title in title/aria-label, folded dimmed, a dot on the run's target while the AI draws, horizontal scroll instead of wrapping; each sheet carries a 「⋯」 menu (hover/focus, always on the selected one, next to ＋ for a lone sheet) to delete it, blocks ask first, the run's target is protected; ＋ opens and selects; no used-count on display — the cap and R11 stay server-side, and a full sheet's frame label says so honestly),
  *           the canvas starts below the overlay (BOARD.TOP ≥ overlay top 12 + height 30 + 12, so first-screen block titles never sit under it), DOM + CSS transform pan/zoom (100% by default, shrink to see it all),
- *           1–3 display columns by viewport width, a frame hugging the content, the AI-drawing notice, widget concurrency slots, the bottom-right zoom bar, and the sediment row under the canvas (S9)
+ *           1–3 display columns by viewport width, a frame hugging the content, the easel under the no-sheet line (decoration; a click on it opens it and never pans), the AI-drawing notice, widget concurrency slots, the bottom-right zoom bar, and the sediment row under the canvas (S9)
  * [POS]: the center Board view; read-only for the user since P0 (no circling, pinning or editing). Whichever sheet you watch is where the next message writes (R16); a folded one says the AI will not write there. A card pointing into a deleted sheet only says so and never jumps elsewhere (R17). Columns and positions reflow in the display layer only; server coordinates stay
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
@@ -14,10 +14,15 @@ import { BoardViewIcon, MinusIcon, MoreIcon, PlusIcon, ExpandIcon, SettledViewIc
 import { useT } from '../../i18n/index.ts'
 import type { Sheet, SedimentInvite, TopicMaterial } from '../data/client.ts'
 import { BlockCard } from './Block'
+import { IsoObject } from './objects/IsoObject'
+import { easelSvg } from './objects/easel.ts'
 import { BOARD, flowLayout } from './layout'
 import { OfferRow, TakeawayComposer } from './Takeaways'
 import type { BoardState } from './useBoard'
 import type { SedimentState } from './useSediment'
+
+// The easel carries no data, so its markup is built once
+const EASEL = easelSvg()
 
 const MAX_WIDGETS = 2
 const HOME = { x: BOARD.INSET + BOARD.PAD, y: BOARD.TOP + BOARD.PAD, scale: 1 }
@@ -177,7 +182,7 @@ export function Board({ board, materials, drawing, focus, onOpenSource, sediment
     else setCamera(camera => ({ ...camera, x: camera.x - event.deltaX, y: camera.y - event.deltaY }))
   }
   function onPointerDown(event: ReactPointerEvent) {
-    if ((event.target as Element).closest('[data-block], button, a, iframe, input')) return
+    if ((event.target as Element).closest('[data-block], button, a, iframe, input, .iso-host')) return
     drag.current = { x: event.clientX, y: event.clientY, cx: camera.x, cy: camera.y }
     ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
   }
@@ -198,6 +203,7 @@ export function Board({ board, materials, drawing, focus, onOpenSource, sediment
       </div>
       {view && !blocks.length && <p className="board-empty">{S.board.empty}</p>}
       {!view && !board.sheets.length && !board.error && <p className="board-empty">{S.board.noLive}</p>}
+      {!view && !board.sheets.length && !board.error && <IsoObject markup={EASEL} className="board-easel" />}
       {view && view.sheet.state !== 'live' && <p className="board-empty board-hint">{S.board.foldedHint}</p>}
       {drawing && <div className="board-drawing" role="status"><span className="board-drawing-dot" />{drawing === 'new' ? S.board.drawing : S.board.updating}</div>}
       {notice && <div className="board-drawing board-notice" role="status">{S.board.blockGone}</div>}

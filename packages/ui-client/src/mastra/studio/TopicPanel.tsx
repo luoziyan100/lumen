@@ -1,14 +1,19 @@
 /**
- * [INPUT]: LumenApi 的主题目录（含运行/等你投影）、外部刷新信号
- * [OUTPUT]: useTopics：主题列表与 3 秒轮询（状态灯要跟上后台运行）；TopicPanel：左栏面板——头部「主题 ＋ 收起」（点＋在列表顶出输入框，回车建、Esc 取消；收起后宽 0、inert）、状态灯、底部只有设置（专家在设置里）
- * [POS]: 新外壳的左栏；主题是唯一的入口，对话在精灵里切换
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [INPUT]: LumenApi's topic directory (with the running/waiting projection), the external refresh signal; the current topic's newest takeaway; the box object and IsoObject
+ * [OUTPUT]: useTopics: the topic list and its 3s poll (status lights must follow background runs); TopicPanel: the left pane — header 「主题 ＋ 收起」 (＋ opens an input at the list's
+ *           top, Enter creates, Esc cancels; collapsed means width 0 and inert), status lights, only Settings at the bottom (specialists live inside settings); TakeawayBox: the 沉淀盒
+ *           in the free space under the list, its front card the topic's newest takeaway in the person's own words
+ * [POS]: the new shell's left pane; topics are the only entry, conversations switch inside the sprite. The box is absolutely placed, so showing or hiding it never moves the list;
+ *        it shows only while the free height holds it with 16px of air above and below (a ResizeObserver on the scroller and the list's content)
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState, type FormEvent } from 'react'
 import { GearIcon, PlusIcon } from '../../components/icons'
 import { useT } from '../../i18n/index.ts'
 import { PaneToggle } from './Panes'
-import type { LumenApi, Topic } from '../data/client.ts'
+import type { LumenApi, SedimentEntry, Topic } from '../data/client.ts'
+import { IsoObject } from './objects/IsoObject'
+import { boxSvg, boxWords } from './objects/box.ts'
 
 export function useTopics(api: LumenApi, signal: number) {
   const [topics, setTopics] = useState<Topic[] | null>(null), [error, setError] = useState('')
@@ -35,11 +40,38 @@ export function Light({ topic }: { topic: Pick<Topic, 'running' | 'waiting'> }) 
   return null
 }
 
-export function TopicPanel({ api, topics, error, selected, collapsed, onToggle, onSelect, onCreated, onSettings }: {
+// The box at 200px wide over its 320×300 viewBox, and the air it needs above and below
+const BOX_W = 200, BOX_H = BOX_W * 300 / 320, AIR = 16
+
+/** The takeaway date as the card's stamp, MM-DD in local time */
+const stampDate = (iso: string) => { const d = new Date(iso); return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+
+function TakeawayBox({ scroll, content, takeaway }: { scroll: HTMLElement | null; content: HTMLElement | null; takeaway: SedimentEntry | null }) {
+  const { studio: S } = useT()
+  const [fits, setFits] = useState(false)
+  useLayoutEffect(() => {
+    if (!scroll || !content) return
+    const measure = () => {
+      const pad = parseFloat(getComputedStyle(scroll).paddingTop) || 0
+      setFits(scroll.clientHeight - pad - content.offsetHeight >= BOX_H + 2 * AIR)
+    }
+    measure()
+    const resize = new ResizeObserver(measure)
+    resize.observe(scroll); resize.observe(content)
+    return () => resize.disconnect()
+  }, [scroll, content])
+  const text = takeaway?.text ?? '', stamp = takeaway ? S.objects.box.stamp(stampDate(takeaway.createdAt)) : ''
+  const markup = useMemo(() => boxSvg({ labels: S.objects.box, words: boxWords(text, stamp) }), [S.objects.box, text, stamp])
+  return fits ? <IsoObject markup={markup} className="topics-box" /> : null
+}
+
+export function TopicPanel({ api, topics, error, selected, takeaway, collapsed, onToggle, onSelect, onCreated, onSettings }: {
   api: LumenApi
   topics: Topic[] | null
   error: string
   selected: string | null
+  /** The selected topic's newest takeaway, shown on the box's front card */
+  takeaway: SedimentEntry | null
   collapsed: boolean
   onToggle: () => void
   onSelect: (topicId: string) => void
@@ -48,6 +80,7 @@ export function TopicPanel({ api, topics, error, selected, collapsed, onToggle, 
 }) {
   const { studio: S, common: C } = useT()
   const [adding, setAdding] = useState(false), [title, setTitle] = useState(''), [busy, setBusy] = useState(false), [createError, setCreateError] = useState('')
+  const [scroll, setScroll] = useState<HTMLDivElement | null>(null), [content, setContent] = useState<HTMLDivElement | null>(null)
   function close() { setAdding(false); setTitle(''); setCreateError('') }
   async function create(event: FormEvent) {
     event.preventDefault()
@@ -62,7 +95,7 @@ export function TopicPanel({ api, topics, error, selected, collapsed, onToggle, 
       <button type="button" className="icon-btn" aria-label={S.newTopic} title={S.newTopic} aria-expanded={adding} onClick={() => adding ? close() : setAdding(true)}><PlusIcon /></button>
       <PaneToggle side="left" open onToggle={onToggle} />
     </header>
-    <div className="studio-scroll">
+    <div className="topics-body"><div ref={setScroll} className="studio-scroll"><div ref={setContent} className="topics-content">
       {adding && <form className="topics-new" onSubmit={event => void create(event)}>
         <input className="studio-field" autoFocus aria-label={S.newTopic} placeholder={S.newTopicPlaceholder} title={S.cancel} value={title} disabled={busy}
           onChange={event => setTitle(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') close() }} />
@@ -74,7 +107,7 @@ export function TopicPanel({ api, topics, error, selected, collapsed, onToggle, 
           <span className="topic-title">{topic.title}</span><Light topic={topic} />
         </button>
       </li>)}</ul>
-    </div>
+    </div></div><TakeawayBox scroll={scroll} content={content} takeaway={takeaway} /></div>
     <footer className="studio-foot">
       <button type="button" className="studio-item" onClick={onSettings}><GearIcon size={16} /><span>{S.settings}</span></button>
     </footer>

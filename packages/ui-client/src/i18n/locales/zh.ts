@@ -55,13 +55,13 @@ export const zh: Messages = {
     reading: {
       write: '写解读', open: '打开解读',
       busy: 'AI 还在这段对话里运行或在等你回应——等它结束或停下，再写解读。',
-      empty: '在右边的素材里选一份，点「写解读」，AI 会一节一节地写在这里。',
       waiting: '第一节写好就会出现在这里。', more: '下一节写好就接在后面。',
       byline: (title: string) => `AI 对《${title}》的解读`,
       note: '每段都标了出处；虚线的是 AI 自己的推断。划选一句话，可以直接问。',
       page: (page: number) => `原文 p.${page}`, paper: '原文', inference: 'AI 推断',
       openSource: '在旁边打开原文',
       footprint: '你问过这一句，点开看问答',
+      start: '选一篇资料，让 AI 写解读', pickFirst: '先在素材里选一篇',
       ask: {
         label: '就这一句问 AI', placeholder: '问这一句（回车发送）', send: '发送', close: '关闭',
         keep: '存为我的沉淀', kept: '已存为你的沉淀', keepFailed: '没能存下：', keepEmpty: '先写下你自己的话，再存为沉淀。',
@@ -96,6 +96,13 @@ export const zh: Messages = {
       title: '素材', none: '还没有素材。上传文件，或把链接发给对话里的 AI。',
       search: '搜索素材', noMatch: '没有匹配的素材', upload: '上传文件', uploading: '正在上传…', remove: '不再引用',
       close: '关闭', loading: '正在打开…', unsupported: '这种格式还不能在这里预览。',
+    },
+    objects: {
+      box: { plaque: '沉 淀', lid: '只放你自己的话', lidSub: 'Lumen · 沉淀盒', tabs: ['11 月', '注意力'], stamp: date => `我自己的话 · ${date}` },
+      cabinet: {
+        drawers: [['概念', '疑问'], ['注意力', '摘句'], ['预测', '杂记']], tabs: ['Q · K', '自注意力'],
+        stamp: '我自己的话 · 11-17', card: ['注意力是一次查表，', '问的人决定看哪里。'],
+      },
     },
     panes: {
       left: { collapse: '收起主题栏', expand: '展开主题栏' },
