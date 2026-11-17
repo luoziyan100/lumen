@@ -1,5 +1,5 @@
 /**
- * [INPUT]: LumenApi's reading list and ETag reading read, each conversation's stored history (read only, no subscription), the shared session's live messages, the refresh signal and the running state
+ * [INPUT]: LumenApi's reading list and ETag reading read, each conversation's stored history (read only, no subscription), the open conversation's live questions (selected from the shared subscription by the shell), the refresh signal and the running state
  * [OUTPUT]: useReading: the topic's reading list, the reading shown (the picked material, else the newest reading), whether a write was asked for, errors and refresh;
  *           useTopicAsks: every question asked from a reading in this topic, rebuilt from conversation messages (the open conversation live, the others from their stored history)
  * [POS]: the Reading view's data. Refresh rides the conversation's reading_write completions plus a 5-second list/ETag fallback only while the topic runs — the board's rule, no new protocol
@@ -56,7 +56,7 @@ export function useReading(api: LumenApi, topicId: string | null, picked: string
 }
 
 /** Questions from every conversation of the topic. Closed conversations are read once per change of their last message; the open one comes live from the shared subscription. */
-export function useTopicAsks(api: LumenApi, topicId: string | null, sessions: SessionInfo[], open: Identity | null, live: MastraDBMessage[]): Ask[] {
+export function useTopicAsks(api: LumenApi, topicId: string | null, sessions: SessionInfo[], open: Identity | null, live: Ask[]): Ask[] {
   const [stored, setStored] = useState<Ask[]>([])
   const others = sessions.filter(session => session.topicId === topicId && session.taskId !== open?.taskId)
   const key = others.map(session => `${session.taskId}:${session.lastMessageId ?? ''}`).join('|')
@@ -75,5 +75,5 @@ export function useTopicAsks(api: LumenApi, topicId: string | null, sessions: Se
     })).then(all => { if (active) setStored(all.flat()) }).catch(() => { /* footprints are a convenience; the reading stays readable without them */ })
     return () => { active = false }
   }, [api, topicId, key])
-  return useMemo(() => [...stored, ...(open ? asksOf(live, open) : [])].sort((a, b) => a.createdAt - b.createdAt), [stored, open?.topicId, open?.taskId, live])
+  return useMemo(() => [...stored, ...live].sort((a, b) => a.createdAt - b.createdAt), [stored, live])
 }

@@ -5,7 +5,7 @@
 
 - `types.ts`：标注输入、脱敏 trace 视图、隔离评估与诊断覆盖合同；原始 HTTP、完整副作用和位级回放明确不在覆盖范围。
 - `redact.ts`：有界递归脱敏；键名、URL、Bearer、已知凭证和裸编码二进制在采集及导出使用同一规则。
-- `telemetry.ts`：原生可热关采集与本地存储导出；输入/输出分别记录裁剪状态，避免大工具定义误伤完整输入；官方总线只注册 trace handler，处理器失败丢弃 span。
+- `telemetry.ts`：原生可热关采集与本地存储导出；输入/输出分别记录裁剪状态，避免大工具定义误伤完整输入；官方总线只注册 trace handler，处理器失败丢弃 span。processor_run 与 workspace:mount:* span 只留名称、时间和属性（`payloadOmitted`）：它们每步各带一遍整段上下文，原样存储时一次解读写入约 100MB，评估只读 model_generation 与 tool_call。
 - `notes.ts`：SQLite 用户评语和最近评估；所有读写以 resourceId 限定，编辑清除旧结果，晚到评估按版本拒绝回填。
 - `export.ts`：有限 JSON 诊断包及只读离线检查；校验完整性，不调用模型、工具、进程或网络。
 - `service.ts`：可信会话授权、trace 归属核对、标注、隔离评估与导出；独立子资源跨度明确省略；读取按当前凭证再次脱敏，关闭取消并排空评估。

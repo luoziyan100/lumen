@@ -10,6 +10,6 @@
 - `motion.ts`：桌面出入关键帧与时长；只改变 transform/opacity，减弱动效只淡入淡出。
 - `desktop.css`：透明宿主、原生拖动命中区与桌面隐藏时的绘制暂停；形象样式随上级 SpriteFigure。
 
-依赖方向：Sprite/useSession → bridge → 原生缓存 → App → ../SpriteFigure。窗口生命周期、位置与显示器夹取都归 Rust；此目录不拥有服务连接。
+依赖方向：Sprite/useFeedView → bridge → 原生缓存 → App → ../SpriteFigure。窗口生命周期、位置与显示器夹取都归 Rust；此目录不拥有服务连接。
 
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

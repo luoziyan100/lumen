@@ -1,5 +1,5 @@
 /**
- * [INPUT]: LumenApi's topic conversation list, Welcome/Conversation/Specialists/Diagnostics, the topic's run projection (R1), the shared conversation subscription (lent by StudioApp)
+ * [INPUT]: LumenApi's topic conversation list, Welcome/Conversation/Specialists/Diagnostics, the topic's run projection (R1), the shared conversation feed (lent by StudioApp; the sprite reads its full view, once per frame)
  *          and useSpeaking's text increments, SpriteFigure and SpriteFace sharing one useSpriteExpression snapshot
  * [OUTPUT]: Sprite: the conversation sprite. Collapsed it is the 60×92px full-body miniature (the topic's and conversation's running, waiting and speaking fold into one state of
  *           idle/running/waiting/speaking; motion and glow follow it, and the state is in aria-label); it can be dragged anywhere in the window and stays where dropped. Opening grows
@@ -9,7 +9,8 @@
  *           (sprite-place); it reports the figure's box (onFigure) so the Reading view keeps text clear of it. useSessions: the topic's conversation list, polled every 3s
  * [POS]: projects the four states straight to the desktop and takes open requests back; visibility only gates local drawing. The conversation stepped back into a sprite: the board is
  *        the topic's shared draft and the conversation is only the record of talk. Messages, approvals and questions still go through the native Conversation; the subscription
- *        itself belongs to StudioApp, so the Reading view's window shows the same stream without opening a second one
+ *        itself belongs to StudioApp, so the Reading view's window shows the same stream without opening a second one; the full view is read here, so a streamed token
+ *        re-renders the sprite and not the workbench
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { useCallback, useEffect, useState } from 'react'
@@ -17,7 +18,8 @@ import { Button } from '@cloudflare/kumo/components/button'
 import { BackIcon, CloseIcon, PanelIcon, PlusIcon } from '../../components/icons'
 import { useT } from '../../i18n/index.ts'
 import type { LumenApi, Identity, SessionInfo, Topic } from '../data/client.ts'
-import type { useSession } from '../data/useSession.ts'
+import { useFeedView } from '../data/useSession.ts'
+import type { SessionFeed } from '../data/feed.ts'
 import type { FileTarget } from '../data/file-links'
 import { Conversation, type BoardSignal } from '../views/Conversation'
 import { Welcome } from '../views/conversation/welcome/Welcome'
@@ -56,12 +58,12 @@ export function useSessions(api: LumenApi, topicId: string | null, signal: numbe
 /** Where the figure sits in the viewport, so content can keep its text out from under it */
 export interface SpriteBox { left: number; top: number; right: number; bottom: number }
 
-export function Sprite({ api, topic, identity, session, sessions, onIdentity, onActivity, onOpenFile, onFocusBlock, onBoard, onSettings, onDocked, onFigure }: {
+export function Sprite({ api, topic, identity, feed, sessions, onIdentity, onActivity, onOpenFile, onFocusBlock, onBoard, onSettings, onDocked, onFigure }: {
   api: LumenApi
   topic: Topic
   identity: Identity | null
   /** The one subscription of `identity`, owned by StudioApp */
-  session: ReturnType<typeof useSession>
+  feed: SessionFeed | null
   sessions: SessionInfo[]
   onIdentity: (identity: Identity | null) => void
   onActivity: () => void
@@ -77,6 +79,7 @@ export function Sprite({ api, topic, identity, session, sessions, onIdentity, on
   const S = useT().studio
   const [shape, setShape] = useState<Shape>(loadShape)
   const [listing, setListing] = useState(false), [diagnostics, setDiagnostics] = useState(false)
+  const session = { feed, view: useFeedView(feed) }
   const activeMessage = session.view.display?.currentMessage
   const message = activeMessage ? session.view.messages.find(item => item.id === activeMessage.id) : undefined
   const streaming = useSpeaking(session.view.display?.isRunning ? activeMessage?.id ?? null : null, message ? messageText(message) : '')

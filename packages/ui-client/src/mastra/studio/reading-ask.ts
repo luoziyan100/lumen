@@ -63,6 +63,11 @@ export function asksOf(messages: MastraDBMessage[], identity: Identity): Ask[] {
   return asks
 }
 
+/** Whether two ask lists show the same thing (the shell re-renders only when a question or its reply changed) */
+export function sameAsks(a: Ask[], b: Ask[]): boolean {
+  return a.length === b.length && a.every((ask, i) => ask.messageId === b[i]!.messageId && ask.reply === b[i]!.reply && ask.identity.taskId === b[i]!.identity.taskId)
+}
+
 /** Character ranges of a paragraph that the person asked about (their footprints), in order and without overlap. */
 export function footprintRanges(text: string, quotes: string[]): { start: number; end: number; quote: string }[] {
   const ranges: { start: number; end: number; quote: string }[] = []

@@ -5,7 +5,7 @@
 - `file-links.ts`：把 Markdown 相对引用规范到受控文件范围，拒绝绝对路径/越界并提取 PDF 页码；只允许本会话可写文本成为当前稿，资料区、内部目录、HTML/PDF不绑定。
 - `download.ts`：已认证 Blob 经有界 IPC 进入原生保存对话框，目标路径只由用户选择。
 - `feed.ts`：只恢复目录中存在的会话，旧数据根的本地选择不能隐式创建线程；按固定身份订阅原生消息，message_start 合入初始消息、message_update 按 id 应用文本/推理/部件增量，currentMessage 合入正文，刷新期间缓存 SSE，按页恢复完整历史并在 agent_end 补取持久消息；连接世代丢弃旧订阅与迟到响应；旧端点 SSE 最多重试两次，耗尽通知宿主重新发现。messageRole/messageText 读取原生 user signal 与 text 两种正文形态，不改写消息存储结构；已读确认只使用完整补取后的最新持久消息 ID；单条顺序增量走替换/追加快路径，乱序历史才重建排序。
-- `useSession.ts`：React 外部订阅桥，切任务时释放前一连接和迟到响应；服务失联时触发重新发现，恢复或卸载取消计时器。
+- `useSession.ts`：React 外部订阅桥。`useSessionFeed` 持有连接，只在身份变化时改变，切任务时释放前一连接和迟到响应，服务失联时触发重新发现，恢复或卸载取消计时器；`useFeedView` 读完整视图、`useFeedSelect` 读派生值（相等不重渲染），两者一帧最多通知一次（隐藏窗口用 100ms 计时兜底）；`useSession` 是两者组合。
 - `stream-pulse.ts`：说话判定——把「当前助手消息的可见字数」折成开关：字数真的增长才开，停 600ms 关，首个快照只作基线，后续换消息从零计数、不漏掉单段短回复；调工具和思考的静默不算说话。计时器注入，useSpeaking 负责喂字数与卸载清理。
 
 错误边界：`feed.ts` 的 `error` 记录原生运行错误（errorText 优先框架解析的服务商 reason，并附 HTTP 状态与错误码），终态补取和成功重连不能抹掉，只有下一轮 `agent_start` 清除；`connectionError` 记录连接/快照失败，恢复成功后清除。两者独立，连接故障不得覆盖运行失败的原因。

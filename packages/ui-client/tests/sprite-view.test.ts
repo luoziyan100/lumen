@@ -1,5 +1,5 @@
 /**
- * [INPUT]: Real Sprite fed by the host's one useSession subscription (as StudioApp lends it), shared expression owner, compact/desktop/avatar sources, React DOM and controlled HTTP/SSE
+ * [INPUT]: Real Sprite fed by the host's one useSessionFeed subscription (as StudioApp lends it; the sprite reads the view itself), shared expression owner, compact/desktop/avatar sources, React DOM and controlled HTTP/SSE
  * [OUTPUT]: evidence for text increments and the quiet fallback, timers cleared when the real component unmounts, reduced-motion switching, speaking while collapsed, and no second
  *           subscription on opening
  * [POS]: regression for the sprite's data and component wiring; images, layout and WebKit effects are accepted separately on the desktop
@@ -41,11 +41,11 @@ const { SpriteFigure, BODY_SOURCES } = await import('../src/mastra/studio/Sprite
 const { useSpriteExpression, useReducedMotion, SPRITE_FACES } = await import('../src/mastra/studio/sprite-face.ts')
 import type { SpriteState } from '../src/mastra/studio/sprite-face.ts'
 const { Sprite } = await import('../src/mastra/studio/Sprite.tsx')
-const { useSession } = await import('../src/mastra/data/useSession.ts')
+const { useSessionFeed } = await import('../src/mastra/data/useSession.ts')
 type SpriteProps = Parameters<typeof Sprite>[0]
 /** The sprite no longer subscribes itself: the host owns the one subscription and lends it, as StudioApp does */
-function Hosted(props: Omit<SpriteProps, 'session'>) {
-  return createElement(Sprite, { ...props, session: useSession(props.api, props.identity) })
+function Hosted(props: Omit<SpriteProps, 'feed'>) {
+  return createElement(Sprite, { ...props, feed: useSessionFeed(props.api, props.identity) })
 }
 
 async function until(check: () => boolean, message: string) {

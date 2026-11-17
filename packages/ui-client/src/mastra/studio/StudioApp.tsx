@@ -1,11 +1,12 @@
 /**
- * [INPUT]: the service connection, topic/session/board/material/reading data hooks, the one conversation subscription (useSession), the sprite and reader, settings (specialists pane included), the appearance subscription
+ * [INPUT]: the service connection, topic/session/board/material/reading data hooks, the one conversation feed (useSessionFeed, read through useFeedSelect), the sprite and reader, settings (specialists pane included), the appearance subscription
  * [OUTPUT]: StudioApp: the new shell — the prototype v7 skeleton: rounded panels with 8px gaps over the canvas (topics left, center, materials right, docked sprite), every panel's
  *           first row on one 50px header line; the center header holds only the centered view navigation (icon + text, icons alone when narrow; the topic name goes to aria-label and
  *           the window title), and in split view the reader header shares the board header's line; the sprite positions itself on the whole window (no longer inside the board area);
  *           both side panes collapse to width 0 (reopen buttons at the center header's ends, ⌘B / ⌘⌥B); the reader has three states: closed / split (draggable divider) / full center
  *           (the board hides but stays mounted with its camera; Esc restores); the Reading view (first in the navigation, the default) with its material action and selection window
- * [POS]: the desktop's only workbench (it replaced the S2 transitional entry). It owns the topic's single conversation subscription and lends it to the sprite and the Reading view;
+ * [POS]: the desktop's only workbench (it replaced the S2 transitional entry). It owns the topic's single conversation feed and lends it to the sprite, which reads the full view;
+ *        the shell selects only the values it shows, so streamed text never re-renders the workbench. The sprite and the Reading view
  *        both post visible user messages on the native path (`say`), never a hidden prompt. Board and reading refresh ride only on the conversation's tool completion signals plus
  *        the running ETag fallback — no second event protocol
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -16,7 +17,7 @@ import { ExternalLinkGate } from '../../components/ExternalLinkDialog'
 import { useAppearance } from '../../appearance'
 import { useT } from '../../i18n/index.ts'
 import { LumenApi, type Connection, type Identity, type SedimentInvite, type TopicMaterial } from '../data/client.ts'
-import { useSession } from '../data/useSession.ts'
+import { useFeedSelect, useSessionFeed } from '../data/useSession.ts'
 import { MODEL_TEXT } from '../../i18n/locales/model.ts'
 import type { FileTarget } from '../data/file-links'
 import type { BoardSignal } from '../views/Conversation'
@@ -25,7 +26,7 @@ import { Settings } from '../views/Settings'
 import { Board } from './Board'
 import { Materials, useMaterials } from './Materials'
 import { ReadingView, type AskTarget } from './Reading'
-import { askText, readingSignal, sendErrorText } from './reading-ask'
+import { askText, asksOf, readingSignal, sameAsks, sendErrorText } from './reading-ask'
 import { useReading, useTopicAsks } from './useReading'
 import { Sprite, useSessions, type SpriteBox } from './Sprite'
 import { Takeaways } from './Takeaways'
@@ -62,13 +63,15 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const materials = useMaterials(api, topic?.id ?? null, `${signal.done}|${revision}`)
   // Deleted evidence links depend on board state: refetch whenever the board view changes version (a write, a sheet delete, another selection)
   const sediment = useSediment(api, topic?.id ?? null, `${signal.done}|${revision}|${board.view?.sheet.id ?? ''}|${board.view?.sheet.updatedAt ?? ''}`)
-  // ---- The one conversation subscription: the sprite renders it, the Reading view takes its replies and reading_write completions from it ----
-  const session = useSession(api, identity)
-  const written = useMemo(() => readingSignal(session.view.messages), [session.view.messages])
+  // ---- The one conversation subscription: the sprite renders its full view; the shell selects only the values it shows, so a streamed token re-renders the sprite, not the workbench ----
+  const feed = useSessionFeed(api, identity)
+  const written = useFeedSelect(feed, view => readingSignal(view.messages))
+  const isRunning = useFeedSelect(feed, view => !!view.display?.isRunning)
+  const liveAsks = useFeedSelect(feed, view => feed ? asksOf(view.messages, feed.identity) : [], sameAsks)
   const [readingItem, setReadingItem] = useState<string | null>(null), [requested, setRequested] = useState<string | null>(null)
   const readings = useReading(api, topic?.id ?? null, readingItem, `${written}|${revision}`, live)
-  const asks = useTopicAsks(api, topic?.id ?? null, sessions, identity, session.view.messages)
-  const running = live || !!session.view.display?.isRunning
+  const asks = useTopicAsks(api, topic?.id ?? null, sessions, identity, liveAsks)
+  const running = live || isRunning
   // A requested reading stops showing "waiting" once the topic's run ends, whether or not a section landed
   const wasRunning = useRef(false)
   useEffect(() => { if (wasRunning.current && !running) setRequested(null); wasRunning.current = running }, [running])
@@ -139,7 +142,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const busyFor = (to: Identity | null) => {
     const target = to ?? identity
     if (!target) return false
-    if (target.taskId === identity?.taskId && session.view.display?.isRunning) return true
+    if (target.taskId === identity?.taskId && isRunning) return true
     const info = sessions.find(item => item.taskId === target.taskId)
     return !!(info?.running || info?.waiting)
   }
@@ -147,7 +150,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
     if (!topic) return null
     const target = to ?? identity
     try {
-      if (target && target.taskId === identity?.taskId && session.feed) await session.feed.send(text)
+      if (target && target.taskId === identity?.taskId && feed) await feed.send(text)
       else {
         const next = target ?? { topicId: topic.id, taskId: crypto.randomUUID() }
         if (!target) await api.open(next)
@@ -203,7 +206,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
       collapsed={panes.right} onToggle={() => flip('right')}
       onOpen={item => openMaterial(item)} onChanged={materials.refresh}
       readings={readings.items.map(reading => reading.itemId)} readingBusy={busyFor(null)} onReading={writeReading} />}
-    {topic && <Sprite api={api} topic={topic} identity={identity} session={session} sessions={sessions} onIdentity={setIdentity} onActivity={activity}
+    {topic && <Sprite api={api} topic={topic} identity={identity} feed={feed} sessions={sessions} onIdentity={setIdentity} onActivity={activity}
       onOpenFile={target => setReading({ target })} onFocusBlock={onFocusBlock} onBoard={onBoard} onSettings={() => setSettingsOpen(true)} onDocked={setDocked} onFigure={setFigure} />}
     {settingsOpen && <Settings api={api} appearance={appearance} onClose={() => setSettingsOpen(false)} />}
   </main></ExternalLinkGate>

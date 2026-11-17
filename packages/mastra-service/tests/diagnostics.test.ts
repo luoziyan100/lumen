@@ -85,6 +85,15 @@ test('真实 Mastra trace 关联受信会话、导出无凭证、标注不串会
     assert.ok(trace.spans.some(span => span.type.includes('tool')))
     assert.ok(JSON.stringify(trace).includes('REAL_TOOL_EVIDENCE'))
     for (const forbidden of [secret, another, imageData]) assert.ok(!JSON.stringify(trace).includes(forbidden), forbidden)
+    // Processor spans repeat the step's whole context: they keep timing and attributes, never the payload; model calls keep theirs
+    const processors = trace.spans.filter(span => span.type === 'processor_run')
+    t.diagnostic(`processor spans: ${processors.length}`)
+    assert.ok(processors.length > 0, '真实循环应当产生 processor span')
+    for (const span of processors) {
+      assert.equal(span.input, null, span.name); assert.equal(span.output, null, span.name)
+      assert.equal((span.metadata as { lumenDiagnostics?: { payloadOmitted?: boolean } } | null)?.lumenDiagnostics?.payloadOmitted, true, span.name)
+    }
+    assert.ok(trace.spans.some(span => span.type === 'model_generation' && span.input !== null), 'model_generation 仍保留输入')
     await assert.rejects(diagnostics.readTrace('topic:b', trace.traceId), { status: 404 })
     await assert.rejects(diagnostics.markBadCase('topic:b', { traceId: trace.traceId, actual: 'foreign', expected: 'deny' }), { status: 404 })
     const item = await diagnostics.markBadCase('topic:a', { traceId: trace.traceId, spanId: trace.spans[0]!.spanId, kind: 'tool_failure', actual: `Bearer ${another}`, expected: '清楚说明结果', note: `api_key=${secret}` })
