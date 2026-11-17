@@ -60,14 +60,6 @@ fn widget_put_script(code: String, store: tauri::State<WidgetScripts>) -> Result
     Ok(id)
 }
 
-#[tauri::command]
-fn pick_folder() -> Option<String> {
-    rfd::FileDialog::new()
-        .set_title(locale::text(locale::Text::PickFolder))
-        .pick_folder()
-        .map(|p| p.to_string_lossy().into_owned())
-}
-
 /// 用系统默认浏览器打开 http(s)。WKWebView 的 window.open 会被吞掉,不能当外链。
 #[tauri::command]
 fn open_external_url(url: String) -> Result<(), String> {
@@ -121,7 +113,7 @@ fn main() {
         .manage(WidgetScripts { map: Mutex::new(HashMap::new()), seq: AtomicU64::new(1) })
         .manage(sprite::Runtime::default())
         .invoke_handler(tauri::generate_handler![
-            pick_folder, open_external_url, widget_put_script, set_window_theme, set_window_title, locale::set_locale,
+            open_external_url, widget_put_script, set_window_theme, set_window_title, locale::set_locale,
             sprite::sprite_snapshot, sprite::publish_sprite_state,
             #[cfg(debug_assertions)]
             sprite_trace::record_sprite_trace,
