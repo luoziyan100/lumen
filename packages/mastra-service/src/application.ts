@@ -1,5 +1,5 @@
 /**
- * [INPUT]: Mastra Controller/Memory/Workspace, the studio stores (topics/library), user roles/skill roots, the native step guard and the isolated diagnostics evaluation
+ * [INPUT]: Mastra Controller/Memory/Workspace, the studio stores (topics/library), reading-question's userWords (a reading question's quote is not the user's), user roles/skill roots, the native step guard and the isolated diagnostics evaluation
  * [OUTPUT]: createApplication: isolated storage, the main agent's tools (board, sediment and reading tools on one trusted writer), the session/background activity projection, the global specialist group, parent/child budgets and specialist continuation, diagnostics and the drained close; the board's per-run target (R16) takes the selection at run start, survives suspension and shutdown, and releases when the run truly ends; a specialist's board_view looks and never captures
  * [POS]: the application composition root; one native execution chain with topicId:taskId identities. Conversations of a topic share one topic workspace (cached per topic, destroyed once at close), and materials are reached only through the reference list
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -32,6 +32,7 @@ import { openStudio } from './studio/studio.ts'
 import { createMaterialAccess, createMaterialTools } from './studio/tools.ts'
 import { createBoardTools, topicState, type BoardWriter } from './studio/board-tools.ts'
 import { createSedimentTools, plainText } from './studio/sediment-tools.ts'
+import { userWords } from './studio/reading-question.ts'
 import { createReadingTools } from './studio/reading-tools.ts'
 import { StudioError } from './studio/errors.ts'
 import { createExecutionTools } from './execution/tools.ts'
@@ -120,14 +121,15 @@ export async function createApplication(options: ApplicationOptions) {
     const resourceId = ownerOf(context)
     return { topicId: resourceId.split(':')[0]!, sheetId: studio.board.peekTarget(resourceId)?.id ?? null }
   })
-  // -------- Sediment tools share the board's trusted writer (the run's target, R16); user messages are read from memory only (newest first), main agent only (the specialist list leaves them out, S4) --------
+  // -------- Sediment tools share the board's trusted writer (the run's target, R16); user messages are read from memory only (newest first), main agent only (the specialist list leaves them out, S4); a reading question counts only its words --------
   const sedimentTools = createSedimentTools(studio, boardWriter, async threadId => {
     const chronologic: { id: string; text: string }[] = []
     // Walk the persisted history (this memory always returns ascending — orderBy is ignored); user messages are stored as signals carrying text parts, we keep the non-empty ones and reverse to newest first
     for (let page = 0; page < 20 && chronologic.length < 200; page++) {
       const result = await memory.recall({ threadId, resourceId: threadId, page, perPage: 50, orderBy: { field: 'createdAt', direction: 'ASC' } })
       for (const message of result.messages) if (message.role === 'user' || message.role === 'signal') {
-        const text = plainText(message.content).trim()
+        // A reading question quotes the AI's own sentence: only the words after its place line are the user's (R13)
+        const text = userWords(plainText(message.content).trim())
         if (text) chronologic.push({ id: message.id, text })
       }
       if (!result.hasMore) break

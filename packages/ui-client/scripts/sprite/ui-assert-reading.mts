@@ -4,7 +4,8 @@
  * [OUTPUT]: browser evidence for P1-2 (1440x900 and 1280x800, light and dark, zh and en): Reading first and selected; the centred serif column within 700px; source chips;
  *           a nine-section reading scrolls inside the view while panes and headers stay put; a real mouse selection inside one paragraph opens the window, whose centre,
  *           input and send button pass elementFromPoint and which never covers the selected sentence (below, or above near the bottom); the reply arrives in the window;
- *           no text line in view runs under the sprite's figure (top and bottom of the reading); footprints from earlier page loads are rebuilt; the empty state; the live write from the Materials row (zh 1440 light)
+ *           no text line in view runs under the sprite's figure (top and bottom of the reading);
+ *           a footprint on a sentence that starts mid-line leaves the paragraph's line count unchanged and its first line box on the line of the text before it (G4); footprints from earlier page loads are rebuilt; the empty state; the live write from the Materials row (zh 1440 light)
  * [POS]: an acceptance script that swaps the model network only and touches no product protocol; screenshots land in the evidence directory, never in the repo
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -33,14 +34,16 @@ const results = []
 let failed = 0
 let failure = ''
 const check = (name, ok, detail = '') => { results.push(`${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ' — ' + detail : ''}`); if (!ok) failed++ }
-// Existing is not visible: the hit test must land on the element itself or a descendant
+// Existing is not visible: the hit test at the middle of every box must land on the element itself or a descendant.
+// An inline element that wraps has one box per line; its bounding box's centre can fall on other text, so each line box is tested instead
 const visibleAt = (page, selector) => page.evaluate(target => {
   const element = document.querySelector(target)
   if (!element) return false
-  const box = element.getBoundingClientRect()
-  if (box.width === 0 || box.height === 0) return false
-  const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
-  return !!hit && (hit === element || element.contains(hit))
+  const boxes = [...element.getClientRects()].filter(box => box.width > 0 && box.height > 0)
+  return boxes.length > 0 && boxes.every(box => {
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+    return !!hit && (hit === element || element.contains(hit))
+  })
 }, selector)
 const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
 
@@ -157,6 +160,25 @@ const linesUnderSprite = page => page.evaluate(() => {
   }
   return { lines, hits }
 })
+/** A paragraph's text lines and where a span [from, to) of it sits: the distinct line tops of the text, the first line of the span, the line the text before it ends on */
+const textLines = (page, paragraph, from, to) => page.evaluate(([index, start, end]) => {
+  const node = document.querySelectorAll('[data-paragraph]')[index]
+  const at = position => {
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT)
+    let rest = position
+    for (let text = walker.nextNode(); text; text = walker.nextNode()) { if (rest <= text.data.length) return [text, rest]; rest -= text.data.length }
+    throw new Error(`no character ${position}`)
+  }
+  const tops = range => [...new Set([...range.getClientRects()].filter(line => line.width > 0).map(line => Math.round(line.top)))]
+  const range = document.createRange()
+  range.selectNodeContents(node)
+  const lines = tops(range).length
+  range.setStart(...at(start)); range.setEnd(...at(end))
+  const span = tops(range)
+  range.setStart(...at(start - 1)); range.setEnd(...at(start))
+  const before = range.getClientRects()[0]
+  return { lines, spanLines: span.length, spanTop: span[0], beforeTop: Math.round(before.top), beforeRight: before.right }
+}, [paragraph, from, to])
 const rect = (page, selector) => page.evaluate(target => { const r = document.querySelector(target)?.getBoundingClientRect(); return r ? { left: r.left, right: r.right, top: r.top, bottom: r.bottom } : null }, selector)
 
 try {
@@ -238,10 +260,14 @@ try {
 
     // ---- Near the top: a real selection inside one paragraph opens the window under it; centre, input and send pass the hit test ----
     // Each pass asks in its own section's inference paragraph (earlier passes' footprints stay elsewhere), scrolled near the top of the view
+    // The asked sentence starts mid-line and runs onto the next line, so a footprint that is not inline text would jump to its own line (G4)
     const asked = pass * 3 + 1
     await page.evaluate(index => { const node = document.querySelectorAll('[data-paragraph]')[index]; const scroller = document.querySelector('.reading-scroll'); scroller.scrollTop += node.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 120 }, asked)
     await page.waitForTimeout(200)
-    const sentence = await dragSelect(page, asked, 0, 24)
+    const [from, to] = await page.evaluate(index => { const text = document.querySelectorAll('[data-paragraph]')[index].textContent; return [text.indexOf('如果'), text.indexOf('这一点')] }, asked)
+    const plain = await textLines(page, asked, from, to)
+    check(`${tag} 所问句子从行中开始并折到下一行`, plain.spanTop === plain.beforeTop && plain.spanLines >= 2, JSON.stringify(plain))
+    const sentence = await dragSelect(page, asked, from, to)
     check(`${tag} 焦点在小窗输入里`, await page.evaluate(() => document.activeElement?.matches('.reading-ask textarea') ?? false))
     await page.waitForSelector('.reading-ask[data-placed="true"]')
     await page.waitForTimeout(150)
@@ -263,6 +289,11 @@ try {
     await page.waitForFunction(index => !!document.querySelectorAll('[data-paragraph]')[index].querySelector('.reading-footprint'), asked)
     const mark = await page.evaluate(index => { const node = document.querySelectorAll('[data-paragraph]')[index].querySelector('.reading-footprint'); node.setAttribute('data-just-asked', ''); return node.textContent }, asked)
     check(`${tag} 问过的句子留下足迹`, await visibleAt(page, '[data-just-asked]'), mark)
+    const marked = await textLines(page, asked, from, to)
+    const first = await page.evaluate(() => { const r = document.querySelector('[data-just-asked]').getClientRects()[0]; return { top: Math.round(r.top), left: r.left } })
+    check(`${tag} 足迹不改变段落行数`, marked.lines === plain.lines, `${plain.lines} → ${marked.lines}`)
+    check(`${tag} 足迹第一行与前文同一行`, first.top === marked.beforeTop && Math.abs(first.left - marked.beforeRight) < 2 && marked.spanTop === plain.spanTop,
+      `footprint @${first.top}/${Math.round(first.left)} before @${marked.beforeTop}/${Math.round(marked.beforeRight)}`)
     await page.screenshot({ path: name('footprint') })
 
     // ---- Once: the live write from the Materials row; sections appear while the run goes on ----

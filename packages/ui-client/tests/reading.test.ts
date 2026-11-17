@@ -1,11 +1,12 @@
 /**
- * [INPUT]: the real StudioApp (Reading view, Materials row action, sprite), reading-ask's pure helpers, React DOM + jsdom, a real HTTP service with the Mastra Controller,
+ * [INPUT]: the service's reading-question parser (bound to MODEL_TEXT.askReading here), the real StudioApp (Reading view, Materials row action, sprite), reading-ask's pure helpers, React DOM + jsdom, a real HTTP service with the Mastra Controller,
  *          a deterministic model (writes two sections with the second held, answers questions in two sentences, holds a second conversation), multi-page PDF fixtures
  * [OUTPUT]: component evidence for P1-2 S3/S5/S6: Reading is the first view and the default; the row action sends the visible request and switches to Reading, and the row then
  *           says 「打开解读」; sections appear as their reading_write calls complete (the 5s fallback poll is disabled here); paper chips name the page and open split reading,
  *           inference chips are dashed; only a selection inside one paragraph opens the window; Enter sends the documented message; the reply streams into the window from the one
- *           shared subscription; Esc closes; the footprint reopens the exchange; a follow-up continues the same conversation; keep stores only typed words; another
- *           conversation's run gets the service's readable 409 and nothing is sent; footprints survive a reload
+ *           shared subscription; Esc closes; the footprint reopens the exchange; a follow-up continues the same conversation and its Markdown reply renders as strong/li/blockquote (G3); keep stores only typed words; another
+ *           conversation's run gets the service's readable 409 and nothing is sent; footprints survive a reload and are inline role="button" spans opened by Enter/Space (G4);
+ *           the service's readingQuestion reads the real askReading output exactly as parseAsk does, and userWords drops the quote (G1 binding)
  * [POS]: P1-2's UI mechanism acceptance; the controllable model proves mechanism only and never stands in for real-model acceptance; layout and WebKit are covered by the
  *        browser assertions (scripts/sprite/ui-assert-reading.mts), not here
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -24,6 +25,7 @@ import { createHttpService } from '../../mastra-service/src/server.ts'
 import { fixtureProvider, textReply, toolReply, type ProviderRequest } from '../../mastra-service/tests/provider-fixture.ts'
 import { ensureTopic } from '../../mastra-service/tests/topic-fixture.ts'
 import { pagedPdf } from '../../mastra-service/tests/studio/library-fixtures.ts'
+import { readingQuestion, userWords } from '../../mastra-service/src/studio/reading-question.ts'
 import { LumenApi } from '../src/mastra/data/client.ts'
 import { messageRole, messageText } from '../src/mastra/data/feed.ts'
 import type { MastraDBMessage } from '@mastra/client-js'
@@ -76,6 +78,28 @@ test('reading-ask: the question format reads back; replies attach to their quest
   assert.equal(readingSignal([message('m5', 'assistant', [call('c1', 'reading_write', { sections: 1 }), call('c2', 'reading_write'), call('c3', 'board_draw', {}), call('c4', 'reading_write', { error: 'x' })])]), 'c1')
 })
 
+// One written format, two readers: the service keeps its own copy (it never imports UI code), so this test feeds the real askReading output to both
+test('reading question format: the service reads MODEL_TEXT.askReading exactly as the UI does, and sediment sees only the words', () => {
+  const cases = [
+    askText('an upper   bound\non surprise', '1. 为什么值得读', 'Free energy', ' 为什么是上界？ '),
+    askText('遮挡不是细节，是一个无法反推的信息损失', '3. 关键的一步', 'A theory of cortical responses', '我还是不懂\n为什么遮挡就反推不了'),
+    askText('a quote with 《brackets》 · and dots', '12. 边界', 'Title · with 《marks》', 'ok'),
+    MODEL_TEXT.askReading('two\nlines', '2. Evidence', 'Paper', '那下界呢？'),
+  ]
+  for (const text of cases) {
+    const ui = parseAsk(text)
+    assert.ok(ui, `UI 读不回：${text}`)
+    assert.deepEqual(readingQuestion(text), ui, `服务与界面读法不一致：${text}`)
+    assert.equal(userWords(text), ui.words, '沉淀只看用户的话')
+    assert.ok(!userWords(text).includes(ui.quote), '引文不算用户的话')
+  }
+  for (const text of ['> just a quote\n\nno place line', '普通的一句话', '— 解读《X》· 1. a\n\nno quote above']) {
+    assert.equal(parseAsk(text), null)
+    assert.equal(readingQuestion(text), null)
+    assert.equal(userWords(text), text, '普通消息整条都是用户的话')
+  }
+})
+
 test('Reading view: write → live sections → chips → in-paragraph window → shared reply → footprint → keep typed words → 409 → reload', { timeout: 180000 }, async () => {
   const dataRoot = await mkdtemp(join(tmpdir(), 'lumen-ui-reading-'))
   let calls = 0, releaseSecond!: () => void, releaseHold!: () => void
@@ -92,6 +116,7 @@ test('Reading view: write → live sections → chips → in-paragraph window �
       if (results === 1) { await second; return call('reading_write', { itemId: item, title: 'Evidence', paragraphs: [paper('Repetition suppression is read as learning.', 2, 'Repetition suppression reflects perceptual learning')] }) }
       return textReply('写好了')
     }
+    if (text.includes('那下界呢')) return textReply('**下界**是另一回事：\n\n- 证据下界 ELBO\n- 它就是负自由能\n\n> 最小化自由能等于抬高下界')
     if (text.includes('— 解读《')) return textReply('KL 散度非负，所以自由能总在惊讶之上。最小化它就压住了惊讶。')
     return textReply('好')
   })
@@ -208,6 +233,13 @@ test('Reading view: write → live sections → chips → in-paragraph window �
     await until(async () => (await stored(session.taskId)).length === 3, '追问没有发出')
     assert.equal((await api.sessions('paper')).items.length, 1, '追问不开新对话')
     await until(() => $$('.reading-ask-turn').length === 2 && $$('.reading-ask-reply:not(.is-waiting)').length === 2, '追问的回答没有出现')
+    // ---- G3: the reply is Markdown rendered as elements, not literal asterisks ----
+    await until(() => !!$$('.reading-ask-reply')[1]?.querySelector('blockquote'), '追问的回答没有渲染完')
+    const reply = $$('.reading-ask-reply')[1]!
+    assert.equal(reply.querySelector('strong')?.textContent, '下界', '加粗渲染为 strong')
+    assert.deepEqual([...reply.querySelectorAll('li')].map(node => node.textContent), ['证据下界 ELBO', '它就是负自由能'], '列表渲染为 li')
+    assert.match(reply.querySelector('blockquote')!.textContent!, /最小化自由能等于抬高下界/, '引用渲染为 blockquote')
+    assert.ok(!reply.textContent!.includes('**') && !/^\s*[->]\s/m.test(reply.textContent!), '不出现 Markdown 原始符号')
 
     // ---- Keep: typed words only; with an empty input it keeps the person's own last words; never the quote ----
     await typeInto($<HTMLTextAreaElement>('.reading-ask textarea')!, '自由能压住惊讶')
@@ -238,8 +270,17 @@ test('Reading view: write → live sections → chips → in-paragraph window �
     await act(async () => root.render(createElement(StudioApp, { connection })))
     await until(() => $$('.reading-section').length === 2, '重载后解读没有出现')
     await until(() => $('.reading-footprint')?.textContent === quote, '重载后足迹没有重建')
-    await act(async () => $('.reading-footprint')!.click())
-    await until(() => $$('.reading-ask-turn').length === 2, '重载后点足迹看到这段问答')
+    // ---- G4: the footprint is an inline span acting as a button; the keyboard opens it ----
+    const footprint = $('.reading-footprint')!
+    assert.equal(footprint.tagName, 'SPAN', '足迹是行内元素，随文字折行')
+    assert.equal(footprint.getAttribute('role'), 'button')
+    assert.equal(footprint.tabIndex, 0)
+    await act(async () => footprint.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+    await until(() => $$('.reading-ask-turn').length === 2, '重载后按 Enter 打开足迹看到这段问答')
+    await act(async () => $<HTMLButtonElement>('.reading-ask .icon-btn')!.click())
+    assert.equal($('.reading-ask'), null)
+    await act(async () => $('.reading-footprint')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: ' ', bubbles: true })))
+    await until(() => $$('.reading-ask-turn').length === 2, '空格也能打开足迹')
   } finally {
     releaseSecond(); releaseHold()
     window.setInterval = original

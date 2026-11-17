@@ -1,8 +1,9 @@
 /**
  * [INPUT]: the real HTTP service and application root, the Mastra Controller tool loop, catalog.sqlite and library files, a deterministic model network, multi-page PDF fixtures
- * [OUTPUT]: evidence for P1-2 S1/S2/S3: a reading written through reading_write reads back over HTTP in order with ETag; replace by section id (an unknown id is refused);
+ * [OUTPUT]: evidence for P1-2 S1/S2/S3 and G1: a reading written through reading_write reads back over HTTP in order with ETag; replace by section id (an unknown id is refused);
  *           an unreferenced item is refused with read_material's sentence; quotes are checked on the cited page (wrong page refused, whitespace differences pass, too short refused,
- *           page past the end refused); a material without pages takes no page; the three caps; reading_view; R1's readable 409 on a second conversation's message while the topic runs
+ *           page past the end refused); a material without pages takes no page; the three caps; reading_view; R1's readable 409 on a second conversation's message while the topic runs;
+ *           G1: sediment_quote refuses a reading question's quote (whole or part) and accepts the person's words from the same message, bound to it, original = the words only
  * [POS]: the reading mechanism's end-to-end proof; the controllable model proves mechanism only and never stands in for real-model acceptance
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -158,6 +159,54 @@ test('R1: while one conversation of the topic runs, a second conversation\'s mes
     assert.deepEqual((await stored.json()).messages, [])
   } finally {
     release()
+    await service.close()
+    await rm(dataRoot, { recursive: true, force: true })
+  }
+})
+
+test('G1 (R13): a reading question\'s quote is the reading\'s, not the user\'s — sediment_quote refuses it, accepts the person\'s own words from the same message, binds that message and keeps only the words as the original', { timeout: 90000 }, async () => {
+  const dataRoot = await mkdtemp(join(tmpdir(), 'lumen-reading-quote-'))
+  const QUOTE = '遮挡不是细节，是一个无法反推的信息损失'
+  const WORDS = '我还是不懂为什么遮挡就反推不了'
+  // The exact shape the desktop sends (MODEL_TEXT.askReading); ui-client/tests/reading.test.ts binds that builder to this service's parser
+  const QUESTION = `> ${QUOTE}\n— 解读《A theory of cortical responses》· 3. 关键的一步\n\n${WORDS}`
+  let calls = 0
+  const fixture = fixtureProvider(request => {
+    const { text, answered } = said(request)
+    if (answered) return textReply('好')
+    if (text.includes('递回引文')) return toolReply('sediment_quote', { text: QUOTE }, `call-${++calls}`)
+    if (text.includes('递回半句引文')) return toolReply('sediment_quote', { text: '是一个无法反推的信息损失' }, `call-${++calls}`)
+    if (text.includes('递回我的话')) return toolReply('sediment_quote', { text: '我不懂为什么遮挡就反推不了' }, `call-${++calls}`)
+    return textReply('就这一句：遮挡丢掉的信息没法从输入里找回来。')
+  })
+  const service = await createHttpService({ dataRoot, token, model: { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixture.fetch } })
+  const lastTool = () => String(fixture.requests.at(-1)!.messages.filter(message => message.role === 'tool').at(-1)?.content ?? '')
+  const offers = async () => (await (await service.app.request('/lumen/topics/p/sediment', { headers })).json()).offers as { text: string; original: string; fragments: { text: string }[] }[]
+  try {
+    ensureTopic(service, 'p')
+    await service.catalog.createSession('p', 'a')
+    const session = await service.application.session('p', 'a')
+    await session.sendMessage({ content: QUESTION })
+    // ---- The quoted reading sentence, whole or in part, is not the user's: refused, nothing offered ----
+    await session.sendMessage({ content: '递回引文' })
+    assert.match(lastTool(), /递回的不是原话/)
+    await session.sendMessage({ content: '递回半句引文' })
+    assert.match(lastTool(), /递回的不是原话/)
+    assert.deepEqual(await offers(), [])
+    // ---- The person's own words from the same message pass, bound to that message, and the original is the words only ----
+    await session.sendMessage({ content: '递回我的话' })
+    assert.match(lastTool(), /"offered":"我不懂为什么遮挡就反推不了"/)
+    const [offer] = await offers()
+    assert.ok(offer, 'no offer stored')
+    assert.equal(offer.original, WORDS)
+    assert.deepEqual(offer.fragments.map(fragment => fragment.text.trim()), ['还是'])
+    const stored = service.application.studio.db.prepare('SELECT message_id FROM sediment_offers').get()!
+    const history = await (await service.app.request(`/api/agent-controller/lumen/sessions/${encodeURIComponent('p:a')}/threads/${encodeURIComponent('p:a')}/messages`, { headers })).json()
+    const question = (history.messages as { id: string; content: { parts: { type: string; text?: string }[] } }[])
+      .find(message => message.content.parts.some(part => part.type === 'text' && part.text?.startsWith(`> ${QUOTE}`)))
+    assert.ok(question, 'the question is in the stored history')
+    assert.equal(stored.message_id, question.id, 'the offer binds the question message itself')
+  } finally {
     await service.close()
     await rm(dataRoot, { recursive: true, force: true })
   }

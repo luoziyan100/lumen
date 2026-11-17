@@ -1,7 +1,7 @@
 /**
  * [INPUT]: tokens.css / yan-design-system tokens, studio.css's type scale and .source-chip, the appearance pipeline's --font-serif (the reading font setting)
- * [OUTPUT]: the Reading view's styles: the in-view scroller, one centred serif column (max 700px), numbered section titles, paragraph source chips, footprint underlines,
- *           the selection window (solid surface, quote clamped to two lines, growing input) and the material row's reading action
+ * [OUTPUT]: the Reading view's styles: the in-view scroller, one centred serif column (max 700px), numbered section titles, paragraph source chips, footprint underlines (inline, wrapping like text),
+ *           the selection window (solid surface, quote clamped to two lines, Markdown replies at window size scrolling inside its max height, growing input) and the material row's reading action
  * [POS]: Reading.tsx's own sheet next to studio.css; existing tokens only, no new colours. The window is a control and keeps a solid surface under glass/paper skins
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -23,7 +23,7 @@ html[data-justify="true"] .reading-para { text-align: justify; }
 .reading-empty p { margin: 0; }
 
 /* ---- Footprints: a thin underline on sentences the person asked about; they read as text, click to reopen the exchange ---- */
-.reading-footprint { all: unset; cursor: pointer; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent); text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.reading-footprint { display: inline; cursor: pointer; border-radius: 2px; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent); text-decoration-thickness: 1px; text-underline-offset: 4px; }
 .reading-footprint:hover { text-decoration-color: var(--accent); }
 .reading-footprint:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 2px; }
 
@@ -35,9 +35,23 @@ html[data-justify="true"] .reading-para { text-align: justify; }
 .reading-ask-quote { flex: 1; min-width: 0; margin: 0; padding-left: 8px; border-left: 2px solid var(--border-strong); color: var(--text-soft); font-size: var(--st-note); line-height: 1.5;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .reading-ask-log { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
-.reading-ask-turn p { margin: 0; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.reading-ask-turn > p { margin: 0; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .reading-ask-you { color: var(--text-soft); }
 .reading-ask-you b { margin-right: 6px; font-weight: 600; color: var(--text-muted); font-size: var(--st-label); }
+/* The reply is Markdown at the window's size: headings stay body size, code and quotes wrap, the log scrolls inside the window's max height */
+.reading-ask-reply { min-width: 0; line-height: 1.55; overflow-wrap: anywhere; }
+.reading-ask-reply .md-body { font: inherit; font-family: var(--font-sans); line-height: inherit; }
+.reading-ask-reply .md-body > :first-child { margin-top: 0; }
+.reading-ask-reply .md-body > :last-child { margin-bottom: 0; }
+.reading-ask-reply .md-body :is(h1, h2, h3, h4, h5, h6) { font-size: var(--st-body); font-weight: 600; margin: .7em 0 .25em; }
+.reading-ask-reply .md-body p { margin: .4em 0; }
+.reading-ask-reply .md-body :is(ul, ol) { margin: .4em 0; padding-left: 1.3em; }
+.reading-ask-reply .md-body blockquote { margin: .4em 0; padding-left: 8px; border-left: 2px solid var(--border-strong); color: var(--text-soft); }
+.reading-ask-reply .md-body pre { white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; font-size: var(--st-note); }
+.reading-ask-reply .md-body code { overflow-wrap: anywhere; }
+.reading-ask-reply .md-body table { display: table; width: 100%; table-layout: fixed; font-size: var(--st-note); }
+.reading-ask-reply .md-body :is(th, td) { padding: 3px 5px; overflow-wrap: anywhere; }
+.reading-ask-reply .md-body .katex-display { overflow: hidden; }
 .reading-ask-reply.is-waiting { color: var(--text-muted); font-size: var(--st-note); }
 .reading-ask-input { display: flex; align-items: flex-end; gap: 6px; padding: 4px 4px 4px 8px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface-control); }
 .reading-ask-input:focus-within { border-color: var(--accent-hover); box-shadow: 0 0 0 3px var(--focus-ring); }

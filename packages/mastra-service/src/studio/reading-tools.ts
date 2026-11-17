@@ -1,6 +1,7 @@
 /**
  * [INPUT]: the reading store and its shared input shape and quote rule, material access (R15 open, the PDF page cache, plain text), the board's trusted writer (topic, conversation, run)
- * [OUTPUT]: createReadingTools: reading_view (the reading of one referenced material: section ids, titles, paragraphs) and reading_write (append, or replace a section by id)
+ * [OUTPUT]: createReadingTools: reading_view (the reading of one referenced material: section ids, titles, paragraphs) and reading_write (append, or replace a section by id;
+ *           its description says titles carry no ordinal, since the view numbers sections — code never strips one)
  * [POS]: the AI's only way to write a reading. The program checks only what would break a promise — the material is this topic's (R15), every paper quote occurs on the cited page
  *        of exactly the text read_material returns, and the caps; what to write and how deep is the model's call. Main agent only; refusals name the paragraph to fix
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -54,7 +55,7 @@ export function createReadingTools(studio: Studio, access: Access, topicOf: Topi
       },
     }),
     reading_write: createTool({ id: 'reading_write',
-      description: `为本主题引用的一份材料写一节解读。不给 sectionId 就接在最后，给了就把那一节整节换掉。每段 { text, source }：source 是 { kind: "paper", page, quote }（quote 是那一页上的原文短引，至少 ${READING_LIMITS.quoteMin} 字；材料没有页码时省掉 page）或 { kind: "inference" }（你自己的理解、串联或评价）。服务逐条核对引文，对不上会拒绝并说明是哪一段。最多 ${READING_LIMITS.sections} 节，每节最多 ${READING_LIMITS.paragraphs} 段，每段最多 ${READING_LIMITS.paragraphChars} 字。写好一节就调一次，用户会先读起来。`,
+      description: `为本主题引用的一份材料写一节解读。title 不带序号（不写「三、」「3.」），视图会给每节编号。不给 sectionId 就接在最后，给了就把那一节整节换掉。每段 { text, source }：source 是 { kind: "paper", page, quote }（quote 是那一页上的原文短引，至少 ${READING_LIMITS.quoteMin} 字；材料没有页码时省掉 page）或 { kind: "inference" }（你自己的理解、串联或评价）。服务逐条核对引文，对不上会拒绝并说明是哪一段。最多 ${READING_LIMITS.sections} 节，每节最多 ${READING_LIMITS.paragraphs} 段，每段最多 ${READING_LIMITS.paragraphChars} 字。写好一节就调一次，用户会先读起来。`,
       inputSchema: readingInput.extend({ itemId: z.string().min(1).max(128) }),
       execute: async ({ itemId, ...input }, context) => {
         // Open first: an unreferenced item is refused with read_material's sentence before any quote is looked at (R15)

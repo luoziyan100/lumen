@@ -1,10 +1,10 @@
 /**
- * [INPUT]: useReading's state, the topic's questions (useTopicAsks), the pure helpers of reading-ask.ts, i18n `studio.reading`, the host's send/keep/open-source callbacks
+ * [INPUT]: components/Markdown for replies, useReading's state, the topic's questions (useTopicAsks), the pure helpers of reading-ask.ts, i18n `studio.reading`, the host's send/keep/open-source callbacks
  * [OUTPUT]: ReadingView: the centre 「解读 / Reading」 view — one centred serif column (≤700px) with numbered sections, each paragraph ending in its source chip
- *           (「原文 p.N」 opens split reading at that page; inference chips are dashed); the person's footprints (thin underlines on sentences asked about);
+ *           (「原文 p.N」 opens split reading at that page; inference chips are dashed); the person's footprints (thin underlines on sentences asked about, inline spans with role="button" that wrap like text and open on click/Enter/Space);
  *           selecting text inside one paragraph opens AskWindow under the selection
  *           and kept clear of the sprite's figure (padding on the side it sits);
- *           AskWindow: the quote (two lines), the exchange so far (the person's words and the streamed reply), a one-line growing input, send, and 「存为我的沉淀」 (only typed words)
+ *           AskWindow: the quote (two lines), the exchange so far (the person's words and the streamed reply, rendered by components/Markdown as Block.tsx does), a one-line growing input, send, and 「存为我的沉淀」 (only typed words)
  * [POS]: the reading half of P1-2's first loop. It sends nothing itself: the host posts visible user messages through the conversation's own path, and replies come from the
  *        shared conversation subscription; nothing here is a second channel
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import { CloseIcon, SendIcon } from '../../components/icons'
+import { Markdown } from '../../components/Markdown'
 import { useT } from '../../i18n/index.ts'
 import type { Identity, ReadingParagraph, ReadingSection } from '../data/client.ts'
 import { footprintRanges, readingAsks, sectionLabel, squash, type Ask } from './reading-ask.ts'
@@ -54,15 +55,17 @@ function SourceChip({ paragraph, onOpen }: { paragraph: ReadingParagraph; onOpen
   return <button type="button" className="source-chip reading-chip" title={`${S.openSource} · “${quote}”`} onClick={() => onOpen(page)}>{page ? S.page(page) : S.paper}</button>
 }
 
-/** A paragraph's text with the person's footprints as thin underlined buttons. */
+/** A paragraph's text with the person's footprints as thin underlines. A footprint is an inline span acting as a button, so a quote that starts mid-line wraps
+ *  like the text around it (a real <button> is an atomic inline box and would push the whole quote to its own line). */
 function ParagraphText({ paragraph, quotes, onFootprint }: { paragraph: ReadingParagraph; quotes: string[]; onFootprint: (quote: string, element: HTMLElement) => void }) {
   const S = useT().studio.reading
   const parts: ReactNode[] = []
   let at = 0
   for (const range of footprintRanges(paragraph.text, quotes)) {
     if (range.start > at) parts.push(paragraph.text.slice(at, range.start))
-    parts.push(<button type="button" key={range.start} className="reading-footprint" title={S.footprint} aria-label={S.footprint}
-      onClick={event => onFootprint(range.quote, event.currentTarget)}>{paragraph.text.slice(range.start, range.end)}</button>)
+    parts.push(<span role="button" tabIndex={0} key={range.start} className="reading-footprint" title={S.footprint} aria-label={S.footprint}
+      onClick={event => onFootprint(range.quote, event.currentTarget)}
+      onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onFootprint(range.quote, event.currentTarget) } }}>{paragraph.text.slice(range.start, range.end)}</span>)
     at = range.end
   }
   if (at < paragraph.text.length) parts.push(paragraph.text.slice(at))
@@ -139,7 +142,7 @@ export function AskWindow({ target, asks, busy, onSend, onKeep, onClose, column 
     </header>
     {asks.length > 0 && <div className="reading-ask-log">{asks.map(ask => <div key={ask.messageId} className="reading-ask-turn">
       <p className="reading-ask-you"><b>{S.ask.you}</b>{ask.words}</p>
-      {ask.reply ? <p className="reading-ask-reply">{ask.reply}</p> : <p className="reading-ask-reply is-waiting" role="status">{S.ask.thinking}</p>}
+      {ask.reply ? <div className="reading-ask-reply"><Markdown>{ask.reply}</Markdown></div> : <p className="reading-ask-reply is-waiting" role="status">{S.ask.thinking}</p>}
     </div>)}</div>}
     <div className="reading-ask-input">
       <textarea ref={input} rows={1} value={words} aria-label={S.ask.placeholder} placeholder={S.ask.placeholder}
