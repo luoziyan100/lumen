@@ -77,12 +77,14 @@ function mount(api: LumenApi, topicId: string) {
   const element = document.createElement('div'); document.body.append(element)
   const root = createRoot(element)
   let board!: BoardState, focus: { blockId: string; nonce: number } | null = null
-  function Harness() { board = useBoard(api, topicId, '', false); return createElement(Board, { board, materials: [], drawing: null, focus, onOpenSource() {} }) }
+  function Harness() { board = useBoard(api, topicId, '', false); return createElement(Board, { board, materials: [], drawing: null, focus, onOpenSource() {}, sediment: sedimentStub, invite: null, sediment: sedimentStub, invite: null }) }
   const render = () => act(async () => root.render(createElement(Harness)))
   return { element, get board() { return board }, render,
     async card(blockId: string) { focus = { blockId, nonce: Date.now() }; await render() },
     async unmount() { await act(async () => root.unmount()); element.remove() } }
 }
+
+const sedimentStub = { items: [], offers: [], unsupported: false, error: '', revConflict: false, refresh() {}, async create() { return true }, async confirm() { return true }, async dismiss() {}, async edit() { return true }, async remove() { return true } }
 
 test('R17 Board against the real service: keyboard-reachable 「⋯」 on every tab; empty deletes without a dialog; content asks with number, title and count; the selected sheet hands over to its neighbour', { timeout: 60000 }, async () => {
   const env = await service()
@@ -140,7 +142,7 @@ test('R17 run target: its menu item is disabled with the reason in title; other 
   const board: BoardState = { sheets, writable: 'b', selected: 'b', target: 'a', error: '', view: { sheet: sheets[1]!, blocks: [] }, refresh() {}, select() {},
     async createSheet() {}, async remove() { throw new Error('a disabled item must not delete') }, async locate() { return 'found' as const } }
   try {
-    await act(async () => root.render(createElement(Board, { board, materials: [], drawing: 'new', focus: null, onOpenSource() {} })))
+    await act(async () => root.render(createElement(Board, { board, materials: [], drawing: 'new', focus: null, onOpenSource() {}, sediment: sedimentStub, invite: null, sediment: sedimentStub, invite: null })))
     assert.ok(tabs()[0]!.querySelector('.board-tab-dot'), 'the dot marks the target')
     await openMenu(menuButton(0))
     assert.ok(item()!.hasAttribute('data-disabled') || item()!.getAttribute('aria-disabled') === 'true', 'disabled on the target')

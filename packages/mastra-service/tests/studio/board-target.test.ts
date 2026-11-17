@@ -305,7 +305,9 @@ test('No selection keeps the newest live sheet; the full-board rejection follows
     await until(() => !session.displayState.get().isRunning && env.fixture.requests.length >= 2, 'run did not finish')
     const full = toolText(env.fixture.requests.at(-1)!)
     assert.match(full, /这张白板满了（8\/8）/)
-    assert.match(full, /建议先把想清楚的部分沉淀下来；要接着画，可以请用户点 ＋ 开一张新的再发消息。开哪张、写哪张由用户选，你不自己开新白板，也不换到别的白板/)
+    // S5: the refusal now names sediment_invite (stop, point, ask) and still forbids squeezing, switching and self-opening
+    assert.match(full, /用 sediment_invite 指出这张里值得留下的几块，问用户一句，请用户用自己的话沉淀/)
+    assert.match(full, /不要往外挤，也不要换到别的白板/)
     assert.doesNotMatch(full, /换题/)
     assert.equal(env.studio.board.view(second).blocks.length, 8)
     assert.equal(env.studio.board.sheets('p').length, 2, 'the AI never opens a sheet')

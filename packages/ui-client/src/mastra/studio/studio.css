@@ -1,12 +1,12 @@
 /**
- * [INPUT]: tokens.css / yan-design-system tokens 与 appearance 皮肤变量（data-material 玻璃/纸面）
- * [OUTPUT]: 新外壳样式——原型 v7 骨架（canvas 底、8px 外边距与间距、圆角面板、50px 同线头部、14px 同一左缘、四级字阶、30px 控件）、
- *           左右栏收放（宽 0、--dur-base 过渡、减弱动效时瞬时）、视图导航（图标 + 文字，放不下只留图标）、素材搜索与标题 + 链接两行、白板画布与区块（文字/梯子/表格/小部件）、阅读器分屏（分隔条、两个下限）与铺满、材料栏、对话精灵（52px 五表情、交叉淡入、外圈光环与空闲呼吸，减少动态关闭动效）
- * [POS]: 只用现有 tokens；控件与文档岛保持实色表面，玻璃/纸面皮肤走 appearance 管道。字号只引用下面四个变量（G4）
+ * [INPUT]: tokens.css / yan-design-system tokens and the appearance skin variables (data-material: glass/paper)
+ * [OUTPUT]: the new shell's styles — the prototype v7 skeleton (canvas base, 8px margins and gaps, rounded panels, one 50px header line, one 14px left edge, a four-step type scale, 30px controls),
+ *           pane collapse to width 0 (--dur-base transition, instant under reduced motion), view navigation (icon + text, icons alone when narrow), material search plus title/link rows, the board canvas and its blocks (text/ladder/table/widget; the takeaway entry on current blocks), the sediment row inside the board and the takeaways view (dashed frames, restorable strikethrough, evidence chips), the reader split (divider, two minimums) and full view, the materials pane, the conversation sprite (52px, five faces, cross-fades, halo and idle breathing, motion off under reduced motion), and the speech-habits pane in settings (S14)
+ * [POS]: existing tokens only; controls and document islands keep solid surfaces while glass/paper skins ride the appearance pipeline. Sizes reference only the four variables below (G4)
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
-/* ---- 骨架变量：四级字阶（tokens 里没有 13.5 / 11，就在这里定义，全文件只引用它们） ---- */
+/* ---- Skeleton variables: the four-step type scale (13.5 / 11 live only here; the whole file references these) ---- */
 .studio {
   --st-title: 14px;   /* 面板标题、区块标题，600 */
   --st-body: 13.5px;  /* 正文、列表项、按钮 */
@@ -17,15 +17,15 @@
   --st-control: 30px; /* 输入框、按钮、图标按钮（G5） */
   --st-left-w: 240px;  /* 左栏宽，收起为 0（K1） */
   --st-right-w: 280px; /* 右栏宽，收起为 0（K2） */
-  /* 精灵层级（M9）：在面板、浮层条（5–8）、阅读器与沉浸阅读之上，在 Kumo 菜单/下拉/提示/对话框（z-40、z-50）与设计系统 --z-popover（100）之下 */
+  /* Sprite layer (M9): above panels, overlay strips (5–8), the reader and immersive reading; below Kumo menus/dropdowns/tooltips/dialogs (z-40, z-50) and the design system's --z-popover (100) */
   --st-z-sprite: 30;
 }
 
-/* ---- 外壳：canvas 底上的圆角面板（G1） ---- */
+/* ---- Shell: rounded panels over the canvas (G1) ---- */
 .app.studio { display: grid; grid-template-columns: var(--st-left-w) minmax(0, 1fr) var(--st-right-w); grid-template-rows: minmax(0, 1fr); gap: 8px; padding: 8px; box-sizing: border-box; height: 100vh; font-size: var(--st-body); transition: grid-template-columns var(--dur-base) var(--ease-out); }
 .app.studio.studio-docked { grid-template-columns: var(--st-left-w) minmax(0, 1fr) var(--st-right-w) var(--sprite-dock-w, 380px); }
 .app.studio.studio-no-topic { grid-template-columns: var(--st-left-w) minmax(0, 1fr); }
-/* 收起（K1–K5）：栏宽 0、去掉边框；中栏吃掉那一侧的间距，外边距仍是 8px。过渡结束后才隐藏，inert 挡住焦点 */
+/* Collapsed (K1–K5): width 0, no border; the center absorbs that gap and the outer margin stays 8px. Hiding waits for the transition and inert blocks focus */
 .app.studio.studio-left-collapsed { --st-left-w: 0px; }
 .app.studio.studio-right-collapsed { --st-right-w: 0px; }
 .studio .studio-center { transition: margin var(--dur-base) var(--ease-out); }
@@ -37,18 +37,18 @@
 html[data-material="glass"] .studio :is(.studio-topics, .studio-materials) { background: var(--paper); backdrop-filter: blur(var(--material-blur)) saturate(var(--material-saturation)); }
 html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { background: var(--surface-base); }
 
-/* ---- 一条头部线（G2）与一个左缘（G3） ---- */
+/* ---- One header line (G2) and one left edge (G3) ---- */
 .studio-head { flex: none; box-sizing: border-box; height: var(--st-head); display: flex; align-items: center; gap: 8px; padding: 0 8px 0 var(--st-inset); border-bottom: 1px solid var(--border); }
 .studio-head-title { margin: 0; min-width: 0; font: 600 var(--st-title)/1.3 var(--font-sans); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .studio-sp { flex: 1; }
 .studio-scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding: 8px 0; }
 .studio-note { margin: 4px var(--st-inset); font-size: var(--st-note); line-height: 1.6; color: var(--text-muted); }
 .studio-label { margin: 0; padding: 8px var(--st-inset) 4px; display: flex; justify-content: space-between; font-size: var(--st-label); font-weight: var(--w-regular); letter-spacing: .04em; color: var(--text-muted); }
-/* 列表项：外边距 6 + 内边距 8 = 文字落在 14 */
+/* List rows: 6 margin + 8 padding put the text at 14 */
 .studio-item { box-sizing: border-box; width: calc(100% - 12px); margin: 0 6px; min-height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border: 0; border-radius: 8px; background: none; text-align: left; color: var(--text-soft); font-size: var(--st-body); cursor: pointer; }
 .studio-item:hover { background: var(--fill-subtle); color: var(--text); }
 .studio-item.on { background: var(--accent-tint); color: var(--text); }
-/* 输入框：和列表项同一盒子、同一文字左缘 */
+/* Inputs: same box and text left edge as list rows */
 .studio-field { box-sizing: border-box; flex: 1; min-width: 0; height: var(--st-control); padding: 0 8px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface-control); color: var(--text); font: var(--st-body) var(--font-sans); outline: none; }
 .studio-field::placeholder { color: var(--text-faint); }
 .studio-field:focus { border-color: var(--accent-hover); box-shadow: 0 0 0 3px var(--focus-ring); }
@@ -57,7 +57,7 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 .studio-foot { flex: none; display: flex; gap: 2px; padding: 6px 0; border-top: 1px solid var(--border); }
 .studio-foot .studio-item { width: auto; margin-right: 0; }
 
-/* ---- 左栏：主题 ---- */
+/* ---- Left pane: topics ---- */
 .topics-new { display: flex; margin: 0 6px 4px; }
 .topics-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
 .topic-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -67,25 +67,25 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 @keyframes studio-pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .topic-light-running, .board-drawing-dot { animation: none; } }
 
-/* ---- 中栏：白板段 + 阅读器段，两段头部同一行 ---- */
+/* ---- Center: the board pane and the reader pane share one header line ---- */
 .studio-center { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
-/* 分屏（R-d）：白板段按比例，夹在 [360, 总宽 − 420]，放不下时白板保 360、先压阅读器（与 Panes.splitBoardWidth 同一规则） */
+/* Split (R-d): the board pane follows the ratio clamped to [360, total − 420]; when space runs out the board keeps 360 and the reader yields first (same rule as Panes.splitBoardWidth) */
 .studio-center.studio-split { --split-board: clamp(min(360px, 100%), calc(var(--split-ratio, .5) * 100%), calc(100% - 420px)); grid-template-columns: var(--split-board) minmax(0, 1fr); }
 .studio-splitter { position: absolute; z-index: 7; top: 0; bottom: 0; left: calc(var(--split-board) - 4px); width: 8px; cursor: col-resize; touch-action: none; outline: none; }
 .studio-splitter::after { content: ''; position: absolute; top: 0; bottom: 0; left: 3.5px; width: 1px; background: transparent; transition: background var(--dur-fast) var(--ease-out); }
 .studio-splitter:hover::after, .studio-splitter:focus-visible::after, .is-resizing > .studio-splitter::after { background: var(--accent); }
 .studio-center.is-resizing { user-select: none; cursor: col-resize; }
 .studio-center.is-resizing iframe { pointer-events: none; }
-/* 铺满（R-a/R-c）：白板段隐藏但保持挂载（相机与排列都留着），中栏头部只剩阅读器头 */
+/* Full (R-a/R-c): the board pane hides but stays mounted (camera and layout kept); the center header holds only the reader's */
 .studio-center.studio-full .studio-board-pane { display: none; }
 .studio-center.studio-full .studio-reader { border-left: 0; }
-/* 收起后的展开按钮在中栏头部两端；图标按钮盒子贴 8px，与右侧按钮对称 */
+/* Reopen toggles sit at the center header's ends, their icon boxes 8px in, symmetric with the right side */
 .studio-head .head-lead { margin-left: -6px; margin-right: auto; }
 .studio-head .head-trail { margin-left: auto; }
 .studio-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .studio-stage { position: relative; flex: 1; min-height: 0; display: flex; }
 .studio-later { margin: auto; max-width: 420px; text-align: center; color: var(--text-muted); font-size: var(--st-note); padding: 24px; }
-/* 视图导航（G6，原型 .seg）：属于白板段，按所在段的中线居中（U1），分屏时不漂到阅读器上方。
+/* View navigation (G6, prototype .seg): belongs to the board pane and centers on that pane's midline (U1), never drifting over the reader in split view.
    图标在左（16，currentColor，随三态文字色）；放不下时（ViewNav 用不可见的完整副本量宽度）只留图标，不换行、不挤偏中线 */
 .studio-center-head { position: relative; justify-content: center; }
 .studio-center-head .studio-seg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: max-content; max-width: calc(100% - 16px); }
@@ -99,15 +99,15 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 .studio-seg button.on { background: var(--surface-elevated); color: var(--text); box-shadow: var(--shadow-1); }
 .studio-split .studio-seg button, .studio-seg.is-compact button { padding: 0 8px; }
 
-/* ---- 白板 ---- */
-.studio-board { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; }
+/* ---- The board ---- */
+.studio-board { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .board-viewport { position: relative; flex: 1; min-height: 0; overflow: hidden; cursor: grab; touch-action: none; background-color: var(--surface-base); background-image: radial-gradient(color-mix(in srgb, var(--text) 13%, transparent) 1px, transparent 1.2px); background-size: 22px 22px; }
 .board-viewport:active { cursor: grabbing; }
 .board-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 .board-frame { position: absolute; box-sizing: border-box; border: 1.5px dashed var(--border-strong); border-radius: var(--radius-lg); pointer-events: none; }
 .board-frame-label { position: absolute; top: -20px; right: 0; font-size: var(--st-note); color: var(--text-muted); white-space: nowrap; }
-/* 左上角浮层（G7/U2）：多张时的张标签 · ＋；不显示已用块数 */
-/* W1：张标签单行、每张最宽 160 省略、title 全名，放不下就在浮层里横向滚动，不换行（浮层高度恒为 30，W2 的画布起点据此留空） */
+/* The top-left overlay (G7/U2): sheet tabs · ＋ when there are several; no used-count on display */
+/* W1: one tab line each, 160px max with ellipsis and the full name in title; overflow scrolls sideways inside the overlay instead of wrapping (the overlay is always 30 high, and W2's canvas origin leaves room for it) */
 .board-sheets { position: absolute; left: var(--st-inset); top: 12px; z-index: 5; display: flex; align-items: center; gap: 6px; box-sizing: border-box; height: var(--st-control); max-width: calc(100% - 2 * var(--st-inset)); padding: 0; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-1); }
 .board-tabs { position: relative; display: flex; gap: 2px; min-width: 0; padding-left: 3px; overflow-x: auto; scrollbar-width: none; }
 .board-tabs::-webkit-scrollbar { display: none; }
@@ -137,7 +137,7 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 .board-zoom { position: absolute; right: var(--st-inset); bottom: var(--st-inset); z-index: 5; display: inline-flex; align-items: center; gap: 2px; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-1); }
 .board-zoom-value { min-width: 40px; text-align: center; font-size: var(--st-note); color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
-/* ---- 区块（B2：标题是块里最强的字；B3：块里没有横向滚动） ---- */
+/* ---- Blocks (B2: the title is the block's strongest type; B3: no horizontal scrolling inside a block) ---- */
 .board-block { position: absolute; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; background: var(--surface-elevated); border: 1px solid var(--border-strong); border-radius: var(--radius-lg); box-shadow: var(--shadow-1); cursor: auto; color: var(--text); overflow: hidden; transition: box-shadow var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out); }
 .board-block.is-superseded { opacity: .5; filter: grayscale(.6); }
 .board-block.is-focused { box-shadow: 0 0 0 2px var(--accent), var(--shadow-2); }
@@ -164,7 +164,7 @@ button.source-chip { cursor: pointer; }
 button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-hover); }
 .source-chip-inferred { border-style: dashed; color: var(--text-muted); background: none; }
 
-/* 梯子：高到低；断点在两级之间（B5，原型 .break） */
+/* Ladder: high to low; the break sits between two rungs (B5, prototype .break) */
 .ladder { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .rung { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-elevated); font-size: var(--st-body); }
 .rung-here { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-tint); }
@@ -178,20 +178,20 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 .block-table th { color: var(--text-muted); font-weight: var(--w-medium); font-size: var(--st-label); }
 .guess-cell { color: var(--danger); font-style: italic; }
 
-/* 小部件：高度跟内容（WidgetFrame 报高），不留估计高度的空白（R2） */
+/* Widgets: height follows content (WidgetFrame reports it), leaving no estimated-height gap (R2) */
 .block-widget { min-width: 0; border-radius: 10px; overflow: hidden; }
 .block-widget .widget-frame { margin: 0; }
 .block-widget .widget-frame-title { display: none; }
 .block-widget-idle { min-height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border: 1px dashed var(--border-strong); color: var(--text-muted); font-size: var(--st-note); }
 
-/* ---- 阅读器：中栏右段，头部与白板头同线（D1）；缩放条在底部居中，不压在正文顶上（G8） ---- */
+/* ---- Reader: the center's right pane, its header on the board header's line (D1); the zoom bar centers at the bottom and never covers the text (G8) ---- */
 .studio-reader { border-left: 1px solid var(--border); background: var(--surface-elevated); }
-/* R-b：类别轮廓 → 标题占满剩余宽度（真放不下才省略）→ 铺满/还原 → 系统打开 → 保存 → 关闭 */
+/* R-b: kind glyph → title takes the remaining width (ellipsis only when truly out) → full/restore → open in system → save → close */
 .reader-icon { flex: none; display: inline-flex; color: var(--text-soft); }
 .reader-title { flex: 1; }
 .reader-actions { display: flex; align-items: center; gap: 2px; flex: none; }
 .studio-reader .mw-reader-pdf { position: relative; }
-/* R-e：适配宽度时内宽 = 阅读器宽 − 2×12，没有横向滚动 */
+/* R-e: fit-to-width means inner width = reader width − 2×12, with no horizontal scrolling */
 .studio-reader .pdf-scroll { padding: 12px 12px 64px; }
 .studio-reader .pdf-fit-btn { height: 24px; padding: 0 8px; border: 0; border-radius: 7px; background: none; color: var(--text-soft); font: var(--st-note) var(--font-sans); cursor: pointer; }
 .studio-reader .pdf-fit-btn:hover:not(:disabled) { background: var(--surface-fill); color: var(--text); }
@@ -200,12 +200,12 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 .studio-reader .pdf-zoom-val { font-size: var(--st-note); }
 .studio-reader > .mw-error { margin: 8px var(--st-inset); }
 
-/* ---- 右栏：材料（M1–M4） ---- */
-/* 搜索框：和列表项同一左缘，放大镜在框内左侧 */
+/* ---- Right pane: materials (M1–M4) ---- */
+/* Search box: same left edge as rows, the magnifier inside at the left */
 .materials-search { position: relative; display: flex; margin: 0 6px 4px; }
 .materials-search > .lumen-icon { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: var(--text-faint); pointer-events: none; }
 .materials-search .studio-field { padding-left: 30px; }
-/* 上传中：按钮禁用，回形针亮成强调色并呼吸（减弱动效时只亮不动） */
+/* Uploading: the button disables and the paperclip glows in the accent and breathes (a steady glow under reduced motion) */
 .studio .materials-upload.is-uploading { color: var(--accent); opacity: 1; cursor: progress; }
 .materials-upload.is-uploading .lumen-icon { animation: studio-pulse 1s var(--ease-out) infinite; }
 @media (prefers-reduced-motion: reduce) { .materials-upload.is-uploading .lumen-icon { animation: none; } }
@@ -216,25 +216,25 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 .material-icon { flex: none; display: inline-flex; color: var(--text-soft); }
 .material-text { min-width: 0; display: flex; flex-direction: column; }
 .material-title { font-size: var(--st-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* 副行只有链接短写，单行省略；没有链接的条目只有标题一行 */
+/* The second row holds the short link, ellipsized to one line; an item without a link keeps a title-only row */
 .material-link { font-size: var(--st-note); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .material-remove { opacity: 0; }
 .material:hover .material-remove, .material-remove:focus-visible { opacity: 1; }
 
-/* ---- 对话精灵 ---- */
-/* 全身缩小版：left/top 由 sprite-place 的实际 60×92 包围盒算出；拖动中只写 transform。 */
+/* ---- The conversation sprite ---- */
+/* The shrunken full body: left/top come from sprite-place's real 60×92 box; during a drag only transform is written. */
 .sprite-orb { position: fixed; z-index: var(--st-z-sprite); touch-action: none; user-select: none; -webkit-user-select: none; width: 60px; height: 92px; padding: 0; border: 0; border-radius: 0; background: transparent; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; overflow: visible; }
 .sprite-orb.is-dragging { cursor: grabbing; }
-/* 脸：五张叠放，只切透明度（200ms 交叉淡入），切换不重取图 */
+/* Faces: five stacked, only opacity switches (a 200ms cross-fade); a switch never refetches art */
 .sprite-face { position: relative; display: inline-flex; width: 100%; height: 100%; border-radius: 50%; }
 .sprite-face img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; opacity: 0; transition: opacity 200ms ease; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45); }
 .sprite-face img.on { opacity: 1; }
-/* 光环画在头像外圈，不画在图上：运行为旋转弧线，等你为琥珀呼吸 */
+/* The halo rings the avatar rather than being painted into it: a spinning arc while running, an amber breath while waiting */
 .sprite-face::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity 0.3s; }
 .sprite-face:is([data-state='running'], [data-state='speaking'])::after { opacity: 1; background: conic-gradient(from 0deg, transparent 0 55%, var(--accent) 85%, transparent 100%); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px)); mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px)); filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 65%, transparent)); animation: sprite-spin 2.8s linear infinite; }
 .sprite-face[data-state='waiting']::after { opacity: 1; box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning) 80%, transparent), 0 0 14px 2px color-mix(in srgb, var(--warning) 50%, transparent); animation: sprite-pulse 1.8s ease-in-out infinite; }
 .sprite-breathe { transform-origin: 50% 60%; animation: sprite-breathe 5s ease-in-out infinite; }
-/* 展开态头部：28–32px，不呼吸 */
+/* The open window's head: 28–32px, no breathing */
 .sprite-orb > .sprite-unread { position: absolute; top: 0; right: 2px; box-shadow: 0 0 0 2px var(--surface-elevated); }
 .sprite-face-head { width: 32px; height: 32px; flex: none; }
 @keyframes sprite-spin { to { transform: rotate(360deg); } }
@@ -245,7 +245,7 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
   .sprite-face img { transition: none; }
 }
 .sprite { z-index: var(--st-z-sprite); display: flex; flex-direction: column; min-height: 0; background: var(--surface-elevated); border: 1px solid var(--border-strong); overflow: hidden; }
-/* 浮窗：从头像中心长出（transform-origin 由 useSpriteMove 写），动画只动 transform 与 opacity */
+/* The floating window grows from the avatar's center (useSpriteMove writes transform-origin); animation touches transform and opacity only */
 .sprite-floating { position: fixed; border-radius: var(--radius-lg); box-shadow: var(--shadow-3); will-change: transform, opacity; }
 .sprite-docked { position: relative; grid-column: 4; grid-row: 1; }
 .sprite-head { cursor: move; user-select: none; padding-left: var(--st-inset); }
@@ -267,12 +267,67 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 .sprite-welcome { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .sprite-welcome > .chat-stage { flex: 1; min-height: 0; }
 
-/* ---- 对话里的白板卡片（R6：只显示卡片，点卡跳到那块） ---- */
+/* ---- Board cards in the conversation (R6: a card only, and clicking it jumps to the block) ---- */
 .board-card { margin: 8px 24px; }
 .board-card > button, .board-card > span { display: inline-flex; align-items: center; gap: 8px; min-height: 26px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--fill-subtle); color: var(--text-soft); font-size: var(--st-note); }
 .board-card > button { cursor: pointer; }
 .board-card > button:hover { color: var(--accent-ink); border-color: var(--accent-hover); }
 .board-card-failed > span { color: var(--danger); border-style: dashed; }
+
+
+/* ---- P1 takeaways (S8/S9/S14): dashed entry frames, the restorable strikethrough, evidence chips, the full-board row and the habits pane; existing tokens only ---- */
+.sediment-view { position: absolute; inset: 0; overflow: auto; padding: 20px var(--st-inset); }
+.sediment-list { display: flex; flex-direction: column; gap: 12px; max-width: 720px; margin: 0 auto; }
+.sediment-empty { color: var(--text-soft); font-size: var(--st-note); padding: 8px 2px; }
+.sediment-entry { border: 1.5px dashed var(--border-strong, var(--border)); border-radius: 10px; padding: 10px 14px 8px; background: var(--fill-subtle); }
+.sediment-entry-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.sediment-state { font-size: var(--st-label); color: var(--text-soft); letter-spacing: 0.02em; }
+.sediment-origin { font-size: var(--st-label); color: var(--accent-ink); background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline dotted; }
+.sediment-origin-typed { color: var(--text-soft); text-decoration: none; cursor: default; }
+.sediment-text { font-size: var(--st-body); line-height: 1.55; margin: 2px 0 6px; white-space: pre-wrap; }
+.sediment-quote { margin: 6px 0; padding: 6px 10px; border-left: 2px solid var(--border-strong, var(--border)); color: var(--text-soft); font-size: var(--st-note); }
+.sediment-quote-original { background: var(--fill-subtle); border-radius: 0 6px 6px 0; }
+.sediment-strike { text-decoration: line-through; text-decoration-thickness: 1.5px; color: var(--text-soft); background: none; border: none; padding: 0 1px; cursor: pointer; border-radius: 3px; font: inherit; }
+.sediment-strike:hover { color: var(--accent-ink); }
+.sediment-strike.is-restored { text-decoration: none; color: var(--text); box-shadow: inset 0 -1px 0 var(--accent, currentColor); }
+.sediment-evidence { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 2px; }
+.sediment-chip { display: inline-flex; align-items: center; gap: 5px; font-size: var(--st-label); color: var(--text-soft); border: 1px solid var(--border); border-radius: 999px; background: var(--fill-subtle); padding: 2px 10px; cursor: pointer; }
+.sediment-chip svg { width: 12px; height: 12px; }
+button.sediment-chip:hover { color: var(--accent-ink); border-color: var(--accent-hover); }
+.sediment-chip.is-gone { cursor: default; color: var(--text-soft); border-style: dashed; }
+.sediment-entry-foot { display: flex; gap: 12px; align-items: center; margin-top: 4px; }
+.sediment-act { background: none; border: none; padding: 0; font-size: var(--st-label); color: var(--text-soft); cursor: pointer; }
+.sediment-act:hover { color: var(--accent-ink); }
+.sediment-act-danger:hover { color: var(--danger); }
+.sediment-ask { display: inline-flex; gap: 10px; align-items: center; font-size: var(--st-label); color: var(--text); }
+.sediment-compose { display: flex; }
+.sediment-input { flex: 1; height: var(--st-control); border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: var(--st-body); padding: 0 12px; }
+.sediment-input:focus { outline: none; border-color: var(--accent-hover); }
+.sediment-keep { align-self: flex-start; }
+.sediment-error { max-width: 720px; margin: 0 auto; }
+.sediment-offer { border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; background: var(--surface); }
+.sediment-offer-note { font-size: var(--st-label); color: var(--text-soft); margin: 0 0 4px; }
+.sediment-offers-note { font-size: var(--st-label); color: var(--text-soft); margin: 0 0 2px; }
+.sediment-offer .sediment-quote { font-size: var(--st-body); color: var(--text); }
+.sediment-offer-actions { display: flex; gap: 10px; align-items: center; margin-top: 6px; }
+.sediment-offer-dismiss { color: var(--text-soft); }
+.sediment-original-toggle { background: none; border: none; padding: 0; font-size: var(--st-label); color: var(--text-soft); cursor: pointer; text-decoration: underline dotted; }
+/* The sediment row inside the board (S9b/c): below the canvas, above the sheet strip */
+.board-sediment-row { flex: none; padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 8px; max-width: 760px; margin: 0 auto; width: 100%; }
+.board-sediment-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; font-size: var(--st-label); color: var(--text-soft); }
+.board-sediment-full { color: var(--text); font-weight: 600; }
+.board-sediment-invite { color: var(--accent-ink); }
+.board-sediment-skip { background: none; border: none; padding: 0; align-self: flex-end; font-size: var(--st-label); color: var(--text-soft); cursor: pointer; text-decoration: underline dotted; }
+.board-sediment-skip:hover { color: var(--accent-ink); }
+.block-takeaway { border-style: dashed; cursor: pointer; }
+/* Speech habits in settings (S14) */
+.habits-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.habits-row { display: flex; align-items: center; gap: 12px; padding: 6px 8px; border-radius: 8px; }
+.habits-row:hover { background: var(--fill-subtle); }
+.habits-fragment { font-size: var(--st-body); color: var(--text); }
+.habits-counts { flex: 1; font-size: var(--st-label); color: var(--text-soft); }
+.habits-remove { background: none; border: none; padding: 4px; color: var(--text-soft); cursor: pointer; border-radius: 6px; }
+.habits-remove:hover { color: var(--danger); }
 
 @media (max-width: 1100px) {
   .studio { --st-left-w: 200px; --st-right-w: 240px; }
@@ -280,6 +335,6 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
   .app.studio.studio-docked .studio-materials { display: none; }
 }
 
-/* --- 原生淡出完成前不重复绘制应用内形象，隐藏不暂停会话 --- */
+/* --- Do not draw the in-app figure before the native fade completes; hiding never pauses the session --- */
 .sprite-orb[data-visible='false'] { visibility: hidden; }
 .sprite-orb[data-visible='false'] .sprite-visual * { animation-play-state: paused !important; }

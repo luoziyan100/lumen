@@ -1,7 +1,7 @@
 /**
- * [INPUT]: Hono、zod、studio 存储组合、研究网络、原生运行/等待状态投影
- * [OUTPUT]: studioRoutes：主题、白板（带 ETag；列表带用户选中的那张与正在跑的一轮的写入目标；记下选中；＋ 新开的那张即选中；用户删除一张（R17）；区块所在白板）、资料库上传/链接（arXiv 链接收 PDF）/原件/原件本机位置（只给原生「系统打开」核对用）、主题引用的 HTTP 接口
- * [POS]: 认证之后的产品路由；P0 白板对人只读，这里没有区块写接口——区块只经白板工具写（R4）；删整张白板只在这里，AI 没有对应工具（R17）
+ * [INPUT]: Hono, zod, the studio stores (sediment included), the research network, the native running/waiting projection
+ * [OUTPUT]: studioRoutes: topics; sheets (ETag-tagged; the list carries the user's selection and the running turn's target; storing the selection; the ＋ sheet becomes the selection; the user deletes one, R17; which sheet a block is on); sediment entries create/list/edit/delete with offer confirm/dismiss (R13: user HTTP only) and per-sheet invites; the library upload/link routes (arXiv links fetch the PDF), originals and their on-disk location (for the native "open in system" check); topic references
+ * [POS]: the product routes behind auth; there is no block-write route — blocks are written only through board tools (R4); sheet deletion lives only here, the AI has no such tool (R17); so does sediment entry text (S2)
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { createHash } from 'node:crypto'
@@ -18,6 +18,11 @@ const title = z.string().trim().min(1).max(200)
 const topicCreate = z.object({ title }).strict()
 const topicPatch = z.object({ title: title.optional(), archived: z.boolean().optional() }).strict().refine(value => Object.keys(value).length > 0)
 const sheetCreate = z.object({ title: title.optional() }).strict()
+const sedimentCreate = z.union([
+  z.object({ offerId: z.string().min(1).max(128), text: z.string().max(600).optional(), blocks: z.array(z.object({ id: z.string().min(1).max(128), rev: z.number().int().min(1) })).max(8).optional() }).strict(),
+  z.object({ text: z.string().max(600), blocks: z.array(z.object({ id: z.string().min(1).max(128), rev: z.number().int().min(1) })).max(8).optional() }).strict(),
+])
+const sedimentEdit = z.object({ text: z.string().max(600) }).strict()
 const selection = z.object({ sheetId: z.string().min(1).max(128) }).strict()
 const link = z.object({ url: z.string().url(), topicId: id.optional() }).strict()
 const reference = z.object({ itemId: z.string().min(1).max(128) }).strict()
@@ -25,7 +30,7 @@ const archived = z.enum(['true', 'false', 'all']).default('false').transform(val
 
 type Activity = () => Promise<Map<string, { running: boolean; waiting: boolean }>>
 
-/** 主题状态灯：把主题下所有对话（resourceId = topicId:taskId）的运行/等待汇总成一盏。 */
+/** The topic's status light: folds the running/waiting state of every conversation (resourceId = topicId:taskId) into one. */
 function withActivity(topics: Topic[], states: Map<string, { running: boolean; waiting: boolean }> | undefined): Topic[] {
   return topics.map(topic => {
     let running = false, waiting = false
@@ -47,7 +52,7 @@ function tagged(c: Context, body: unknown) {
 }
 
 export function studioRoutes(options: { studio: Studio; http: ResearchHttp; activity?: Activity }) {
-  const { topics, board, library } = options.studio
+  const { topics, board, sediment, library } = options.studio
   const app = new Hono()
   app.onError((error, c) => {
     if (error instanceof StudioError) return c.json(errorBody(error.message, error.code, error.params, error.detail), error.status)
@@ -55,17 +60,17 @@ export function studioRoutes(options: { studio: Studio; http: ResearchHttp; acti
     throw error
   })
 
-  // ---- 主题与状态灯 ----
+  // ---- Topics and their status lights ----
   app.get('/topics', async c => c.json({ items: withActivity(topics.list(archived.parse(c.req.query('archived'))), await options.activity?.()) }))
   app.post('/topics', async c => c.json(topics.create(topicCreate.parse(await c.req.json()).title), 201))
   app.get('/topics/:topicId', async c => c.json(withActivity([topics.get(id.parse(c.req.param('topicId')))], await options.activity?.())[0]))
   app.patch('/topics/:topicId', async c => c.json(topics.update(id.parse(c.req.param('topicId')), topicPatch.parse(await c.req.json()))))
 
-  // ---- 白板：人只读；＋ 新开一张 ----
+  // ---- Sheets: read-only for the user; ＋ opens one ----
   app.get('/topics/:topicId/sheets', async c => {
     const topicId = id.parse(c.req.param('topicId'))
     topics.get(topicId)
-    // ---- 没有进行中的白板（都收起了）不是错误：writable 为 null，界面提示用户点 ＋ ----
+    // ---- No live sheet (all folded) is not an error: writable is null and the UI invites the ＋ ----
     let writable: string | null = null
     try { writable = board.writableSheet(topicId).id } catch (error) { if (!(error instanceof StudioError) || error.status !== 409) throw error }
     // ---- R16: selected = where the next message writes; target = where the run in progress writes (only while it runs or waits) ----
@@ -95,7 +100,54 @@ export function studioRoutes(options: { studio: Studio; http: ResearchHttp; acti
   app.get('/sheets/:sheetId', c => tagged(c, board.view(z.string().min(1).max(128).parse(c.req.param('sheetId')))))
   app.get('/blocks/:blockId', c => c.json(board.blockSheet(z.string().min(1).max(128).parse(c.req.param('blockId')))))
 
-  // ---- 资料库：上传或粘链接，给了 topicId 就顺手引用到这个主题 ----
+  // ---- Sediment (R13): entries only through user HTTP here; the AI can only hand an offer back, and confirming uses this same create route ----
+  app.get('/topics/:topicId/sediment', c => {
+    const topicId = id.parse(c.req.param('topicId'))
+    topics.get(topicId)
+    return c.json(sediment.list(topicId))
+  })
+  app.post('/topics/:topicId/sediment', async c => {
+    const topicId = id.parse(c.req.param('topicId'))
+    topics.get(topicId)
+    const input = sedimentCreate.parse(await c.req.json())
+    // offerId confirms an offer the AI handed back; text is the user's final wording after the strikethrough choices (S9) and the store re-checks it. Otherwise this is a hand-written line
+    const entry = 'offerId' in input
+      ? sediment.offerConfirm(topicId, input.offerId, input.text, input.blocks)
+      : sediment.create(topicId, { text: input.text, origin: 'typed', blocks: input.blocks })
+    return c.json(entry, 201)
+  })
+  app.patch('/topics/:topicId/sediment/:entryId', async c => {
+    const topicId = id.parse(c.req.param('topicId'))
+    topics.get(topicId)
+    return c.json(sediment.edit(topicId, z.string().min(1).max(128).parse(c.req.param('entryId')), sedimentEdit.parse(await c.req.json()).text))
+  })
+  app.delete('/topics/:topicId/sediment/:entryId', c => {
+    const topicId = id.parse(c.req.param('topicId'))
+    topics.get(topicId)
+    sediment.remove(topicId, z.string().min(1).max(128).parse(c.req.param('entryId')))
+    return c.body(null, 204)
+  })
+  app.delete('/topics/:topicId/sediment/offers/:offerId', c => {
+    const topicId = id.parse(c.req.param('topicId'))
+    topics.get(topicId)
+    sediment.offerDismiss(topicId, z.string().min(1).max(128).parse(c.req.param('offerId')))
+    return c.body(null, 204)
+  })
+  // ---- A sheet's sediment invite (S4/S9c: the UI sits it above the full-board input) ----
+  app.get('/sheets/:sheetId/invite', c => {
+    const sheetId = z.string().min(1).max(128).parse(c.req.param('sheetId'))
+    board.sheet(sheetId)
+    return c.json({ invite: sediment.inviteOf(sheetId) })
+  })
+
+  // ---- S14 speech habits: one global table, read-only for the user and deletable line by line; the AI has no tool that writes it ----
+  app.get('/speech-habits', c => c.json({ items: sediment.habits() }))
+  app.delete('/speech-habits/:fragment', c => {
+    sediment.habitRemove(z.string().min(1).max(280).parse(c.req.param('fragment')))
+    return c.body(null, 204)
+  })
+
+  // ---- Library: upload or paste a link; a topicId references it into this topic in passing ----
   app.get('/library', c => c.json({ items: library.list() }))
   app.post('/library', async c => {
     let added: Awaited<ReturnType<typeof library.add>>, topicId: string | undefined
@@ -123,17 +175,17 @@ export function studioRoutes(options: { studio: Studio; http: ResearchHttp; acti
     c.header('ETag', etag)
     c.header('Cache-Control', 'no-cache')
     if (c.req.header('If-None-Match') === etag) return c.body(null, 304)
-    // ---- 原件按上传类型返回；HTML/SVG 不能在服务源上执行脚本，阅读器自有沙箱渲染 ----
+    // ---- Originals answer with their upload type; HTML/SVG must not run script on the service origin — the reader renders them sandboxed ----
     c.header('Content-Type', item.mediaType)
     c.header('X-Content-Type-Options', 'nosniff')
     c.header('Content-Security-Policy', 'sandbox')
     return c.body(new Uint8Array(await library.read(item)))
   })
 
-  // ---- 原件在本机的位置：只按条目 id 查，路径由服务给、原生层再核对一次在 library/ 里且是普通文件，页面传不进任意路径（L5） ----
+  // ---- An original's on-disk location: looked up by item id only; the service gives the path and the native layer re-checks it is a regular file under library/, so a page cannot pass an arbitrary path (L5) ----
   app.get('/library/:itemId/location', async c => c.json(await library.location(library.get(z.string().min(1).max(128).parse(c.req.param('itemId'))))))
 
-  // ---- 主题引用：原件不动，只增删引用 ----
+  // ---- Topic references: originals stay put, only references come and go ----
   app.get('/topics/:topicId/materials', c => c.json({ items: topics.materials(id.parse(c.req.param('topicId'))) }))
   app.post('/topics/:topicId/materials', async c => {
     const topicId = id.parse(c.req.param('topicId')), { itemId } = reference.parse(await c.req.json())

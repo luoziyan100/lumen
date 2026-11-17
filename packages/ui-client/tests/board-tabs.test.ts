@@ -46,6 +46,8 @@ async function until(check: () => boolean | Promise<boolean>, message: string, m
 const sheet = (id: string, title: string, ord: number, state: Sheet['state'] = 'live'): Sheet =>
   ({ id, topicId: 't', title, state, capacity: 8, used: 0, ord, createdAt: '', updatedAt: '' })
 
+const sedimentStub = { items: [], offers: [], unsupported: false, error: '', revConflict: false, refresh() {}, async create() { return true }, async confirm() { return true }, async dismiss() {}, async edit() { return true }, async remove() { return true } }
+
 test('initialSelection: the user\'s pick in this view, else the service selection, else the newest live sheet (older service)', () => {
   const items = [sheet('a', '主题', 1), sheet('b', '白板 2', 2), sheet('c', '白板 3', 3)]
   const list = (extra: Partial<SheetList>): SheetList => ({ items, writable: 'c', ...extra })
@@ -63,7 +65,7 @@ test('Board tabs: glyph + number, full title in title/aria-label, folded dimmed,
   const sheets = [sheet('a', '自注意力为什么能取代循环', 1), sheet('b', '白板 2', 2, 'folded'), sheet('c', '白板 3', 3)]
   const state = (patch: Partial<BoardState>): BoardState => ({ sheets, writable: 'c', selected: 'c', target: null, error: '', refresh() {}, select() {}, async createSheet() {},
     view: { sheet: sheets.find(item => item.id === (patch.selected ?? 'c'))!, blocks: [] }, ...patch })
-  const render = (board: BoardState, drawing: string | null) => act(async () => root.render(createElement(Board, { board, materials: [], drawing, focus: null, onOpenSource() {} })))
+  const render = (board: BoardState, drawing: string | null) => act(async () => root.render(createElement(Board, { board, materials: [], drawing, focus: null, onOpenSource() {}, sediment: sedimentStub, invite: null })))
   const tabs = () => [...element.querySelectorAll<HTMLButtonElement>('.board-tabs .board-tab > button:first-child')]
   try {
     await render(state({ target: 'a' }), 'new')

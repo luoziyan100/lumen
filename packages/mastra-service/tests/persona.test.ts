@@ -1,7 +1,7 @@
 /**
- * [INPUT]: 完整应用 Controller 与模型 HTTP 夹具
- * [OUTPUT]: 主 Agent 实际 system 提示携带完整画图合同(闭合/分支/subgraph-end/sequence/规模/语义 class、不写颜色)与白板草稿纸信念/白板工具；人格全文称「用户」
- * [POS]: 画图规则与界面宿主颜色裁决(ui-client mermaidTheme)的镜像回归;规则只劝说,渲染侧仍兜底
+ * [INPUT]: the full application Controller and the model HTTP fixture
+ * [OUTPUT]: the main agent's actual system prompt carries the full drawing contract (closed nodes first/branching/subgraph-end/sequence/scale/semantic classes, no colors) and the board-scratch-paper beliefs plus the board and sediment tools (P1-1: stop when full, delete tics only, settled stays untouched); the persona always says 「用户」
+ * [POS]: a mirror regression of the drawing rules and the UI host's color decisions (ui-client mermaidTheme); the rules only persuade — rendering still has its own guardrails
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import test from 'node:test'
@@ -26,8 +26,10 @@ test('主 Agent 实际请求的 system 提示包含完整画图规则', { timeou
     for (const rule of ['先闭合节点再写边', 'flowchart TD', '-- "是" -->', 'subgraph 与 end 成对', 'A->>B: 消息', '15 个节点', '不写颜色、style 或 init', 'ok/warn/danger/accent/muted']) {
       assert.ok(system.includes(rule), rule)
     }
-    // ---- 白板是两个人的草稿纸：信念层与工具层都要到达模型 ----
-    for (const belief of ['白板：你们俩的草稿纸', '先画，再说', '一块只讲一件事', '断在哪一级', '先收进资料库', 'board_draw', 'board_supersede', 'to_library: true']) {
+    // ---- The board as the pair's scratch paper: both the belief layer and the tool layer must reach the model ----
+    // ---- Sediment (P1-1, the S7 approved draft): beliefs and tools arrive together ----
+    for (const belief of ['白板：你们俩的草稿纸', '先画，再说', '一块只讲一件事', '断在哪一级', '先收进资料库', 'board_draw', 'board_supersede', 'to_library: true',
+      '沉淀是用户自己的话，字只能是用户的', '用 sediment_invite 指出这张里值得留下的几块', '除了口癖一个不动', '宁可少删，让用户自己划', 'sediment_invite({ blockIds, question })', 'sediment_quote({ text, blockIds? })', '已沉淀（settled）的块是用户留作证据的']) {
       assert.ok(system.includes(belief), belief)
     }
   } finally { await application.close(); await rm(root, { recursive: true, force: true }) }

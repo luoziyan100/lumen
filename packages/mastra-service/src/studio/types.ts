@@ -1,7 +1,8 @@
 /**
- * [INPUT]: 无运行时依赖；产品模型 doc/studio/model.md 的对象与状态
- * [OUTPUT]: 主题、资料（含作者/年份/arXiv 编号/标题来源）、引用、白板、区块、出处与版本 DTO，以及 BlockKind/BlockState 字面量
- * [POS]: studio 服务与桌面的纯类型边界，不携带数据库或框架对象
+ * [INPUT]: no runtime dependencies; the objects and states of the product model in doc/studio/model.md
+ * [OUTPUT]: topic, library (with authors/year/arXiv id/title source), reference, sheet, block, source and version, sediment entry/link/offer/invite DTOs,
+ *           plus the BlockKind/BlockState/SedimentOrigin literals
+ * [POS]: the pure type boundary shared by the service and the desktop; carries no database or framework objects
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 export interface Topic {
@@ -28,15 +29,15 @@ export interface LibraryItem {
   size: number
   addedBy: AddedBy
   createdAt: string
-  /** 论文元数据（L2）：作者前 3 位 + et al.、年份、arXiv 编号；旧库与非论文为 null */
+  /** Paper metadata (L2): first 3 authors + et al., year, arXiv id; null for older libraries and non-papers. */
   authors: string | null
   year: number | null
   arxivId: string | null
-  /** 标题从哪来：arxiv > info（PDF 文档信息）> heading（首页大字）> file；page 是网页标题、given 是调用方给的；旧库为 null */
+  /** Where the title came from: arxiv > info (PDF document info) > heading (first-page big type) > file; page is a web page title, given is caller-supplied; null in older libraries. */
   titleSource: 'arxiv' | 'info' | 'heading' | 'file' | 'page' | 'given' | null
 }
 
-/** 主题视角的材料：原件信息 + 这个主题读到哪、被当前区块引用几处。 */
+/** A material from the topic's point of view: the original's info plus this topic's reading progress and citation count. */
 export interface TopicMaterial extends LibraryItem {
   addedAt: string
   readProgress: number
@@ -60,7 +61,7 @@ export interface Sheet {
 export type BlockKind = 'text' | 'ladder' | 'table' | 'widget'
 export type BlockState = 'current' | 'superseded' | 'settled'
 
-/** 出处：材料（可带页码与原文）或某段对话；空数组表示「AI 推断」（R9）。 */
+/** A source: a material (with optional page and quote) or a conversation; an empty array means "AI inference" (R9). */
 export type BlockSource = { itemId: string; page?: number; quote?: string } | { threadId: string }
 
 export interface Block {
@@ -94,5 +95,69 @@ export interface SheetVersion {
   createdAt: string
 }
 
-/** 白板写入的来路：哪段对话、哪次运行（区块能回到「是谁画的」）。 */
+/** Where a board write came from: which conversation, which run (a block can answer "who drew it"). */
 export interface WriteOrigin { threadId: string | null; runId: string | null }
+
+// -------------------------------------------------------------------------
+// P1 sediment (R13): entries hold only the user's own words; P1 has a single state, the column leaves room for P2's evidence stamps
+// -------------------------------------------------------------------------
+export type SedimentOrigin = 'typed' | 'quoted'
+
+/** A deleted fragment (S2): its span into the original and its text; the S9 strikethrough and the S14 habit table both feed on them. */
+export interface SedimentFragment { start: number; end: number; text: string }
+
+export interface SedimentEntry {
+  id: string
+  topicId: string
+  /** One plain line, no Markdown rendering; an edit only appends a revision row, the old wording stays */
+  text: string
+  origin: SedimentOrigin
+  /** Always unverified in P1; verification stamps are P2's business */
+  state: string
+  /** The quote's source (S2): which user message of which conversation, the full original, and the fragments kept deleted */
+  quote: { threadId: string; messageId: string; original: string; fragments: SedimentFragment[] } | null
+  links: SedimentLink[]
+  createdAt: string
+  updatedAt: string
+}
+
+/** An evidence link: the block's title is recorded at link time; after a sheet delete the link keeps its stored title for display (S3, no foreign-key cascade). */
+export interface SedimentLink {
+  blockId: string
+  /** The block's title at link time; never changed afterwards */
+  title: string
+  sheetId: string
+  /** The block died with its sheet: display only, no jump */
+  deleted: boolean
+}
+
+/** An offer of the user's own words handed back by the AI (S4): a confirm turns it into an entry, a dismiss deletes it; the fragments drive the confirm-time strikethrough. */
+export interface SedimentOffer {
+  id: string
+  topicId: string
+  threadId: string
+  messageId: string
+  text: string
+  original: string
+  fragments: SedimentFragment[]
+  blockIds: string[]
+  createdAt: string
+}
+
+/** A sheet's sediment invite (S4): the latest replaces the earlier one; it dies with the sheet. */
+export interface SedimentInvite {
+  sheetId: string
+  blockIds: string[]
+  question: string
+  threadId: string | null
+  runId: string | null
+  createdAt: string
+}
+
+/** S14 speech habits: kept/restored counts for a deleted fragment; updated only by the user's keep action. */
+export interface SpeechHabit {
+  fragment: string
+  kept: number
+  restored: number
+  lastSeen: string
+}

@@ -1,7 +1,7 @@
 /**
- * [INPUT]: LumenApi 的白板列表（含选中与本轮写入目标）、记下选中、带 ETag 的白板读取、外部刷新信号（对话里白板工具写完）、运行状态
- * [OUTPUT]: useBoard：当前主题的白板张、选中那张的视图、进行中那张的 id、本轮写入目标、选中（记到服务端，R16；旧服务缺路由时只在本地切换，其它记录失败进 error 直到下次记下）、＋ 新开一张（即选中）、删除一张（R17：有内容先要确认，删的是选中的那张时跟随服务改选的相邻一张；旧服务如实提示不支持）、区块是否还在、刷新与错误
- * [POS]: 白板刷新不建第二套事件协议：工具完成信号触发重取，运行中再按 ETag 每 5 秒兜底（plan §6）；选中只经 Lumen 自己的 HTTP 记下，消息仍走原生发送
+ * [INPUT]: LumenApi's sheet list (with the selection and the run's target), storing the selection, the ETag sheet read, the external refresh signal (a board tool finished in the conversation), the running state
+ * [OUTPUT]: useBoard: the topic's sheets, the selected sheet's view, the live sheet's id, the run's target, the selection (stored on the service, R16; an older service without the route switches locally only, other store failures land in error until the next stored pick), ＋ (the new sheet becomes the selection), deleting one (R17: content asks first — the 409 carries the block count and how many takeaways lean on it — and a deleted selection follows the service's neighbour; an older service reports unsupported as due), whether a block still exists, refresh and errors
+ * [POS]: board refresh builds no second event protocol: the tool-completion signal triggers a refetch, with a 5-second ETag fallback while running (plan §6); the selection is stored only through Lumen's own HTTP while messages still go the native way
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -18,7 +18,7 @@ export interface BoardState {
   error: string
   select: (sheetId: string) => void
   createSheet: () => Promise<void>
-  /** R17: delete a sheet. Without `confirmed`, a sheet with blocks answers `confirm` (with the count) and nothing is deleted; null: it failed (see error). */
+  /** R17: delete a sheet. Without `confirmed`, a sheet with blocks answers `confirm` (with the count, and how many takeaways lose their evidence link) and nothing is deleted; null: it failed (see error). */
   remove: (sheetId: string, confirmed?: boolean) => Promise<SheetDeletion | null>
   /** Whether a block still exists (a conversation card may point into a deleted sheet); unknown when the service cannot tell. */
   locate: (blockId: string) => Promise<'found' | 'deleted' | 'unknown'>
@@ -44,10 +44,10 @@ export function useBoard(api: LumenApi, topicId: string | null, signal: string, 
   const pinned = useRef(false), pick = useRef(0)
   const refresh = useCallback(() => setTick(value => value + 1), [])
 
-  // ---- 换主题：清空，打开时停在服务记下的选中 ----
+  // ---- Topic switch: clear everything and rest on the service's stored selection ----
   useEffect(() => { setSheets([]); setWritable(null); setTarget(null); setSelected(null); setView(null); setError(''); setActionError(''); etag.current = null; pinned.current = false; pick.current++ }, [api, topicId])
 
-  // ---- 列表：信号与刷新时重取；运行中每 5 秒再取一次，本轮写入目标在开跑后才落定 ----
+  // ---- The list: refetch on signal and refresh; while running poll every 5s — the run's target settles only after the run starts ----
   useEffect(() => {
     if (!topicId) return
     let active = true

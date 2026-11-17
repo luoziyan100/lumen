@@ -1,7 +1,7 @@
 /**
- * [INPUT]: 主 Agent 暴露给模型的工具名（研究、技能、记忆、资料库材料、执行、摄取、历史与 Controller 内建）
+ * [INPUT]: the tool names the main agent exposes to the model (research, skills, memory, library materials, board, sediment, execution, ingestion, history and the Controller built-ins)
  * [OUTPUT]: TOOL_CATEGORIES / ALWAYS_ALLOWED_TOOLS / toolCategory
- * [POS]: 工具权限类别唯一真源；Controller 按类别放行 read/edit/execute，未登记工具落入 other 而不会被默认放行
+ * [POS]: the single source of tool permission categories; the Controller allows read/edit/execute per category, unlisted tools fall into `other` and are never allowed by default
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 export type ToolCategory = 'read' | 'edit' | 'execute' | 'other'
@@ -13,15 +13,16 @@ export const TOOL_CATEGORIES: Readonly<Record<string, Exclude<ToolCategory, 'oth
   list_skills: 'read', run_skill: 'read', read_skill_file: 'read', task_check: 'read',
   write_file: 'edit', edit_file: 'edit', write_memory: 'edit', install_skill: 'edit',
   board_draw: 'edit', board_update: 'edit', board_supersede: 'edit',
+  sediment_invite: 'edit', sediment_quote: 'edit',
   task_write: 'edit', task_update: 'edit', task_complete: 'edit',
   run_code: 'execute',
 }
 
-/** Controller 内建交互/任务工具按工具名单独放行，不依赖类别。 */
+/** Controller built-in interaction/task tools are allowed by name, not by category. */
 export const ALWAYS_ALLOWED_TOOLS = ['ask_user', 'task_write', 'task_update', 'task_complete', 'task_check'] as const
 
 export function toolCategory(name: string): ToolCategory {
-  // 原生 agent-* 只来自已注册的专家角色；角色白名单和独立目录先于执行权限生效。
+  // Native agent-* tools come only from registered specialist roles; the role whitelist and its separate catalog apply before execution permissions.
   if (name.startsWith('agent-')) return 'execute'
   return TOOL_CATEGORIES[name] ?? 'other'
 }

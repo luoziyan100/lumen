@@ -1,8 +1,10 @@
 /**
- * [INPUT]: Node SQLite、显式数据根
- * [OUTPUT]: openStudioDb：catalog.sqlite 中主题/资料/引用/白板/区块/版本表、用户选中的白板（sheet_selection）与每轮写入目标（run_targets），旧库按需加列（资料的作者/年份/arXiv 编号/标题来源，只在服务启动这条路径上做）；
- *           schema=false 时只打开不建表不加列，表结构不全就拒绝（补取等只填数据的工具用）；schemaGaps；transaction：同步立即事务
- * [POS]: studio 存储的唯一建表处；与 catalog/ 的阅读游标共用文件，不碰 Mastra 的 mastra.sqlite
+ * [INPUT]: Node SQLite, an explicit data root
+ * [OUTPUT]: openStudioDb: catalog.sqlite tables for topics/library/references/sheets/blocks/versions, the user's selected sheet (sheet_selection) and each run's write target (run_targets),
+ *           the sediment tables (entries/revisions/evidence links/offers/per-sheet invites) and the global speech_habits — all additive, no legacy column migrations; older libraries get
+ *           missing columns on demand (only on this service-start path)
+ *           schema=false only opens, never creates or adds columns, and refuses an incomplete schema (for data-only tools like backfill); schemaGaps; transaction: a synchronous immediate transaction
+ * [POS]: the only place studio tables are created; shares the file with catalog/ reading cursors, never touches Mastra's mastra.sqlite
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { DatabaseSync } from 'node:sqlite'
@@ -10,7 +12,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 // ---------------------------------------------------------------------------
-// 表结构：plan.md §2。区块的 rev/state/sources 在 P0 就落库，给 P1 锁、P2 出处留路
+// Schema: plan.md §2. Block rev/state/sources landed in P0 already, leaving room for P1 locks and P2 sources
 // ---------------------------------------------------------------------------
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS topics (
@@ -56,10 +58,42 @@ CREATE TABLE IF NOT EXISTS sheet_versions (
   thread_id TEXT, run_id TEXT, snapshot TEXT NOT NULL, created_at TEXT NOT NULL,
   PRIMARY KEY (sheet_id, version)
 ) STRICT;
+-- P1 sediment (R13): entries hold only the user's own words; links carry no foreign key so they keep their titles after a sheet delete (S3); invites cascade with the sheet
+CREATE TABLE IF NOT EXISTS sediment_entries (
+  id TEXT PRIMARY KEY, topic_id TEXT NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+  text TEXT NOT NULL, origin TEXT NOT NULL CHECK (origin IN ('typed','quoted')),
+  state TEXT NOT NULL DEFAULT 'unverified',
+  quote_thread_id TEXT, quote_message_id TEXT, quote_original TEXT, quote_fragments TEXT,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS sediment_revisions (
+  entry_id TEXT NOT NULL REFERENCES sediment_entries(id) ON DELETE CASCADE,
+  revision INTEGER NOT NULL, old_text TEXT NOT NULL, created_at TEXT NOT NULL,
+  PRIMARY KEY (entry_id, revision)
+) STRICT;
+CREATE TABLE IF NOT EXISTS sediment_links (
+  entry_id TEXT NOT NULL REFERENCES sediment_entries(id) ON DELETE CASCADE,
+  block_id TEXT NOT NULL, block_title TEXT NOT NULL, sheet_id TEXT NOT NULL,
+  created_at TEXT NOT NULL, PRIMARY KEY (entry_id, block_id)
+) STRICT;
+CREATE INDEX IF NOT EXISTS sediment_links_block ON sediment_links (block_id);
+CREATE TABLE IF NOT EXISTS sediment_offers (
+  id TEXT PRIMARY KEY, topic_id TEXT NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+  thread_id TEXT NOT NULL, message_id TEXT NOT NULL, text TEXT NOT NULL, original TEXT NOT NULL,
+  fragments TEXT NOT NULL DEFAULT '[]', block_ids TEXT NOT NULL DEFAULT '[]', created_at TEXT NOT NULL
+) STRICT;
+CREATE TABLE IF NOT EXISTS sediment_invites (
+  sheet_id TEXT PRIMARY KEY REFERENCES sheets(id) ON DELETE CASCADE,
+  block_ids TEXT NOT NULL, question TEXT NOT NULL, thread_id TEXT, run_id TEXT, created_at TEXT NOT NULL
+) STRICT;
+-- S14 speech habits: one global table, counted only by the user's keep action (kept = deletion left standing, restored = fragment restored); the AI only reads it
+CREATE TABLE IF NOT EXISTS speech_habits (
+  fragment TEXT PRIMARY KEY, kept INTEGER NOT NULL DEFAULT 0, restored INTEGER NOT NULL DEFAULT 0, last_seen TEXT NOT NULL
+) STRICT;
 `
 
 // ---------------------------------------------------------------------------
-// 加列迁移：旧库缺哪列补哪列（与 diagnostics/notes 同一做法），只加可空列，旧行读出为 null，向前兼容
+// Column migration: add whichever column an older library lacks (same approach as diagnostics/notes); only nullable columns, old rows read as null, forward compatible
 // ---------------------------------------------------------------------------
 const COLUMNS: [table: string, column: string, type: string][] = [
   ['library_items', 'authors', 'TEXT'], ['library_items', 'year', 'INTEGER'], ['library_items', 'arxiv_id', 'TEXT'], ['library_items', 'title_source', 'TEXT'],
@@ -70,13 +104,13 @@ function migrate(db: DatabaseSync) {
     if (!db.prepare(`PRAGMA table_info(${table})`).all().some(row => row.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`)
 }
 
-/** 当前代码需要而库里还没有的列（表不存在时整张表的列都算缺） */
+/** Columns the current code needs that the library still lacks (a missing table counts as all its columns missing). */
 export function schemaGaps(db: DatabaseSync): string[] {
   const needed: [string, string][] = [['library_items', 'id'], ['topic_materials', 'item_id'], ...COLUMNS.map(([table, column]) => [table, column] as [string, string])]
   return needed.filter(([table, column]) => !db.prepare(`PRAGMA table_info(${table})`).all().some(row => row.name === column)).map(([table, column]) => `${table}.${column}`)
 }
 
-/** 服务启动：建表并补列（幂等，旧库首次启动即补齐）。schema=false：只打开已由服务建好的库，不改表结构，结构不全就拒绝 */
+/** Service start: create tables and add missing columns (idempotent; an older library is completed on first start). schema=false: only open a library the service has already built, never change the schema, refuse when incomplete */
 export function openStudioDb(root: string, options: { schema?: boolean } = {}): DatabaseSync {
   const schema = options.schema ?? true, path = join(root, 'catalog.sqlite')
   if (!schema && !existsSync(path)) throw new Error(`没有 ${path}：先用服务启动一次这个数据根`)
@@ -92,7 +126,7 @@ export function openStudioDb(root: string, options: { schema?: boolean } = {}): 
   } catch (error) { db.close(); throw error }
 }
 
-/** 同步立即事务：容量、rev 检查与写入在同一事务内，失败整体回滚，不留半块（R8）。 */
+/** A synchronous immediate transaction: capacity and rev checks share the transaction with the writes, a failure rolls back everything and leaves no half block (R8). */
 export function transaction<T>(db: DatabaseSync, work: () => T): T {
   db.exec('BEGIN IMMEDIATE')
   try {

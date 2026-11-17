@@ -1,8 +1,8 @@
 /**
- * [INPUT]: i18n studio.views 的视图名、本文件的 VIEWS/VIEW_AVAILABLE（哪几个视图已开放）、icons 的五个视图图标（16，currentColor）
- * [OUTPUT]: ViewNav：中栏头部的主导航（白板 · 沉淀 · 概念图 · 灵感 · 全部），图标在左、文字在右；放不下时只留图标（aria-label 恒在，紧凑时加 title）；
- *           navFits：按中线居中、两侧给展开按钮让出同样宽度时完整导航放不放得下
- * [POS]: StudioApp 中栏头部的一部分；完整宽度由一份不可见的同款导航量出（同一头部、同一套样式），所以切换紧凑不会来回抖
+ * [INPUT]: the view names of i18n studio.views, this file's VIEWS/VIEW_AVAILABLE (the board and takeaways open since P1), the five view icons (16, currentColor)
+ * [OUTPUT]: ViewNav: the center header's main navigation (Board · Takeaways · Concept map · Ideas · All), icon left, text right; icons alone when narrow (aria-label always,
+ *           title when compact); navFits: does the full navigation fit when centered with equal room reserved for the pane toggles
+ * [POS]: part of StudioApp's center header; the full width is measured by an invisible twin navigation (same header, same styles), so toggling compact never jitters
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useLayoutEffect, useRef, useState } from 'react'
@@ -12,18 +12,18 @@ import { useT } from '../../i18n/index.ts'
 
 export const VIEWS = ['board', 'settled', 'map', 'ideas', 'all'] as const
 export type View = typeof VIEWS[number]
-/** P0 opens only the board; the rest are honest placeholders */
-export const VIEW_AVAILABLE: Record<View, boolean> = { board: true, settled: false, map: false, ideas: false, all: false }
+/** P1 opens the board and the takeaways; the rest are honest placeholders */
+export const VIEW_AVAILABLE: Record<View, boolean> = { board: true, settled: true, map: false, ideas: false, all: false }
 export const VIEW_ICONS: Record<View, Icon> = { board: BoardViewIcon, settled: SettledViewIcon, map: MapViewIcon, ideas: IdeasViewIcon, all: AllViewIcon }
-/** 导航与两侧按钮之间至少留的空 */
+/** At least this much air between the navigation and either toggle */
 const BREATH = 8
 
-/** 导航按中线居中：两侧都要让出较宽那一侧按钮占的宽度 */
+/** The navigation centers: both sides yield the width of the wider toggle */
 export function navFits(head: number, nav: number, reserve: number) {
   return nav + 2 * (reserve + BREATH) <= head
 }
 
-/** 头部里展开按钮从较近一侧边缘起占去的宽度（没有按钮为 0） */
+/** What the pane toggles claim from their nearer edge (0 when absent) */
 function edgeReserve(head: HTMLElement) {
   const width = head.clientWidth
   return [...head.querySelectorAll<HTMLElement>(':scope > .pane-toggle')].reduce((most, toggle) => {
@@ -50,7 +50,7 @@ export function ViewNav({ view, onView }: { view: View; onView: (view: View) => 
   useLayoutEffect(() => {
     const head = nav.current?.parentElement, full = ghost.current
     if (!head || !full) return
-    // 头部宽 0（铺满阅读器时白板段 display:none）就是没在排版，保持原样
+    // A zero-width header (the board pane is display:none under a full reader) means no layout happened — keep the previous state
     const measure = () => { if (head.clientWidth) setCompact(!navFits(head.clientWidth, full.offsetWidth, edgeReserve(head))) }
     measure()
     const resize = new ResizeObserver(measure), mutate = new MutationObserver(measure)

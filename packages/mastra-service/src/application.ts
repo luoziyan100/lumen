@@ -1,7 +1,7 @@
 /**
- * [INPUT]: Mastra Controller/Memory/Workspace、studio 存储（主题/资料库）、用户角色/技能根、原生步骤守卫与隔离诊断评估
- * [OUTPUT]: createApplication：独立存储、会话/后台活动投影、全局专家组、父子预算/专家继续、诊断与排空关闭入口；白板每轮写入目标（R16）在开跑时取选中、挂起与关停时保留、运行结束时释放；专家的 board_view 只看不捕获
- * [POS]: 新应用组合根；单一原生执行链，身份是 topicId:taskId。同主题的对话共用一个主题工作区（按主题缓存、关闭时只销毁一次），材料只经引用清单触达
+ * [INPUT]: Mastra Controller/Memory/Workspace, the studio stores (topics/library), user roles/skill roots, the native step guard and the isolated diagnostics evaluation
+ * [OUTPUT]: createApplication: isolated storage, the session/background activity projection, the global specialist group, parent/child budgets and specialist continuation, diagnostics and the drained close; the board's per-run target (R16) takes the selection at run start, survives suspension and shutdown, and releases when the run truly ends; a specialist's board_view looks and never captures
+ * [POS]: the application composition root; one native execution chain with topicId:taskId identities. Conversations of a topic share one topic workspace (cached per topic, destroyed once at close), and materials are reached only through the reference list
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { mkdir } from 'node:fs/promises'
@@ -30,7 +30,8 @@ import { topicWorkspace, memoryFilesystem, type MemoryScope } from './workspace/
 import { createMemoryTools, readMemoryIndex } from './workspace/memory.ts'
 import { openStudio } from './studio/studio.ts'
 import { createMaterialAccess, createMaterialTools } from './studio/tools.ts'
-import { createBoardTools, topicState } from './studio/board-tools.ts'
+import { createBoardTools, topicState, type BoardWriter } from './studio/board-tools.ts'
+import { createSedimentTools, plainText } from './studio/sediment-tools.ts'
 import { StudioError } from './studio/errors.ts'
 import { createExecutionTools } from './execution/tools.ts'
 import { ALWAYS_ALLOWED_TOOLS, toolCategory } from './permissions.ts'
@@ -70,7 +71,7 @@ export async function createApplication(options: ApplicationOptions) {
   } })
   const specialistHistory = createSpecialistHistory(storage, memory)
   const http = researchHttp(options.research?.fetch)
-  // -------- 会话绑定：resourceId → 所在主题的共享工作区；只有已打开的受信会话能解析出主题 --------
+  // -------- Session binding: resourceId → the shared workspace of its topic; only an opened trusted session resolves a topic --------
   const bound = new Map<string, Workspace>()
   const topicWorkspaces = new Map<string, Promise<Workspace>>()
   function workspaceFor(topic: string) {
@@ -106,16 +107,33 @@ export async function createApplication(options: ApplicationOptions) {
     return { bytes, title: item.title }
   }
   const materialTools = createMaterialTools(materials, studio, topicOf)
-  // -------- 白板写入只来自已打开的主会话；运行 ID 取自它当前的原生运行，版本在运行结束时按对话收 --------
-  // -------- R16: every board tool works on the run's target, captured from the user's selection when the run starts --------
-  const boardTools = createBoardTools(studio, async context => {
+  // -------- Board writes come only from an opened main session; the run id comes from its current native run, and versions settle per conversation when the run ends --------
+  // -------- R16: every board/sediment tool works on the run's target, captured from the user's selection when the run starts --------
+  // -------- Board/sediment writes come only from an opened main session; the run id comes from its current native run, and versions settle per conversation when the run ends --------
+  // -------- R16: every board/sediment tool works on the run's target, captured from the user's selection when the run starts --------
+  const boardWriter = async (context: Parameters<BoardWriter>[0]) => {
     const resourceId = ownerOf(context)
     const session = await sessions.get(resourceId)
     return { topicId: resourceId.split(':')[0]!, sheetId: studio.board.runTarget(resourceId)?.id ?? null, threadId: resourceId, runId: session?.run.getRunId() ?? null }
-  }, context => {
+  }
+  const boardTools = createBoardTools(studio, boardWriter, context => {
     // board_view is also handed to experts, which may still run after the parent run ended: look, never capture
     const resourceId = ownerOf(context)
     return { topicId: resourceId.split(':')[0]!, sheetId: studio.board.peekTarget(resourceId)?.id ?? null }
+  })
+  // -------- Sediment tools share the board's trusted writer (the run's target, R16); user messages are read from memory only (newest first), main agent only (the specialist list leaves them out, S4) --------
+  const sedimentTools = createSedimentTools(studio, boardWriter, async threadId => {
+    const chronologic: { id: string; text: string }[] = []
+    // Walk the persisted history (this memory always returns ascending — orderBy is ignored); user messages are stored as signals carrying text parts, we keep the non-empty ones and reverse to newest first
+    for (let page = 0; page < 20 && chronologic.length < 200; page++) {
+      const result = await memory.recall({ threadId, resourceId: threadId, page, perPage: 50, orderBy: { field: 'createdAt', direction: 'ASC' } })
+      for (const message of result.messages) if (message.role === 'user' || message.role === 'signal') {
+        const text = plainText(message.content).trim()
+        if (text) chronologic.push({ id: message.id, text })
+      }
+      if (!result.hasMore) break
+    }
+    return chronologic.reverse()
   })
   const researchTools = { ...createPaperTools(http, options.research?.openAlexKey), ...createWebTools(http, options.research?.tavilyKey, materials.intake), extract_pdf: createPdfTool(http, materials.intake) }
   function skillsFor(topic: string) {
@@ -194,19 +212,19 @@ export async function createApplication(options: ApplicationOptions) {
   const agent = new Agent({ id: 'research', name: 'Lumen', model: currentModel,
     instructions: async ({ requestContext }) => {
       const owner = requestContext.get<'controller', AgentControllerRequestContext>('controller')
-      // -------- 两层记忆索引只是提示词旁路，各自有上限；读取失败如实告知模型，不中断研究运行 --------
+      // -------- The two memory indexes are prompt side-channels with their own caps; a read failure is reported to the model as is instead of interrupting the run --------
       const index = async (scope: MemoryScope) => owner?.resourceId && bound.has(owner.resourceId)
         ? readMemoryIndex(await memoryFiles(owner.resourceId.split(':')[0]!, scope))
           .catch(error => `（MEMORY.md 暂时无法读取：${error instanceof Error ? error.message : String(error)}；需要时用 read_memory 检查。）`) : ''
       const [you, topic] = await Promise.all([index('you'), index('topic')])
-      // -------- 主题现状（白板 + 材料）每次请求现取，有硬上限；只进当次指令，不写进持久消息 --------
+      // -------- Topic state (board + materials + sediment) is fetched per request under a hard cap; it enters the current instructions only, never persisted messages --------
       const state = owner?.resourceId && bound.has(owner.resourceId) ? topicState(studio, owner.resourceId.split(':')[0]!, undefined, studio.board.runTarget(owner.resourceId)) : ''
       return [RESEARCH_PERSONA, userInstructions && `用户研究偏好：\n${userInstructions}`, state,
         you && `关于用户的记忆索引（scope=you，按需读取，不视为外部证据）：\n${you}`,
         topic && `这个主题的记忆索引（scope=topic，按需读取，不视为外部证据）：\n${topic}`].filter(Boolean).join('\n\n')
     },
     memory,
-    tools: ({ requestContext }) => modelTools(settingsFor(requestContext), { ...researchTools, ...skillTools, ...memoryTools, ...materialTools, ...boardTools, ...executionTools, ...ingestionTools, ...historyTools }),
+    tools: ({ requestContext }) => modelTools(settingsFor(requestContext), { ...researchTools, ...skillTools, ...memoryTools, ...materialTools, ...boardTools, ...sedimentTools, ...executionTools, ...ingestionTools, ...historyTools }),
     agents: async () => (await specialists.get()).agents,
     inputProcessors: ({ requestContext }) => [budget.inputProcessor, ...createInputProcessors(settingsFor(requestContext), imageProcessor), familyBudget.inputProcessor],
     outputProcessors: [familyBudget.outputProcessor, createEmptyActionProcessor()], maxProcessorRetries: 1,
@@ -256,7 +274,7 @@ export async function createApplication(options: ApplicationOptions) {
     try {
       await specialists.get()
       const session = await controller.createSession({ resourceId, threadId: resourceId, workspace })
-      // 原生 tally 已从 thread 恢复；零增量事件只同步 DisplayState，不再次累计。
+      // The native tally is already restored from the thread; a zero-delta event only syncs DisplayState and never counts twice.
       session.emit({ type: 'usage_update', usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 } })
       const previousUsage = session.getTokenUsage(), previousChildren = await childUsage.read(resourceId)
       const history = await memory.recall({ threadId: resourceId, resourceId, perPage: 1, page: 0 })
@@ -274,7 +292,7 @@ export async function createApplication(options: ApplicationOptions) {
         if (event.type === 'agent_end' && event.reason !== 'suspended') {
           const finishedRun = activeMainRuns.get(resourceId)
           void familyBudget.finish(resourceId, finishedRun, 'main').catch(error => session.emit({ type: 'error', error, errorType: 'budget_settlement' }))
-          // -------- R7：一次运行（含停下、出错）给它改过的每张白板留一个版本；挂起不算结束 --------
+          // -------- R7: a run (stops and errors included) leaves one version per changed sheet; a suspension is not an end --------
           try { for (const sheetId of studio.board.pendingSheets(resourceId)) studio.board.writeVersion(sheetId, { threadId: resourceId, runId: finishedRun ?? null }) }
           catch (error) { session.emit({ type: 'error', error: error instanceof Error ? error : new Error(String(error)), errorType: 'board_version' }) }
           // Shutdown aborts parked runs but keeps them resumable: their target must survive the restart
@@ -356,7 +374,7 @@ export async function createApplication(options: ApplicationOptions) {
     await mastra.shutdown({ drainTimeout: 10000 })
     await specialists.close()
     await diagnostics.close()
-    // -------- 主题工作区被多段对话共用，只在这里销毁一次 --------
+    // -------- Topic workspaces are shared by every conversation of the topic; destroy them exactly once here --------
     for (const pending of await Promise.allSettled(topicWorkspaces.values())) if (pending.status === 'fulfilled') await pending.value.destroy()
     for (const pending of await Promise.allSettled(memoryFilesystems.values())) if (pending.status === 'fulfilled') await pending.value.destroy()
     await storage.close()
@@ -377,7 +395,7 @@ export async function createApplication(options: ApplicationOptions) {
       else state.running = true
       states.set(child.resourceId, state)
     }
-    // -------- 未打开会话的持久挂起同样挡配置写闸(isBusy)，必须在目录里可见，否则界面无从解释 409 --------
+    // -------- Persisted suspensions of unopened sessions gate the settings write (isBusy) too, so they must be visible in the directory or the UI cannot explain the 409 --------
     for (const run of (await agent.listSuspendedRuns()).runs) {
       if (!run.resourceId) continue
       states.set(run.resourceId, { running: false, ...states.get(run.resourceId), waiting: true })
@@ -385,7 +403,7 @@ export async function createApplication(options: ApplicationOptions) {
     return states
   }
 
-  // -------- R1：一个主题同一时刻只有一段对话在运行或等用户回应。准入在同步段里预留，避免两次请求同时通过检查 --------
+  // -------- R1: one conversation per topic may run or wait at a time. Admission reserves synchronously so two requests cannot both pass the check --------
   const admitting = new Map<string, string>()
   async function topicHolder(topicId: string, except: string) {
     const other = admitting.get(topicId)
@@ -398,12 +416,12 @@ export async function createApplication(options: ApplicationOptions) {
   function busy(holder: string) {
     return new StudioError(`这个主题里另一段对话（${holder.split(':')[1]}）还在进行或在等用户回应；一个主题同一时刻只跑一段对话，先等它结束或把它停下`, 409, 'topic.busy', { taskId: holder.split(':')[1] ?? '' })
   }
-  /** 新开对话前检查；只检查不预留，真正开跑时由 admitRun 裁决。 */
+  /** Checked before opening a conversation; looks only — admitRun decides once the run actually starts. */
   async function assertTopicIdle(topic: string, task?: string) {
     const topicId = safeId(topic), holder = await topicHolder(topicId, task ? `${topicId}:${safeId(task)}` : '')
     if (holder) throw busy(holder)
   }
-  /** 让一段对话开跑：同主题有别的对话在跑、在等或正被准入时 409；work 结束（运行已开始或失败）后释放预留。 */
+  /** Start a conversation's run: 409 while another conversation of the topic runs, waits or is being admitted; the reservation releases when work ends (the run began or failed). */
   async function admitRun<T>(topic: string, task: string, work: () => Promise<T>): Promise<T> {
     const topicId = safeId(topic), resourceId = `${topicId}:${safeId(task)}`
     const other = admitting.get(topicId)

@@ -1,7 +1,7 @@
 /**
- * [INPUT]: 服务端区块（text/ladder/table/widget，内容合同见 mastra-service studio/content.ts）、主题材料标题、小部件激活名额
- * [OUTPUT]: BlockCard：一块的完整渲染——标题（块里最强的字）、署名只进 aria-label（P0 全是 AI 画的）、底部一行出处签（无出处即「AI 推断」，R9）、已被取代变灰（R10）；梯子（断点在两级之间）与表格为新建渲染，文字复用 Markdown，小部件复用 WidgetFrame
- * [POS]: 白板画布里的单块；P0 对人只读，没有编辑入口。小部件超出同时运行名额时显示占位，点开才运行（WebKit 约束）
+ * [INPUT]: server blocks (text/ladder/table/widget, content contract in mastra-service studio/content.ts), topic material titles, widget activation slots; since P1 current blocks carry the "write a takeaway from this block" affordance (S9b)
+ * [OUTPUT]: BlockCard: one block fully rendered — the title (the block's strongest words), authorship only in aria-label (P0 drew them all), a source-chip row (no source means "AI inference", R9; current blocks end with the takeaway affordance), superseded dimmed (R10), settled wearing its kept check; ladders (the break between two rungs) and tables render natively, text reuses Markdown, widgets reuse WidgetFrame
+ * [POS]: one block inside the board canvas; read-only for the user since P0, no editing entry. A widget beyond the concurrent slots shows a placeholder and runs only when opened (a WebKit constraint)
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { Markdown } from '../../components/Markdown'
@@ -13,7 +13,7 @@ export type Block = SheetView['blocks'][number]
 type Ladder = { rungs: { level: number; text: string }[]; here: number; foggedAbove?: number; breakAt?: number }
 type Table = { columns: string[]; rows: string[][]; guessCells?: [number, number][] }
 
-/** 断点画在 breakAt 那级和上一级之间：「从这一级往上爬不上去」（原型 .break）。 */
+/** The break is drawn between breakAt's rung and the one above: "you cannot climb past this rung" (prototype .break). */
 function LadderView({ value }: { value: Ladder }) {
   const { studio: S, common: { labelled } } = useT()
   const rungs = [...value.rungs].sort((a, b) => b.level - a.level)
@@ -40,7 +40,7 @@ function TableView({ value }: { value: Table }) {
   </table></div>
 }
 
-export function BlockCard({ block, materials, supersededTitle, widgetActive, onActivateWidget, onOpenSource, focused, drawing }: {
+export function BlockCard({ block, materials, supersededTitle, widgetActive, onActivateWidget, onOpenSource, focused, drawing, onTakeaway }: {
   block: Block
   materials: Map<string, TopicMaterial>
   supersededTitle?: string
@@ -49,6 +49,8 @@ export function BlockCard({ block, materials, supersededTitle, widgetActive, onA
   onOpenSource: (itemId: string, page?: number) => void
   focused: boolean
   drawing: boolean
+  /** S9b: current blocks carry a "write a takeaway from this block" affordance; undefined when the service has no sediment */
+  onTakeaway?: () => void
 }) {
   const { studio: S, common: { labelled } } = useT()
   const content = block.content as Record<string, unknown>
@@ -74,6 +76,7 @@ export function BlockCard({ block, materials, supersededTitle, widgetActive, onA
           {materials.get(source.itemId)?.title ?? source.itemId}{source.page ? ` · p.${source.page}` : ''}</button>
         : <span key={index} className="source-chip source-chip-thread">{S.board.fromConversation}</span>)
         : <span className="source-chip source-chip-inferred">{S.board.inferred}</span>}
+      {onTakeaway && <button type="button" className="source-chip block-takeaway" title={S.sediment.writeFromBlock} onClick={onTakeaway}>{S.sediment.writeFromBlock}</button>}
     </footer>
   </article>
 }

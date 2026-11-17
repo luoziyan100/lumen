@@ -1,7 +1,7 @@
 /**
- * [INPUT]: 共享Disclosure卷帘、脱敏设置DTO、模型档案更新API、原设置行样式、统一 icons、专家分页与外观面板
- * [OUTPUT]: Settings：模型、研究偏好、专家与外观四个分类；供应商卡、逐行模型ID及视觉/上下文/价格设置；专家写入中与保存中一样锁住分类与关闭
- * [POS]: 设置组合层；分类浏览与配置写入分离，外观本机即时应用；密钥只单向提交，失败留稿，服务裁定运行中修改边界
+ * [INPUT]: the shared Disclosure, redacted settings DTOs, the model-profile update API, the settings row styles, the shared icons, the specialists and appearance panes, the speech-habits table (S14)
+ * [OUTPUT]: Settings: five sections — models, research preferences, specialists, appearance and speech habits; provider cards, per-row model ids, vision/context/pricing settings; habits are view-and-delete only; a specialist write locks the sections and close like a save does
+ * [POS]: the settings composition layer; browsing and writing stay separate, appearance applies locally at once; keys submit one-way and survive a failure as drafts, the service rules what may change while running
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { Disclosure } from '../../components/disclosure/Disclosure'
@@ -14,16 +14,41 @@ import { CloseIcon, BackIcon, MinusIcon, PlusIcon, PlayIcon, TrashIcon, ICON_SM 
 import { PreferencePane } from './chrome/Appearance'
 import { AgentsPane } from '../agents/Agents'
 import type { useAppearance } from '../../appearance'
-import { LumenApi, type PublicModelProfile, type PublicSettings, type SettingsPatch } from '../data/client.ts'
+import { LumenApi, type PublicModelProfile, type PublicSettings, type SettingsPatch, type SpeechHabit } from '../data/client.ts'
 
 const emptyProfile = (): PublicModelProfile => ({ id: '', name: '', provider: 'openai', baseUrl: '', models: [''], activeModel: '', vision: 'auto', hasApiKey: false, apiKeyMasked: '' })
 function SettingRow({ label, children }: { label: string; children: ReactNode }) {
   return <div className="set-row"><span className="set-label">{label}</span>{children}<span className="set-row-trail" aria-hidden /></div>
 }
 
+/** S14 speech habits: counted only by the user's keeps and restores; this pane views and deletes. */
+function HabitsPane({ api }: { api: LumenApi }) {
+  const { common: { labelled, loading } } = useT(), S = useT().studio.sediment.habits
+  const [items, setItems] = useState<SpeechHabit[] | null>(null), [error, setError] = useState('')
+  useEffect(() => {
+    let active = true
+    void api.speechHabits().then(result => { if (active) setItems(result.items) }).catch(cause => { if (active) setError(errorText(cause)) })
+    return () => { active = false }
+  }, [api])
+  if (error) return <p className="mw-error" role="alert">{error}</p>
+  if (!items) return <p className="set-hint">{loading}</p>
+  return <div className="habits-pane">
+    <h2 className="settings-h">{S.title}</h2>
+    <p className="set-hint">{S.note}</p>
+    {items.length === 0 ? <p className="set-hint">{S.empty}</p>
+      : <ul className="habits-list">{items.map(habit => <li key={habit.fragment} className="habits-row">
+        <span className="habits-fragment">{habit.fragment}</span>
+        <span className="habits-counts">{habit.kept > 0 && S.kept(habit.kept)}{habit.kept > 0 && habit.restored > 0 && ' · '}{habit.restored > 0 && S.restored(habit.restored)}</span>
+        <button type="button" className="habits-remove" aria-label={labelled(S.remove, habit.fragment)} title={S.remove} onClick={() => {
+          void api.deleteSpeechHabit(habit.fragment).then(() => setItems(previous => previous?.filter(row => row.fragment !== habit.fragment) ?? null)).catch(cause => setError(errorText(cause)))
+        }}><TrashIcon size={16} /></button>
+      </li>)}</ul>}
+  </div>
+}
+
 export function Settings({ api, onClose, appearance }: { api: LumenApi; onClose: () => void; appearance?: ReturnType<typeof useAppearance> }) {
   const { settings: C, common } = useT()
-  const [pane, setPane] = useState<'model' | 'prompt' | 'agents' | 'preference'>('model')
+  const [pane, setPane] = useState<'model' | 'prompt' | 'agents' | 'preference' | 'habits'>('model')
   const [editing, setEditing] = useState(false)
   const [settings, setSettings] = useState<PublicSettings | null>(null), [profile, setProfile] = useState<PublicModelProfile>(emptyProfile)
   const [key, setKey] = useState(''), [keyFocused, setKeyFocused] = useState(false), [instructions, setInstructions] = useState('')
@@ -77,6 +102,7 @@ export function Settings({ api, onClose, appearance }: { api: LumenApi; onClose:
     <section className="settings-body">
     <button type="button" className="settings-close" disabled={locked} onClick={onClose} aria-label={C.close}><CloseIcon size={18} /></button>
     {pane === 'preference' && (appearance ? <PreferencePane state={appearance.state} onChange={appearance.setAppearance} /> : <p className="set-hint">{C.appearanceUnavailable}</p>)}
+    {pane === 'habits' && <HabitsPane api={api} />}
     {pane === 'agents' && <AgentsPane api={api} onBusy={setAgentsBusy} />}
     {(pane === 'model' || pane === 'prompt') && !settings && <p className="set-hint">{common.loading}</p>}
     {pane === 'model' && settings && !editing && <><div className="mp-head"><h2 className="settings-h">{C.models}</h2><Button type="button" disabled={busy || configurationBusy} variant="outline" size="sm" onClick={() => { edit(emptyProfile()); setEditing(true) }}>{C.addModel}</Button></div><p className="set-hint">{configurationBusy ? C.busyHint : C.hint}</p><div className="mpc-list">{settings.profiles.map(item => <div className={`mpc-card glass-card ${settings.activeProfileId === item.id ? 'is-in-use' : ''}`} key={item.id}><button type="button" disabled={busy || configurationBusy} className="mpc-main" onClick={() => { edit(item); setEditing(true) }}><span className="mpc-name">{item.name}</span><span className="mpc-url">{item.baseUrl}</span><span className="mpc-model">{item.models.join(' · ') || C.noModelId}{!item.hasApiKey && C.noKey}</span></button><div className="mpc-aside"><div className="mpc-aside-idle">{settings.activeProfileId === item.id && <span className="mp-active">{C.inUse}</span>}</div><div className="mpc-aside-hot">{settings.activeProfileId !== item.id && <button type="button" disabled={busy} className="mpc-act mpc-act-enable" onClick={() => void save({ activeProfileId: item.id })}><PlayIcon size={ICON_SM} /><span>{C.enable}</span></button>}{settings.profiles.length > 1 && <button type="button" disabled={busy || configurationBusy} className="mpc-act mpc-act-danger" aria-label={C.deleteProfile(item.name)} onClick={() => void save({ deleteProfileId: item.id })}><TrashIcon size={16} /></button>}</div></div></div>)}</div></>}

@@ -1,9 +1,11 @@
 /**
- * [INPUT]: 服务连接、主题/会话/白板/材料数据钩子、精灵与阅读器、设置（含专家分页）、外观订阅
- * [OUTPUT]: StudioApp：新形态外壳——原型 v7 骨架：canvas 底上 8px 间距的圆角面板（左栏主题、中栏、右栏材料、停靠的精灵），每个面板首行 50px 头部同线；
- *           中栏头部只有按中线居中的视图导航（图标 + 文字，放不下只留图标；主题名进 aria-label 与窗口标题），分屏时阅读器头与白板头同一行；精灵自己定位在整个窗口上（不再挂进白板区）；
- *           左右栏可收起（宽 0，展开按钮在中栏头部两端，⌘B / ⌘⌥B）；阅读器三态：关闭 / 分屏（可拖分隔条）/ 铺满中栏（白板隐藏但保持挂载与相机，Esc 还原）
- * [POS]: 桌面唯一工作台（取代 S2 过渡入口）。白板刷新只靠对话里的白板工具完成信号 + 运行中 ETag 兜底，不另建事件协议
+ * [INPUT]: the service connection, topic/session/board/material data hooks, the sprite and reader, settings (specialists pane included), the appearance subscription
+ * [OUTPUT]: StudioApp: the new shell — the prototype v7 skeleton: rounded panels with 8px gaps over the canvas (topics left, center, materials right, docked sprite), every panel's
+ *           first row on one 50px header line; the center header holds only the centered view navigation (icon + text, icons alone when narrow; the topic name goes to aria-label and
+ *           the window title), and in split view the reader header shares the board header's line; the sprite positions itself on the whole window (no longer inside the board area);
+ *           both side panes collapse to width 0 (reopen buttons at the center header's ends, ⌘B / ⌘⌥B); the reader has three states: closed / split (draggable divider) / full center
+ *           (the board hides but stays mounted with its camera; Esc restores)
+ * [POS]: the desktop's only workbench (it replaced the S2 transitional entry). Board refresh rides only on the conversation's board-tool completion signal plus the running ETag fallback — no second event protocol
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
@@ -11,7 +13,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core'
 import { ExternalLinkGate } from '../../components/ExternalLinkDialog'
 import { useAppearance } from '../../appearance'
 import { useT } from '../../i18n/index.ts'
-import { LumenApi, type Connection, type Identity, type TopicMaterial } from '../data/client.ts'
+import { LumenApi, type Connection, type Identity, type SedimentInvite, type TopicMaterial } from '../data/client.ts'
 import type { FileTarget } from '../data/file-links'
 import type { BoardSignal } from '../views/Conversation'
 import { DocumentReader } from '../views/reader/DocumentReader'
@@ -19,8 +21,10 @@ import { Settings } from '../views/Settings'
 import { Board } from './Board'
 import { Materials, useMaterials } from './Materials'
 import { Sprite, useSessions } from './Sprite'
+import { Takeaways } from './Takeaways'
 import { TopicPanel, useTopics } from './TopicPanel'
 import { useBoard } from './useBoard'
+import { useSediment } from './useSediment'
 import { PaneToggle, Splitter, usePanes, type Side } from './Panes'
 import { VIEW_AVAILABLE, ViewNav, type View } from './ViewNav'
 import '../views/workbench.css'
@@ -49,9 +53,19 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const live = !!topic?.running
   const board = useBoard(api, topic?.id ?? null, `${signal.done}|${revision}`, live)
   const materials = useMaterials(api, topic?.id ?? null, `${signal.done}|${revision}`)
+  // Deleted evidence links depend on board state: refetch whenever the board view changes version (a write, a sheet delete, another selection)
+  const sediment = useSediment(api, topic?.id ?? null, `${signal.done}|${revision}|${board.view?.sheet.id ?? ''}|${board.view?.sheet.updatedAt ?? ''}`)
+  // ---- S9c: the selected sheet's invite (the question and pre-linked blocks above the full-board row) ----
+  const [invite, setInvite] = useState<SedimentInvite | null>(null)
+  useEffect(() => {
+    if (!board.selected || sediment.unsupported) { setInvite(null); return }
+    let active = true
+    void api.sheetInvite(board.selected).then(result => { if (active) setInvite(result) }).catch(() => { if (active) setInvite(null) })
+    return () => { active = false }
+  }, [api, board.selected, sediment.unsupported, signal.done, revision])
 
-  // ---- 选主题：记住上次的；没选或已不存在就选第一个 ----
-  // 刚建的主题要等下一次目录刷新才出现，期间不能被「选第一个」顶掉
+  // ---- Topic pick: remember the last one; fall back to the first when unset or gone ----
+  // A freshly created topic appears only on the next directory refresh and must not be displaced by "pick the first" meanwhile
   const created = useRef<string | null>(null)
   useEffect(() => {
     if (topic) { if (created.current === topic.id) created.current = null; return }
@@ -60,21 +74,21 @@ export function StudioApp({ connection }: { connection: Connection }) {
   }, [topics, topic, topicId])
   useEffect(() => { try { if (topicId) localStorage.setItem(TOPIC_KEY, topicId) } catch { /* 仅本次有效 */ } }, [topicId])
   useEffect(() => { setIdentity(null); setReading(null); setFull(false); setFocus(null); setSignal({ drawing: null, done: '' }) }, [topicId])
-  // ---- 主题忙且没开着对话：直接打开那段在运行或等你的对话（R1：不能另开新的） ----
+  // ---- Busy topic with no open conversation: jump straight into the running/waiting one (R1: no new conversation alongside) ----
   useEffect(() => {
     if (identity || !topic || !(topic.running || topic.waiting)) return
     const active = sessions.find(session => session.running || session.waiting)
     if (active) setIdentity({ topicId: active.topicId, taskId: active.taskId })
   }, [identity, topic?.id, topic?.running, topic?.waiting, sessions])
 
-  // ---- 主题名不写在中栏头部（左栏选中项已经说明），留在 aria-label 与窗口标题 ----
+  // ---- The topic name stays out of the center header (the left pane's selection already says it); it lives in aria-label and the window title ----
   useEffect(() => {
     const title = topic ? `${topic.title} — ${S.app}` : S.app
     document.title = title
     if (isTauri()) void invoke('set_window_title', { title }).catch(() => {})
   }, [topic?.title, S.app])
 
-  // ---- 铺满时 Esc 回到分屏；输入框里的 Esc 留给输入框 ----
+  // ---- In full view Esc returns to split; an Esc inside an input belongs to the input ----
   useEffect(() => {
     if (!full) return
     const onKey = (event: KeyboardEvent) => {
@@ -85,7 +99,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [full])
-  // ---- 点按钮收起/展开后，焦点落到对面那个按钮上（收起的栏是 inert，焦点不能留在里面） ----
+  // ---- After toggling a pane the focus moves to the opposite toggle (the collapsed pane is inert and must not keep the focus) ----
   const flipped = useRef<Side | null>(null)
   const flip = (side: Side) => { flipped.current = side; panes.toggle(side) }
   useEffect(() => {
@@ -97,7 +111,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
 
   const onBoard = useCallback((next: BoardSignal) => setSignal(previous => previous.drawing === next.drawing && previous.done === next.done ? previous : next), [])
   const onFocusBlock = useCallback((blockId: string) => { setView('board'); setFocus({ blockId, nonce: Date.now() }) }, [])
-  // ---- 从素材或出处签打开一律进分屏 ----
+  // ---- Opening from a material or a source chip always enters split view ----
   const openMaterial = (item: TopicMaterial, page?: number) => { setFull(false); setReading({ target: { scope: 'library', path: item.id, ...(page ? { page } : {}) }, title: item.title }) }
   const openSource = (itemId: string, page?: number) => {
     const item = materials.items.find(material => material.id === itemId)
@@ -120,7 +134,8 @@ export function StudioApp({ connection }: { connection: Connection }) {
         </header>
         <div className="studio-stage">
           {!topic ? <div className="studio-later studio-pick"><p>{S.pickTopic}</p></div>
-            : view === 'board' ? <Board board={board} materials={materials.items} drawing={signal.drawing} focus={focus} onOpenSource={openSource} />
+            : view === 'board' ? <Board board={board} materials={materials.items} drawing={signal.drawing} focus={focus} onOpenSource={openSource} sediment={sediment} invite={invite} />
+            : view === 'settled' ? <Takeaways sediment={sediment} onJump={(blockId, sheetId) => { setView('board'); board.select(sheetId); setFocus({ blockId, nonce: Date.now() }) }} />
             : <div className="studio-later" role="status"><p>{VIEW_AVAILABLE[view] ? '' : S.later[view]}</p></div>}
         </div>
       </div>

@@ -1,7 +1,7 @@
 /**
- * [INPUT]: studio 存储（白板/主题引用/每轮写入目标）、content 的区块合同与一句话摘要、受信会话身份、当前主运行 ID 与本轮写入目标的解析
- * [OUTPUT]: createBoardTools：board_view/board_draw/board_update/board_supersede，都只针对本轮写入目标（R16）；topicState：每次请求注入的主题现状（本轮目标，有上限）
- * [POS]: AI 写白板的唯一通道（R4）。主题与白板一律从会话身份推出，参数里没有主题和白板；每次写入记下对话与运行，版本由应用在运行结束时写
+ * [INPUT]: the studio stores (board/sediment/topic references/run targets), content's block contract and one-line summary, the trusted session identity, the current main run id and the run-target resolution
+ * [OUTPUT]: createBoardTools: board_view/board_draw/board_update/board_supersede, all against the run's target (R16); topicState: the per-request topic state (the run's target, the user's takeaways, capped)
+ * [POS]: the AI's only path onto the board (R4). Topic and sheet always derive from the session identity — the parameters carry neither; every write records its conversation and run, versions are written by the application when the run ends
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { createTool, type ToolExecutionContext } from '@mastra/core/tools'
@@ -12,13 +12,13 @@ import type { Studio } from './studio.ts'
 import type { Block, BlockSource, Sheet, WriteOrigin } from './types.ts'
 
 type Context = { requestContext?: ToolExecutionContext['requestContext'] } | undefined
-/** 受信写入方：主题、对话（= resourceId）、当前主运行与本轮写入目标（R16；null = 没有可写的白板）；只有已打开的主会话能解析出来。 */
+/** The trusted writer: topic, conversation (= resourceId), the current main run and this run's target (R16; null = no sheet to write); only an opened main session resolves. */
 export type BoardWriter = (context: Context) => Promise<{ topicId: string; sheetId: string | null } & WriteOrigin>
 /** Read side (main run and specialists): the topic and the run's target sheet. */
 export type BoardReader = (context: Context) => { topicId: string; sheetId: string | null }
 
 // ---------------------------------------------------------------------------
-// 模型看到的入参：内容按种类给形状说明，真正的校验在存储里（同一份 zod 合同），错误原样回给模型
+// What the model sees: per-kind shape hints; the real validation lives in the store (the same zod contract) and errors go back to the model verbatim
 // ---------------------------------------------------------------------------
 const kind = z.enum(blockKinds as [string, ...string[]])
 const content = z.object({}).passthrough().describe([
@@ -34,7 +34,7 @@ const sources = z.array(z.object({
   threadId: z.string().optional().describe('出自本主题的哪段对话'),
 })).max(LIMITS.sources).describe('出处：材料写 { itemId, page?, quote? }，对话写 { threadId }')
 
-/** 模型给的出处去掉空字段，交给存储按 R15 裁决。 */
+/** Strip empty fields off model-given sources; the store decides under R15. */
 function cleanSources(value: z.infer<typeof sources> | undefined): unknown {
   return value?.map(source => Object.fromEntries(Object.entries(source).filter(([, field]) => field !== undefined)))
 }
@@ -77,7 +77,7 @@ export function createBoardTools(studio: Studio, writer: BoardWriter, reader: Bo
         return { blockId: result.blockId, rev: result.rev }
       },
     }),
-    board_supersede: createTool({ id: 'board_supersede', description: '把一块标成「已被取代」：它留在白板上变灰，不删，也不再占容量。by 填取代它的新区块 id（可选）。理解变了就这样留下来路，而不是抹掉。',
+    board_supersede: createTool({ id: 'board_supersede', description: '把一块标成「已被取代」：它留在白板上变灰，不删，也不再占容量。by 填取代它的新区块 id（可选）。理解变了就这样留下来路，而不是抹掉。已被用户留作沉淀证据（settled）的块不能动。',
       inputSchema: z.object({ blockId: z.string().max(64), by: z.string().max(64).optional() }),
       execute: async (input, context) => {
         const { topicId, sheetId, ...origin } = await writer(context)
@@ -88,11 +88,11 @@ export function createBoardTools(studio: Studio, writer: BoardWriter, reader: Bo
 }
 
 // ---------------------------------------------------------------------------
-// 主题现状：本轮写入的白板 + 每块一行 + 引用材料；硬上限按估算 token 截断，新的优先
+// Topic state: the run's target sheet, one line per block, referenced materials; a hard estimated-token cap truncates, newest first
 // ---------------------------------------------------------------------------
 export const TOPIC_STATE_TOKENS = 1500
 
-/** 粗估 token：CJK 一字一个，其余四字符一个；只用于守上限，宁多勿少。 */
+/** A rough token estimate: one per CJK character, one per four others; only for the cap — over-estimating is fine. */
 export function estimateTokens(text: string): number {
   let cjk = 0
   for (const char of text) if (/[　-鿿가-힯＀-￯]/.test(char)) cjk++
@@ -110,11 +110,15 @@ export function topicState(studio: Studio, topicId: string, limit = TOPIC_STATE_
     !sheet ? '这个主题现在没有进行中的白板。'
       : sheet.sheet.state === 'live' ? `进行中的白板「${sheet.sheet.title}」：${sheet.sheet.used}/${sheet.sheet.capacity} 格`
       : `用户这一轮选中的白板「${sheet.sheet.title}」已经收起，只读：这一轮不写白板，在对话里说明。`]
-  // ---- 区块新的在前；状态非 current 的也列出，标出被谁取代 ----
+  // ---- Blocks newest first; non-current ones stay listed with their replacer and whether the user keeps them as evidence ----
   const blocks = (sheet?.blocks ?? []).slice().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map(block => {
     const cited = block.sources.map(source => 'itemId' in source ? `${source.itemId}${source.page ? `#p${source.page}` : ''}` : '对话').join(',')
-    return `- ${block.id} · ${block.kind} · ${block.title} · ${summarize(block.kind, block.content)} · ${block.state === 'current' ? '当前' : `已取代${block.supersededBy ? `→${block.supersededBy}` : ''}`}${cited ? ` · 出处 ${cited}` : ''}`
+    const state = block.state === 'current' ? '当前' : block.state === 'settled' ? '已沉淀（用户留作证据，不改它）' : `已取代${block.supersededBy ? `→${block.supersededBy}` : ''}`
+    return `- ${block.id} · ${block.kind} · ${block.title} · ${summarize(block.kind, block.content)} · ${state}${cited ? ` · 出处 ${cited}` : ''}`
   })
+  // ---- The user's takeaways (S6): newest first, text verbatim, evidence as block titles; challenge them after writing, never edit the user's words ----
+  const sediment = studio.sediment.list(topicId).items.map(item =>
+    `- 「${item.text}」（${item.origin === 'quoted' ? '原话引用' : '自写'}${item.links.length ? ` · 证据 ${item.links.map(link => link.deleted ? `「${link.title}」白板已删` : `「${link.title}」`).join('、')}` : ''}）`)
   const items = materials.map(item => `- ${item.id} · ${item.kind} · ${item.title} · ${item.addedBy === 'you' ? '用户放的' : 'AI 带来的'} · 读到 ${Math.round(item.readProgress * 100)}%`)
   const lines = [...head]
   let used = estimateTokens(lines.join('\n')), omitted = 0
@@ -129,8 +133,12 @@ export function topicState(studio: Studio, topicId: string, limit = TOPIC_STATE_
       lines.push(row); used += cost
     }
   }
+  fit('用户的沉淀（新的在前；只能用户自己写，你挑刺，不代写）', sediment)
   fit('白板上的区块（新的在前）', blocks)
   fit('本主题引用的材料', items)
+  // ---- S14 speech habits: one compact global section (~120 tokens) inside the same cap ----
+  const habits = studio.sediment.habitsText(120)
+  if (habits && used + estimateTokens(habits) <= limit) { lines.push(habits); used += estimateTokens(habits) }
   if (omitted) lines.push(`（还有 ${omitted} 条没列出，用 board_view / list_materials 看全。）`)
   return lines.join('\n')
 }

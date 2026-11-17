@@ -1,7 +1,11 @@
 /**
- * [INPUT]: 官方MastraClient、原生注入的本机服务发现与所选技能文件清单
- * [OUTPUT]: LumenApi、Connection、主题/会话目录、资料库与主题引用、白板只读视图与用户选中的白板（R16；旧服务缺路由时静默，其它失败抛出）、用户删除白板与区块所在白板（R17；旧服务缺路由如实返回 unsupported/unknown）、带状态码与 JSON 正文的 RequestError（消息按 code 译成界面语言，i18n I6）、完整技能包/诊断与问题评估入口、附专家用量的快照和带 ETag 的文件版本读取；身份是 {topicId, taskId}，同会话阅读写入串行，手动未读不被先发自动确认覆盖
- * [POS]: 新客户端唯一网络边界；不暴露提前创建空会话的目录写入，提交准备沿 open 绑定；附件先完整读取再进资料库并引用到当前主题，失败不发残缺请求
+ * [INPUT]: the official MastraClient, the native-injected local service discovery and the chosen skill file manifest
+ * [OUTPUT]: LumenApi, Connection, the topic/session catalog, library and topic references, the read-only board view and the user's selected sheet (R16; silent on an older service
+ *           without the route, other failures throw), the user's sheet delete and block lookup (R17; an older service answers unsupported/unknown as due), the sediment endpoints
+ *           (entries/offers/invites, R13: user HTTP only) and speech habits, RequestError carrying status and JSON body (messages map through the code into the UI language, i18n I6),
+ *           whole skill packages, diagnostics and issue evaluation, snapshots with specialist usage, and ETag file versions; identities are {topicId, taskId}, reads and writes of one
+ *           conversation serialize, and a manual unread is never overwritten by a late automatic ack
+ * [POS]: the new client's single network boundary; it exposes no catalog write that would create empty sessions early, submit preparation rides the open binding; an attachment is read fully before entering the library referenced into the current topic, and a failure sends no truncated request
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { MastraClient, type KnownAgentControllerEvent } from '@mastra/client-js'
@@ -12,8 +16,8 @@ export interface Connection { baseUrl: string; token: string; error?: string }
 export interface Identity { topicId: string; taskId: string }
 export type { SessionSummary as SessionInfo, Page } from '../../../../mastra-service/src/catalog/types.ts'
 import type { SessionSummary as SessionInfo, Page } from '../../../../mastra-service/src/catalog/types.ts'
-export type { Topic, LibraryItem, TopicMaterial, Sheet, SheetView } from '../../../../mastra-service/src/studio/types.ts'
-import type { Topic, LibraryItem, TopicMaterial, Sheet, SheetView } from '../../../../mastra-service/src/studio/types.ts'
+export type { Topic, LibraryItem, TopicMaterial, Sheet, SheetView, SedimentEntry, SedimentOffer, SedimentInvite, SpeechHabit } from '../../../../mastra-service/src/studio/types.ts'
+import type { Topic, LibraryItem, TopicMaterial, Sheet, SheetView, SedimentEntry, SedimentOffer, SedimentInvite, SpeechHabit } from '../../../../mastra-service/src/studio/types.ts'
 /** writable: newest live sheet (old field). selected/target come from R16 services; optional so an older service still parses. */
 export interface SheetList { items: Sheet[]; writable: string | null; selected?: string | null; target?: string | null }
 import type { PublicSettings, SettingsPatch } from '../../../../mastra-service/src/settings/types.ts'
@@ -24,9 +28,9 @@ export type { BadCase, MarkCaseInput, UpdateCaseInput, DiagnosticTrace, Diagnost
 export type { PublicSettings, SettingsPatch, PublicModelProfile } from '../../../../mastra-service/src/settings/types.ts'
 export type SkillInfo = SkillMeta & { layer: SkillLayer }
 export interface Asset { name: string; type: 'file' | 'directory'; size?: number }
-/** work：主题工作区（各段对话共用）；memory：这个主题的记忆；you：关于用户的记忆。 */
+/** work: the topic workspace (shared by its conversations); memory: this topic's memory; you: memory about the user. */
 export type FileScope = 'work' | 'memory' | 'you'
-/** 读取范围：工作区三处之外，library 表示资料库原件（path 即条目 id，只读）。 */
+/** Read scopes: beyond the three workspace ones, library means a library original (path is the item id, read-only). */
 export type ReadScope = FileScope | 'library'
 export interface Upload { itemId: string; name: string; size: number; mediaType: string }
 export interface FileVersion { blob: Blob | null; etag: string | null }
@@ -46,8 +50,8 @@ export class RequestError extends Error {
   get routeMissing() { return this.status === 405 || (this.status === 404 && typeof this.detail?.error !== 'string') }
 }
 
-/** What deleting a sheet came to (R17). confirm: it has blocks and the user must agree first; unsupported: the service predates the route. */
-export type SheetDeletion = { kind: 'deleted'; selected: string | null } | { kind: 'confirm'; blocks: number } | { kind: 'unsupported' }
+/** What deleting a sheet came to (R17). confirm: it has blocks and the user must agree first; unsupported: the service predates the route. settled: takeaways that lose their evidence link (S3). */
+export type SheetDeletion = { kind: 'deleted'; selected: string | null } | { kind: 'confirm'; blocks: number; settled: number } | { kind: 'unsupported' }
 
 export class LumenApi {
   private readonly readChanges = new Map<string, Promise<{ changed: boolean }>>()
@@ -71,7 +75,7 @@ export class LumenApi {
   query(identity: Identity, extra: Record<string, string> = {}) { return new URLSearchParams({ topicId: identity.topicId, taskId: identity.taskId, ...extra }).toString() }
   private sessionPath(identity: Identity) { return `/lumen/topics/${encodeURIComponent(identity.topicId)}/sessions/${encodeURIComponent(identity.taskId)}` }
   session(identity: Identity) { return this.sdk.getAgentController('lumen').session(`${identity.topicId}:${identity.taskId}`) }
-  /** 建好（或确认）主题下的这段对话；同一身份重复调用不新建。 */
+  /** Create (or confirm) this conversation under the topic; repeat calls with the same identity create nothing. */
   open(identity: Identity) { return this.request<SessionInfo>(`/lumen/topics/${encodeURIComponent(identity.topicId)}/sessions`, 'POST', { taskId: identity.taskId }) }
   topics(archived = false) { return this.request<{ items: Topic[] }>(`/lumen/topics?archived=${archived}`) }
   createTopic(title: string) { return this.request<Topic>('/lumen/topics', 'POST', { title }) }
@@ -85,7 +89,7 @@ export class LumenApi {
     catch (error) { if (error instanceof RequestError && (error.status === 404 || error.status === 405)) return null; throw error }
   }
   sheet(sheetId: string) { return this.request<SheetView>(`/lumen/sheets/${encodeURIComponent(sheetId)}`) }
-  /** 你点 ＋ 新开一张白板（服务把它记为选中）；AI 不会自己开。 */
+  /** The user's ＋ opens a new sheet (the service records it as the selection); the AI never opens one itself. */
   /** Only the user deletes a sheet (R17). Without `confirmed`, a sheet with blocks comes back as `confirm` with the count; other refusals throw. */
   async deleteSheet(topicId: string, sheetId: string, confirmed = false): Promise<SheetDeletion> {
     try {
@@ -94,7 +98,8 @@ export class LumenApi {
     } catch (error) {
       if (!(error instanceof RequestError)) throw error
       if (error.routeMissing) return { kind: 'unsupported' }
-      if (error.status === 409 && error.detail?.reason === 'confirm' && typeof error.detail.blocks === 'number') return { kind: 'confirm', blocks: error.detail.blocks }
+      if (error.status === 409 && error.detail?.reason === 'confirm' && typeof error.detail.blocks === 'number')
+        return { kind: 'confirm', blocks: error.detail.blocks, settled: typeof error.detail.settled === 'number' ? error.detail.settled : 0 }
       throw error
     }
   }
@@ -108,7 +113,37 @@ export class LumenApi {
     }
   }
   createSheet(topicId: string, title?: string) { return this.request<Sheet>(`/lumen/topics/${encodeURIComponent(topicId)}/sheets`, 'POST', title ? { title } : {}) }
-  /** 带 ETag 读白板：没变时返回 view=null，不重新解析。 */
+  // ---- Sediment (R13): user HTTP only; an older service without the routes answers unsupported and the view shows the clean line ----
+  async sediment(topicId: string): Promise<{ items: SedimentEntry[]; offers: SedimentOffer[] } | null> {
+    try { return await this.request<{ items: SedimentEntry[]; offers: SedimentOffer[] }>(`/lumen/topics/${encodeURIComponent(topicId)}/sediment`) }
+    catch (error) { if (error instanceof RequestError && error.routeMissing) return null; throw error }
+  }
+  /** blocks carry the rev the UI saw; offerId + text confirms an offer (text is the user's final wording, S9). */
+  createSediment(topicId: string, input: { text: string; blocks?: { id: string; rev: number }[] } | { offerId: string; text?: string }) {
+    return this.request<SedimentEntry>(`/lumen/topics/${encodeURIComponent(topicId)}/sediment`, 'POST', input)
+  }
+  editSediment(topicId: string, entryId: string, text: string) {
+    return this.request<SedimentEntry>(`/lumen/topics/${encodeURIComponent(topicId)}/sediment/${encodeURIComponent(entryId)}`, 'PATCH', { text })
+  }
+  async deleteSediment(topicId: string, entryId: string) {
+    const response = await fetch(`${this.connection.baseUrl}/lumen/topics/${encodeURIComponent(topicId)}/sediment/${encodeURIComponent(entryId)}`, { method: 'DELETE', headers: this.headers() })
+    if (!response.ok && response.status !== 404) throw new Error(serviceErrorText(await response.json().catch(() => null), t().data.requestFailed(response.status)))
+  }
+  async dismissOffer(topicId: string, offerId: string) {
+    const response = await fetch(`${this.connection.baseUrl}/lumen/topics/${encodeURIComponent(topicId)}/sediment/offers/${encodeURIComponent(offerId)}`, { method: 'DELETE', headers: this.headers() })
+    if (!response.ok && response.status !== 404) throw new Error(serviceErrorText(await response.json().catch(() => null), t().data.requestFailed(response.status)))
+  }
+  async sheetInvite(sheetId: string): Promise<SedimentInvite | null> {
+    try { return (await this.request<{ invite: SedimentInvite | null }>(`/lumen/sheets/${encodeURIComponent(sheetId)}/invite`)).invite }
+    catch (error) { if (error instanceof RequestError && error.routeMissing) return null; throw error }
+  }
+  /** S14 speech habits: view in settings, delete line by line. */
+  speechHabits() { return this.request<{ items: SpeechHabit[] }>('/lumen/speech-habits') }
+  async deleteSpeechHabit(fragment: string) {
+    const response = await fetch(`${this.connection.baseUrl}/lumen/speech-habits/${encodeURIComponent(fragment)}`, { method: 'DELETE', headers: this.headers() })
+    if (!response.ok && response.status !== 404) throw new Error(serviceErrorText(await response.json().catch(() => null), t().data.requestFailed(response.status)))
+  }
+  /** ETag sheet read: an unchanged sheet answers view=null without re-parsing. */
   async sheetVersion(sheetId: string, etag?: string | null): Promise<{ view: SheetView | null; etag: string | null }> {
     const response = await fetch(`${this.connection.baseUrl}/lumen/sheets/${encodeURIComponent(sheetId)}`, { headers: { ...this.headers(), ...(etag ? { 'If-None-Match': etag } : {}) } })
     if (response.status === 304) return { view: null, etag: etag ?? null }
@@ -168,7 +203,7 @@ export class LumenApi {
   evaluateBadCase(identity: Identity, id: string, mode: EvaluationResult['mode']) { return this.request<EvaluationResult>(`/lumen/diagnostics/cases/${encodeURIComponent(id)}/evaluate?${this.query(identity)}`, 'POST', { mode }) }
   exportDiagnostics(identity: Identity, traceId?: string) { return this.request<DiagnosticExport>(`/lumen/diagnostics/export?${this.query(identity, traceId ? { traceId } : {})}`) }
   readRecorded(content: string) { return this.request<RecordedInspection>('/lumen/diagnostics/recorded', 'POST', { content }) }
-  /** 附件进资料库并引用到当前主题；返回资料库条目 id，消息里按 id 提及，模型用 read_material 读。 */
+  /** An attachment enters the library referenced into the current topic; the item id comes back so the message can mention it and the model reads it with read_material. */
   async upload(identity: Pick<Identity, 'topicId'>, file: File): Promise<Upload> {
     if (file.size >= 25 * 1024 * 1024) throw new Error(t().data.uploadTooLarge(file.name))
     let bytes: ArrayBuffer

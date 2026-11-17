@@ -1,7 +1,7 @@
 /**
- * [INPUT]: studio/db 的连接与事务、studio/content 的内容与出处合同、主题引用清单
- * [OUTPUT]: BoardStore：白板张的新建、列举与删除（R17：只有用户，护栏/确认/改选相邻同一事务）、区块所在白板、用户选中的白板、每轮固定的写入目标（R16）、区块画/改/取代、自动排版、按运行/按对话收集改动与版本快照；insertSheet
- * [POS]: 白板唯一写入口（R4）；主题由调用方从受信身份给出，写入目标（R16）、容量（R11）、rev 并发、出处边界（R15）都在单个事务里裁决
+ * [INPUT]: studio/db connections and transactions, the content/source contracts of studio/content, the topic reference list
+ * [OUTPUT]: BoardStore: sheet create/list/delete (R17: user only; guard, confirmation and neighbour re-selection in one transaction, the confirmation carrying the affected takeaway count), which sheet a block is on, the user's selection, the per-run fixed target (R16), block draw/update/supersede (settled blocks refuse both: the user keeps them as evidence), capacity counting current+settled, per-run/per-conversation change collection and version snapshots; insertSheet
+ * [POS]: the board's only write path (R4); the topic comes from the caller's trusted identity, and the write target (R16), capacity (R11), rev concurrency and source boundary (R15) are all decided inside one transaction
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { randomBytes, randomUUID } from 'node:crypto'
@@ -15,7 +15,7 @@ type Row = Record<string, SQLOutputValue>
 export const DEFAULT_CAPACITY = 8
 
 // ---------------------------------------------------------------------------
-// 自动排版：三列瀑布流，AI 不管坐标；near 只决定落在哪一列。高度是估计值，前端按实测高度渲染
+// Auto layout: a three-column waterfall, the AI never touches coordinates; `near` only picks the column. Heights are estimates; the front end re-renders with measured heights
 // ---------------------------------------------------------------------------
 const COLUMN_WIDTH = 400, GAP = 32, COLUMNS = 3
 
@@ -39,9 +39,10 @@ function block(row: Row): Block {
     createdAt: String(row.created_at), updatedAt: String(row.updated_at) }
 }
 
-const SHEET_COLUMNS = `s.*, (SELECT COUNT(*) FROM blocks b WHERE b.sheet_id = s.id AND b.state = 'current') AS used`
+/** Since P1 `used` counts current+settled (S3: blocks kept as evidence still fill the sheet; only superseded ones free room). */
+const SHEET_COLUMNS = `s.*, (SELECT COUNT(*) FROM blocks b WHERE b.sheet_id = s.id AND b.state IN ('current','settled')) AS used`
 
-/** 新开一张进行中的白板，ord 递增；新主题建第一张与用户点 ＋ 共用。 */
+/** Open a new live sheet with the next ord; the first sheet of a new topic and the user's ＋ share this path. */
 export function insertSheet(db: DatabaseSync, topicId: string, title: string, now: string): string {
   const id = randomUUID()
   const ord = Number(db.prepare('SELECT COALESCE(MAX(ord), 0) + 1 AS ord FROM sheets WHERE topic_id = ?').get(topicId)!.ord)
@@ -100,13 +101,19 @@ export class BoardStore {
         .some(row => guard.busy.has(String(row.thread_id)) || String(row.created_at) >= guard.since)
       if (held) throw new StudioError(`白板「${target.title}」正被 AI 这一轮写着，不能删；等这一轮结束或把它停下再删。`, 409, 'board.sheet_in_use', { title: target.title }, { reason: 'target' })
       const blocks = Number(this.db.prepare('SELECT COUNT(*) AS n FROM blocks WHERE sheet_id = ?').get(sheetId)!.n)
-      if (blocks && !guard.confirmed) throw new StudioError(`白板「${target.title}」上有 ${blocks} 块内容，删除要先确认，删了不能恢复。`, 409, 'board.confirm_delete', { title: target.title, blocks }, { reason: 'confirm', blocks })
+      if (blocks && !guard.confirmed) {
+        // S3: when settled blocks go with the sheet, the takeaways linked to them lose this evidence link (entries and text stay)
+        const settled = Number(this.db.prepare(`SELECT COUNT(DISTINCT l.entry_id) AS n FROM sediment_links l
+          JOIN blocks b ON b.id = l.block_id WHERE b.sheet_id = ?`).get(sheetId)!.n)
+        throw new StudioError(`白板「${target.title}」上有 ${blocks} 块内容，删除要先确认，删了不能恢复。`, 409, 'board.confirm_delete', { title: target.title, blocks }, { reason: 'confirm', blocks, ...(settled ? { settled } : {}) })
+      }
       // ---- the sheet the next message would write to is going away: move to the next sheet by ord, else the previous one, else none ----
       const selected = this.selectedSheet(topicId)?.id === sheetId
       const neighbour = this.db.prepare('SELECT id FROM sheets WHERE topic_id = ? AND ord > ? ORDER BY ord LIMIT 1').get(topicId, target.ord)
         ?? this.db.prepare('SELECT id FROM sheets WHERE topic_id = ? AND ord < ? ORDER BY ord DESC LIMIT 1').get(topicId, target.ord)
-      // Explicit deletes (the cascades would do the same): nothing soft-deleted, and a failure at any step rolls back all of them
-      for (const table of ['blocks', 'sheet_versions', 'run_targets', 'sheet_selection']) this.db.prepare(`DELETE FROM ${table} WHERE sheet_id = ?`).run(sheetId)
+      // Explicit deletes (the cascades would do the same): nothing soft-deleted, and a failure at any step rolls back all of them.
+      // sediment_links deliberately carries no FK to blocks: the links keep their stored titles and the entries stay (S3/R17)
+      for (const table of ['blocks', 'sheet_versions', 'run_targets', 'sheet_selection', 'sediment_invites']) this.db.prepare(`DELETE FROM ${table} WHERE sheet_id = ?`).run(sheetId)
       this.db.prepare('DELETE FROM sheets WHERE id = ?').run(sheetId)
       const now = new Date().toISOString()
       if (selected && neighbour) this.storeSelection(topicId, String(neighbour.id), now)
@@ -210,7 +217,7 @@ export class BoardStore {
     return transaction(this.db, () => {
       const target = this.target(topicId, sheetId)
       if (target.used >= target.capacity) throw new StudioError(
-        `这张白板满了（${target.used}/${target.capacity}）。不要往外挤：告诉用户这张已经写满，建议先把想清楚的部分沉淀下来；要接着画，可以请用户点 ＋ 开一张新的再发消息。开哪张、写哪张由用户选，你不自己开新白板，也不换到别的白板。如果某块已被新的理解取代，可以用 board_supersede 把它标灰腾出位置。`, 409, 'board.sheet_full', { used: target.used, capacity: target.capacity })
+        `这张白板满了（${target.used}/${target.capacity}）。不要往外挤，也不要换到别的白板：用 sediment_invite 指出这张里值得留下的几块，问用户一句，请用户用自己的话沉淀；已沉淀的块仍占格子，被取代的可以用 board_supersede 标灰腾位。要接着画，请用户点 ＋ 开一张新的再发消息，开哪张由用户选。`, 409, 'board.sheet_full', { used: target.used, capacity: target.capacity })
       const place = this.place(target.id, input.kind, content, input.near)
       const id = `b${randomBytes(5).toString('hex')}`, now = new Date().toISOString()
       this.db.prepare(`INSERT INTO blocks (id, sheet_id, kind, title, content, x, y, w, h, state, superseded_by, rev, sources, thread_id, run_id, created_at, updated_at)
@@ -226,6 +233,8 @@ export class BoardStore {
     const sources = input.sources === undefined ? undefined : this.sources(topicId, input.sources)
     return transaction(this.db, () => {
       const current = this.ownedBlock(topicId, input.blockId, sheetId)
+      if (current.block.state === 'settled') throw new StudioError(
+        `「${current.block.title}」已被用户留作沉淀的证据，不能改；要更新理解就画一块新的，让旧的留在原地`, 409, 'board.block_not_current', { title: current.block.title, state: current.block.state })
       if (current.block.state !== 'current') throw new StudioError(`「${current.block.title}」已经不是当前区块（${current.block.state}），不能再改；需要的话画一块新的`, 409, 'board.block_not_current', { title: current.block.title, state: current.block.state })
       if (input.baseRev !== current.block.rev) throw new StudioError(
         `「${current.block.title}」已经被改过：现在是第 ${current.block.rev} 版，你基于第 ${input.baseRev} 版。先用 board_view 看最新内容再改。`, 409, 'board.block_stale', { title: current.block.title, rev: current.block.rev, baseRev: input.baseRev })
@@ -241,6 +250,8 @@ export class BoardStore {
   supersede(topicId: string, input: { blockId: string; by?: string }, origin: WriteOrigin, sheetId?: string | null): { blockId: string; rev: number } {
     return transaction(this.db, () => {
       const current = this.ownedBlock(topicId, input.blockId, sheetId)
+      if (current.block.state === 'settled') throw new StudioError(
+        `「${current.block.title}」已被用户留作沉淀的证据，留在原地就好；它不占新的理解`, 409, 'board.block_already_replaced', { title: current.block.title, state: current.block.state })
       if (current.block.state !== 'current') throw new StudioError(`「${current.block.title}」已经是 ${current.block.state}，不用再取代`, 409, 'board.block_already_replaced', { title: current.block.title, state: current.block.state })
       if (input.by !== undefined) {
         if (input.by === input.blockId) throw new StudioError('一块不能取代它自己', 400, 'board.replace_self')
@@ -255,12 +266,12 @@ export class BoardStore {
     })
   }
 
-  /** 本次运行写过的白板（R7：有变化的才留版本）。 */
+  /** The sheets this run wrote to (R7: only changed ones get a version). */
   changedSheets(runId: string): string[] {
     return this.db.prepare('SELECT DISTINCT sheet_id FROM blocks WHERE run_id = ? ORDER BY sheet_id').all(runId).map(row => String(row.sheet_id))
   }
 
-  /** 这段对话自它上一个版本以来写过的白板；挂起后续跑会换 runId，按对话而不是按 runId 收，重启后也不丢。 */
+  /** Sheets this conversation changed since its last version; a resumed suspension gets a new runId, so we collect by conversation, not runId — it survives restarts. */
   pendingSheets(threadId: string): string[] {
     return this.db.prepare(`SELECT DISTINCT sheet_id FROM blocks WHERE thread_id = ?
       AND updated_at > COALESCE((SELECT MAX(created_at) FROM sheet_versions WHERE thread_id = ?), '') ORDER BY sheet_id`).all(threadId, threadId).map(row => String(row.sheet_id))
@@ -283,7 +294,7 @@ export class BoardStore {
   }
 
   // -------------------------------------------------------------------------
-  // 内部：归属、出处边界与排版
+  // Internals: ownership, the source boundary and layout
   // -------------------------------------------------------------------------
   private title(value: string) {
     const result = blockTitle.safeParse(value)
@@ -291,7 +302,7 @@ export class BoardStore {
     return result.data
   }
 
-  /** R15：出处只能指向本主题引用的材料或本主题的对话。 */
+  /** R15: sources may only point at materials this topic references or conversations of this topic. */
   private sources(topicId: string, value: unknown): BlockSource[] {
     const sources = parseSources(value)
     const referenced = this.db.prepare('SELECT 1 FROM topic_materials WHERE topic_id = ? AND item_id = ?')

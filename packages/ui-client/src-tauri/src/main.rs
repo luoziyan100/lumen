@@ -1,7 +1,7 @@
 /**
- * [INPUT]: Tauri 主窗口、透明桌面精灵窗口、外观明暗、窗口标题、界面语言（locale::set_locale，原生标题随之切换）、文件/完整技能选择、受控系统打开、外链、widget脚本与Mastra服务连接
- * [OUTPUT]: 主窗口原生生命周期与显式命令；桌面能力默认隐藏，位置/菜单代码保留；不持有 Agent 服务进程
- * [POS]: 原生薄壳；研究生命周期归 launchd/Mastra，窗口层只判定显示形态与用户文件动作，桌面精灵不接服务
+ * [INPUT]: the Tauri main window, the transparent desktop sprite window, the light/dark appearance, the window title, the UI language (locale::set_locale switches native titles with it), file/whole-skill picking, the controlled system open, external links, widget scripts and the Mastra service connection
+ * [OUTPUT]: the main window's native lifecycle and explicit commands; desktop capability hidden by default with its placement/menu code kept; never owns the agent service process
+ * [POS]: the thin native shell; the research lifecycle belongs to launchd/Mastra, and the window layer only decides display form and user file actions — the desktop sprite takes no service
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 mod locale;
@@ -23,21 +23,21 @@ use std::time::Duration;
 use tauri::webview::PageLoadEvent;
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
-/// 对话 widget 内联脚本:宿主 invoke 登记,iframe 用 lumenwidget:// 当 src 拉。
-/// 父 CSP 仍无 unsafe-inline/eval;scheme 只吐登记过的字节。
+/// Inline scripts for conversation widgets: the host registers them through invoke and the iframe pulls them from a lumenwidget:// src.
+/// The parent CSP still has no unsafe-inline/eval; the scheme serves only registered bytes.
 struct WidgetScripts {
     map: Mutex<HashMap<String, String>>,
     seq: AtomicU64,
 }
 
-// --- 应用窗口沿用外观模式，不修改系统全局主题 ---
+// --- The app window follows the appearance mode; the system-wide theme is never touched ---
 #[tauri::command]
 fn set_window_theme(window: tauri::WebviewWindow, dark: bool) -> Result<(), String> {
     let theme = if dark { tauri::Theme::Dark } else { tauri::Theme::Light };
     window.set_theme(Some(theme)).map_err(|error| error.to_string())
 }
 
-// --- 窗口标题跟当前主题（主题名不写在中栏头部，切窗口时靠它认） ---
+// --- The window title follows the current topic (the name stays out of the center header, so windows are told apart by it) ---
 #[tauri::command]
 fn set_window_title(window: tauri::WebviewWindow, title: String) -> Result<(), String> {
     let title: String = title.chars().take(120).collect();
@@ -60,7 +60,7 @@ fn widget_put_script(code: String, store: tauri::State<WidgetScripts>) -> Result
     Ok(id)
 }
 
-/// 用系统默认浏览器打开 http(s)。WKWebView 的 window.open 会被吞掉,不能当外链。
+/// Open http(s) in the system browser: WKWebView swallows window.open, so it cannot carry external links.
 #[tauri::command]
 fn open_external_url(url: String) -> Result<(), String> {
     let url = url.trim();
@@ -145,8 +145,8 @@ fn main() {
         })
         .setup(|app| {
             let script = mastra::startup(app.handle());
-            // --- 文件拖放交给网页附件入口；原生层不截留 OS drop ---
-            // --- 窗口透明 + 系统侧栏毛玻璃：网页只在主题声明透明的区域透出，实色区域外观不变 ---
+            // --- File drops go to the page's attachment entry; the native layer never intercepts OS drops ---
+            // --- Transparent window + system material: the page shows through only where the theme declares transparency, solid areas stay as drawn ---
             let builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::default());
             #[cfg(target_os = "macos")]
             let builder = builder

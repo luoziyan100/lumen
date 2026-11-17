@@ -1,21 +1,23 @@
 /**
- * [INPUT]: useBoard 的白板张与视图、主题材料、精灵传来的「正在画/跳到某块」信号、layout.ts 的按宽排列
- * [OUTPUT]: Board：白板画布——左上角浮层（多张时的张标签：白板图标 + 序号，完整标题在 title/aria-label，收起的变淡，本轮写入目标在 AI 画时带小点，放不下横向滚动不换行；每张带「⋯」菜单（悬停/聚焦出现，选中那张常显；只有一张时在 ＋ 旁）删除白板，有内容先弹确认，本轮写入目标不可删；＋ 新开即选中；不显示已用块数，上限与 R11 在服务端不变，写满时边框标签如实写「已经写满」）、
- *           画布起点在浮层之下（BOARD.TOP ≥ 浮层顶 12 + 高 30 + 12，首屏不压区块标题）、DOM + CSS transform 平移缩放（默认 100%，看全貌可缩小）、
- *           按视口宽度 1–3 列重排、贴着内容的白板边框、AI 正在画提示、小部件同时运行名额、右下角缩放条
- * [POS]: 中间「白板」视图；P0 对人只读（不圈、不钉、不改）。看着哪张，下一条消息就写哪张（R16）；收起的那张提示 AI 不会写在这里。对话卡片指向已删除白板上的块时只提示「这块所在的白板已删除」，不跳到别处（R17）。列与位置只在显示层重排，服务端坐标不动
+ * [INPUT]: useBoard's sheets and views, topic materials, the sprite's drawing/focus signals, layout.ts's width-based flow
+ * [OUTPUT]: Board: the canvas — the top-left overlay (sheet tabs when several: board glyph + number, full title in title/aria-label, folded dimmed, a dot on the run's target while the AI draws, horizontal scroll instead of wrapping; each sheet carries a 「⋯」 menu (hover/focus, always on the selected one, next to ＋ for a lone sheet) to delete it, blocks ask first, the run's target is protected; ＋ opens and selects; no used-count on display — the cap and R11 stay server-side, and a full sheet's frame label says so honestly),
+ *           the canvas starts below the overlay (BOARD.TOP ≥ overlay top 12 + height 30 + 12, so first-screen block titles never sit under it), DOM + CSS transform pan/zoom (100% by default, shrink to see it all),
+ *           1–3 display columns by viewport width, a frame hugging the content, the AI-drawing notice, widget concurrency slots, the bottom-right zoom bar, and the sediment row under the canvas (S9)
+ * [POS]: the center Board view; read-only for the user since P0 (no circling, pinning or editing). Whichever sheet you watch is where the next message writes (R16); a folded one says the AI will not write there. A card pointing into a deleted sheet only says so and never jumps elsewhere (R17). Columns and positions reflow in the display layer only; server coordinates stay
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import { Dialog } from '@cloudflare/kumo/components/dialog'
 import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
-import { BoardViewIcon, MinusIcon, MoreIcon, PlusIcon, ExpandIcon } from '../../components/icons'
+import { BoardViewIcon, MinusIcon, MoreIcon, PlusIcon, ExpandIcon, SettledViewIcon } from '../../components/icons'
 import { useT } from '../../i18n/index.ts'
-import type { Sheet, TopicMaterial } from '../data/client.ts'
+import type { Sheet, SedimentInvite, TopicMaterial } from '../data/client.ts'
 import { BlockCard } from './Block'
 import { BOARD, flowLayout } from './layout'
+import { OfferRow, TakeawayComposer } from './Takeaways'
 import type { BoardState } from './useBoard'
+import type { SedimentState } from './useSediment'
 
 const MAX_WIDGETS = 2
 const HOME = { x: BOARD.INSET + BOARD.PAD, y: BOARD.TOP + BOARD.PAD, scale: 1 }
@@ -23,7 +25,7 @@ const NOTICE_MS = 4000
 
 /** A sheet's 「⋯」 menu with its one item (R17). The run's target cannot be deleted; the reason sits in the item's title. */
 function SheetMenu({ name, busy, className, onRemove }: { name: string; busy: boolean; className: string; onRemove: () => void }) {
-  const S = useT().studio
+  const { studio: S, common: { labelled } } = useT()
   return <DropdownMenu>
     <DropdownMenu.Trigger render={<button type="button" className={className} aria-label={S.board.more(name)} title={S.board.more(name)} />}><MoreIcon size={16} /></DropdownMenu.Trigger>
     <DropdownMenu.Content align="start" sideOffset={6} className="glass-card">
@@ -32,14 +34,17 @@ function SheetMenu({ name, busy, className, onRemove }: { name: string; busy: bo
   </DropdownMenu>
 }
 
-export function Board({ board, materials, drawing, focus, onOpenSource }: {
+export function Board({ board, materials, drawing, focus, onOpenSource, sediment, invite }: {
   board: BoardState
   materials: TopicMaterial[]
   drawing: string | null
   focus: { blockId: string; nonce: number } | null
   onOpenSource: (itemId: string, page?: number) => void
+  sediment: SedimentState
+  /** the selected sheet's sediment invite (S4/S9c): its question and blocks ride above the full-board row */
+  invite: SedimentInvite | null
 }) {
-  const S = useT().studio
+  const { studio: S, common: { labelled } } = useT()
   const viewport = useRef<HTMLDivElement>(null), world = useRef<HTMLDivElement>(null), strip = useRef<HTMLSpanElement>(null)
   const [camera, setCamera] = useState(HOME)
   const [width, setWidth] = useState(0)
@@ -47,8 +52,12 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
   const [widgets, setWidgets] = useState<string[]>([])
   const [focused, setFocused] = useState<string | null>(null)
   // ---- R17: a sheet with blocks waits here for the user's confirmation; a card whose sheet was deleted shows a short notice ----
-  const [pending, setPending] = useState<{ sheet: Sheet; number: number; blocks: number } | null>(null)
+  const [pending, setPending] = useState<{ sheet: Sheet; number: number; blocks: number; settled: number } | null>(null)
   const [removing, setRemoving] = useState(false), [notice, setNotice] = useState(false)
+  // ---- S9b: a block-level "write a takeaway from this block" opens the row with that block pre-linked ----
+  const [fromBlock, setFromBlock] = useState<string | null>(null)
+  // ---- S9c: "Skip" hides the full-board row for this sheet until the sheet changes (updatedAt moves) ----
+  const [skipped, setSkipped] = useState<{ sheetId: string; updatedAt: string } | null>(null)
   const drag = useRef<{ x: number; y: number; cx: number; cy: number } | null>(null)
   const view = board.view, blocks = view?.blocks ?? []
   const byId = useMemo(() => new Map(materials.map(item => [item.id, item])), [materials])
@@ -58,7 +67,7 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
   const selectedSheet = board.sheets.find(sheet => sheet.id === board.selected)
   const tabs = board.sheets.length > 1 || (selectedSheet && selectedSheet.state !== 'live')
 
-  // ---- 视口宽度决定列数；换一张白板回到左上角 100%。阅读器铺满时白板隐藏（宽 0），保留原来的排列 ----
+  // ---- The viewport width picks the column count; switching sheets returns to the top-left at 100%. A full reader hides the board (width 0) and keeps the layout ----
   useLayoutEffect(() => {
     const node = viewport.current
     if (!node) return
@@ -77,14 +86,14 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
     else if (on.offsetLeft + on.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollLeft = on.offsetLeft + on.offsetWidth - row.clientWidth
   }, [board.selected, board.sheets.length, width])
 
-  // ---- 小部件名额：默认前两块运行，点开的挤掉最早的 ----
+  // ---- Widget slots: the first two run by default; opening one evicts the oldest ----
   useEffect(() => {
     const ids = blocks.filter(block => block.kind === 'widget' && block.state === 'current').map(block => block.id)
     setWidgets(previous => { const kept = previous.filter(id => ids.includes(id)); return kept.length ? kept : ids.slice(0, MAX_WIDGETS) })
   }, [view?.sheet.id, blocks.length])
   const activate = useCallback((id: string) => setWidgets(previous => [...previous.filter(item => item !== id), id].slice(-MAX_WIDGETS)), [])
 
-  // ---- 量高：块内容（Markdown、小部件）渲染后高度才准；列宽变了高度跟着变 ----
+  // ---- Height measurement: block content (Markdown, widgets) renders before its height is true; a changed column width changes it again ----
   useLayoutEffect(() => {
     const root = world.current
     if (!root) return
@@ -99,7 +108,7 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
     return () => observer?.disconnect()
   }, [blocks, widgets, layout.width])
 
-  /** 看全貌：把整块白板缩进视口（只缩小不放大，最小 30%） */
+  /** Fit to view: shrink the whole sheet into the viewport (shrink only, never grow, floor 30%). */
   const fit = useCallback(() => {
     const box = viewport.current?.getBoundingClientRect()
     if (!box || !layout.height) { setCamera(HOME); return }
@@ -108,7 +117,7 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
     setCamera({ x: BOARD.INSET + BOARD.PAD * scale, y: BOARD.TOP + BOARD.PAD * scale, scale })
   }, [layout.span, layout.height])
 
-  // ---- 跳到某块：移到视口中间并短暂高亮 ----
+  // ---- Jump to a block: center it in the viewport and highlight it briefly ----
   useEffect(() => {
     if (!focus) return
     const target = positioned.find(block => block.id === focus.blockId), box = viewport.current?.getBoundingClientRect()
@@ -134,13 +143,26 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
   /** Empty sheets go at once; one with blocks comes back with the count and waits for the dialog. */
   async function remove(sheet: Sheet, number: number) {
     const result = await board.remove(sheet.id)
-    if (result?.kind === 'confirm') setPending({ sheet, number, blocks: result.blocks })
+    if (result?.kind === 'confirm') setPending({ sheet, number, blocks: result.blocks, settled: result.settled })
   }
   async function confirmRemove() {
     if (!pending) return
     setRemoving(true)
     try { await board.remove(pending.sheet.id, true) } finally { setRemoving(false); setPending(null) }
   }
+
+  // ---- S9c: the full-board row — the selected sheet is full, the user hasn't skipped this version of it ----
+  const sheetFull = !!view && view.sheet.used >= view.sheet.capacity && !sediment.unsupported
+  const skipCovers = skipped && view && skipped.sheetId === view.sheet.id && skipped.updatedAt === view.sheet.updatedAt
+  const invited = useMemo(() => invite ? blocks.filter(block => invite.blockIds.includes(block.id) && block.state === 'current') : [], [invite, blocks])
+  const showFullRow = sheetFull && !skipCovers && fromBlock === null
+  const showBlockRow = fromBlock !== null
+  // the pre-linked evidence carries the rev the UI saw: a run that changed the block since gets a 409 and the typed line stays (S10)
+  const preLinked = useMemo(() => {
+    const ids = showFullRow ? invited.map(block => block.id) : fromBlock ? [fromBlock] : []
+    return ids.map(id => blocks.find(block => block.id === id)).filter((block): block is NonNullable<typeof block> => !!block).map(block => ({ id: block.id, rev: block.rev, title: block.title }))
+  }, [showFullRow, showBlockRow, invited, fromBlock, blocks])
+  useEffect(() => { if (sediment.revConflict) board.refresh() }, [sediment.revConflict])
 
   function zoomAt(factor: number, clientX?: number, clientY?: number) {
     const box = viewport.current?.getBoundingClientRect()
@@ -171,15 +193,39 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
           <span className="board-frame-label">{view.sheet.used >= view.sheet.capacity ? S.board.frameFull : S.board.frameNote}</span>
         </div>}
         {positioned.map(block => <BlockCard key={block.id} block={block} materials={byId} supersededTitle={block.supersededBy ? titles.get(block.supersededBy) : undefined}
-          widgetActive={widgets.includes(block.id)} onActivateWidget={activate} onOpenSource={onOpenSource} focused={focused === block.id} drawing={drawing === block.id} />)}
+          widgetActive={widgets.includes(block.id)} onActivateWidget={activate} onOpenSource={onOpenSource} focused={focused === block.id} drawing={drawing === block.id}
+          onTakeaway={block.state === 'current' && !sediment.unsupported ? () => setFromBlock(block.id) : undefined} />)}
       </div>
       {view && !blocks.length && <p className="board-empty">{S.board.empty}</p>}
       {!view && !board.sheets.length && !board.error && <p className="board-empty">{S.board.noLive}</p>}
       {view && view.sheet.state !== 'live' && <p className="board-empty board-hint">{S.board.foldedHint}</p>}
       {drawing && <div className="board-drawing" role="status"><span className="board-drawing-dot" />{drawing === 'new' ? S.board.drawing : S.board.updating}</div>}
       {notice && <div className="board-drawing board-notice" role="status">{S.board.blockGone}</div>}
+    <div className="board-zoom">
+      <button type="button" className="icon-btn" aria-label={S.board.zoomOut} onClick={() => zoomAt(1 / 1.15)}><MinusIcon /></button>
+      <span className="board-zoom-value">{Math.round(camera.scale * 100)}%</span>
+      <button type="button" className="icon-btn" aria-label={S.board.zoomIn} onClick={() => zoomAt(1.15)}><PlusIcon /></button>
+      <button type="button" className="icon-btn" aria-label={S.board.fit} title={S.board.fit} onClick={fit}><ExpandIcon /></button>
+    </div>
       {board.error && <p className="mw-error board-error" role="alert">{board.error}</p>}
     </div>
+      {/* S9b/c: the from-block entry and the full-board one-line input (the invite question and invited blocks pre-linked, skippable); offers sit above the input (S9) */}
+      {(showFullRow || showBlockRow) && <div className="board-sediment-row" data-testid="board-sediment-row">
+        {sediment.offers.length > 0 && <p className="sediment-offers-note">{S.sediment.offerNote}</p>}
+        {sediment.offers.slice(0, 1).map(offer => <OfferRow key={offer.id} offer={offer}
+          onKeep={async text => await sediment.confirm(offer.id, text)} onDismiss={() => void sediment.dismiss(offer.id)} />)}
+        {showFullRow && <div className="board-sediment-head">
+          <span className="board-sediment-full">{S.board.frameFull}</span>
+          {invite && <span className="board-sediment-invite">{labelled(S.sediment.inviteBy, invite.question)}</span>}
+          {preLinked.length > 0 && <span className="board-sediment-links">{preLinked.map(block => block.title).join(' · ')}</span>}
+        </div>}
+        {showBlockRow && <div className="board-sediment-head"><span className="board-sediment-links">{preLinked.map(block => block.title).join(' · ')}</span></div>}
+        <TakeawayComposer autoFocus placeholder={S.sediment.placeholder}
+          onSubmit={async text => { const kept = await sediment.create({ text, blocks: preLinked.map(block => ({ id: block.id, rev: block.rev })) }); if (kept) setFromBlock(null); return kept }}
+          onCancel={() => setFromBlock(null)} />
+        {showFullRow && <button type="button" className="board-sediment-skip" onClick={() => view && setSkipped({ sheetId: view.sheet.id, updatedAt: view.sheet.updatedAt })}>{S.sediment.skip}</button>}
+        {sediment.error && <p className="mw-error" role="alert">{sediment.revConflict ? S.sediment.linkStale : sediment.error}</p>}
+      </div>}
     <nav className="board-sheets" aria-label={S.board.tabs}>
       {tabs && <span className="board-tabs" ref={strip}>{board.sheets.map((sheet, index) => {
         const name = sheet.state !== 'live' ? `${sheet.title} · ${S.board.folded}` : sheet.title
@@ -195,16 +241,11 @@ export function Board({ board, materials, drawing, focus, onOpenSource }: {
       {!tabs && board.sheets.length === 1 && <SheetMenu name={board.sheets[0]!.title} busy={board.target === board.sheets[0]!.id} className="icon-btn board-sheet-more" onRemove={() => void remove(board.sheets[0]!, 1)} />}
       <button type="button" className="icon-btn board-sheet-new" title={S.board.newSheet} aria-label={S.board.newSheet} onClick={() => void board.createSheet()}><PlusIcon /></button>
     </nav>
-    <div className="board-zoom">
-      <button type="button" className="icon-btn" aria-label={S.board.zoomOut} onClick={() => zoomAt(1 / 1.15)}><MinusIcon /></button>
-      <span className="board-zoom-value">{Math.round(camera.scale * 100)}%</span>
-      <button type="button" className="icon-btn" aria-label={S.board.zoomIn} onClick={() => zoomAt(1.15)}><PlusIcon /></button>
-      <button type="button" className="icon-btn" aria-label={S.board.fit} title={S.board.fit} onClick={fit}><ExpandIcon /></button>
-    </div>
     {pending && <Dialog.Root open onOpenChange={open => { if (!open && !removing) setPending(null) }}>
       <Dialog className="ext-link-modal board-remove-modal p-0" aria-label={S.board.removeTitle(pending.number, pending.sheet.title)}>
         <h2 className="ext-link-title">{S.board.removeTitle(pending.number, pending.sheet.title)}</h2>
         <p className="ext-link-hint">{S.board.removeBody(pending.blocks)}</p>
+        {pending.settled > 0 && <p className="ext-link-hint">{S.board.removeSettled(pending.settled)}</p>}
         <div className="ext-link-actions">
           <Button variant="secondary" disabled={removing} onClick={() => setPending(null)}>{S.board.removeCancel}</Button>
           <Button variant="destructive" disabled={removing} onClick={() => void confirmRemove()}>{S.board.removeConfirm}</Button>

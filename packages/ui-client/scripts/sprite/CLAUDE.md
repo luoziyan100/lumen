@@ -3,6 +3,7 @@
 
 - `sprite-fixture.ts`：显式临时根上的真实服务，仅替换 provider 网络；逐段推进文字与提问，按资源统计真正 GET SSE。
 - `sprite-move-assert.mjs`：两档视口的全部拖放、开合、层级与减弱动效回归，横纵按60×92分别计算。
+- `ui-assert-sediment.mts`：P1-1 浏览器验收：自带隔离 fixture（画满/邀请/递回）+ 5190 vite，两档视口（暗色在 1280）+ 英文轮 + 截图进 evidence；结束前重跑 `ui-assert-panels.mjs`（其 R16/R17 断言不变，材料种子为标题 1706.03762 的合成 PDF）。
 - `ui-assert-panels.mjs`：上一任务全部面板回归，形象尺寸改为60×92；视图导航加图标后「每项一行」只量文字行数。 Since R16 sheet tabs are a glyph plus a number, W1 "one line per tab" measures only the number span. Since R17 each tab also holds a 「⋯」 menu button, so tab buttons are selected as `.board-tab > button:first-child` (here and in `sprite-move-assert.mjs`).
 - `sprite-native.swift`：CGWindowList 量窗口，AX/合成事件驱动原生用户路径与 Dock 退出菜单；不需要屏幕录制，拖动需要辅助功能权限。
 - `sprite-native-assert.mjs`：默认验证H1–H4：只创建主WebView、开关隐藏、关窗/最小化不浮出；恢复两端常量后可加--desktop-enabled跑原完整桌面路径。
