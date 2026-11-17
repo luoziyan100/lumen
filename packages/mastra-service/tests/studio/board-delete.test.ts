@@ -41,6 +41,13 @@ async function until(check: () => boolean | Promise<boolean>, message: string, m
   }
 }
 
+/** R17: deleteSheet treats a target row whose created_at is at or after the activity read's `since` as racing, so a test that
+ *  wants a *stale* row must let the clock move strictly past the capture before deleting. Polling the clock makes it
+ *  deterministic — a fixed sleep would only make the same-millisecond coincidence rarer, not impossible. */
+async function pastCapture(at: string) {
+  while (Date.now() <= Date.parse(at)) await delay(1)
+}
+
 type Respond = (request: ProviderRequest, signal?: AbortSignal | null) => Reply | Promise<Reply>
 type Json = Record<string, unknown>
 
@@ -241,6 +248,8 @@ test('R17 stale and racing target rows: a row whose run is neither running nor w
     assert.equal(env.studio.board.runTarget('p:gone')?.id, second)
     assert.equal(rows(env.dataRoot, second).targets, 1)
     assert.equal((await env.sheets('p')).target, null, 'the list does not report a stale row either')
+    const captured = new Date().toISOString() // at or after the row's created_at
+    await pastCapture(captured) // the delete's `since` must fall in a strictly later millisecond than the capture
     assert.deepEqual((await env.remove('p', second)).body, { deleted: second, selected: first })
     assert.equal(rows(env.dataRoot, second).targets, 0)
     // ---- racing: the activity read began before a run captured this sheet; the delete must not take it ----
