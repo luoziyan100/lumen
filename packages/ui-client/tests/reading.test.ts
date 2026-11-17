@@ -2,8 +2,8 @@
  * [INPUT]: the service's reading-question parser (bound to MODEL_TEXT.askReading here), the real StudioApp (Reading view, Materials row action, sprite), reading-ask's pure helpers, React DOM + jsdom, a real HTTP service with the Mastra Controller,
  *          a deterministic model (writes two sections with the second held, answers questions in two sentences, holds a second conversation), multi-page PDF fixtures
  * [OUTPUT]: component evidence for P1-2 S3/S5/S6: Reading is the first view and the default; the row action sends the visible request and switches to Reading, and the row then
- *           says 「打开解读」; sections appear as their reading_write calls complete (the 5s fallback poll is disabled here); paper chips name the page and open split reading,
- *           inference chips are dashed; only a selection inside one paragraph opens the window; Enter sends the documented message; the reply streams into the window from the one
+ *           says 「打开解读」; sections appear as their reading_write calls complete (the 5s fallback poll is disabled here); a paper paragraph shows its quote line with the chip at its end (no tooltip copy), paper chips name the page and open split reading,
+ *           inference chips are dashed; only a selection inside one paragraph opens the window (not on a chip or the quote line); Enter sends the documented message; the reply streams into the window from the one
  *           shared subscription; Esc closes; the footprint reopens the exchange; a follow-up continues the same conversation and its Markdown reply renders as strong/li/blockquote (G3); keep stores only typed words; another
  *           conversation's run gets the service's readable 409 and nothing is sent; footprints survive a reload and are inline role="button" spans opened by Enter/Space (G4);
  *           the service's readingQuestion reads the real askReading output exactly as parseAsk does, and userWords drops the quote (G1 binding)
@@ -190,6 +190,13 @@ test('Reading view: write → live sections → chips → in-paragraph window �
     const chips = $$('.reading-chip')
     assert.deepEqual(chips.map(chip => [chip.tagName, chip.textContent, chip.classList.contains('source-chip-inferred')]),
       [['BUTTON', S.reading.page(1), false], ['SPAN', S.reading.inference, true], ['BUTTON', S.reading.page(2), false]])
+    // ---- The paper's quote stands under its paragraph and carries the chip; an inference paragraph has none ----
+    const quotes = $$('.reading-quote')
+    assert.equal(quotes.length, 2, '两个原文段各有一行引文')
+    assert.ok(quotes[0]!.textContent!.startsWith('Free energy bounds surprise in the cortex') && quotes[0]!.contains(chips[0]!), '引文在原文段下面，签在引文末尾')
+    assert.equal(quotes[0]!.previousElementSibling?.querySelector('[data-paragraph]')?.textContent, PARA_1)
+    assert.ok(chips[1]!.closest('.reading-para.is-inference') && !chips[1]!.closest('.reading-para')!.nextElementSibling?.matches('.reading-quote'), '推断段没有引文行')
+    assert.equal(chips[0]!.getAttribute('title'), S.reading.openSource, '引文已可见，签的提示不再重复它')
     await act(async () => chips[2]!.click())
     await until(() => !!$('.studio-center.studio-split .studio-reader'), '原文 chip 没有打开分屏')
 
@@ -199,6 +206,8 @@ test('Reading view: write → live sections → chips → in-paragraph window �
     assert.equal($('.reading-ask'), null, '跨段选择不开窗')
     await select(chips[0]!.firstChild!, 0, chips[0]!.firstChild!, 3)
     assert.equal($('.reading-ask'), null, '选在 chip 上不开窗')
+    await select(quotes[0]!.firstChild!, 0, quotes[0]!.firstChild!, 11)
+    assert.equal($('.reading-ask'), null, '选在引文行上不开窗')
     // ---- Inside one paragraph it opens under the selection, with the quote, the input and the send button ----
     const quote = 'an upper bound on surprise'
     const at = PARA_1.indexOf(quote)

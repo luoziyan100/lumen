@@ -1,6 +1,6 @@
 /**
  * [INPUT]: tokens.css / yan-design-system tokens, studio.css's type scale and .source-chip, the appearance pipeline's --font-serif (the reading font setting)
- * [OUTPUT]: the Reading view's styles: the in-view scroller, one centred serif column (max 700px), numbered section titles, paragraph source chips, footprint underlines (inline, wrapping like text),
+ * [OUTPUT]: the Reading view's styles: the in-view scroller, one centred serif column (max 700px), numbered section titles, the paper quote under each sourced paragraph, source chips, footprint underlines (inline, wrapping like text),
  *           the selection window (solid surface, quote clamped to two lines, Markdown replies at window size scrolling inside its max height, growing input) and the material row's reading action
  * [POS]: Reading.tsx's own sheet next to studio.css; existing tokens only, no new colours. The window is a control and keeps a solid surface under glass/paper skins
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -18,6 +18,10 @@
 .reading-num { flex: none; min-width: 1.4em; font: 600 var(--st-title) var(--font-sans); color: var(--accent-ink); font-variant-numeric: tabular-nums; }
 .reading-para { margin: 0 0 14px; font-size: 16px; line-height: 1.8; }
 html[data-justify="true"] .reading-para { text-align: justify; }
+/* The paper's own sentence under its paragraph: quieter than the body (smaller, muted, a thin rule), kept in its original language; the chip ends it */
+.reading-para:has(+ .reading-quote) { margin-bottom: 6px; }
+.reading-quote { margin: 0 0 16px; padding-left: 12px; border-left: 2px solid var(--border-strong); font-size: 14px; line-height: 1.65; font-style: italic; color: var(--text-soft); }
+.reading-quote .reading-chip { font-style: normal; }
 .reading-chip { display: inline-block; vertical-align: 2px; max-width: 14em; font-family: var(--font-sans); line-height: 1.5; }
 .reading-more { font: var(--st-note) var(--font-sans); color: var(--text-muted); }
 .reading-empty p { margin: 0; }

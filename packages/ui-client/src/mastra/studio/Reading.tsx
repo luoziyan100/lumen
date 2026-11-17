@@ -1,7 +1,7 @@
 /**
  * [INPUT]: components/Markdown for replies, useReading's state, the topic's questions (useTopicAsks), the pure helpers of reading-ask.ts, i18n `studio.reading`, the host's send/keep/open-source callbacks
- * [OUTPUT]: ReadingView: the centre 「解读 / Reading」 view — one centred serif column (≤700px) with numbered sections, each paragraph ending in its source chip
- *           (「原文 p.N」 opens split reading at that page; inference chips are dashed); the person's footprints (thin underlines on sentences asked about, inline spans with role="button" that wrap like text and open on click/Enter/Space);
+ * [OUTPUT]: ReadingView: the centre 「解读 / Reading」 view — one centred serif column (≤700px) with numbered sections; a paper paragraph is followed by its quote in the paper's own words, ending in the source chip
+ *           (「原文 p.N」 opens split reading at that page), an inference paragraph ends in a dashed chip; the quote line opens no window; the person's footprints (thin underlines on sentences asked about, inline spans with role="button" that wrap like text and open on click/Enter/Space);
  *           selecting text inside one paragraph opens AskWindow under the selection
  *           and kept clear of the sprite's figure (padding on the side it sits);
  *           AskWindow: the quote (two lines), the exchange so far (the person's words and the streamed reply, rendered by components/Markdown as Block.tsx does), a one-line growing input, send, and 「存为我的沉淀」 (only typed words)
@@ -9,7 +9,7 @@
  *        shared conversation subscription; nothing here is a second channel
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import { CloseIcon, SendIcon } from '../../components/icons'
 import { Markdown } from '../../components/Markdown'
@@ -51,8 +51,8 @@ function elementOf(node: Node | null): Element | null {
 function SourceChip({ paragraph, onOpen }: { paragraph: ReadingParagraph; onOpen: (page?: number) => void }) {
   const S = useT().studio.reading
   if (paragraph.source.kind === 'inference') return <span className="source-chip source-chip-inferred reading-chip">{S.inference}</span>
-  const { page, quote } = paragraph.source
-  return <button type="button" className="source-chip reading-chip" title={`${S.openSource} · “${quote}”`} onClick={() => onOpen(page)}>{page ? S.page(page) : S.paper}</button>
+  const { page } = paragraph.source
+  return <button type="button" className="source-chip reading-chip" title={S.openSource} onClick={() => onOpen(page)}>{page ? S.page(page) : S.paper}</button>
 }
 
 /** A paragraph's text with the person's footprints as thin underlines. A footprint is an inline span acting as a button, so a quote that starts mid-line wraps
@@ -232,10 +232,16 @@ export function ReadingView({ state, requested, asks, busyFor, onSend, onKeep, o
       {state.error && <p className="mw-error" role="alert">{state.error}</p>}
       {reading.sections.map(section => <section key={section.id} className="reading-section" data-section={section.id}>
         <h2><span className="reading-num">{section.ord}</span>{section.title}</h2>
-        {section.paragraphs.map(paragraph => <p key={paragraph.id} className={`reading-para${paragraph.source.kind === 'inference' ? ' is-inference' : ''}`}>
-          <ParagraphText paragraph={paragraph} quotes={mine.filter(ask => squash(paragraph.text).includes(ask.quote)).map(ask => ask.quote)} onFootprint={onFootprint} />
-          {' '}<SourceChip paragraph={paragraph} onOpen={page => onOpenSource(reading.itemId, page)} />
-        </p>)}
+        {section.paragraphs.map(paragraph => {
+          const chip = <SourceChip paragraph={paragraph} onOpen={page => onOpenSource(reading.itemId, page)} />
+          const text = <ParagraphText paragraph={paragraph} quotes={mine.filter(ask => squash(paragraph.text).includes(ask.quote)).map(ask => ask.quote)} onFootprint={onFootprint} />
+          if (paragraph.source.kind === 'inference') return <p key={paragraph.id} className="reading-para is-inference">{text}{' '}{chip}</p>
+          // The quote stands under its paragraph, in the paper's own words, so a sentence that leads into it ("…the key line:") points at something the reader can see
+          return <Fragment key={paragraph.id}>
+            <p className="reading-para">{text}</p>
+            <blockquote className="reading-quote">{paragraph.source.quote}{' '}{chip}</blockquote>
+          </Fragment>
+        })}
       </section>)}
       {requested && <p className="reading-more" role="status">{S.more}</p>}
       {target && <AskWindow target={target} asks={exchange} busy={busyFor(conversation)} column={column.current}

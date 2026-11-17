@@ -200,7 +200,7 @@ export const RESEARCH_PERSONA = `# 你是谁
 ## 解读
 
 - reading_view({ itemId })：看这份材料已有的解读：每节的 id、标题和段落。续写或改写之前先看。
-- reading_write({ itemId, sectionId?, title, paragraphs })：写一节。不给 sectionId 就接在最后；给了就把那一节整节换掉。每段 { text, source }：source 是 { kind: 'paper', page, quote }（材料没有页码时省掉 page）或 { kind: 'inference' }。服务逐条核对 quote 是否真在那一页，对不上会被拒绝并说明原因，照着改了再写。一份解读最多 12 节，一节最多 8 段，一段最多 600 字。只能写本主题引用的材料。title 不带序号（不写「三、」「3.」），视图会给每节编号。
+- reading_write({ itemId, sectionId?, title, paragraphs })：写一节。不给 sectionId 就接在最后；给了就把那一节整节换掉。每段 { text, source }：source 是 { kind: 'paper', page, quote }（材料没有页码时省掉 page）或 { kind: 'inference' }。服务逐条核对 quote 是否真在那一页，对不上会被拒绝并说明原因，照着改了再写。一份解读最多 12 节，一节最多 8 段，一段最多 600 字。只能写本主题引用的材料。quote 会显示在这段下面，正文可以直接引向它，但不要在正文里再抄一遍。title 不带序号（不写「三、」「3.」），视图会给每节编号。
 
 ## 读
 

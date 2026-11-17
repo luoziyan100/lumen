@@ -1,7 +1,7 @@
 /**
  * [INPUT]: a self-contained isolated fixture service (real Controller + controllable model: writes a reading of the notes, answers questions in two sentences) and the vite dev
  *          page on 5190; a seeded nine-section reading of a multi-page PDF written through the reading store
- * [OUTPUT]: browser evidence for P1-2 (1440x900 and 1280x800, light and dark, zh and en): Reading first and selected; the centred serif column within 700px; source chips;
+ * [OUTPUT]: browser evidence for P1-2 (1440x900 and 1280x800, light and dark, zh and en): Reading first and selected; the centred serif column within 700px; source chips; each paper paragraph's quote line under it (visible, in the column, smaller than the body, contrast ≥ 4.5:1);
  *           a nine-section reading scrolls inside the view while panes and headers stay put; a real mouse selection inside one paragraph opens the window, whose centre,
  *           input and send button pass elementFromPoint and which never covers the selected sentence (below, or above near the bottom); the reply arrives in the window;
  *           no text line in view runs under the sprite's figure (top and bottom of the reading);
@@ -86,7 +86,9 @@ await publishDiscovery(lock, `http://127.0.0.1:${address.port}`)
 const studio = service.application.studio
 ensureTopic({ studio }, 'fe', TOPIC)
 ensureTopic({ studio }, 'blank', EMPTY)
-const pages = Array.from({ length: 9 }, (_, i) => [`Section ${i + 1} of the free energy principle`, `Prediction error is minimised at level ${i + 1}`])
+// The second line reads like a real quoted sentence (60–200 characters), so the screenshots show the quote line as a real reading does
+const LINE = n => `Prediction error is minimised at level ${n}, so the representations there come to explain away the input that arrives from the level below.`
+const pages = Array.from({ length: 9 }, (_, i) => [`Section ${i + 1} of the free energy principle`, LINE(i + 1)])
 const pdf = await studio.library.add({ name: 'free-energy.pdf', bytes: pagedPdf(pages), addedBy: 'you' })
 studio.topics.reference('fe', pdf.item.id)
 const notes = await studio.library.add({ name: 'notes.md', bytes: new TextEncoder().encode('# Notes\n\nThe brain minimises free energy over time.'), addedBy: 'you' })
@@ -94,7 +96,7 @@ studio.topics.reference('fe', notes.item.id)
 const TITLES = ['为什么值得读', '核心主张', '自由能与惊讶', '预测编码', '层级结构', '证据：重复抑制', '与强化学习的关系', '这篇论文没说明的', '我的判断']
 for (const [i, title] of TITLES.entries()) {
   studio.readings.write('fe', pdf.item.id, { title, paragraphs: [
-    { text: `第 ${i + 1} 节的第一段。自由能是惊讶的上界，所以把它压低，就等于让大脑停在它预期的状态里；这一节从原文第 ${i + 1} 页出发，把这个主张拆成能检验的几步。`, source: { kind: 'paper', page: i + 1, quote: `Prediction error is minimised at level ${i + 1}` } },
+    { text: `第 ${i + 1} 节的第一段。自由能是惊讶的上界，所以把它压低，就等于让大脑停在它预期的状态里；这一节从原文第 ${i + 1} 页出发，把这个主张拆成能检验的几步。`, source: { kind: 'paper', page: i + 1, quote: LINE(i + 1) } },
     { text: `第 ${i + 1} 节的第二段是我的推断：如果这个框架成立，那么同一个机制应该在感知和行动里都看得到，而不只是在视觉皮层。这一点原文没有直接证明。`, source: { kind: 'inference' } },
     { text: `第 ${i + 1} 节的第三段把前两段连起来：原文用的是“${pages[i]![0]}”这句话来立论，我们读到这里应当能说清楚，它到底在主张什么、又没有主张什么。`, source: { kind: 'paper', page: i + 1, quote: pages[i]![0]! } },
   ] }, { threadId: null, runId: null })
@@ -150,7 +152,7 @@ const linesUnderSprite = page => page.evaluate(() => {
   if (!figure) return { lines: 0, hits: ['no sprite figure'] }
   let lines = 0
   const hits = []
-  for (const node of document.querySelectorAll('.reading-para, .reading-section h2')) {
+  for (const node of document.querySelectorAll('.reading-para, .reading-quote, .reading-section h2')) {
     const range = document.createRange(); range.selectNodeContents(node)
     for (const line of range.getClientRects()) {
       if (line.width === 0 || line.bottom <= view.top || line.top >= view.bottom) continue
@@ -224,6 +226,22 @@ try {
     check(`${tag} 节标题编号`, column.nums === '1,2,3,4,5,6,7,8,9', column.nums)
     check(`${tag} 每段末尾有出处签`, column.chips === 3)
     check(`${tag} 原文签与推断签文字`, (await page.textContent('.reading-section .reading-chip')) === S.reading.page(1) && (await page.textContent('.reading-chip.source-chip-inferred')) === S.reading.inference)
+    // ---- Every paper paragraph shows its quote under it: visible, inside the column, smaller than the body, readable (contrast ≥ 4.5:1) ----
+    const quoteLook = await page.evaluate(() => {
+      const rgb = value => (value.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number)
+      const lum = ([r, g, b]) => { const f = c => (c /= 255) <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b) }
+      const surface = node => { for (let at = node; at; at = at.parentElement) { const bg = getComputedStyle(at).backgroundColor; if (bg && !/rgba\(.*,\s*0\)$/.test(bg) && bg !== 'transparent') return bg } return 'rgb(255,255,255)' }
+      const first = document.querySelector('.reading-section')
+      const paper = first.querySelectorAll('.reading-para:not(.is-inference)').length, quotes = [...first.querySelectorAll('.reading-quote')]
+      const q = quotes[0], body = first.querySelector('.reading-para'), col = document.querySelector('.reading-column').getBoundingClientRect(), box = q.getBoundingClientRect()
+      const a = lum(rgb(getComputedStyle(q).color)), b = lum(rgb(surface(q)))
+      return { paper, quotes: quotes.length, under: q.previousElementSibling === body, chip: !!q.querySelector('.reading-chip'), inside: box.left >= col.left - 1 && box.right <= col.right + 1,
+        smaller: parseFloat(getComputedStyle(q).fontSize) < parseFloat(getComputedStyle(body).fontSize), contrast: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05), text: q.textContent.slice(0, 40) }
+    })
+    check(`${tag} 每个原文段下面有引文行，签在引文末尾`, quoteLook.paper === quoteLook.quotes && quoteLook.under && quoteLook.chip, JSON.stringify({ paper: quoteLook.paper, quotes: quoteLook.quotes }))
+    check(`${tag} 引文行可见、在栏内`, quoteLook.inside && await visibleAt(page, '.reading-quote'), quoteLook.text)
+    check(`${tag} 引文比正文小`, quoteLook.smaller)
+    check(`${tag} 引文对比度 ≥ 4.5`, quoteLook.contrast >= 4.5, quoteLook.contrast.toFixed(2))
     const clearTop = await linesUnderSprite(page)
     check(`${tag} 视口内每行正文都不压在精灵下（顶部）`, clearTop.lines > 10 && clearTop.hits.length === 0, `${clearTop.lines} lines; ${clearTop.hits.slice(0, 3).join(', ')}`)
     if (pass > 0) check(`${tag} 前几次页面的足迹重建`, (await page.$$('.reading-footprint')).length >= 1, String((await page.$$('.reading-footprint')).length))
