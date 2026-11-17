@@ -39,7 +39,9 @@ npm run verify       # 当前两包行为验证 + 主题合同
 npm run tauri:build -w packages/ui-client
 ```
 
-服务安装使用显式 Node/工程/数据根，见 `packages/mastra-service/scripts/CLAUDE.md`。正式常驻使用 launchd，禁止 nohup。桌面改动交付前必须重装并打开 `/Applications/Lumen.app`（bundle id `com.lumen.studio`；旧形态 com.lumen.research 包已删除），以构建日志实际 bundle 路径为准并比对二进制摘要。
+服务安装使用显式 Node/工程/数据根，见 `packages/mastra-service/scripts/CLAUDE.md`。正式常驻使用 launchd，禁止 nohup。
+
+桌面交付流程（改 UI 后必做，不要问，默认做）：`pkill -x Lumen` → `npm run tauri:build -w packages/ui-client` → 以构建日志「Finished … bundles」给出的 Lumen.app 路径为准（默认 `packages/ui-client/src-tauri/target/release/bundle/macos/Lumen.app`）→ `rm -rf /Applications/Lumen.app && ditto <该路径> /Applications/Lumen.app` → `shasum -a 256` 比对两处 `Contents/MacOS/Lumen` 一致 → `open /Applications/Lumen.app`。只改服务逻辑不必重装壳，重启 launchd 即可。旧形态 com.lumen.research 包已删除。
 
 ## 维护法则
 

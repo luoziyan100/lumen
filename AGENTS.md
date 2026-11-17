@@ -222,9 +222,11 @@ Keep the map aligned with the terrain, or the terrain will be lost.
 <LUMEN_DELIVERY>
 桌面壳验收闭环(强制,勿再询问):
 - 凡改动 packages/ui-client(含样式/组件/文案)或影响用户可见 UI 的代码:验证通过后必须自行重装并打开 /Applications/Lumen.app,再向用户汇报。
-- 流程: pkill -x Lumen → npm run tauri:build -w packages/ui-client → 以构建日志「Finished … bundles」给出的 Lumen.app 路径为准(默认 packages/ui-client/src-tauri/target/release/bundle/macos/Lumen.app),rm -rf /Applications/Lumen.app && ditto <该路径> /Applications/Lumen.app → shasum -a 256 比对两处 Contents/MacOS/Lumen 一致 → open /Applications/Lumen.app
-- 仅 mastra-service 逻辑变更:重启正式 launchd 服务,不必 tauri 重装,除非 UI 也动了。在仓库根执行(参数须与已安装 plist 完全一致,否则按「同 label 不同配置」拒绝;不加 --restart 时健康服务幂等返回、不会加载新代码):
-  NODE="$(/opt/homebrew/bin/node -p process.execPath)"; "$NODE" --experimental-strip-types packages/mastra-service/scripts/launchd-cli.ts install --restart --node "$NODE" --project-root "$PWD" --data-root "$HOME/.lumen-mastra"
-  输出 state 为 ready 才算完成;改 install 为 status、去掉 --restart 可只读核对。
+- 仅 mastra-service 逻辑变更:重启正式 launchd 服务,不必重装桌面壳,除非 UI 也动了;输出 state 为 ready 才算完成。
 - 禁止只 commit 不重装就收工;禁止问用户「要不要重装」——默认做。
+
+命令与数据根不在此处抄写(抄写必漂移):
+- 正式数据根 `~/.lumen-studio`,正式 label `com.lumen.studio`;`~/.lumen`、`~/.lumen-mastra` 是旧形态,部署一律拒绝。
+- 重装桌面壳与安装/重启服务的具体流程见根 `CLAUDE.md`「开发与交付」。
+- launchd 的完整参数、`--restart` 语义、同 label 不同配置的拒绝规则见 `packages/mastra-service/scripts/CLAUDE.md`。
 </LUMEN_DELIVERY>

@@ -23,7 +23,7 @@
 | diagnostics / evidence / bad case | 本地 trace、脱敏、问题标注、SHA256 导出、只读回看；独立 Agent 录制桩回放/当前模型无工具评估；已记录的失败/取消工具通过原生异常通道回放，不冒充成功或运行真实副作用；旧278条证据已有只读HTTP/UI入口，原生trace已实际查看 | 无原始 HTTP、完整副作用审计或逐位重放；不可信子资源跨度省略；文本匹配非语义质量；完全中断、无模型终态、证据截断/脱敏或有歧义仍 unavailable；5条旧记录源本已缺内容 |
 | protocol / client | 官方 HTTP/SSE；UI 消费消息/displayState，订阅后补持久历史，连接世代拒绝迟到响应；旧 client/reducer 已删除 | 服务地址变化自动重新发现采用有限退避；正式重启后桌面自动发现新地址恢复，无手动刷新 |
 | desktop UI | 项目/会话/对话、上传/追加、任务、问答/审批、角色/技能、设置、未读、诊断、文件/引用均接新 API；原顶部导航、侧栏树/右键/⌘K、完整会话页、历史附件/复制/折叠/轮次轨道、斜杠技能已恢复；阅读器支持复制/原件系统打开/拖宽 | 已打开历史、研究、工作区、审批及trace，PDF原生保存哈希一致；completed状态、PDF CSP/容器滚动、证据重复点击已修；第4页定位、六角色/三档案/四技能、旧证据均已实机读取；皮肤、Markdown复制、拖宽、系统打开原件、回到最新与输入框增高均有实机证据；代表流程不等于任意外部服务和异常均已复现 |
-| service / launchd / Tauri | 内核锁、私有 discovery；默认新根/com.lumen.mastra，无旧模式/WS/sidecar/静默回退；正式服务已加载当前实现 | 正式根 ~/.lumen-mastra、label com.lumen.mastra；预览服务已卸载 |
+| service / launchd / Tauri | 内核锁、私有 discovery；默认根 `~/.lumen-studio` / label `com.lumen.studio`，无旧模式/WS/sidecar/静默回退；正式服务已加载当前实现 | 旧根 `~/.lumen-mastra`、旧 label `com.lumen.mastra` 已停止并注销，新服务启动即拒；预览服务已卸载 |
 | scripts / tests / docs | 全仓仅 mastra-service/ui-client；旧源码删除前保存原字节并核对 SHA256；统一 verify、最新 Tauri 构建/安装通过 | 真实执行通过但初稿语义失败后经人工纠错；最终桌面已安装并完成阅读、导出、证据与恢复核验；旧测试覆盖数字不作新实现证据 |
 
 正式切换已保护原数据根、旧二进制和用户未提交源码。实际部署与全量导入证据见 [切换记录](../../briefs/archive/mastra/cutover.md)；新研究须保留，不重复覆盖正式根。

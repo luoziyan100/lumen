@@ -10,10 +10,10 @@ Lumen 的研究工作台客户端：React 19 + Vite 浏览器入口，外加 Tau
 
 ```bash
 npm install
-npm run dev   # 同时启动服务与 Vite；数据根默认 ~/.lumen-mastra-dev，浏览器打开 http://localhost:5180
+npm run dev   # 同时启动服务与 Vite；数据根默认 ~/.lumen-studio-dev，浏览器打开 http://localhost:5180
 ```
 
-`LUMEN_MASTRA_HOME=/绝对路径` 可以换成别的隔离数据根。开发模式不会碰正式数据根 `~/.lumen-mastra`。
+`LUMEN_MASTRA_HOME=/绝对路径` 可以换成别的隔离数据根。开发模式不会碰正式数据根 `~/.lumen-studio`。
 
 ## 验证
 
@@ -24,7 +24,7 @@ npm run check:theme -w @lumen/ui-client
 npm run build -w @lumen/ui-client
 ```
 
-Node 回归不能证明 WebKit 中的交互正确；桌面改动交付前须构建、重装并打开 `/Applications/Lumen.app`，流程见仓库根 `AGENTS.md` 的交付闭环。
+Node 回归不能证明 WebKit 中的交互正确；桌面改动交付前须构建、重装并打开 `/Applications/Lumen.app`，流程见仓库根 `CLAUDE.md`「开发与交付」。
 
 ## 桌面应用
 
@@ -32,4 +32,4 @@ Node 回归不能证明 WebKit 中的交互正确；桌面改动交付前须构�
 npm run tauri:build -w packages/ui-client
 ```
 
-桌面壳默认从 `~/.lumen-mastra/mastra-service.json` 发现正式服务（由 launchd 的 `com.lumen.mastra` 常驻），不负责拉起服务。服务安装与重启见 `packages/mastra-service/scripts/CLAUDE.md`。
+桌面壳默认从 `~/.lumen-studio/mastra-service.json` 发现正式服务（由 launchd 的 `com.lumen.studio` 常驻），不负责拉起服务；旧形态 `~/.lumen-mastra` / `com.lumen.mastra` 已退役，不会回连。服务安装与重启见 `packages/mastra-service/scripts/CLAUDE.md`。
