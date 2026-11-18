@@ -5,7 +5,7 @@
  *           a nine-section reading scrolls inside the view while panes and headers stay put; a real mouse selection inside one paragraph opens the window, whose centre,
  *           input and send button pass elementFromPoint and which never covers the selected sentence (below, or above near the bottom); the reply arrives in the window;
  *           no text line in view runs under the sprite's figure (top and bottom of the reading);
- *           a footprint on a sentence that starts mid-line leaves the paragraph's line count unchanged and its first line box on the line of the text before it (G4); footprints from earlier page loads are rebuilt; the empty state; the live write from the Materials row (zh 1440 light)
+ *           a footprint on a sentence that starts mid-line leaves the paragraph's line count unchanged and its first line box on the line of the text before it (G4); footprints from earlier page loads are rebuilt; the header holds the title only; the empty state is the typewriter alone; the live write from the Materials row (zh 1440 light)
  * [POS]: an acceptance script that swaps the model network only and touches no product protocol; screenshots land in the evidence directory, never in the repo
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -198,11 +198,11 @@ try {
     await page.goto(`http://localhost:${port}/`)
     await page.waitForSelector('.studio-topics .topic')
 
-    // ---- Empty state (light passes): one line, Reading first and selected ----
+    // ---- Empty state (light passes): the typewriter alone, no text and no button ----
     if (!dark) {
       await page.locator('.studio-topics .topic', { hasText: EMPTY }).click()
       await page.waitForSelector('.reading-empty')
-      check(`${tag} 空态一句话`, (await page.textContent('.reading-start [role=status]')).trim() === S.reading.start)
+      check(`${tag} 空态只有打字机、没有文字和按钮`, !!(await page.$('.reading-typewriter')) && !(await page.$('.reading-start button')) && !(await page.$('.reading-start p')))
       await page.screenshot({ path: name('empty') })
     }
     await page.locator('.studio-topics .topic', { hasText: TOPIC }).click()
@@ -219,12 +219,13 @@ try {
       const scroller = document.querySelector('.reading-scroll'), style = getComputedStyle(scroller), box = scroller.getBoundingClientRect()
       const col = document.querySelector('.reading-column').getBoundingClientRect()
       const stage = { left: box.left + parseFloat(style.paddingLeft), right: box.left + scroller.clientWidth - parseFloat(style.paddingRight), width: scroller.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) }
-      const para = getComputedStyle(document.querySelector('.reading-para')).fontFamily, ui = getComputedStyle(document.querySelector('.reading-note')).fontFamily
+      const para = getComputedStyle(document.querySelector('.reading-para')).fontFamily, ui = getComputedStyle(document.querySelector('.reading-num')).fontFamily
       return { width: col.width, centred: Math.abs((col.left - stage.left) - (stage.right - col.right)) <= 16 || col.width >= stage.width - 1, para, ui,
         nums: [...document.querySelectorAll('.reading-num')].map(node => node.textContent).join(','), chips: [...document.querySelectorAll('.reading-section')][0].querySelectorAll('.reading-chip').length }
     })
     check(`${tag} 一栏居中、不超过 700px`, column.width <= 700 && column.centred, `${Math.round(column.width)}px`)
     check(`${tag} 正文用阅读字体（不同于界面字体）`, column.para !== column.ui, column.para.slice(0, 60))
+    check(`${tag} 页头只有标题`, await page.evaluate(() => { const head = document.querySelector('.reading-head'); return head.children.length === 1 && head.firstElementChild.classList.contains('reading-title') }))
     check(`${tag} 节标题编号`, column.nums === '1,2,3,4,5,6,7,8,9', column.nums)
     check(`${tag} 每段末尾有出处签`, column.chips === 3)
     check(`${tag} 原文签与推断签文字`, (await page.textContent('.reading-section .reading-chip')) === S.reading.page(1) && (await page.textContent('.reading-chip.source-chip-inferred')) === S.reading.inference)

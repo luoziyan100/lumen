@@ -1,7 +1,7 @@
 /**
  * [INPUT]: tokens.css / yan-design-system tokens and the appearance skin variables (data-material: glass/paper)
  * [OUTPUT]: the new shell's styles — the prototype v7 skeleton (canvas base, 8px margins and gaps, rounded panels, one 50px header line, one 14px left edge, a four-step type scale, 30px controls),
- *           pane collapse to width 0 (--dur-base transition, instant under reduced motion), view navigation (icon + text, icons alone when narrow), material search plus title/link rows, the board canvas and its blocks (text/ladder/table/widget; the takeaway entry on current blocks), the sediment row inside the board and the takeaways view (dashed frames, restorable strikethrough, evidence chips), the reader split (divider, two minimums) and full view, the materials pane, the conversation sprite (52px, five faces, cross-fades, halo and idle breathing, motion off under reduced motion), the speech-habits pane in settings (S14), and the placement of the objects (the box under the topic list, the cabinet in empty materials, the press over the empty takeaways, one object over each placeholder view's line)
+ *           pane collapse to width 0 (--dur-base transition, instant under reduced motion), view navigation (icon + text, icons alone when narrow), material search plus title/link rows, the board canvas and its blocks (text/ladder/table/widget; the takeaway entry on current blocks), the sediment row inside the board and the takeaways view (dashed frames, restorable strikethrough, evidence chips), the reader split (divider, two minimums) and full view, the materials pane, the conversation sprite (52px, five faces, cross-fades, halo and idle breathing, motion off under reduced motion), the speech-habits pane in settings (S14), and the placement of the objects (the box under the topic list, the cabinet in empty materials, the press alone and centred in the empty takeaways, each placeholder view's object alone and centred)
  * [POS]: existing tokens only; controls and document islands keep solid surfaces while glass/paper skins ride the appearance pipeline. Sizes reference only the four variables below (G4)
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -89,8 +89,8 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 .studio-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .studio-stage { position: relative; flex: 1; min-height: 0; display: flex; }
 .studio-later { margin: auto; max-width: 420px; text-align: center; color: var(--text-muted); font-size: var(--st-note); padding: 24px; }
-/* A placeholder view's object stands centred above its line; the line itself keeps its look */
-.iso-host.studio-later-object { width: 300px; margin: 0 auto 4px; }
+/* A placeholder view is its object alone; .studio-later's auto margins centre it in the stage */
+.iso-host.studio-later-object { width: 300px; margin: 0 auto; }
 /* View navigation (G6, prototype .seg): belongs to the board pane and centers on that pane's midline (U1), never drifting over the reader in split view.
    图标在左（16，currentColor，随三态文字色）；放不下时（ViewNav 用不可见的完整副本量宽度）只留图标，不换行、不挤偏中线 */
 .studio-center-head { position: relative; justify-content: center; }
@@ -137,8 +137,8 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 .board-sheets .icon-btn { width: 28px; height: 28px; }
 .board-empty { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); max-width: 360px; margin: 0; text-align: center; color: var(--text-muted); font-size: var(--st-note); pointer-events: none; }
 .board-hint { top: auto; bottom: 24px; transform: translateX(-50%); }
-/* The easel stands under the no-sheet line, which keeps its place: 320 wide, scaled down only when the height under the line is short */
-.iso-host.board-easel { position: absolute; left: 50%; top: calc(40% + 26px); height: min(380px, calc(60% - 50px)); aspect-ratio: 320 / 380; transform: translateX(-50%); }
+/* The easel stands alone in the middle of the canvas (no line under or over it): 320 wide, scaled down only when the canvas is short, clear of the tab strip and the zoom bar */
+.iso-host.board-easel { position: absolute; left: 50%; top: 50%; height: min(380px, calc(100% - 150px)); aspect-ratio: 320 / 380; transform: translate(-50%, -50%); }
 .board-error { position: absolute; left: var(--st-inset); bottom: var(--st-inset); margin: 0; }
 .board-drawing { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; height: var(--st-control); box-sizing: border-box; padding: 0 12px; border-radius: 999px; background: var(--surface-elevated); border: 1px solid var(--border); box-shadow: var(--shadow-2); font-size: var(--st-note); color: var(--text-soft); }
 .board-drawing-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: studio-pulse 1s var(--ease-out) infinite; }
@@ -217,9 +217,8 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 .studio .materials-upload.is-uploading { color: var(--accent); opacity: 1; cursor: progress; }
 .materials-upload.is-uploading .lumen-icon { animation: studio-pulse 1s var(--ease-out) infinite; }
 @media (prefers-reduced-motion: reduce) { .materials-upload.is-uploading .lumen-icon { animation: none; } }
-/* Empty Materials: the card cabinet above the existing line; it leaves when a material arrives */
+/* Empty Materials: the card cabinet alone; it leaves when a material arrives */
 .materials-empty { display: flex; flex-direction: column; align-items: center; }
-.materials-empty .materials-none { align-self: stretch; text-align: center; }
 .iso-host.materials-cabinet { width: 220px; margin: 20px 0 4px; }
 .materials-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
 .material { display: flex; align-items: center; margin: 0 6px; border-radius: 8px; }
@@ -266,9 +265,12 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 .sprite-title span:first-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sprite-title:hover { background: var(--fill-subtle); }
 .sprite-actions { display: inline-flex; gap: 2px; }
-.sprite-busy, .sprite-hint { margin: 8px var(--st-inset); font-size: var(--st-note); color: var(--text-muted); }
 .sprite-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 0; }
-.sprite-list > :is(button, .sprite-busy) { margin-left: var(--st-inset); margin-right: var(--st-inset); }
+.sprite-list > .sprite-new-why { margin-left: var(--st-inset); margin-right: var(--st-inset); }
+/* The span is the tooltip trigger for 新对话's reason while the topic runs; the disabled button passes the pointer through to it */
+.sprite-new-why { display: inline-flex; align-self: flex-start; border-radius: 999px; }
+.sprite-new-why:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.sprite-new-why button:disabled { pointer-events: none; }
 .sprite-list ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
 .sprite-session { box-sizing: border-box; width: calc(100% - 12px); margin: 0 6px; min-height: 32px; display: flex; align-items: center; gap: 8px; border: 0; background: none; text-align: left; color: var(--text-soft); padding: 0 8px; border-radius: 8px; cursor: pointer; font-size: var(--st-body); }
 .sprite-session span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -290,8 +292,9 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 /* ---- P1 takeaways (S8/S9/S14): dashed entry frames, the restorable strikethrough, evidence chips, the full-board row and the habits pane; existing tokens only ---- */
 .sediment-view { position: absolute; inset: 0; overflow: auto; padding: 20px var(--st-inset); }
 .sediment-list { display: flex; flex-direction: column; gap: 12px; max-width: 720px; margin: 0 auto; }
-/* The press stands at the list's start edge, over the empty line, like the line itself */
-.iso-host.sediment-press { width: 300px; align-self: flex-start; }
+/* An empty Takeaways view is the press alone, centred in the view like every other empty view */
+.sediment-empty-view { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+.iso-host.sediment-press { width: 300px; }
 .sediment-empty { color: var(--text-soft); font-size: var(--st-note); padding: 8px 2px; }
 .sediment-entry { border: 1.5px dashed var(--border-strong, var(--border)); border-radius: 10px; padding: 10px 14px 8px; background: var(--fill-subtle); }
 .sediment-entry-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
@@ -321,7 +324,6 @@ button.sediment-chip:hover { color: var(--accent-ink); border-color: var(--accen
 .sediment-error { max-width: 720px; margin: 0 auto; }
 .sediment-offer { border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; background: var(--surface); }
 .sediment-offer-note { font-size: var(--st-label); color: var(--text-soft); margin: 0 0 4px; }
-.sediment-offers-note { font-size: var(--st-label); color: var(--text-soft); margin: 0 0 2px; }
 .sediment-offer .sediment-quote { font-size: var(--st-body); color: var(--text); }
 .sediment-offer-actions { display: flex; gap: 10px; align-items: center; margin-top: 6px; }
 .sediment-offer-dismiss { color: var(--text-soft); }

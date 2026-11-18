@@ -119,7 +119,7 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     assert.ok(!$('.studio-center .studio-head')!.textContent!.includes('负反馈'))
     // ---- U2: no used-count on display (the cap and R11 stay server-side) ----
     assert.ok(!$('.studio-board')!.textContent!.includes('已用'))
-    assert.ok($('.board-empty'), '空白板要说清楚')
+    assert.ok($('.board-easel') && !$('.board-empty'), '空白板是画架，没有说明句')
     // ---- G7/U1: a lone sheet shows one numbered tab, never the topic's name; the center never shows the topic name ----
     assert.equal($$('.board-tabs .board-tab').length, 1)
     assert.equal($$('.studio-center *').filter(node => node.children.length === 0 && node.textContent === '负反馈为什么能稳住系统').length, 0)
@@ -131,9 +131,10 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     assert.deepEqual($$('.studio-views [role=tab]').map(tab => [tab.getAttribute('aria-label'), tab.firstElementChild!.matches('svg.lumen-icon'), tab.dataset.available]),
       [['解读', true, 'true'], ['白板', true, 'true'], ['沉淀', true, 'true'], ['概念图', true, 'false'], ['灵感', true, 'false'], ['全部', true, 'false']])
     await act(async () => tab('map').click())
-    // The placeholder keeps its line unchanged; the cork board stands above it (V2)
-    assert.equal($('.studio-later p')!.textContent, S.later.map)
-    assert.ok($('.studio-later .studio-later-object svg.iso-cork'), 'the cork board over the Map line')
+    // The placeholder is the cork board alone (V2): 「还没开放」 names it for screen readers only, no visible text
+    assert.equal($('.studio-later')!.getAttribute('aria-label'), S.notOpen)
+    assert.equal($('.studio-later p'), null, 'no visible line')
+    assert.ok($('.studio-later .studio-later-object svg.iso-cork'), 'the cork board alone')
     await act(async () => tab('board').click())
 
     // ---- Materials: brought by you / found by the AI; opening one reads the original in the center split ----

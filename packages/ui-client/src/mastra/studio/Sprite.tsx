@@ -5,7 +5,7 @@
  *           idle/running/waiting/speaking; motion and glow follow it, and the state is in aria-label); it can be dragged anywhere in the window and stays where dropped. Opening grows
  *           the window softly from the figure's centre and closing shrinks it back (useSpriteMove); the window keeps to the figure's side and the title bar drags the anchor, or it docks
  *           as the right column. The open header shows the same face; collapsed it still watches the text stream, and opening reuses the same subscription. It switches this topic's
- *           conversations, starts a new one (disabled with the reason while the topic is busy), and opens the specialist list and diagnostics; anchor, size and shape live in localStorage
+ *           conversations, starts a new one (disabled while the topic is busy; the reason is a tooltip on the span around the list's button, never a visible line), and opens the specialist list and diagnostics; anchor, size and shape live in localStorage
  *           (sprite-place); it reports the figure's box (onFigure) so the Reading view keeps text clear of it. useSessions: the topic's conversation list, polled every 3s
  * [POS]: projects the four states straight to the desktop and takes open requests back; visibility only gates local drawing. The conversation stepped back into a sprite: the board is
  *        the topic's shared draft and the conversation is only the record of talk. Messages, approvals and questions still go through the native Conversation; the subscription
@@ -15,6 +15,7 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
+import { Tooltip } from '@cloudflare/kumo/components/tooltip'
 import { BackIcon, CloseIcon, PanelIcon, PlusIcon } from '../../components/icons'
 import { useT } from '../../i18n/index.ts'
 import type { LumenApi, Identity, SessionInfo, Topic } from '../data/client.ts'
@@ -130,11 +131,12 @@ export function Sprite({ api, topic, identity, feed, sessions, onIdentity, onAct
         <button type="button" className="icon-btn" aria-label={S.sprite.collapse} title={S.sprite.collapse} onClick={() => move.setOpen(false)}><CloseIcon /></button>
       </div>
     </header>
-    {busy && !identity && <p className="sprite-busy" role="status">{S.sprite.busy}</p>}
     {listing ? <div className="sprite-list">
-      <p className="sprite-hint">{S.sprite.hint}</p>
-      <Button variant="secondary" disabled={busy} title={busy ? S.sprite.busy : undefined} onClick={() => { onIdentity(null); setListing(false) }}>{S.sprite.newConversation}</Button>
-      {busy && <p className="sprite-busy">{S.sprite.busy}</p>}
+      {/* While the topic runs, why 新对话 is off is a tooltip, not a line: a disabled button gets no pointer or focus, so the span around it carries
+          the tooltip and joins the Tab order only then. The tooltip stays mounted and is switched off instead */}
+      <Tooltip content={S.sprite.busy} disabled={!busy} render={<span className="sprite-new-why" tabIndex={busy ? 0 : undefined} />}>
+        <Button variant="secondary" disabled={busy} aria-description={busy ? S.sprite.busy : undefined} onClick={() => { onIdentity(null); setListing(false) }}>{S.sprite.newConversation}</Button>
+      </Tooltip>
       <ul>{sessions.map(session => <li key={session.taskId}><button type="button" className={`sprite-session${session.taskId === identity?.taskId ? ' on' : ''}`} onClick={() => { onIdentity({ topicId: session.topicId, taskId: session.taskId }); setListing(false) }}>
         <span>{session.title}</span>{session.unread && <span className="sprite-unread" aria-label={S.sprite.unread} />}<Light topic={session} />
       </button></li>)}</ul>

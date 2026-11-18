@@ -162,14 +162,16 @@ test('Reading view: write → live sections → chips → in-paragraph window �
   try {
     await act(async () => root.render(createElement(StudioApp, { connection })))
     await until(() => $$('.studio-views [role=tab]').length === 6, '视图导航没有出现')
-    // ---- Reading is first and the default; with no reading, one line says what to do ----
+    // ---- Reading is first and the default; with no reading, the typewriter alone: no text, no button (writing starts from the Materials row) ----
     assert.equal($$('.studio-views [role=tab]')[0], tab('reading'))
     assert.equal(tab('reading').getAttribute('aria-selected'), 'true')
-    await until(() => $('.reading-start [role=status]')?.textContent === S.reading.start, '空态一句话')
+    await until(() => !!$('.reading-typewriter'), '空态没有打字机')
     await until(() => $$('.material').length === 2, '素材没有列出')
-    // Two materials and none picked: the empty view's button waits for a pick and says where
-    assert.ok($<HTMLButtonElement>('.reading-start-write')!.disabled, '没选素材时写解读按钮不可用')
-    assert.equal($('.reading-start-hint')?.textContent, S.reading.pickFirst)
+    assert.equal($('.reading-start button'), null, '空态没有按钮')
+    // The drawing's own <text> (the title on the paper) is illustration; nothing outside the object may carry text
+    const bare = $('.reading-start')!.cloneNode(true) as HTMLElement
+    bare.querySelectorAll('.iso-host').forEach(node => node.remove())
+    assert.equal(bare.textContent, '', '空态在物件之外没有文字')
     assert.deepEqual($$('.material-reading').map(node => node.textContent), [S.reading.write, S.reading.write])
 
     // ---- S3: the row action sends one visible message and switches to Reading; S5: the first section shows while the second is still being written ----
@@ -177,8 +179,7 @@ test('Reading view: write → live sections → chips → in-paragraph window �
     await act(async () => row(/Free energy|cortex/).querySelector<HTMLButtonElement>('.material-reading')!.click())
     assert.equal(tab('reading').getAttribute('aria-selected'), 'true', '写解读切到解读视图')
     await until(() => $$('.reading-section').length === 1, '第一节没有随工具完成出现')
-    assert.equal($('.reading-more')?.textContent, S.reading.more, '已有一节后提示下一节，不再说第一节')
-    assert.notEqual(S.reading.more, S.reading.waiting)
+    assert.equal($('.reading-more')?.textContent, S.reading.more, '已有一节后提示下一节')
     const session = (await api.sessions('paper')).items[0]!
     releaseSecond()
     await until(() => $$('.reading-section').length === 2, '第二节没有出现')

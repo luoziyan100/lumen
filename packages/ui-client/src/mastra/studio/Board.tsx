@@ -2,7 +2,7 @@
  * [INPUT]: useBoard's sheets and views, topic materials, the sprite's drawing/focus signals, layout.ts's width-based flow
  * [OUTPUT]: Board: the canvas — the top-left overlay (sheet tabs, one or many alike: board glyph + number, full title in title/aria-label, folded dimmed, a dot on the run's target while the AI draws, horizontal scroll instead of wrapping; each sheet carries a 「⋯」 menu (hover/focus, always on the selected one) to delete it, blocks ask first, the run's target is protected; ＋ opens and selects; no used-count on display — the cap and R11 stay server-side, and a full sheet's frame label says so honestly),
  *           the canvas starts below the overlay (BOARD.TOP ≥ overlay top 12 + height 30 + 12, so first-screen block titles never sit under it), DOM + CSS transform pan/zoom (100% by default, shrink to see it all),
- *           1–3 display columns by viewport width, a frame hugging the content, the easel under the no-sheet line and under a live sheet's empty line until the AI draws there (decoration; a click on it opens it and never pans), the AI-drawing notice, widget concurrency slots, the bottom-right zoom bar, and the sediment row under the canvas (S9)
+ *           1–3 display columns by viewport width, a frame hugging the content, the easel alone in the canvas's middle when there is no sheet, or on a live sheet with no blocks until the AI draws there (decoration; a click on it opens it and never pans), the AI-drawing notice, widget concurrency slots, the bottom-right zoom bar, and the sediment row under the canvas (S9)
  * [POS]: the center Board view; read-only for the user since P0 (no circling, pinning or editing). Whichever sheet you watch is where the next message writes (R16); a folded one says the AI will not write there. A card pointing into a deleted sheet only says so and never jumps elsewhere (R17). Columns and positions reflow in the display layer only; server coordinates stay
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -201,8 +201,6 @@ export function Board({ board, materials, drawing, focus, onOpenSource, sediment
           widgetActive={widgets.includes(block.id)} onActivateWidget={activate} onOpenSource={onOpenSource} focused={focused === block.id} drawing={drawing === block.id}
           onTakeaway={block.state === 'current' && !sediment.unsupported ? () => setFromBlock(block.id) : undefined} />)}
       </div>
-      {view && !blocks.length && <p className="board-empty">{S.board.empty}</p>}
-      {!view && !board.sheets.length && !board.error && <p className="board-empty">{S.board.noLive}</p>}
       {((!view && !board.sheets.length && !board.error) || blankSheet) && <IsoObject markup={EASEL} className="board-easel" />}
       {view && view.sheet.state !== 'live' && <p className="board-empty board-hint">{S.board.foldedHint}</p>}
       {drawing && <div className="board-drawing" role="status"><span className="board-drawing-dot" />{drawing === 'new' ? S.board.drawing : S.board.updating}</div>}
@@ -217,7 +215,6 @@ export function Board({ board, materials, drawing, focus, onOpenSource, sediment
     </div>
       {/* S9b/c: the from-block entry and the full-board one-line input (the invite question and invited blocks pre-linked, skippable); offers sit above the input (S9) */}
       {(showFullRow || showBlockRow) && <div className="board-sediment-row" data-testid="board-sediment-row">
-        {sediment.offers.length > 0 && <p className="sediment-offers-note">{S.sediment.offerNote}</p>}
         {sediment.offers.slice(0, 1).map(offer => <OfferRow key={offer.id} offer={offer}
           onKeep={async text => await sediment.confirm(offer.id, text)} onDismiss={() => void sediment.dismiss(offer.id)} />)}
         {showFullRow && <div className="board-sediment-head">

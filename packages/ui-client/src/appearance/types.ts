@@ -112,7 +112,7 @@ export const TOKEN_ALIASES: Record<string, string> = {
 }
 
 export interface SkinDefinition {
-  /** Name and one-line description are UI text: i18n catalog `skins[id]` */
+  /** The name is UI text: i18n catalog `skins[id]` */
   id: string
   /** 设置页缩略：CSS 渐变 */
   preview: string

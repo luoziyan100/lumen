@@ -39,13 +39,11 @@ export function Skills({ api, identity, onClose }: { api: LumenApi; identity: Id
     void act(async () => { const files = await pickSkillPackage(directory); if (files && active.current) await install(files) })
   }
   return <Dialog.Root open onOpenChange={open => { if (!open && !busy) onClose() }}><Dialog className="skills-manage-modal p-0" aria-label={C.skills}>
-    <div className="skills-manage-head"><div><h2 className="skills-manage-title">{C.skills}</h2><p className="skills-manage-hint">{K.hint}</p></div><Button variant="ghost" aria-label={C.close} disabled={busy} onClick={onClose}><CloseIcon size={18} /></Button></div>
-    <div className="skills-manage-toolbar">
-      <span className="skills-manage-hint">{K.scope}</span>
+    <div className="skills-manage-head"><h2 className="skills-manage-title">{C.skills}</h2><div className="skills-manage-actions">
       <DropdownMenu><DropdownMenu.Trigger render={<Button className="skills-add-btn" variant="secondary" disabled={busy} />}><PlusIcon size={18} />{K.add}<ChevronDownIcon size={16} /></DropdownMenu.Trigger>
         <DropdownMenu.Content align="end" sideOffset={6} className="glass-card"><DropdownMenu.Item onClick={() => choose(true)}>{K.addFolder}</DropdownMenu.Item><DropdownMenu.Item onClick={() => choose(false)}>{K.addMarkdown}</DropdownMenu.Item></DropdownMenu.Content>
       </DropdownMenu>
-    </div>
+      <Button variant="ghost" aria-label={C.close} disabled={busy} onClick={onClose}><CloseIcon size={18} /></Button></div></div>
     {error && <p role="alert" className="skills-manage-err">{error}</p>}
     <ul className="skills-manage-list">{skills.length === 0 && <li className="skills-manage-empty">{C.noSkills}</li>}{skills.map(skill => <li className="skills-manage-row" key={`${skill.layer}:${skill.name}`}>
       <SkillIcon name={skill.name} size={18} /><div className="skills-manage-meta"><span className="skills-manage-name">{skill.name}</span><span className="skills-manage-desc">{skill.description}</span></div>

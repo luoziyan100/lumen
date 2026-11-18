@@ -26,7 +26,6 @@ export function AgentsPane({ api, onBusy }: { api: LumenApi; onBusy: (busy: bool
   }
   return <>
     <div className="mp-head"><h2 className="settings-h">{A.title}</h2><Button type="button" disabled={busy} variant="outline" size="sm" onClick={() => void update(() => api.reloadAgents())}>{A.reload}</Button></div>
-    <p className="set-hint">{A.hint}</p>
     {error && <p role="alert" className="mw-error">{error}</p>}
     {!catalog && !error && <p className="set-hint">{common.loading}</p>}
     {catalog && <div className="agent-list">{catalog.entries.map(({ role, layer, sourcePath, disabled }) => <section className="agent-card glass-card" key={role.id} aria-label={role.name}>

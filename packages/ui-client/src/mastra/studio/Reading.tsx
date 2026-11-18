@@ -4,9 +4,8 @@
  *           (「原文 p.N」 opens split reading at that page), an inference paragraph ends in a dashed chip; the quote line opens no window; the person's footprints (thin underlines on sentences asked about, inline spans with role="button" that wrap like text and open on click/Enter/Space);
  *           selecting text inside one paragraph opens AskWindow under the selection
  *           and kept clear of the sprite's figure (padding on the side it sits);
- *           with no reading, ReadingStart: the typewriter (title on the paper, typing while a requested reading has no section), 「选一篇资料，让 AI 写解读」 and 「写解读」 on the host's
-           start target (the row's own writeReading; disabled with a hint when no material is picked and there is not exactly one), refusals shown as the row shows them;
-           AskWindow: the quote (two lines), the exchange so far (the person's words and the streamed reply, rendered by components/Markdown as Block.tsx does), a one-line growing input, send, and 「存为我的沉淀」 (only typed words)
+ *           with no reading, ReadingStart: the typewriter alone, centred (title on the paper, typing while a requested reading has no section; no text, no button: writing starts from the Materials row);
+ *           AskWindow: the quote (two lines), the exchange so far (the person's words and the streamed reply, rendered by components/Markdown as Block.tsx does), a one-line growing input, send, and 「存为我的沉淀」 (only typed words)
  * [POS]: the reading half of P1-2's first loop. It sends nothing itself: the host posts visible user messages through the conversation's own path, and replies come from the
  *        shared conversation subscription; nothing here is a second channel
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -161,39 +160,22 @@ export function AskWindow({ target, asks, busy, onSend, onKeep, onClose, column 
   </section>
 }
 
-/** What the empty view's 「写解读」 acts on: the material, whether its conversation is busy, and the Materials row's own action */
-export interface ReadingStartProps {
-  /** The picked material, else the one open beside, else the only one; null leaves the button disabled with the hint */
-  item: TopicMaterial | null
-  /** The conversation a request would go to is running or waiting (the row's rule) */
-  busy: boolean
-  /** The same function the Materials row calls: switch to Reading and ask for a reading; resolves to the refusal text or null */
-  onWrite: (item: TopicMaterial) => Promise<string | null>
-}
-
-/** The empty Reading view: the typewriter with the material's title on its paper, one line and 「写解读」. It types while a requested reading has no section yet */
-function ReadingStart({ start, requested, error }: { start: ReadingStartProps; requested: boolean; error: string }) {
-  const S = useT().studio.reading
-  const [failure, setFailure] = useState('')
-  const { item, busy, onWrite } = start
-  useEffect(() => setFailure(''), [item?.id])
+/** The empty Reading view is the typewriter alone (an empty state is one object, no text, no button): the material's title on its paper, typing while a
+ *  requested reading has no section yet. Writing starts from the Materials row; a failure to load the reading still shows as an error */
+function ReadingStart({ item, requested, error }: { item: TopicMaterial | null; requested: boolean; error: string }) {
   const markup = useMemo(() => typewriterSvg({ lines: paperLines(item?.title ?? '') }), [item?.title])
-  const reason = !item ? S.pickFirst : busy ? S.busy : ''
   return <div className="studio-later reading-empty reading-start">
     <IsoObject markup={markup} className="reading-typewriter" typing={requested} />
-    <p role="status">{requested ? S.waiting : S.start}</p>
-    {!requested && <Button variant="primary" className="reading-start-write" disabled={!!reason} title={reason || undefined}
-      onClick={() => { if (!item) return; setFailure(''); void onWrite(item).then(text => { if (text) setFailure(text) }) }}>{S.write}</Button>}
-    {!requested && !item && <p className="reading-start-hint">{S.pickFirst}</p>}
-    {(failure || error) && <p className="mw-error" role="alert">{failure || error}</p>}
+    {error && <p className="mw-error" role="alert">{error}</p>}
   </div>
 }
 
-export function ReadingView({ state, requested, start, asks, busyFor, onSend, onKeep, onOpenSource, sprite }: {
+export function ReadingView({ state, requested, startItem, asks, busyFor, onSend, onKeep, onOpenSource, sprite }: {
   state: ReadingState
   /** A write was asked for the shown material and no section has landed yet */
   requested: boolean
-  start: ReadingStartProps
+  /** The material whose title the empty view's typewriter shows on its paper */
+  startItem: TopicMaterial | null
   asks: Ask[]
   /** Whether the conversation a message would go to is running or waiting (null = the open one, or a new one) */
   busyFor: (identity: Identity | null) => boolean
@@ -252,15 +234,13 @@ export function ReadingView({ state, requested, start, asks, busyFor, onSend, on
     setTarget({ quote, section: sectionLabel(section), paragraphId, box: boxOf(element.getBoundingClientRect()), identity: last?.identity ?? null })
   }
 
-  if (!reading) return <ReadingStart start={start} requested={requested} error={state.error} />
+  if (!reading) return <ReadingStart item={startItem} requested={requested} error={state.error} />
   const exchange = target ? mine.filter(ask => ask.quote === target.quote) : []
   const conversation = target ? exchange.at(-1)?.identity ?? target.identity : null
   return <div ref={setScroller} className="reading-scroll" style={{ paddingInlineStart: pad.start, paddingInlineEnd: pad.end }}>
     <div ref={column} className="reading-column" onMouseUp={onSelect} onKeyUp={event => { if (event.shiftKey) onSelect() }}>
       <header className="reading-head">
-        <p className="reading-kicker">{S.byline(reading.itemTitle)}</p>
         <h1 className="reading-title">{reading.itemTitle}</h1>
-        <p className="reading-note">{S.note}</p>
       </header>
       {state.error && <p className="mw-error" role="alert">{state.error}</p>}
       {reading.sections.map(section => <section key={section.id} className="reading-section" data-section={section.id}>

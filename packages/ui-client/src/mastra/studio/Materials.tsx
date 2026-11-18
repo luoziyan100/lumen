@@ -3,7 +3,7 @@
  * [OUTPUT]: Materials: the right pane 「素材 / Materials」. The header holds the title, upload (paperclip, multiple files, disabled and lit while uploading) and collapse; one plain
  *           search field (filters as you type, Esc clears, says so when nothing matches); the list newest first. Each row: the kind outline (18, text colour), the title (one line,
  *           full name in title), the short link (one line, full URL in title; no row without a link), 「写解读 / Write a reading」 or 「打开解读 / Open reading」, and remove.
- *           Clicking a row opens the original in split view. Once the list has loaded empty, the card cabinet stands above the empty line (decoration; upload stays in the header). shortLink: drops the scheme and trailing slashes; filterMaterials: title and link, case-insensitive, trimmed, CJK by substring
+ *           Clicking a row opens the original in split view. Once the list has loaded empty, the card cabinet stands alone (decoration; upload stays in the header). shortLink: drops the scheme and trailing slashes; filterMaterials: title and link, case-insensitive, trimmed, CJK by substring
  * [POS]: the UI says 「素材」; docs and code keep "material". Materials enter only through a topic reference (R15) and the original stays in the library. No link adding here (the model
  *        fetches links in conversation), no deleting originals, only unreferencing from this topic. The reading action only asks the host: it shows the service's refusal (R1's 409)
  *        and sends nothing else
@@ -65,13 +65,12 @@ function Row({ item, active, read, readingBusy, onOpen, onReading, onRemove }: {
   </li>
 }
 
-/** Empty Materials: the card cabinet above the existing line; hover and click only, and it leaves when a material arrives */
+/** Empty Materials: the card cabinet alone (upload sits in the header); hover and click only, and it leaves when a material arrives */
 function EmptyMaterials() {
   const { studio: S } = useT()
   const markup = useMemo(() => cabinetSvg({ labels: S.objects.cabinet }), [S.objects.cabinet])
   return <div className="materials-empty">
     <IsoObject markup={markup} className="materials-cabinet" />
-    <p className="studio-note materials-none">{S.materials.none}</p>
   </div>
 }
 

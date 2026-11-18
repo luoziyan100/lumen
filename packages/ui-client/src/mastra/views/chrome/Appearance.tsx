@@ -30,7 +30,6 @@ export function PreferencePane({
       <div className="mp-head">
         <h2 className="settings-h">{A.title}</h2>
       </div>
-      <p className="set-hint pref-hint">{A.hint}</p>
 
       <section className="pref-section pref-language">
         <h3 className="pref-h">{A.language}</h3>
@@ -131,7 +130,7 @@ function SkinCard({
   active: boolean
   onSelect: () => void
 }) {
-  const { appearance: A, skins } = useT(), copy = skins[skin.id] ?? { name: skin.id, description: '' }
+  const { appearance: A, skins } = useT(), copy = skins[skin.id] ?? { name: skin.id }
   return (
     <button
       type="button"
@@ -156,7 +155,6 @@ function SkinCard({
       </span>
       <span className="pref-skin-meta">
         <span className="pref-skin-name">{copy.name}</span>
-        {copy.description ? <span className="pref-skin-desc">{copy.description}</span> : null}
         <span className="pref-skin-badge">{skin.preferredScheme === 'light' ? A.light : A.dark} · {skin.material === 'paper' ? A.paper : A.glass}</span>
       </span>
       {active ? <span className="pref-skin-check" aria-hidden><CheckIcon size={ICON_SM} /></span> : null}

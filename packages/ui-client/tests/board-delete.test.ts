@@ -130,7 +130,7 @@ test('R17 Board against the real service: keyboard-reachable 「⋯」 on every 
     await openMenu(menuButton(0)); await choose()
     await until(() => view.board.sheets.length === 0, 'the last sheet was not deleted')
     assert.equal(view.board.selected, null)
-    assert.ok([...document.querySelectorAll('.board-empty')].some(node => node.textContent === S.board.noLive), 'the existing no-board state')
+    assert.ok(document.querySelector('.board-easel') && !document.querySelector('.board-empty'), 'the no-board state: the easel and no line')
   } finally { await view.unmount(); await env.close() }
 })
 

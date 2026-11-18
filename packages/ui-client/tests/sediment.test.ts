@@ -110,7 +110,7 @@ test('S9c/S10 组件级：写满行、跳过与回返、块上入口、rev 冲�
     conflict = true
     await act(async () => $('.sediment-compose')!.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })))
     await until(() => $('.board-sediment-row .mw-error') !== null, '冲突要报错')
-    assert.match($('.board-sediment-row .mw-error')!.textContent!, /你看过之后这块被改过/)
+    assert.equal($('.board-sediment-row .mw-error')!.textContent, S.sediment.linkStale)
     assert.equal(($('.sediment-input') as HTMLInputElement).value, '对齐让相关的词互相靠近', 'S10：冲突后已打的字还在')
   } finally {
     await act(async () => root.unmount())
@@ -162,10 +162,12 @@ test('S8/S9/S14 全流程：精灵驱动画满→邀请→跳过与回返；块�
     assert.equal(tab('reading').getAttribute('aria-selected'), 'true', 'Reading is the default view')
     await act(async () => tab('board').click())
     await until(() => !!$('.board-sheet-new'), '白板没有出现')
-    // ---- The empty state says what goes here first (S8) ----
+    // ---- The empty state is the press alone: no text, no 「写一条沉淀」 (S8 rework) ----
     await act(async () => tab('settled').click())
-    await until(() => !!$('.sediment-empty'), '空态一句话')
-    assert.ok($('.sediment-empty')!.textContent!.includes('你自己的话'))
+    await until(() => !!$('.sediment-press'), '空态是压花板')
+    assert.equal($('.sediment-empty'), null, '空态没有说明句')
+    assert.equal($('.sediment-keep'), null, '空态没有写一条沉淀')
+    assert.equal($('.sediment-empty-view')!.querySelector('button'), null, '空态没有按钮')
     await act(async () => tab('board').click())
     // ---- Sprite: the first sentence is quote material, then fill the board ----
     await click(S.sprite.open)
@@ -203,6 +205,8 @@ test('S8/S9/S14 全流程：精灵驱动画满→邀请→跳过与回返；块�
     // ---- It shows in the view; the chip jumps back to the board (S8) ----
     await act(async () => tab('settled').click())
     await until(() => $$('.sediment-entry').length === 1, '视图里应出现条目')
+    assert.ok($('.sediment-keep'), '有一条之后「写一条沉淀」回来')
+    assert.equal($('.sediment-press'), null, '有一条之后压花板退场')
     await act(async () => $('.sediment-entry .sediment-chip')!.click())
     await until(() => $('.studio-board') !== null, 'chip 应跳回白板视图')
     assert.equal(tab('board').getAttribute('aria-selected'), 'true')
@@ -266,7 +270,7 @@ test('S8/S9/S14 全流程：精灵驱动画满→邀请→跳过与回返；块�
   }
 })
 
-test('S8 英文：视图与空态、入口按钮都用英文目录', { timeout: 30000 }, async () => {
+test('S8 英文：空态只有压花板；有条目时入口按钮用英文目录', { timeout: 30000 }, async () => {
   const { setLocale } = await import('../src/i18n/index.ts')
   const { en } = await import('../src/i18n/locales/en.ts')
   const { Takeaways } = await import('../src/mastra/studio/Takeaways.tsx')
@@ -279,8 +283,11 @@ test('S8 英文：视图与空态、入口按钮都用英文目录', { timeout: 
   }
   try {
     await act(async () => root.render(createElement(Takeaways, { sediment: state, onJump: () => {} })))
-    assert.ok(element.textContent!.includes(en.studio.sediment.empty), '空态用英文')
-    assert.ok([...element.querySelectorAll('button')].some(item => item.textContent === en.studio.sediment.keep), '入口按钮用英文')
+    assert.equal(element.querySelector('.sediment-empty'), null, '空态没有说明句')
+    assert.equal(element.querySelector('button'), null, '空态没有按钮')
+    const entry = { id: 'e1', topicId: 't', text: 'Attention is a lookup.', origin: 'typed', state: 'unverified', quote: null, links: [], createdAt: '', updatedAt: '' }
+    await act(async () => root.render(createElement(Takeaways, { sediment: { ...state, items: [entry] }, onJump: () => {} })))
+    assert.ok([...element.querySelectorAll('button')].some(item => item.textContent === en.studio.sediment.keep), '有条目时入口按钮用英文')
     // ---- An older service: the clean line (what the official service on older main looks like) ----
     await act(async () => root.render(createElement(Takeaways, { sediment: { ...state, unsupported: true }, onJump: () => {} })))
     assert.ok(element.textContent!.includes(en.studio.sediment.unsupported), '旧服务提示用英文')

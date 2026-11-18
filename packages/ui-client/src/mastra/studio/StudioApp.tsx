@@ -5,9 +5,9 @@
  *           the window title), and in split view the reader header shares the board header's line; the sprite positions itself on the whole window (no longer inside the board area);
  *           both side panes collapse to width 0 (reopen buttons at the center header's ends, ⌘B / ⌘⌥B); the reader has three states: closed / split (draggable divider) / full center
  *           (the board hides but stays mounted with its camera; Esc restores); the Reading view (first in the navigation, the default) with its material action and selection window;
- *           the empty Reading view's start target (the picked material, else the one open beside, else the only one) and the request's end (first section, run end, or an idle
- *           conversation that already answered: a short run can end unseen); the placeholder views stand their objects above the unchanged line (Map the cork board, Ideas the
- *           lamp, All the type case)
+ *           the material on the empty Reading view's typewriter (the picked one, else the one open beside, else the only one) and the request's end (first section, run end, or an idle
+ *           conversation that already answered: a short run can end unseen); each placeholder view is its object alone, centred, named 「还没开放」 for screen readers only
+ *           (Map the cork board, Ideas the lamp, All the type case)
  * [POS]: the desktop's only workbench (it replaced the S2 transitional entry). It owns the topic's single conversation feed and lends it to the sprite, which reads the full view;
  *        the shell selects only the values it shows, so streamed text never re-renders the workbench. The sprite and the Reading view
  *        both post visible user messages on the native path (`say`), never a hidden prompt. Board and reading refresh ride only on the conversation's tool completion signals plus
@@ -41,7 +41,7 @@ import { lampSvg } from './objects/lamp.ts'
 import { typecaseSvg } from './objects/typecase.ts'
 import { newestTakeaway, useSediment } from './useSediment'
 import { PaneToggle, Splitter, usePanes, type Side } from './Panes'
-import { VIEW_AVAILABLE, ViewNav, type View } from './ViewNav'
+import { ViewNav, type View } from './ViewNav'
 import '../views/workbench.css'
 import './studio.css'
 
@@ -182,7 +182,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
     if (!failure) { requestText.current = text; setRequested(item.id) }
     return failure
   }
-  // ---- The empty Reading view's 「写解读」 acts on the picked material, else the one open beside, else the only one; it calls the row's own writeReading ----
+  // ---- The empty Reading view's typewriter shows the picked material's title, else the one open beside, else the only one ----
   const opened = reading?.target.scope === 'library' ? reading.target.path : null
   const startItem = materials.items.find(item => item.id === (readingItem ?? opened)) ?? (materials.items.length === 1 ? materials.items[0]! : null)
   const askReading = (target: AskTarget, words: string) => say(target.identity, askText(target.quote, target.section, readings.reading?.itemTitle ?? '', words))
@@ -209,13 +209,13 @@ export function StudioApp({ connection }: { connection: Connection }) {
         <div className="studio-stage">
           {!topic ? <div className="studio-later studio-pick"><p>{S.pickTopic}</p></div>
             : view === 'reading' ? <ReadingView state={readings} requested={!!requested && requested === readings.itemId} asks={asks} busyFor={busyFor}
-              start={{ item: startItem, busy: busyFor(null), onWrite: writeReading }}
+              startItem={startItem}
               onSend={askReading} onKeep={keepWords} onOpenSource={openSource} sprite={figure} />
             : view === 'board' ? <Board board={board} materials={materials.items} drawing={signal.drawing} focus={focus} onOpenSource={openSource} sediment={sediment} invite={invite} />
             : view === 'settled' ? <Takeaways sediment={sediment} onJump={(blockId, sheetId) => { setView('board'); board.select(sheetId); setFocus({ blockId, nonce: Date.now() }) }} />
-            : <div className="studio-later" role="status">
+            // A view not open yet is its object alone, centred; 「还没开放」 is the container's name for screen readers, never visible text
+            : <div className="studio-later" role="img" aria-label={S.notOpen}>
               {LATER_OBJECTS[view] && <IsoObject markup={LATER_OBJECTS[view]} className="studio-later-object" />}
-              <p>{VIEW_AVAILABLE[view] ? '' : S.later[view]}</p>
             </div>}
         </div>
       </div>

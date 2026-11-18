@@ -71,7 +71,6 @@ export function useSkillSlash({ api, identity, text, anchor, onManage, prepareSe
     return true
   }
   const menu = open && box ? createPortal(<div className="skill-slash-menu glass-card" aria-label={T.label} aria-busy={loading || busy} style={box}>
-    <div className="skill-slash-hint">{T.hint}</div>
     {error && <p role="alert">{error}</p>}
     <ul className="skill-slash-list" role="listbox" aria-label={C.skills}>
       {rows.map((skill, index) => <li key={`${skill.layer}:${skill.name}`}><button type="button" role="option" aria-selected={index === highlight} disabled={busy} className={`skill-slash-item${index === highlight ? ' is-active' : ''}`} onMouseEnter={() => setHighlight(index)} onClick={() => void pick(skill)}>

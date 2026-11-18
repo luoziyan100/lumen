@@ -2,12 +2,13 @@
  * [INPUT]: ./nav-tips.ts for the V6 measurement; a self-contained isolated fixture service (real Controller + controllable model: writes one reading section, holding it until the script releases it) and the vite
  *          dev page on PORT (default 5191, refused when already taken); data root LUMEN_ASSERT_ROOT (default /tmp/lumen-obj-data, /tmp/lumen-* only, wiped at start); seeded topics: one with a material, takeaways and no sheet, one empty, one already read and drawn on
  * [OUTPUT]: browser evidence for the objects in the product (1440x900 and 1280x800, light and dark, zh and en): each object shows only in its empty state (typewriter: no
- *           reading; cabinet: no material; box: room under the topic list; easel: no sheet, or a live sheet with no blocks (V0); press: no takeaway, gone with one and while
- *           the composer is open (V1); cork board, lamp and type case over the Map, Ideas and All lines (V2–V4), 280–320 wide, above the unchanged line, inside the stage);
- *           the real controls next to them pass elementFromPoint (写解读, upload, 记一条, every view tab, ＋ new sheet, the lone tab and its 「⋯」, zoom, Settings, every topic);
+ *           reading, alone and centred; cabinet: no material, alone and centred; box: room under the topic list; easel: no sheet, or a live sheet with no blocks (V0), alone and centred on the canvas;
+ *           press: no takeaway, alone and centred, gone with one (and 「写一条沉淀」 back) (V1); cork board, lamp and type case alone and centred (V2–V4), named 「还没开放」 for screen readers only;
+ *           every empty view holds only its object: 280–320 wide, centre within 8px of the view's, no visible text outside the drawing, no button;
+ *           the real controls next to them pass elementFromPoint (the Materials row's 写解读, upload, 写一条沉淀 once a takeaway exists, every view tab, ＋ new sheet, the lone tab and its 「⋯」, zoom, Settings, every topic);
  *           the lamp's pool overlaps no text and no control; objects are aria-hidden, untabbable and never take focus; the box's card carries the topic's newest takeaway and
  *           a click on it changes nothing else; stillness (two captures 1 s apart identical) at rest, hovered and opened; reduced motion leaves no transition over 100ms;
- *           the typewriter types while a requested reading has no section and stops at the first one (zh 1440 light); one sheet shows one tab (glyph + 1) whose 「⋯」 still
+ *           the typewriter types (with no state line) while a reading requested from the row has no section and stops at the first one (zh 1440 light); one sheet shows one tab (glyph + 1) whose 「⋯」 still
  *           deletes it (V8); the box's boundary measured on both sides at 1440×900 and 1440×700 (topics added one by one), a 900→700→900 drag that folds and restores it once
  *           each way with the first/last rows and Settings unmoved; no console or page errors. V6 in Chromium and WebKit, zh and en: with icons only and the sprite parked under
  *           the navigation, every tab shows its name within 600ms by hover and by keyboard Tab, under the tab, inside the window, on top of the sprite, with no native title.
@@ -145,15 +146,19 @@ async function open(browser, { locale, w, h, dark = false, reduced = false }) {
   await page.waitForSelector('.studio-topics .topic')
   return { context, page, errors }
 }
-/** A view object over its line: 280–320 wide, wholly above the line and inside the stage, the line's text unchanged, the drawing the expected one */
-const overLine = (page, host, line, svg, text) => page.evaluate(([host, line, svg, text]) => {
-  const h = document.querySelector(host), l = document.querySelector(line), stage = document.querySelector('.studio-stage')
-  if (!h || !l) return { missing: !h ? host : line }
-  const a = h.getBoundingClientRect(), b = l.getBoundingClientRect(), s = stage.getBoundingClientRect()
-  const ok = a.width >= 280 && a.width <= 320 && a.bottom <= b.top + 1 && a.top >= s.top && a.bottom <= s.bottom && a.left >= s.left && a.right <= s.right
-    && l.textContent === text && !!h.querySelector(`svg.${svg}`)
-  return ok ? 'ok' : { width: Math.round(a.width), above: a.bottom <= b.top + 1, inStage: a.top >= s.top && a.bottom <= s.bottom, text: l.textContent === text, svg: !!h.querySelector(`svg.${svg}`) }
-}, [host, line, svg, text])
+/** An empty view is its object alone (Q2 rework): 280–320 wide, centre within 8px of the view's centre, inside the stage, the expected drawing,
+ *  and nothing else in the view: no visible text outside the drawing (the drawing's own <text> is illustration) and no button, input or link */
+const aloneCentred = (page, host, svg) => page.evaluate(([host, svg]) => {
+  const h = document.querySelector(host), stage = document.querySelector('.studio-stage')
+  if (!h) return { missing: host }
+  const a = h.getBoundingClientRect(), s = stage.getBoundingClientRect()
+  const off = Math.round(Math.hypot((a.left + a.right) / 2 - (s.left + s.right) / 2, (a.top + a.bottom) / 2 - (s.top + s.bottom) / 2))
+  const bare = stage.cloneNode(true) as HTMLElement
+  bare.querySelectorAll('.iso-host').forEach(node => node.remove())
+  const text = bare.textContent.trim(), controls = stage.querySelectorAll('button, input, textarea, a, [role=button]').length
+  const ok = a.width >= 280 && a.width <= 320 && off <= 8 && a.top >= s.top && a.bottom <= s.bottom && a.left >= s.left && a.right <= s.right && !!h.querySelector(`svg.${svg}`) && !text && !controls
+  return ok ? 'ok' : { width: Math.round(a.width), off, text, controls, svg: !!h.querySelector(`svg.${svg}`) }
+}, [host, svg])
 /** The lamp's pool (open or not, its box is the same) overlaps no text line and no control anywhere on the page */
 const poolClear = page => page.evaluate(() => {
   const pool = document.querySelector('.studio-later-object [fill="url(#iso-lamp-pool)"]')
@@ -164,6 +169,15 @@ const poolClear = page => page.evaluate(() => {
     return r.width > 0 && r.height > 0 && !(r.right <= p.left || p.right <= r.left || r.bottom <= p.top || p.bottom <= r.top)
   }).map(node => node.className || node.tagName)
   return over.length ? over.join(',') : 'ok'
+})
+/** The easel alone on the canvas (no line beside it): centred across the canvas, inside it, clear of the zoom bar and the tab strip, about 320 wide */
+const easelAlone = page => page.evaluate(() => {
+  const e = document.querySelector('.board-easel')!.getBoundingClientRect(), v = document.querySelector('.board-viewport')!.getBoundingClientRect()
+  const z = document.querySelector('.board-zoom')!.getBoundingClientRect(), s = document.querySelector('.board-sheets')!.getBoundingClientRect()
+  const apart = (a: DOMRect, b: DOMRect) => a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top
+  const result = { width: Math.round(e.width), centred: Math.abs((e.left + e.right) / 2 - (v.left + v.right) / 2) < 2, inside: e.top >= v.top && e.bottom <= v.bottom && e.left >= v.left && e.right <= v.right,
+    zoom: apart(e, z), sheets: apart(e, s), noLine: !document.querySelector('.board-empty') }
+  return { ...result, ok: result.centred && result.inside && result.zoom && result.sheets && result.noLine && result.width <= 320 && result.width >= 200 }
 })
 const PLACEHOLDERS = [['map', 'iso-cork', 'cork'], ['ideas', 'iso-lamp', 'lamp'], ['all', 'iso-case', 'case']]
 /** The last topic picked and view opened, so a console error says where it came from */
@@ -217,15 +231,18 @@ try {
     const M = catalogs[locale], S = M.studio, tag = `${locale} ${w} ${dark ? 'dark' : 'light'}`
     const { context, page, errors } = await open(chrome, { locale, w, h, dark })
 
-    // ---- BLANK: the cabinet in empty Materials, the typewriter with the button disabled and the hint ----
+    // ---- BLANK: the cabinet alone in empty Materials, the typewriter alone in the empty Reading view ----
     await pick(page, BLANK)
     await page.waitForSelector('.materials-cabinet')
-    check(`${tag} 无素材：卡片柜在空句上方`, await page.evaluate(() => { const c = document.querySelector('.materials-cabinet').getBoundingClientRect(), n = document.querySelector('.materials-none').getBoundingClientRect(); return c.bottom <= n.top + 1 && Math.abs(c.width - 220) < 1 }))
+    check(`${tag} 无素材：卡片柜独自居中、没有说明句`, await page.evaluate(() => {
+      const c = document.querySelector('.materials-cabinet').getBoundingClientRect(), pane = document.querySelector('.studio-materials').getBoundingClientRect()
+      return Math.abs(c.width - 220) < 1 && Math.abs((c.left + c.right) / 2 - (pane.left + pane.right) / 2) < 2 && !document.querySelector('.materials-empty p')
+    }))
     check(`${tag} 卡片柜是装饰`, (await decoration(page, '.materials-cabinet')) === 'ok', await decoration(page, '.materials-cabinet'))
-    check(`${tag} 无素材：写解读不可用并提示先选`, await page.evaluate(([hint]) => document.querySelector('.reading-start-write').disabled && document.querySelector('.reading-start-hint')?.textContent === hint, [S.reading.pickFirst]))
+    const typewriter = await aloneCentred(page, '.reading-typewriter', 'iso-typewriter')
+    check(`${tag} 解读为空：只有打字机、居中（≤8px）、没有文字和按钮`, typewriter === 'ok', JSON.stringify(typewriter))
     check(`${tag} 打字机约 300px`, await page.evaluate(() => Math.abs(document.querySelector('.reading-typewriter').getBoundingClientRect().width - 300) < 1))
     check(`${tag} 上传可点`, await hits(page, '.materials-upload'))
-    check(`${tag} 写解读按钮可点（命中按钮本身）`, await hits(page, '.reading-start-write'))
     check(`${tag} 每个主题可点`, await allHit(page, '.studio-topics .topic'))
     check(`${tag} 设置可点`, await page.evaluate(label => { const b = [...document.querySelectorAll('.studio-topics .studio-item')].find(node => node.textContent === label); const r = b?.getBoundingClientRect(); const hit = r && document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!hit && b.contains(hit) }, S.settings))
     check(`${tag} 沉淀盒在主题列表下、空卡`, !!(await page.$('.topics-box')) && await page.evaluate(() => { const box = document.querySelector('.topics-box').getBoundingClientRect(), last = [...document.querySelectorAll('.studio-topics .topic')].pop().getBoundingClientRect(); return box.top >= last.bottom + 16 }))
@@ -234,21 +251,17 @@ try {
     if (!dark && w === 1440) await states(page, '.materials-cabinet', 'cabinet', tag)
     if (EASEL) { await view(page, S, 'board'); await page.waitForSelector('.board-easel'); await view(page, S, 'reading') }
 
-    // ---- V1–V4 on BLANK: the press over the empty Takeaways line; the cork board, the lamp and the type case over the Map, Ideas and All lines ----
+    // ---- V1–V4 on BLANK: the press, the cork board, the lamp and the type case, each alone and centred in its view ----
     await view(page, S, 'settled'); await page.waitForSelector('.sediment-press')
-    const press = await overLine(page, '.sediment-press', '.sediment-empty', 'iso-press', S.sediment.empty)
-    check(`${tag} 沉淀为空：压花板在原句上方、280–320 宽`, press === 'ok', JSON.stringify(press))
+    const press = await aloneCentred(page, '.sediment-press', 'iso-press')
+    check(`${tag} 沉淀为空：只有压花板、居中（≤8px）、280–320 宽、没有文字和按钮`, press === 'ok', JSON.stringify(press))
     check(`${tag} 压花板是装饰`, (await decoration(page, '.sediment-press')) === 'ok', await decoration(page, '.sediment-press'))
-    check(`${tag} 「记一条」可点`, await hits(page, '.sediment-keep'))
     await page.screenshot({ path: `${out}/${tag.replaceAll(' ', '-')}-settled.png` })
     if (!dark && w === 1440) await states(page, '.sediment-press', 'press', tag)
-    await page.click('.sediment-keep'); await page.waitForSelector('.sediment-input')
-    check(`${tag} 打开输入行：压花板随空句一起让开`, !(await page.$('.sediment-press')) && !(await page.$('.sediment-empty')))
-    await page.keyboard.press('Escape'); await page.waitForSelector('.sediment-press')
     for (const [name, svg, id] of PLACEHOLDERS) {
       await view(page, S, name); await page.waitForSelector(`.studio-later-object svg.${svg}`)
-      const placed = await overLine(page, '.studio-later-object', '.studio-later p', svg, S.later[name])
-      check(`${tag} ${S.views[name]}：物件在占位句上方、280–320 宽、不出画布`, placed === 'ok', JSON.stringify(placed))
+      const placed = await aloneCentred(page, '.studio-later-object', svg)
+      check(`${tag} ${S.views[name]}：只有物件、居中（≤8px）、没有可见文字，读屏名是「${S.notOpen}」`, placed === 'ok' && await page.getAttribute('.studio-later', 'aria-label') === S.notOpen, JSON.stringify(placed))
       check(`${tag} ${S.views[name]} 物件是装饰`, (await decoration(page, '.studio-later-object')) === 'ok', await decoration(page, '.studio-later-object'))
       check(`${tag} ${S.views[name]}：每个视图标签可点`, await allHit(page, '.studio-views:not(.studio-views-ghost) [role=tab]'))
       if (name === 'ideas') check(`${tag} 台灯光斑不压任何文字与控件`, (await poolClear(page)) === 'ok', await poolClear(page))
@@ -261,7 +274,9 @@ try {
     await pick(page, READ)
     await page.waitForSelector('.material')
     check(`${tag} 有素材：没有卡片柜`, !(await page.$('.materials-cabinet')))
-    check(`${tag} 唯一素材：写解读可用`, await page.evaluate(() => !document.querySelector('.reading-start-write').disabled))
+    const readTypewriter = await aloneCentred(page, '.reading-typewriter', 'iso-typewriter')
+    check(`${tag} 有素材、没解读：仍只有打字机、居中、没有按钮`, readTypewriter === 'ok', JSON.stringify(readTypewriter))
+    check(`${tag} 素材行的写解读可点`, await hits(page, '.material-reading'))
     check(`${tag} 纸上是资料标题`, await page.evaluate(title => [...document.querySelectorAll('.reading-typewriter text')].some(node => node.textContent === title), notes.title))
     check(`${tag} 打字机是装饰`, (await decoration(page, '.reading-typewriter')) === 'ok', await decoration(page, '.reading-typewriter'))
     await page.waitForFunction(() => document.querySelectorAll('.topics-box text').length > 0 && [...document.querySelectorAll('.topics-box text')].some(node => node.textContent?.startsWith('预测往下走')))
@@ -277,13 +292,8 @@ try {
     if (EASEL) {
       await view(page, S, 'board')
       await page.waitForSelector('.board-easel')
-      const easel = await page.evaluate(line => {
-        const e = document.querySelector('.board-easel')!.getBoundingClientRect(), p = document.querySelector('.board-empty')!, l = p.getBoundingClientRect()
-        const v = document.querySelector('.board-viewport')!.getBoundingClientRect(), z = document.querySelector('.board-zoom')!.getBoundingClientRect()
-        const apart = (a: DOMRect, b: DOMRect) => a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top
-        return { width: Math.round(e.width), text: p.textContent === line, lineAt: Math.round(l.top + l.height / 2 - v.top - v.height * .4), below: e.top >= l.bottom + 8, inside: e.bottom <= v.bottom && e.left >= v.left && e.right <= v.right, zoom: apart(e, z) }
-      }, S.board.noLive)
-      check(`${tag} 没有白板：画架在原句下方、约 320 宽（矮时等比缩小）、不碰缩放条`, easel.text && easel.lineAt === 0 && easel.below && easel.inside && easel.zoom && easel.width <= 320 && easel.width >= 240, JSON.stringify(easel))
+      const easel = await easelAlone(page)
+      check(`${tag} 没有白板：画架独自居中、约 320 宽（矮时等比缩小）、不碰缩放条和标签条、没有说明句`, easel.ok, JSON.stringify(easel))
       check(`${tag} 画架是装饰`, (await decoration(page, '.board-easel')) === 'ok', await decoration(page, '.board-easel'))
       check(`${tag} ＋ 新白板可点`, await hits(page, '.board-sheet-new'))
       await page.screenshot({ path: `${out}/${tag.replaceAll(' ', '-')}-board.png` })
@@ -300,22 +310,16 @@ try {
     await page.waitForSelector('[data-block]')
     check(`${tag} 有白板：没有画架`, !(await page.$('.board-easel')))
     await view(page, S, 'settled'); await page.waitForSelector('.sediment-entry')
-    check(`${tag} 一条沉淀：没有压花板`, !(await page.$('.sediment-press')) && (await page.$$('.sediment-entry')).length === 1)
+    check(`${tag} 一条沉淀：没有压花板，「写一条沉淀」回来`, !(await page.$('.sediment-press')) && (await page.$$('.sediment-entry')).length === 1 && await page.textContent('.sediment-keep') === S.sediment.keep)
+    check(`${tag} 「写一条沉淀」可点`, await hits(page, '.sediment-keep'))
     await view(page, S, 'reading')
 
-    // ---- V0 and V8 on LIVE: its first sheet is live and blank, so the easel stands under the empty-sheet line, and the strip shows that one sheet's tab ----
+    // ---- V0 and V8 on LIVE: its first sheet is live and blank, so the easel stands alone on it, and the strip shows that one sheet's tab ----
     await pick(page, LIVE)
     await view(page, S, 'board')
     await page.waitForSelector('.board-easel')
-    const blank = await page.evaluate(line => {
-      const e = document.querySelector('.board-easel')!.getBoundingClientRect(), p = [...document.querySelectorAll('.board-empty')].find(node => node.textContent === line)
-      const v = document.querySelector('.board-viewport')!.getBoundingClientRect(), z = document.querySelector('.board-zoom')!.getBoundingClientRect(), s = document.querySelector('.board-sheets')!.getBoundingClientRect()
-      const apart = (a: DOMRect, b: DOMRect) => a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top
-      if (!p) return { line: false }
-      const l = p.getBoundingClientRect()
-      return { below: e.top >= l.bottom + 8, inside: e.bottom <= v.bottom && e.left >= v.left && e.right <= v.right, zoom: apart(e, z), sheets: apart(e, s), width: Math.round(e.width) }
-    }, S.board.empty)
-    check(`${tag} 空白板（V0）：画架在空板句下方、不碰缩放条和白板标签`, blank.below && blank.inside && blank.zoom && blank.sheets && blank.width <= 320, JSON.stringify(blank))
+    const blank = await easelAlone(page)
+    check(`${tag} 空白板（V0）：画架独自居中、不碰缩放条和白板标签、没有说明句`, blank.ok, JSON.stringify(blank))
     const lone = await page.evaluate(() => [...document.querySelectorAll('.board-tabs .board-tab > button:first-child')].map(tab => [tab.textContent, !!tab.querySelector('svg')]))
     check(`${tag} 一张白板（V8）：标签条显示一个标签（图标 + 1）`, JSON.stringify(lone) === '[["1",true]]', JSON.stringify(lone))
     for (const [selector, name] of [['.board-tabs .board-tab > button:first-child', '白板标签'], ['.board-tab.is-on .board-tab-more', '「⋯」'], ['.board-sheet-new', '＋'], ['.board-zoom button:first-child', '缩小'], ['.board-zoom button:last-child', '适配']])
@@ -330,14 +334,14 @@ try {
     // ---- LIVE (once): typing while the requested reading has no section; stops at the first section ----
     if (locale === 'zh' && w === 1440 && !dark) {
       await pick(page, LIVE)
-      await page.waitForSelector('.reading-start-write:not([disabled])')
-      await page.click('.reading-start-write')
+      await page.waitForSelector('.material-reading:not([disabled])')
+      await page.click('.material-reading')
       await page.waitForSelector('.reading-typewriter.is-typing')
       const typing = await page.evaluate(() => document.querySelector('.reading-typewriter svg').getAnimations({ subtree: true }).filter(animation => animation.playState === 'running').length)
       const a = await page.locator('.reading-typewriter').screenshot({ animations: 'allow' }); await sleep(370)
       const b = await page.locator('.reading-typewriter').screenshot({ animations: 'allow' })
       check(`${tag} 请求后、第一节前在打字（动画在跑、画面在变）`, typing > 0 && !a.equals(b), `${typing} animations`)
-      check(`${tag} 等待时状态句`, (await page.textContent('.reading-start [role=status]')) === S.reading.waiting)
+      check(`${tag} 等待时只有打字机在打字，没有状态句`, !(await page.$('.reading-start [role=status]')) && !(await page.$('.reading-start p')))
       await page.screenshot({ path: `${out}/${tag.replaceAll(' ', '-')}-typing.png` })
       openGate()
       await page.waitForSelector('.reading-section')
@@ -378,7 +382,7 @@ try {
     await pick(page, LIVE); await view(page, S, 'board'); await page.waitForSelector('.board-tab')
     await page.click('.board-tab.is-on .board-tab-more')
     await page.locator('[role=menuitem]', { hasText: S.board.remove }).click()
-    await page.waitForFunction(line => [...document.querySelectorAll('.board-empty')].some(node => node.textContent === line), S.board.noLive)
+    await page.waitForFunction(() => !document.querySelector('.board-tab') && !!document.querySelector('.board-easel'))
     check('一张白板（V8）：「⋯」照常删除空白板，回到没有白板的状态和画架', !(await page.$('.board-tab')) && !(await page.$('.board-remove-modal')) && !!(await page.$('.board-easel')))
     await page.screenshot({ path: `${out}/lone-sheet-deleted.png` })
     check('删除：无控制台错误', errors.length === 0, errors.slice(0, 2).join(' | '))
@@ -463,7 +467,8 @@ try {
     await page.locator(selector).screenshot({ path: `${out}/webkit-${name}-open.png` })
     await page.click(selector)
   }
-  await pick(page, BLANK); await page.waitForSelector('.materials-cabinet'); await shoot('.materials-cabinet', 'cabinet')
+  await pick(page, BLANK); await page.waitForSelector('.materials-cabinet')
+  await shoot('.materials-cabinet', 'cabinet')
   await pick(page, READ); await page.waitForSelector('.reading-typewriter'); await shoot('.reading-typewriter', 'typewriter'); await shoot('.topics-box', 'box')
   if (EASEL) { await view(page, S, 'board'); await page.waitForSelector('.board-easel'); await shoot('.board-easel', 'easel') }
   await page.screenshot({ path: `${out}/webkit-page.png` })

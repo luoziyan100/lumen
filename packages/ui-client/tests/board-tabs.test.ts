@@ -113,7 +113,7 @@ test('V0: the easel stands on a live sheet with no blocks and leaves when the AI
   try {
     await render(state({}), null)
     assert.ok(easel(), 'a blank live sheet shows the easel')
-    assert.equal(element.querySelector('.board-empty')!.textContent, S.board.empty, 'over the unchanged empty line')
+    assert.equal(element.querySelector('.board-empty'), null, 'no line of explanation beside it')
     await render(state({ target: 'a' }), 'new')
     assert.ok(!easel(), 'the AI drawing on this sheet removes it')
     await render(state({ target: 'b' }), 'new')

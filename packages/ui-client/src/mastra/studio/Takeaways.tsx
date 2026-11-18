@@ -1,7 +1,7 @@
 /**
  * [INPUT]: useSediment's entries and offers, i18n, the trusted jump callback (evidence chip → the block on its board), the flower press and IsoObject
  * [OUTPUT]: Takeaways: the S8 view — entries newest first (dashed frame + Unverified, the quoted marker expands the original, evidence chips jump or report the deleted board),
- *           inline edit, delete asks once, a one-line empty state under the flower press; OfferRow renders an offer (deleted fragments struck in the original, click restores / re-deletes, Keep/Dismiss,
+ *           inline edit, delete asks once; with no entry and no offer, the flower press alone, centred (no text, no 「写一条沉淀」; an entry brings the button back); OfferRow renders an offer (deleted fragments struck in the original, click restores / re-deletes, Keep/Dismiss,
  *           the original expandable); TakeawayComposer is the one input (Enter keeps, Esc cancels)
  * [POS]: the center Takeaways view; the text passes only through the user's hand (R13), and the final wording before an offer's confirm is assembled here for the service's re-check (S9)
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -134,17 +134,17 @@ export function Takeaways({ sediment, onJump }: {
   const S = useT().studio.sediment, viewLabel = useT().studio.views.settled
   const [composing, setComposing] = useState(false)
   if (sediment.unsupported) return <div className="sediment-view" role="status"><p className="sediment-empty">{S.unsupported}</p></div>
+  // An empty view is the press alone, centred: no text and no 「写一条沉淀」 (a takeaway starts from a board block, the full row or the reading window).
+  // An entry or an offer brings the list and its button back
+  if (sediment.items.length === 0 && sediment.offers.length === 0) return <section className="sediment-view sediment-empty-view" aria-label={viewLabel}>
+    <IsoObject markup={PRESS} className="sediment-press" />
+    {sediment.error && <p className="mw-error sediment-error" role="alert">{sediment.revConflict ? S.linkStale : sediment.error}</p>}
+  </section>
   return <section className="sediment-view" aria-label={viewLabel}>
     <div className="sediment-list" data-testid="sediment-list">
-      {sediment.offers.length > 0 && <p className="sediment-offers-note">{S.offerNote}</p>}
       {sediment.offers.map(offer => <OfferRow key={offer.id} offer={offer}
         onKeep={async text => await sediment.confirm(offer.id, text)}
         onDismiss={() => void sediment.dismiss(offer.id)} />)}
-      {/* The press stands over the empty line and leaves with it: an entry, an offer or the open composer removes both */}
-      {sediment.items.length === 0 && sediment.offers.length === 0 && !composing && <>
-        <IsoObject markup={PRESS} className="sediment-press" />
-        <p className="sediment-empty">{S.empty}</p>
-      </>}
       {composing
         ? <TakeawayComposer autoFocus placeholder={S.placeholder} onSubmit={async text => { const kept = await sediment.create({ text }); if (kept) setComposing(false); return kept }} onCancel={() => setComposing(false)} />
         : <Button variant="secondary" size="sm" className="sediment-keep" onClick={() => setComposing(true)}>{S.keep}</Button>}

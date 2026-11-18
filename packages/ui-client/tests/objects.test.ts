@@ -2,8 +2,8 @@
  * [INPUT]: the object builders (studio/objects: escapeXml, wrapText, boxSvg/boxWords, typewriterSvg/paperLines, cabinetSvg, easelSvg), newestTakeaway, the real StudioApp
  *          against a real HTTP service with the Mastra Controller and a deterministic model (holds the first section, writes nothing for one material, holds a second conversation)
  * [OUTPUT]: evidence for the objects in the product: data text is escaped before it enters SVG (<, &, quotes, </text>) and parses back as the same text; the card and the paper
- *           wrap to their lines with …; the box shows the current topic's newest takeaway; the empty Reading view's 「写解读」 sends byte for byte the Materials row's message and
- *           shows R1's 409 with the row's words, sending nothing; the typewriter types while the reading is requested with no section, and stops when the first section lands or
+ *           wrap to their lines with …; the box shows the current topic's newest takeaway; the empty Reading view is the typewriter alone (no text, no button); the Materials row sends
+ *           the same bytes from two topics and shows R1's 409, sending nothing; the typewriter types while the reading is requested with no section, and stops when the first section lands or
  *           the run ends; objects are aria-hidden and outside the tab order
  * [POS]: O1/O2/O4's mechanism tests. Layout, stillness, hit tests and motion are browser facts, covered by scripts/sprite/ui-assert-objects.mts, not here
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -118,7 +118,7 @@ test('the box picks the current topic\'s newest takeaway', () => {
   assert.equal(newestTakeaway([entry('old', 't1', '2026-11-01T00:00:00Z'), { ...entry('new', 't1', '2026-11-02T00:00:00Z') }].map(e => e.id === 'old' ? { ...e, updatedAt: '2026-12-01T00:00:00Z' } : e), 't1')?.id, 'new')
 })
 
-test('Reading empty view: 「写解读」 is the row action — same message, same 409; the typewriter types until the first section or the end of the run', { timeout: 180000 }, async () => {
+test('Reading empty view: the typewriter alone; the Materials row writes (same message across topics, readable 409), and the typewriter types until the first section or the end of the run', { timeout: 180000 }, async () => {
   const dataRoot = await mkdtemp(join(tmpdir(), 'lumen-ui-objects-'))
   let calls = 0, releaseFirst!: () => void, releaseHold!: () => void
   const first = new Promise<void>(resolve => { releaseFirst = resolve })
@@ -143,7 +143,7 @@ test('Reading empty view: 「写解读」 is the row action — same message, sa
   const connection = { baseUrl: `http://127.0.0.1:${address.port}`, token }
   const api = new LumenApi(connection)
   // Topics: 'button' and 'row' share one material (same message by two paths); 'busy' has a running conversation; 'quiet' gets no section
-  for (const [id, title] of [['button', 'A 按钮'], ['row', 'B 素材行'], ['busy', 'C 忙'], ['quiet', 'D 没写出']]) ensureTopic(service, id, title)
+  for (const [id, title] of [['button', 'A 首个'], ['row', 'B 素材行'], ['busy', 'C 忙'], ['quiet', 'D 没写出']]) ensureTopic(service, id, title)
   const shared = (await api.upload({ topicId: 'button' }, new File(['# Predictive notes\n\nThe brain minimises free energy over time.'], 'notes.md', { type: 'text/markdown' }))).itemId
   service.application.studio.topics.reference('row', shared)
   await api.upload({ topicId: 'busy' }, new File(['# Busy notes\n\nAnything.'], 'busy.md', { type: 'text/markdown' }))
@@ -169,27 +169,27 @@ test('Reading empty view: 「写解读」 is the row action — same message, sa
     await act(async () => root.render(createElement(StudioApp, { connection })))
     await until(() => $$('.studio-topics .topic').length === 4, '主题没有列出')
 
-    // ---- One material, none picked: the button acts on it; the paper shows its title; the object is decoration ----
-    await pick('A 按钮')
-    await until(() => !!$('.reading-start-write') && !$<HTMLButtonElement>('.reading-start-write')!.disabled, '唯一素材时按钮可用')
+    // ---- One material, none picked: the paper shows its title; the typewriter is the whole empty view (no text, no button) and is decoration ----
+    await pick('A 首个')
+    await until(() => !!$('.reading-typewriter') && $$('.material').length === 1, '唯一素材时空态没有出现')
+    assert.equal($('.reading-start button'), null, '空态没有按钮')
     const host = $('.reading-typewriter')!
     assert.equal(host.getAttribute('aria-hidden'), 'true')
     assert.equal(host.getAttribute('tabindex'), null, '物件不在 Tab 序列里')
     const title = (await api.library()).items.find(item => item.id === shared)!.title
     assert.ok(texts(host.innerHTML).includes(title), '纸上是资料标题')
     assert.ok(!host.classList.contains('is-typing'), '没请求时不打字')
-    assert.equal($('.reading-start [role=status]')!.textContent, S.reading.start)
 
-    // ---- The button sends; the typewriter types while the first section is held ----
-    await act(async () => $<HTMLButtonElement>('.reading-start-write')!.click())
+    // ---- The Materials row sends; the typewriter types while the first section is held, and no line joins it ----
+    await act(async () => $<HTMLButtonElement>('.material-reading')!.click())
     // The model holds the first section, so the run is live but the message is not stored yet (native Memory saves it with the step)
-    await until(() => running('button'), '按钮没有发起运行')
+    await until(() => running('button'), '素材行没有发起运行')
     await until(() => !!$('.reading-typewriter.is-typing'), '请求后、第一节之前打字机在打字')
-    assert.equal($('.reading-start [role=status]')!.textContent, S.reading.waiting)
+    assert.equal($('.reading-start [role=status]'), null, '打字就是状态，没有状态句')
     releaseFirst()
     await until(() => $$('.reading-section').length === 1, '第一节没有出现')
-    await until(async () => (await stored('button')).length === 1, '按钮的请求没有存进对话')
-    const viaButton = (await stored('button'))[0]
+    await until(async () => (await stored('button')).length === 1, '素材行的请求没有存进对话')
+    const first = (await stored('button'))[0]
     assert.equal($('.reading-typewriter'), null, '第一节一到，打字机就让位')
     assert.equal($('.is-typing'), null)
 
@@ -199,42 +199,40 @@ test('Reading empty view: 「写解读」 is the row action — same message, sa
     await until(() => $$('.material').length === 1, '素材行没有出现')
     await act(async () => $<HTMLButtonElement>('.material-reading')!.click())
     await until(async () => (await stored('row')).length === 1, '素材行没有发出请求')
-    assert.equal(viaButton, (await stored('row'))[0], '空态按钮与素材行发的是同一句')
-    assert.equal(viaButton, MODEL_TEXT.writeReading(title, shared))
+    assert.equal(first, (await stored('row'))[0], '两个主题的素材行发的是同一句')
+    assert.equal(first, MODEL_TEXT.writeReading(title, shared))
     await until(async () => !(await running('row')), '第二个主题的运行没结束')
 
-    // ---- R1: another conversation runs; the button shows the row's 409 words and nothing is sent ----
-    // The open conversation must be idle and not the running one, else the app follows the running one and both actions are disabled instead (also correct, but no 409).
-    // So the button first opens a conversation whose run ends with no section; only then does another conversation start and hold
+    // ---- R1: another conversation runs; the row shows the 409 words, nothing is sent and the typewriter does not type ----
+    // The open conversation must be idle and not the running one, else the app follows the running one and the row is disabled instead (also correct, but no 409).
+    // So the row first opens a conversation whose run ends with no section; only then does another conversation start and hold
     await pick('C 忙')
-    await until(() => !!$('.reading-start-write') && !$<HTMLButtonElement>('.reading-start-write')!.disabled && $$('.material').length === 1, '忙主题的空态没有出现')
-    await act(async () => $<HTMLButtonElement>('.reading-start-write')!.click())
+    await until(() => !!$('.reading-typewriter') && $$('.material').length === 1, '忙主题的空态没有出现')
+    await act(async () => $<HTMLButtonElement>('.material-reading')!.click())
     await until(async () => (await stored('busy')).length === 1 && !(await running('busy')) && !$('.reading-typewriter.is-typing'), '忙主题的第一次请求没有结束')
     const other = { topicId: 'busy', taskId: 'other' }
     await api.open(other)
     const holding = api.session(other).sendMessage('hold')
     await until(() => running('busy'), '另一段对话没有跑起来')
-    await until(() => !$<HTMLButtonElement>('.reading-start-write')!.disabled, '打开的对话空闲时按钮应可用')
+    await until(() => !$<HTMLButtonElement>('.material-reading')!.disabled, '打开的对话空闲时素材行应可用')
     const before = (await stored('busy')).filter(text => text !== 'hold').length
-    await act(async () => $<HTMLButtonElement>('.reading-start-write')!.click())
-    await until(() => !!$('.reading-start .mw-error')?.textContent, '按钮忙时没有显示可读的 409')
     await act(async () => $<HTMLButtonElement>('.material-reading')!.click())
     await until(() => !!$('.studio-materials .mw-error')?.textContent, '素材行忙时没有显示可读的 409')
-    assert.equal($('.reading-start .mw-error')!.textContent, $('.studio-materials .mw-error')!.textContent, '两处的拒绝是同一句话')
-    assert.match($('.reading-start .mw-error')!.textContent!, /一个主题同一时刻只跑一段对话/)
+    assert.match($('.studio-materials .mw-error')!.textContent!, /一个主题同一时刻只跑一段对话/)
     assert.equal((await stored('busy')).filter(text => text !== 'hold').length, before, '忙时什么都没发')
     assert.equal($('.reading-typewriter.is-typing'), null, '被拒时不打字')
     releaseHold(); await holding
     await until(async () => !(await running('busy')), '另一段对话没结束')
 
-    // ---- A run that ends with no section: typing stops with the run, the empty view stays ----
+    // ---- A run that ends with no section: typing stops with the run, the empty view stays the typewriter alone ----
     await pick('D 没写出')
-    await until(() => !!$('.reading-start-write') && !$<HTMLButtonElement>('.reading-start-write')!.disabled, '没写出主题的按钮不可用')
-    await act(async () => $<HTMLButtonElement>('.reading-start-write')!.click())
+    await until(() => !!$('.reading-typewriter') && $$('.material').length === 1, '没写出主题的空态没有出现')
+    await act(async () => $<HTMLButtonElement>('.material-reading')!.click())
     await until(async () => (await stored('quiet')).length === 1, '没写出主题没有发出请求')
     await until(async () => !(await running('quiet')) && !$('.reading-typewriter.is-typing'), '运行结束后打字机仍在打字')
     assert.ok($('.reading-typewriter'), '没有节时打字机还在')
-    assert.equal($('.reading-start [role=status]')!.textContent, S.reading.start)
+    assert.equal($('.reading-start [role=status]'), null, '运行结束后没有状态句')
+    assert.equal($('.reading-start button'), null, '运行结束后也没有按钮')
   } finally {
     releaseFirst(); releaseHold()
     await act(async () => root.unmount())
