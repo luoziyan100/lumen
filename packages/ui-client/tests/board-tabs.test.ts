@@ -1,6 +1,7 @@
 /**
  * [INPUT]: Real Board component and useBoard hook (React DOM + jsdom); a real HTTP service with Mastra Controller for the selection round trip
- * [OUTPUT]: R16 UI evidence: which tab opens (initialSelection); tabs are a board glyph plus a number with the full title in title/aria-label;
+ * [OUTPUT]: R16 UI evidence: which tab opens (initialSelection); tabs are a board glyph plus a number with the full title in title/aria-label (one sheet too, V8);
+ *           V0: the easel on a live sheet with no blocks, gone when the AI draws on that sheet or a block lands, never on a folded sheet;
  *           folded tabs dimmed; the drawing dot sits on the run target while another sheet is shown; a folded selection says the AI won't write there;
  *           the selection persists through a reload, ＋ selects the new sheet, an older service without the route (404/405) still switches tabs locally,
  *           any other failure to store the pick reaches board.error and survives board reads until a later pick is stored
@@ -89,13 +90,38 @@ test('Board tabs: glyph + number, full title in title/aria-label, folded dimmed,
     assert.equal(element.querySelector('.board-hint')!.textContent, S.board.foldedHint)
     await render(state({ selected: 'c' }), null)
     assert.equal(element.querySelector('.board-hint'), null, 'a live selection shows no hint')
-    // ---- one sheet: no tab strip, as before ----
+    // ---- one sheet: the same strip with one tab (glyph + 1), so one and many look alike ----
     await render(state({ sheets: [sheets[0]!], selected: 'a', view: { sheet: sheets[0]!, blocks: [] } }), null)
-    assert.equal(element.querySelector('.board-tabs'), null)
+    assert.equal(tabs().length, 1)
+    assert.deepEqual([tabs()[0]!.textContent, !!tabs()[0]!.querySelector('svg'), tabs()[0]!.className], ['1', true, 'on'])
     // ---- twelve sheets: twelve tabs in one strip ----
     const many = Array.from({ length: 12 }, (_, index) => sheet(`s${index}`, `白板 ${index + 1}`, index + 1))
     await render(state({ sheets: many, selected: 's11', view: { sheet: many[11]!, blocks: [] } }), null)
     assert.deepEqual(tabs().map(tab => tab.textContent), many.map((_, index) => String(index + 1)))
+  } finally { await act(async () => root.unmount()); element.remove() }
+})
+
+test('V0: the easel stands on a live sheet with no blocks and leaves when the AI starts drawing there or a block lands', async () => {
+  const element = document.createElement('div'); document.body.append(element)
+  const root = createRoot(element)
+  const blank = sheet('a', '白板 1', 1), other = sheet('b', '白板 2', 2)
+  const block = { id: 'b1', sheetId: 'a', kind: 'text' as const, title: '第1块', content: { markdown: 'x' }, x: 0, y: 0, w: 400, h: 100, state: 'current' as const, supersededBy: null, rev: 1, sources: [], threadId: null, runId: null, createdAt: '', updatedAt: '' }
+  const state = (patch: Partial<BoardState>): BoardState => ({ sheets: [blank, other], writable: 'a', selected: 'a', target: null, error: '', refresh() {}, select() {}, async createSheet() {},
+    view: { sheet: blank, blocks: [] }, ...patch })
+  const render = (board: BoardState, drawing: string | null) => act(async () => root.render(createElement(Board, { board, materials: [], drawing, focus: null, onOpenSource() {}, sediment: sedimentStub, invite: null })))
+  const easel = () => !!element.querySelector('.board-easel')
+  try {
+    await render(state({}), null)
+    assert.ok(easel(), 'a blank live sheet shows the easel')
+    assert.equal(element.querySelector('.board-empty')!.textContent, S.board.empty, 'over the unchanged empty line')
+    await render(state({ target: 'a' }), 'new')
+    assert.ok(!easel(), 'the AI drawing on this sheet removes it')
+    await render(state({ target: 'b' }), 'new')
+    assert.ok(easel(), 'drawing on another sheet leaves it')
+    await render(state({ view: { sheet: blank, blocks: [block] } }), null)
+    assert.ok(!easel(), 'a block removes it')
+    await render(state({ sheets: [{ ...blank, state: 'folded' }, other], view: { sheet: { ...blank, state: 'folded' }, blocks: [] } }), null)
+    assert.ok(!easel(), 'a folded sheet keeps its hint, not the easel')
   } finally { await act(async () => root.unmount()); element.remove() }
 })
 

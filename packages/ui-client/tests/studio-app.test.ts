@@ -1,6 +1,6 @@
 /**
  * [INPUT]: the real StudioApp (topics/board/materials/sprite/reader) with React DOM, a real HTTP service and Mastra Controller, a deterministic model
- * [OUTPUT]: shell behaviour evidence for S4 (S5 rework included: a lone sheet hides the tab strip, first panel rows share the header line, the ladder break sits between two rungs,
+ * [OUTPUT]: shell behaviour evidence for S4 (S5 rework included: a lone sheet shows one numbered tab, first panel rows share the header line, the ladder break sits between two rungs,
  *           no repeated "AI 画的", topic ＋ Enter creates/Esc cancels; rework two: no topic name in the center header, no used-count, materials as one descending list;
  *           post-P0: ⌘B/⌘⌥B collapse with localStorage, full/Esc, no ws-tag; the sprite: dragging the window carries the anchor, the collapsed avatar sits at the anchor corner, dragging the avatar never opens):
  *           all four block kinds render after real board_draw calls (ladder/table/widget/source chips and AI inference), the board refreshes only on tool-completion signals (the ETag poll is intercepted),
@@ -120,8 +120,8 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     // ---- U2: no used-count on display (the cap and R11 stay server-side) ----
     assert.ok(!$('.studio-board')!.textContent!.includes('已用'))
     assert.ok($('.board-empty'), '空白板要说清楚')
-    // ---- G7/U1: a lone sheet hides the tab strip that would repeat the topic's name; the center never shows the topic name ----
-    assert.equal($('.board-tabs'), null)
+    // ---- G7/U1: a lone sheet shows one numbered tab, never the topic's name; the center never shows the topic name ----
+    assert.equal($$('.board-tabs .board-tab').length, 1)
     assert.equal($$('.studio-center *').filter(node => node.children.length === 0 && node.textContent === '负反馈为什么能稳住系统').length, 0)
     // ---- G2: every panel's first row is its header ----
     assert.deepEqual($$('.studio-panel').map(panel => (panel.firstElementChild!.matches('.studio-head') || panel.firstElementChild!.firstElementChild!.matches('.studio-head'))), [true, true, true])
@@ -131,7 +131,9 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     assert.deepEqual($$('.studio-views [role=tab]').map(tab => [tab.getAttribute('aria-label'), tab.firstElementChild!.matches('svg.lumen-icon'), tab.dataset.available]),
       [['解读', true, 'true'], ['白板', true, 'true'], ['沉淀', true, 'true'], ['概念图', true, 'false'], ['灵感', true, 'false'], ['全部', true, 'false']])
     await act(async () => tab('map').click())
-    assert.equal($('.studio-later')!.textContent, S.later.map)
+    // The placeholder keeps its line unchanged; the cork board stands above it (V2)
+    assert.equal($('.studio-later p')!.textContent, S.later.map)
+    assert.ok($('.studio-later .studio-later-object svg.iso-cork'), 'the cork board over the Map line')
     await act(async () => tab('board').click())
 
     // ---- Materials: brought by you / found by the AI; opening one reads the original in the center split ----

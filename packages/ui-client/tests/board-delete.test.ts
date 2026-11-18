@@ -1,6 +1,6 @@
 /**
  * [INPUT]: Real Board component and useBoard hook (React DOM + jsdom, Kumo menu and dialog); a real HTTP service with Mastra Controller
- * [OUTPUT]: R17 UI evidence: every tab has a keyboard-reachable 「⋯」 menu (next to ＋ when one sheet hides the strip); an empty sheet deletes
+ * [OUTPUT]: R17 UI evidence: every tab has a keyboard-reachable 「⋯」 menu (a lone sheet keeps its tab and menu); an empty sheet deletes
  *           without a dialog; a sheet with blocks asks in a dialog naming number, title and block count; the run's target has the item disabled
  *           with the reason; deleting the selected sheet switches to the neighbour; an older service says deletion is unsupported; a card into
  *           a deleted sheet shows 「这块所在的白板已删除」 and nothing else moves
@@ -122,12 +122,12 @@ test('R17 Board against the real service: keyboard-reachable 「⋯」 on every 
     assert.equal(view.board.selected, first)
     assert.equal((await env.api.sheets('p')).selected, first)
     assert.equal(view.board.error, '')
-    // ---- one sheet: the strip hides, the menu sits next to ＋ ----
-    await until(() => !document.querySelector('.board-tabs'), 'strip still shown for one sheet')
-    const lone = document.querySelector<HTMLButtonElement>('.board-sheets .board-sheet-more')
-    assert.ok(lone, 'the only sheet keeps a menu')
-    assert.equal(lone!.nextElementSibling?.classList.contains('board-sheet-new'), true, 'next to ＋')
-    await openMenu(lone!); await choose()
+    // ---- one sheet: the strip stays, one tab (glyph + 1) with its own menu ----
+    await until(() => tabs().length === 1, 'the lone sheet lost its tab')
+    assert.equal(tabs()[0]!.querySelector('.board-tab-number')!.textContent, '1')
+    assert.ok(tabs()[0]!.querySelector('svg'), 'the board glyph')
+    assert.equal(document.querySelector('.board-sheet-more'), null, 'no lone menu beside ＋')
+    await openMenu(menuButton(0)); await choose()
     await until(() => view.board.sheets.length === 0, 'the last sheet was not deleted')
     assert.equal(view.board.selected, null)
     assert.ok([...document.querySelectorAll('.board-empty')].some(node => node.textContent === S.board.noLive), 'the existing no-board state')
@@ -183,8 +183,7 @@ test('R17 cards and older services: a card into a deleted sheet shows the notice
     assert.equal(notice(), null)
     // ---- older service: deleting says it is unsupported; card lookups give no false notice ----
     legacy = true
-    const lone = document.querySelector<HTMLButtonElement>('.board-sheet-more')!
-    await openMenu(lone); await choose()
+    await openMenu(menuButton(0)); await choose()
     await until(() => view.board.error === S.board.removeUnsupported, 'no unsupported message')
     assert.equal(document.querySelector('.board-error')!.textContent, S.board.removeUnsupported)
     assert.equal(view.board.sheets.length, 1, 'nothing deleted locally either')

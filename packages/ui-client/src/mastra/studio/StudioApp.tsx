@@ -6,7 +6,8 @@
  *           both side panes collapse to width 0 (reopen buttons at the center header's ends, ⌘B / ⌘⌥B); the reader has three states: closed / split (draggable divider) / full center
  *           (the board hides but stays mounted with its camera; Esc restores); the Reading view (first in the navigation, the default) with its material action and selection window;
  *           the empty Reading view's start target (the picked material, else the one open beside, else the only one) and the request's end (first section, run end, or an idle
- *           conversation that already answered: a short run can end unseen)
+ *           conversation that already answered: a short run can end unseen); the placeholder views stand their objects above the unchanged line (Map the cork board, Ideas the
+ *           lamp, All the type case)
  * [POS]: the desktop's only workbench (it replaced the S2 transitional entry). It owns the topic's single conversation feed and lends it to the sprite, which reads the full view;
  *        the shell selects only the values it shows, so streamed text never re-renders the workbench. The sprite and the Reading view
  *        both post visible user messages on the native path (`say`), never a hidden prompt. Board and reading refresh ride only on the conversation's tool completion signals plus
@@ -34,11 +35,18 @@ import { Sprite, useSessions, type SpriteBox } from './Sprite'
 import { Takeaways } from './Takeaways'
 import { TopicPanel, useTopics } from './TopicPanel'
 import { useBoard } from './useBoard'
+import { IsoObject } from './objects/IsoObject'
+import { corkSvg } from './objects/corkboard.ts'
+import { lampSvg } from './objects/lamp.ts'
+import { typecaseSvg } from './objects/typecase.ts'
 import { newestTakeaway, useSediment } from './useSediment'
 import { PaneToggle, Splitter, usePanes, type Side } from './Panes'
 import { VIEW_AVAILABLE, ViewNav, type View } from './ViewNav'
 import '../views/workbench.css'
 import './studio.css'
+
+// The placeholder views' objects carry no data, so each is built once
+const LATER_OBJECTS: Partial<Record<View, string>> = { map: corkSvg(), ideas: lampSvg(), all: typecaseSvg() }
 
 const TOPIC_KEY = 'lumen.studio.topic'
 
@@ -205,7 +213,10 @@ export function StudioApp({ connection }: { connection: Connection }) {
               onSend={askReading} onKeep={keepWords} onOpenSource={openSource} sprite={figure} />
             : view === 'board' ? <Board board={board} materials={materials.items} drawing={signal.drawing} focus={focus} onOpenSource={openSource} sediment={sediment} invite={invite} />
             : view === 'settled' ? <Takeaways sediment={sediment} onJump={(blockId, sheetId) => { setView('board'); board.select(sheetId); setFocus({ blockId, nonce: Date.now() }) }} />
-            : <div className="studio-later" role="status"><p>{VIEW_AVAILABLE[view] ? '' : S.later[view]}</p></div>}
+            : <div className="studio-later" role="status">
+              {LATER_OBJECTS[view] && <IsoObject markup={LATER_OBJECTS[view]} className="studio-later-object" />}
+              <p>{VIEW_AVAILABLE[view] ? '' : S.later[view]}</p>
+            </div>}
         </div>
       </div>
       {split && !full && <Splitter host={center} ratio={panes.ratio} onRatio={panes.setRatio} />}

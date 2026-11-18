@@ -1,6 +1,6 @@
 /**
  * [INPUT]: a self-contained isolated fixture service (real Controller + controllable model: writes a reading of the notes, answers questions in two sentences) and the vite dev
- *          page on 5190; a seeded nine-section reading of a multi-page PDF written through the reading store
+ *          page on PORT (default 5190, refused when already taken); data root LUMEN_ASSERT_ROOT (default /tmp/lumen-p1-reading-data, /tmp/lumen-* only, wiped at start); a seeded nine-section reading of a multi-page PDF written through the reading store
  * [OUTPUT]: browser evidence for P1-2 (1440x900 and 1280x800, light and dark, zh and en): Reading first and selected; the centred serif column within 700px; source chips; each paper paragraph's quote line under it (visible, in the column, smaller than the body, contrast ≥ 4.5:1);
  *           a nine-section reading scrolls inside the view while panes and headers stay put; a real mouse selection inside one paragraph opens the window, whose centre,
  *           input and send button pass elementFromPoint and which never covers the selected sentence (below, or above near the bottom); the reply arrives in the window;
@@ -13,6 +13,7 @@
 import { chromium } from '/tmp/lumen-s0-pw/node_modules/playwright-core/index.mjs'
 import { mkdir, rm } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
+import { assertPortFree, assertRoot } from './assert-env.ts'
 import { createHttpService } from '../../../mastra-service/src/server.ts'
 import { acquireServiceLock } from '../../../mastra-service/src/deployment/lock.ts'
 import { publishDiscovery, removeDiscovery } from '../../../mastra-service/src/deployment/discovery.ts'
@@ -27,7 +28,8 @@ const seedLocale = locale => localStorage.setItem('lumen:locale.v1', JSON.string
 const seedDark = () => localStorage.setItem('lumen:appearance.v2', JSON.stringify({ version: 1, mode: 'dark', skinId: 'yan-clear', overlay: 0, blurPx: 0, latinFont: 'source-serif', cjkFont: 'wenkai', justify: false }))
 const exe = process.env.HOME + '/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
 const port = process.env.PORT ?? '5190'
-const root = '/tmp/lumen-p1-reading-data'
+const root = assertRoot('/tmp/lumen-p1-reading-data')
+assertPortFree(port)
 const TOPIC = '自由能读书', EMPTY = '还没读的主题'
 const ANSWER = 'KL 散度非负，所以自由能总在惊讶之上。压低它，就压住了惊讶。'
 const results = []

@@ -1,12 +1,17 @@
 /**
- * [INPUT]: a self-contained isolated fixture service (real Controller + controllable model: writes one reading section, holding it until the script releases it) and the vite
- *          dev page on PORT (default 5191); seeded topics: one with a material, takeaways and no sheet, one empty, one already read and drawn on
+ * [INPUT]: ./nav-tips.ts for the V6 measurement; a self-contained isolated fixture service (real Controller + controllable model: writes one reading section, holding it until the script releases it) and the vite
+ *          dev page on PORT (default 5191, refused when already taken); data root LUMEN_ASSERT_ROOT (default /tmp/lumen-obj-data, /tmp/lumen-* only, wiped at start); seeded topics: one with a material, takeaways and no sheet, one empty, one already read and drawn on
  * [OUTPUT]: browser evidence for the objects in the product (1440x900 and 1280x800, light and dark, zh and en): each object shows only in its empty state (typewriter: no
- *           reading; cabinet: no material; box: room under the topic list; easel: no sheet); the real controls next to them pass elementFromPoint (写解读, upload, ＋ new sheet,
- *           Settings, every topic); objects are aria-hidden, untabbable and never take focus; the box's card carries the topic's newest takeaway and a click on it changes
- *           nothing else; stillness (two captures 1 s apart identical) at rest, hovered and opened; reduced motion leaves no transition over 100ms; the typewriter types
- *           while a requested reading has no section and stops at the first one (zh 1440 light); the box's boundary measured on both sides at 1440×900 and 1440×700
- *           (topics added one by one), a 900→700→900 drag that folds and restores it once each way with the first/last rows and Settings unmoved; no console or page errors. WebKit: rest and open captures of the four objects (zh 1440×1400 light)
+ *           reading; cabinet: no material; box: room under the topic list; easel: no sheet, or a live sheet with no blocks (V0); press: no takeaway, gone with one and while
+ *           the composer is open (V1); cork board, lamp and type case over the Map, Ideas and All lines (V2–V4), 280–320 wide, above the unchanged line, inside the stage);
+ *           the real controls next to them pass elementFromPoint (写解读, upload, 记一条, every view tab, ＋ new sheet, the lone tab and its 「⋯」, zoom, Settings, every topic);
+ *           the lamp's pool overlaps no text and no control; objects are aria-hidden, untabbable and never take focus; the box's card carries the topic's newest takeaway and
+ *           a click on it changes nothing else; stillness (two captures 1 s apart identical) at rest, hovered and opened; reduced motion leaves no transition over 100ms;
+ *           the typewriter types while a requested reading has no section and stops at the first one (zh 1440 light); one sheet shows one tab (glyph + 1) whose 「⋯」 still
+ *           deletes it (V8); the box's boundary measured on both sides at 1440×900 and 1440×700 (topics added one by one), a 900→700→900 drag that folds and restores it once
+ *           each way with the first/last rows and Settings unmoved; no console or page errors. V6 in Chromium and WebKit, zh and en: with icons only and the sprite parked under
+ *           the navigation, every tab shows its name within 600ms by hover and by keyboard Tab, under the tab, inside the window, on top of the sprite, with no native title.
+ *           WebKit: rest and open captures of every object (zh 1440×1400 light)
  * [POS]: an acceptance script that swaps the model network only and touches no product protocol; Chromium runs with --disable-gpu so stillness compares raster, not GPU
  *        noise. Screenshots land in the evidence directory, never in the repo. Usage: node --experimental-strip-types ui-assert-objects.mts <evidence-dir> [--no-easel]. Prints BOX_BOUNDARY for the report
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -14,6 +19,8 @@
 import { chromium, webkit } from '/tmp/lumen-s0-pw/node_modules/playwright-core/index.mjs'
 import { mkdir, rm } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
+import { assertPortFree, assertRoot } from './assert-env.ts'
+import { compactNav, spriteUnderNav, tipChecks } from './nav-tips.ts'
 import { createHttpService } from '../../../mastra-service/src/server.ts'
 import { acquireServiceLock } from '../../../mastra-service/src/deployment/lock.ts'
 import { publishDiscovery } from '../../../mastra-service/src/deployment/discovery.ts'
@@ -28,7 +35,8 @@ const seedLocale = locale => localStorage.setItem('lumen:locale.v1', JSON.string
 const seedDark = () => localStorage.setItem('lumen:appearance.v2', JSON.stringify({ version: 1, mode: 'dark', skinId: 'yan-clear', overlay: 0, blurPx: 0, latinFont: 'source-serif', cjkFont: 'wenkai', justify: false }))
 const exe = process.env.HOME + '/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
 const port = process.env.PORT ?? '5191'
-const root = '/tmp/lumen-obj-data'
+const root = assertRoot('/tmp/lumen-obj-data')
+assertPortFree(port)
 const READ = '读一篇笔记', BLANK = '空的主题', DONE = '读过画过', LIVE = '正在写'
 const NEWEST = '预测往下走，误差往上报；大脑多半时间在猜，而且猜得相当好，只有落差才往上传。'
 const results = []
@@ -92,7 +100,8 @@ const network = serve({ hostname: '127.0.0.1', port: 0, fetch: request => servic
 if (!network.listening) await new Promise(resolve => network.once('listening', resolve))
 await publishDiscovery(lock, `http://127.0.0.1:${network.address().port}`)
 
-// ---- Seed: READ has a material, two takeaways and no sheet; BLANK has no material and no sheet; DONE has a reading and a drawn sheet; LIVE has a material for the live write ----
+// ---- Seed: READ has a material, two takeaways and no sheet; BLANK has no material, no takeaway and no sheet; DONE has a reading, a drawn sheet and one takeaway;
+//      LIVE has a material for the live write and keeps its first sheet, live and blank (V0) ----
 const studio = service.application.studio
 for (const [id, title] of [['read', READ], ['blank', BLANK], ['done', DONE], ['live', LIVE]]) ensureTopic({ studio }, id, title)
 const add = async (name, body) => (await studio.library.add({ name, bytes: new TextEncoder().encode(body), addedBy: 'you' })).item
@@ -103,6 +112,7 @@ await sleep(20)
 studio.sediment.create('read', { text: NEWEST, origin: 'typed' })
 const done = await add('done-notes.md', '# Done\n\nAlready read.')
 studio.topics.reference('done', done.id)
+studio.sediment.create('done', { text: '只有这一句。', origin: 'typed' })
 studio.readings.write('done', done.id, { title: '读过了', paragraphs: [{ text: '这一节已经写好。', source: { kind: 'inference' } }] }, { threadId: null, runId: null })
 const sheet = studio.board.createSheet('done')
 studio.board.draw('done', { kind: 'text', title: '一张白板', content: { markdown: '已经画过。' } }, { threadId: 'done:a', runId: null }, sheet.id)
@@ -126,17 +136,40 @@ async function open(browser, { locale, w, h, dark = false, reduced = false }) {
   const context = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2, reducedMotion: reduced ? 'reduce' : 'no-preference' })
   const page = await context.newPage()
   const errors = []
-  page.on('pageerror', error => errors.push(error.message))
+  page.on('pageerror', error => errors.push(`${step}: ${error.message}`))
   // The vite dev page has no favicon; that 404 belongs to the dev server, not to the app
-  page.on('console', message => { const at = message.location()?.url ?? ''; if (message.type() === 'error' && !at.endsWith('/favicon.ico')) errors.push(`${message.text()} @ ${at}`) })
+  page.on('console', message => { const at = message.location()?.url ?? ''; if (message.type() === 'error' && !at.endsWith('/favicon.ico')) errors.push(`${step}: ${message.text()} @ ${at}`) })
   await page.addInitScript(seedLocale, locale)
   if (dark) await page.addInitScript(seedDark)
   await page.goto(`http://localhost:${port}/`)
   await page.waitForSelector('.studio-topics .topic')
   return { context, page, errors }
 }
-const pick = async (page, title) => { await page.locator('.studio-topics .topic', { hasText: title }).click(); await page.waitForSelector('.studio-topics .topic.on >> text=' + title) }
-const view = async (page, S, name) => page.locator(`.studio-views:not(.studio-views-ghost) [role=tab][aria-label="${S.views[name]}"]`).click()
+/** A view object over its line: 280–320 wide, wholly above the line and inside the stage, the line's text unchanged, the drawing the expected one */
+const overLine = (page, host, line, svg, text) => page.evaluate(([host, line, svg, text]) => {
+  const h = document.querySelector(host), l = document.querySelector(line), stage = document.querySelector('.studio-stage')
+  if (!h || !l) return { missing: !h ? host : line }
+  const a = h.getBoundingClientRect(), b = l.getBoundingClientRect(), s = stage.getBoundingClientRect()
+  const ok = a.width >= 280 && a.width <= 320 && a.bottom <= b.top + 1 && a.top >= s.top && a.bottom <= s.bottom && a.left >= s.left && a.right <= s.right
+    && l.textContent === text && !!h.querySelector(`svg.${svg}`)
+  return ok ? 'ok' : { width: Math.round(a.width), above: a.bottom <= b.top + 1, inStage: a.top >= s.top && a.bottom <= s.bottom, text: l.textContent === text, svg: !!h.querySelector(`svg.${svg}`) }
+}, [host, line, svg, text])
+/** The lamp's pool (open or not, its box is the same) overlaps no text line and no control anywhere on the page */
+const poolClear = page => page.evaluate(() => {
+  const pool = document.querySelector('.studio-later-object [fill="url(#iso-lamp-pool)"]')
+  if (!pool) return 'no pool'
+  const p = pool.getBoundingClientRect()
+  const over = [...document.querySelectorAll('button, input, textarea, a, [role=tab], [role=button], p, h1, h2, h3, li')].filter(node => {
+    const r = node.getBoundingClientRect()
+    return r.width > 0 && r.height > 0 && !(r.right <= p.left || p.right <= r.left || r.bottom <= p.top || p.bottom <= r.top)
+  }).map(node => node.className || node.tagName)
+  return over.length ? over.join(',') : 'ok'
+})
+const PLACEHOLDERS = [['map', 'iso-cork', 'cork'], ['ideas', 'iso-lamp', 'lamp'], ['all', 'iso-case', 'case']]
+/** The last topic picked and view opened, so a console error says where it came from */
+let step = ''
+const pick = async (page, title) => { step = title;  await page.locator('.studio-topics .topic', { hasText: title }).click(); await page.waitForSelector('.studio-topics .topic.on >> text=' + title) }
+const view = async (page, S, name) => { step = step.split(' / ')[0] + ' / ' + name; return page.locator(`.studio-views:not(.studio-views-ghost) [role=tab][aria-label="${S.views[name]}"]`).click() }
 /** Rest, hovered (mouse parked on the host) and opened (clicked): each settles, then holds still; the host is closed and left again afterwards */
 async function states(page, selector, name, tag) {
   await page.mouse.move(2, 2); await sleep(1400)
@@ -152,6 +185,32 @@ async function states(page, selector, name, tag) {
   await page.click(selector); await page.mouse.move(2, 2); await sleep(1400)
 }
 
+/** V6: icon-only navigation, the sprite parked under it; every tab names itself by hover and by keyboard within 600ms, under the tab, inside the window, on top.
+ *  WebKit on macOS moves focus to buttons with Option+Tab (plain Tab only reaches fields unless the system's keyboard navigation is on), so WebKit presses Alt+Tab */
+async function tooltips(browser, name, locale, key = 'Tab') {
+  const { context, page, errors } = await open(browser, { locale, w: 1440, h: 900 })
+  const S = catalogs[locale].studio
+  await pick(page, READ)
+  const width = await compactNav(page, 900)
+  await spriteUnderNav(page); await page.reload(); await page.waitForSelector('.studio-views.is-compact:not(.studio-views-ghost)')
+  await pick(page, READ)
+  const titles = await page.evaluate(() => [...document.querySelectorAll('.studio-views:not(.studio-views-ghost) [role=tab]')].filter(tab => tab.hasAttribute('title')).length)
+  const tips = await tipChecks(page, ['reading', 'board', 'settled', 'map', 'ideas', 'all'].map(view => S.views[view]), key)
+  const bad = tips.filter(tip => 'missing' in tip || tip.ms > 600 || !tip.under || !tip.inside || !tip.topmost)
+  const tag = `${name} ${locale} ${width}px`
+  check(`${tag} 只剩图标：六个标签悬停与 Tab 聚焦都在 600ms 内出名字、在标签下方、不出窗口、在最上层`, tips.length === 12 && bad.length === 0, JSON.stringify(bad.length ? bad : tips.map(tip => `${tip.via}:${'ms' in tip ? tip.ms : '-'}`)))
+  check(`${tag} 精灵就在提示下方，被提示盖住而不是盖住提示`, tips.some(tip => 'overSprite' in tip && tip.overSprite))
+  check(`${tag} 不再有原生 title`, titles === 0, String(titles))
+  const box = await page.locator('.studio-views:not(.studio-views-ghost) [role=tab]').nth(3).boundingBox()
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await sleep(700)
+  await page.screenshot({ path: `${out}/${name}-${locale}-tooltip.png` })
+  check(`${tag} 提示：无控制台错误`, errors.length === 0, errors.slice(0, 2).join(' | '))
+  await context.close()
+  return tips
+}
+
+// ONLY=webkit skips the Chromium passes (a quick re-run of the WebKit captures and V6); acceptance runs both
+if (process.env.ONLY !== 'webkit') {
 const chrome = await chromium.launch({ executablePath: exe, args: ['--disable-gpu'] })
 try {
   for (const locale of ['zh', 'en']) for (const [w, h] of [[1440, 900], [1280, 800]]) for (const dark of [false, true]) {
@@ -174,6 +233,29 @@ try {
     await page.screenshot({ path: `${out}/${tag.replaceAll(' ', '-')}-blank.png` })
     if (!dark && w === 1440) await states(page, '.materials-cabinet', 'cabinet', tag)
     if (EASEL) { await view(page, S, 'board'); await page.waitForSelector('.board-easel'); await view(page, S, 'reading') }
+
+    // ---- V1–V4 on BLANK: the press over the empty Takeaways line; the cork board, the lamp and the type case over the Map, Ideas and All lines ----
+    await view(page, S, 'settled'); await page.waitForSelector('.sediment-press')
+    const press = await overLine(page, '.sediment-press', '.sediment-empty', 'iso-press', S.sediment.empty)
+    check(`${tag} 沉淀为空：压花板在原句上方、280–320 宽`, press === 'ok', JSON.stringify(press))
+    check(`${tag} 压花板是装饰`, (await decoration(page, '.sediment-press')) === 'ok', await decoration(page, '.sediment-press'))
+    check(`${tag} 「记一条」可点`, await hits(page, '.sediment-keep'))
+    await page.screenshot({ path: `${out}/${tag.replaceAll(' ', '-')}-settled.png` })
+    if (!dark && w === 1440) await states(page, '.sediment-press', 'press', tag)
+    await page.click('.sediment-keep'); await page.waitForSelector('.sediment-input')
+    check(`${tag} 打开输入行：压花板随空句一起让开`, !(await page.$('.sediment-press')) && !(await page.$('.sediment-empty')))
+    await page.keyboard.press('Escape'); await page.waitForSelector('.sediment-press')
+    for (const [name, svg, id] of PLACEHOLDERS) {
+      await view(page, S, name); await page.waitForSelector(`.studio-later-object svg.${svg}`)
+      const placed = await overLine(page, '.studio-later-object', '.studio-later p', svg, S.later[name])
+      check(`${tag} ${S.views[name]}：物件在占位句上方、280–320 宽、不出画布`, placed === 'ok', JSON.stringify(placed))
+      check(`${tag} ${S.views[name]} 物件是装饰`, (await decoration(page, '.studio-later-object')) === 'ok', await decoration(page, '.studio-later-object'))
+      check(`${tag} ${S.views[name]}：每个视图标签可点`, await allHit(page, '.studio-views:not(.studio-views-ghost) [role=tab]'))
+      if (name === 'ideas') check(`${tag} 台灯光斑不压任何文字与控件`, (await poolClear(page)) === 'ok', await poolClear(page))
+      await page.screenshot({ path: `${out}/${tag.replaceAll(' ', '-')}-${name}.png` })
+      if (!dark && w === 1440) await states(page, '.studio-later-object', id, tag)
+    }
+    await view(page, S, 'reading')
 
     // ---- READ: the typewriter with the title, the box's card with the newest takeaway; no cabinet ----
     await pick(page, READ)
@@ -217,6 +299,32 @@ try {
     await view(page, S, 'board')
     await page.waitForSelector('[data-block]')
     check(`${tag} 有白板：没有画架`, !(await page.$('.board-easel')))
+    await view(page, S, 'settled'); await page.waitForSelector('.sediment-entry')
+    check(`${tag} 一条沉淀：没有压花板`, !(await page.$('.sediment-press')) && (await page.$$('.sediment-entry')).length === 1)
+    await view(page, S, 'reading')
+
+    // ---- V0 and V8 on LIVE: its first sheet is live and blank, so the easel stands under the empty-sheet line, and the strip shows that one sheet's tab ----
+    await pick(page, LIVE)
+    await view(page, S, 'board')
+    await page.waitForSelector('.board-easel')
+    const blank = await page.evaluate(line => {
+      const e = document.querySelector('.board-easel')!.getBoundingClientRect(), p = [...document.querySelectorAll('.board-empty')].find(node => node.textContent === line)
+      const v = document.querySelector('.board-viewport')!.getBoundingClientRect(), z = document.querySelector('.board-zoom')!.getBoundingClientRect(), s = document.querySelector('.board-sheets')!.getBoundingClientRect()
+      const apart = (a: DOMRect, b: DOMRect) => a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top
+      if (!p) return { line: false }
+      const l = p.getBoundingClientRect()
+      return { below: e.top >= l.bottom + 8, inside: e.bottom <= v.bottom && e.left >= v.left && e.right <= v.right, zoom: apart(e, z), sheets: apart(e, s), width: Math.round(e.width) }
+    }, S.board.empty)
+    check(`${tag} 空白板（V0）：画架在空板句下方、不碰缩放条和白板标签`, blank.below && blank.inside && blank.zoom && blank.sheets && blank.width <= 320, JSON.stringify(blank))
+    const lone = await page.evaluate(() => [...document.querySelectorAll('.board-tabs .board-tab > button:first-child')].map(tab => [tab.textContent, !!tab.querySelector('svg')]))
+    check(`${tag} 一张白板（V8）：标签条显示一个标签（图标 + 1）`, JSON.stringify(lone) === '[["1",true]]', JSON.stringify(lone))
+    for (const [selector, name] of [['.board-tabs .board-tab > button:first-child', '白板标签'], ['.board-tab.is-on .board-tab-more', '「⋯」'], ['.board-sheet-new', '＋'], ['.board-zoom button:first-child', '缩小'], ['.board-zoom button:last-child', '适配']])
+      check(`${tag} 空白板：${name}可点`, await hits(page, selector))
+    const zoom = await page.textContent('.board-zoom-value')
+    await page.click('.board-zoom button:nth-child(3)')
+    check(`${tag} 空白板：放大照常`, (await page.textContent('.board-zoom-value')) !== zoom)
+    await page.click('.board-zoom button:first-child')
+    await page.screenshot({ path: `${out}/${tag.replaceAll(' ', '-')}-blank-sheet.png` })
     await view(page, S, 'reading')
 
     // ---- LIVE (once): typing while the requested reading has no section; stops at the first section ----
@@ -249,15 +357,35 @@ try {
       return [...time(style.transitionDuration), ...time(style.animationDuration)]
     })))
     const blank = await longest()
+    const S = catalogs.zh.studio, views: number[] = []
+    await view(page, S, 'settled'); await page.waitForSelector('.sediment-press'); await page.click('.sediment-press'); views.push(await longest())
+    for (const [name] of PLACEHOLDERS) { await view(page, S, name); await page.waitForSelector('.studio-later-object'); await page.click('.studio-later-object'); views.push(await longest()) }
+    await view(page, S, 'reading')
     await pick(page, READ); await page.waitForSelector('.topics-box')
     await page.hover('.topics-box'); await page.click('.reading-typewriter')
     const read = await longest()
     let board = 0
     if (EASEL) { await view(page, catalogs.zh.studio, 'board'); await page.waitForSelector('.board-easel'); await page.click('.board-easel'); board = await longest() }
-    check('减弱动效：所有物件过渡与动画 ≤ 100ms', Math.max(blank, read, board) <= 100, `${blank} / ${read} / ${board}ms`)
+    check('减弱动效：所有物件过渡与动画 ≤ 100ms', Math.max(blank, read, board, ...views) <= 100, `${blank} / ${read} / ${board} / ${views.join(' / ')}ms`)
     check('减弱动效：无控制台错误', errors.length === 0, errors.slice(0, 2).join(' | '))
     await context.close()
   }
+
+  // ---- V8: LIVE's only sheet is empty, so its 「⋯」 deletes it with no dialog and the no-sheet state follows, easel included ----
+  {
+    const { context, page, errors } = await open(chrome, { locale: 'zh', w: 1440, h: 900 })
+    const S = catalogs.zh.studio
+    await pick(page, LIVE); await view(page, S, 'board'); await page.waitForSelector('.board-tab')
+    await page.click('.board-tab.is-on .board-tab-more')
+    await page.locator('[role=menuitem]', { hasText: S.board.remove }).click()
+    await page.waitForFunction(line => [...document.querySelectorAll('.board-empty')].some(node => node.textContent === line), S.board.noLive)
+    check('一张白板（V8）：「⋯」照常删除空白板，回到没有白板的状态和画架', !(await page.$('.board-tab')) && !(await page.$('.board-remove-modal')) && !!(await page.$('.board-easel')))
+    await page.screenshot({ path: `${out}/lone-sheet-deleted.png` })
+    check('删除：无控制台错误', errors.length === 0, errors.slice(0, 2).join(' | '))
+    await context.close()
+  }
+
+  for (const locale of ['zh', 'en']) await tooltips(chrome, 'chromium', locale)
 
   // ---- The box's boundary (Q1): at 1440×900 and 1440×700, the last topic count that still shows the box and the next that folds it, both measured, not assumed.
   //      Folding and coming back moves neither the first nor the last topic row nor Settings (0px); dragging 900→700→900 folds and restores it with no flicker ----
@@ -320,6 +448,8 @@ try {
   await chrome.close()
 }
 
+}
+
 // ---- WebKit: rest and open of the four objects ----
 const wk = await webkit.launch()
 try {
@@ -337,9 +467,13 @@ try {
   await pick(page, READ); await page.waitForSelector('.reading-typewriter'); await shoot('.reading-typewriter', 'typewriter'); await shoot('.topics-box', 'box')
   if (EASEL) { await view(page, S, 'board'); await page.waitForSelector('.board-easel'); await shoot('.board-easel', 'easel') }
   await page.screenshot({ path: `${out}/webkit-page.png` })
-  check('WebKit 四件物件静止与点开截图', true, EASEL ? '4 × 2' : '3 × 2（画架待批）')
+  await pick(page, BLANK)
+  await view(page, S, 'settled'); await page.waitForSelector('.sediment-press'); await shoot('.sediment-press', 'press')
+  for (const [name, svg, id] of PLACEHOLDERS) { await view(page, S, name); await page.waitForSelector(`.studio-later-object svg.${svg}`); await shoot('.studio-later-object', id) }
+  check('WebKit 物件静止与点开截图', true, EASEL ? '8 × 2' : '7 × 2（画架待批）')
   check('WebKit 无控制台错误', errors.length === 0, errors.slice(0, 2).join(' | '))
   await context.close()
+  for (const locale of ['zh', 'en']) await tooltips(wk, 'webkit', locale, 'Alt+Tab')
 } finally {
   await wk.close()
 }

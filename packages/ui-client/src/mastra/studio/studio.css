@@ -1,7 +1,7 @@
 /**
  * [INPUT]: tokens.css / yan-design-system tokens and the appearance skin variables (data-material: glass/paper)
  * [OUTPUT]: the new shell's styles — the prototype v7 skeleton (canvas base, 8px margins and gaps, rounded panels, one 50px header line, one 14px left edge, a four-step type scale, 30px controls),
- *           pane collapse to width 0 (--dur-base transition, instant under reduced motion), view navigation (icon + text, icons alone when narrow), material search plus title/link rows, the board canvas and its blocks (text/ladder/table/widget; the takeaway entry on current blocks), the sediment row inside the board and the takeaways view (dashed frames, restorable strikethrough, evidence chips), the reader split (divider, two minimums) and full view, the materials pane, the conversation sprite (52px, five faces, cross-fades, halo and idle breathing, motion off under reduced motion), the speech-habits pane in settings (S14), and the placement of the objects (the box under the topic list, the cabinet in empty materials)
+ *           pane collapse to width 0 (--dur-base transition, instant under reduced motion), view navigation (icon + text, icons alone when narrow), material search plus title/link rows, the board canvas and its blocks (text/ladder/table/widget; the takeaway entry on current blocks), the sediment row inside the board and the takeaways view (dashed frames, restorable strikethrough, evidence chips), the reader split (divider, two minimums) and full view, the materials pane, the conversation sprite (52px, five faces, cross-fades, halo and idle breathing, motion off under reduced motion), the speech-habits pane in settings (S14), and the placement of the objects (the box under the topic list, the cabinet in empty materials, the press over the empty takeaways, one object over each placeholder view's line)
  * [POS]: existing tokens only; controls and document islands keep solid surfaces while glass/paper skins ride the appearance pipeline. Sizes reference only the four variables below (G4)
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -89,6 +89,8 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 .studio-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .studio-stage { position: relative; flex: 1; min-height: 0; display: flex; }
 .studio-later { margin: auto; max-width: 420px; text-align: center; color: var(--text-muted); font-size: var(--st-note); padding: 24px; }
+/* A placeholder view's object stands centred above its line; the line itself keeps its look */
+.iso-host.studio-later-object { width: 300px; margin: 0 auto 4px; }
 /* View navigation (G6, prototype .seg): belongs to the board pane and centers on that pane's midline (U1), never drifting over the reader in split view.
    图标在左（16，currentColor，随三态文字色）；放不下时（ViewNav 用不可见的完整副本量宽度）只留图标，不换行、不挤偏中线 */
 .studio-center-head { position: relative; justify-content: center; }
@@ -288,6 +290,8 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 /* ---- P1 takeaways (S8/S9/S14): dashed entry frames, the restorable strikethrough, evidence chips, the full-board row and the habits pane; existing tokens only ---- */
 .sediment-view { position: absolute; inset: 0; overflow: auto; padding: 20px var(--st-inset); }
 .sediment-list { display: flex; flex-direction: column; gap: 12px; max-width: 720px; margin: 0 auto; }
+/* The press stands at the list's start edge, over the empty line, like the line itself */
+.iso-host.sediment-press { width: 300px; align-self: flex-start; }
 .sediment-empty { color: var(--text-soft); font-size: var(--st-note); padding: 8px 2px; }
 .sediment-entry { border: 1.5px dashed var(--border-strong, var(--border)); border-radius: 10px; padding: 10px 14px 8px; background: var(--fill-subtle); }
 .sediment-entry-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }

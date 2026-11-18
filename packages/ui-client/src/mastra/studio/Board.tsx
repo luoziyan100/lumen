@@ -1,8 +1,8 @@
 /**
  * [INPUT]: useBoard's sheets and views, topic materials, the sprite's drawing/focus signals, layout.ts's width-based flow
- * [OUTPUT]: Board: the canvas — the top-left overlay (sheet tabs when several: board glyph + number, full title in title/aria-label, folded dimmed, a dot on the run's target while the AI draws, horizontal scroll instead of wrapping; each sheet carries a 「⋯」 menu (hover/focus, always on the selected one, next to ＋ for a lone sheet) to delete it, blocks ask first, the run's target is protected; ＋ opens and selects; no used-count on display — the cap and R11 stay server-side, and a full sheet's frame label says so honestly),
+ * [OUTPUT]: Board: the canvas — the top-left overlay (sheet tabs, one or many alike: board glyph + number, full title in title/aria-label, folded dimmed, a dot on the run's target while the AI draws, horizontal scroll instead of wrapping; each sheet carries a 「⋯」 menu (hover/focus, always on the selected one) to delete it, blocks ask first, the run's target is protected; ＋ opens and selects; no used-count on display — the cap and R11 stay server-side, and a full sheet's frame label says so honestly),
  *           the canvas starts below the overlay (BOARD.TOP ≥ overlay top 12 + height 30 + 12, so first-screen block titles never sit under it), DOM + CSS transform pan/zoom (100% by default, shrink to see it all),
- *           1–3 display columns by viewport width, a frame hugging the content, the easel under the no-sheet line (decoration; a click on it opens it and never pans), the AI-drawing notice, widget concurrency slots, the bottom-right zoom bar, and the sediment row under the canvas (S9)
+ *           1–3 display columns by viewport width, a frame hugging the content, the easel under the no-sheet line and under a live sheet's empty line until the AI draws there (decoration; a click on it opens it and never pans), the AI-drawing notice, widget concurrency slots, the bottom-right zoom bar, and the sediment row under the canvas (S9)
  * [POS]: the center Board view; read-only for the user since P0 (no circling, pinning or editing). Whichever sheet you watch is where the next message writes (R16); a folded one says the AI will not write there. A card pointing into a deleted sheet only says so and never jumps elsewhere (R17). Columns and positions reflow in the display layer only; server coordinates stay
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -69,8 +69,8 @@ export function Board({ board, materials, drawing, focus, onOpenSource, sediment
   const titles = useMemo(() => new Map(blocks.map(block => [block.id, block.title])), [blocks])
   const layout = useMemo(() => flowLayout(blocks, heights, width), [blocks, heights, width])
   const positioned = blocks.map(block => ({ ...block, ...(layout.placed.get(block.id) ?? {}) }))
-  const selectedSheet = board.sheets.find(sheet => sheet.id === board.selected)
-  const tabs = board.sheets.length > 1 || (selectedSheet && selectedSheet.state !== 'live')
+  // A sheet with no blocks gets the easel too (a new topic's first sheet), until the AI starts drawing on it
+  const blankSheet = !!view && !blocks.length && view.sheet.state === 'live' && !(drawing && board.target === view.sheet.id)
 
   // ---- The viewport width picks the column count; switching sheets returns to the top-left at 100%. A full reader hides the board (width 0) and keeps the layout ----
   useLayoutEffect(() => {
@@ -203,7 +203,7 @@ export function Board({ board, materials, drawing, focus, onOpenSource, sediment
       </div>
       {view && !blocks.length && <p className="board-empty">{S.board.empty}</p>}
       {!view && !board.sheets.length && !board.error && <p className="board-empty">{S.board.noLive}</p>}
-      {!view && !board.sheets.length && !board.error && <IsoObject markup={EASEL} className="board-easel" />}
+      {((!view && !board.sheets.length && !board.error) || blankSheet) && <IsoObject markup={EASEL} className="board-easel" />}
       {view && view.sheet.state !== 'live' && <p className="board-empty board-hint">{S.board.foldedHint}</p>}
       {drawing && <div className="board-drawing" role="status"><span className="board-drawing-dot" />{drawing === 'new' ? S.board.drawing : S.board.updating}</div>}
       {notice && <div className="board-drawing board-notice" role="status">{S.board.blockGone}</div>}
@@ -233,7 +233,7 @@ export function Board({ board, materials, drawing, focus, onOpenSource, sediment
         {sediment.error && <p className="mw-error" role="alert">{sediment.revConflict ? S.sediment.linkStale : sediment.error}</p>}
       </div>}
     <nav className="board-sheets" aria-label={S.board.tabs}>
-      {tabs && <span className="board-tabs" ref={strip}>{board.sheets.map((sheet, index) => {
+      {board.sheets.length > 0 && <span className="board-tabs" ref={strip}>{board.sheets.map((sheet, index) => {
         const name = sheet.state !== 'live' ? `${sheet.title} · ${S.board.folded}` : sheet.title
         const writing = !!drawing && board.target === sheet.id, on = sheet.id === board.selected
         return <span key={sheet.id} className={on ? 'board-tab is-on' : 'board-tab'}>
@@ -243,8 +243,6 @@ export function Board({ board, materials, drawing, focus, onOpenSource, sediment
           <SheetMenu name={name} busy={board.target === sheet.id} className="board-tab-more" onRemove={() => void remove(sheet, index + 1)} />
         </span>
       })}</span>}
-      {/* one live sheet hides the strip: its menu sits next to ＋ so the only sheet can still be deleted */}
-      {!tabs && board.sheets.length === 1 && <SheetMenu name={board.sheets[0]!.title} busy={board.target === board.sheets[0]!.id} className="icon-btn board-sheet-more" onRemove={() => void remove(board.sheets[0]!, 1)} />}
       <button type="button" className="icon-btn board-sheet-new" title={S.board.newSheet} aria-label={S.board.newSheet} onClick={() => void board.createSheet()}><PlusIcon /></button>
     </nav>
     {pending && <Dialog.Root open onOpenChange={open => { if (!open && !removing) setPending(null) }}>

@@ -1,7 +1,7 @@
 /**
- * [INPUT]: useSediment's entries and offers, i18n, the trusted jump callback (evidence chip → the block on its board)
+ * [INPUT]: useSediment's entries and offers, i18n, the trusted jump callback (evidence chip → the block on its board), the flower press and IsoObject
  * [OUTPUT]: Takeaways: the S8 view — entries newest first (dashed frame + Unverified, the quoted marker expands the original, evidence chips jump or report the deleted board),
- *           inline edit, delete asks once, a one-line empty state; OfferRow renders an offer (deleted fragments struck in the original, click restores / re-deletes, Keep/Dismiss,
+ *           inline edit, delete asks once, a one-line empty state under the flower press; OfferRow renders an offer (deleted fragments struck in the original, click restores / re-deletes, Keep/Dismiss,
  *           the original expandable); TakeawayComposer is the one input (Enter keeps, Esc cancels)
  * [POS]: the center Takeaways view; the text passes only through the user's hand (R13), and the final wording before an offer's confirm is assembled here for the service's re-check (S9)
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -12,6 +12,10 @@ import type { SedimentEntry, SedimentOffer } from '../data/client.ts'
 import { useT } from '../../i18n/index.ts'
 import { SettledViewIcon } from '../../components/icons'
 import type { SedimentState } from './useSediment'
+import { IsoObject } from './objects/IsoObject'
+import { pressSvg } from './objects/press.ts'
+
+const PRESS = pressSvg()
 
 /** Strike state of an offer: fragment index → still deleted? */
 export function offerStruck(offer: SedimentOffer): boolean[] {
@@ -136,7 +140,11 @@ export function Takeaways({ sediment, onJump }: {
       {sediment.offers.map(offer => <OfferRow key={offer.id} offer={offer}
         onKeep={async text => await sediment.confirm(offer.id, text)}
         onDismiss={() => void sediment.dismiss(offer.id)} />)}
-      {sediment.items.length === 0 && sediment.offers.length === 0 && !composing && <p className="sediment-empty">{S.empty}</p>}
+      {/* The press stands over the empty line and leaves with it: an entry, an offer or the open composer removes both */}
+      {sediment.items.length === 0 && sediment.offers.length === 0 && !composing && <>
+        <IsoObject markup={PRESS} className="sediment-press" />
+        <p className="sediment-empty">{S.empty}</p>
+      </>}
       {composing
         ? <TakeawayComposer autoFocus placeholder={S.placeholder} onSubmit={async text => { const kept = await sediment.create({ text }); if (kept) setComposing(false); return kept }} onCancel={() => setComposing(false)} />
         : <Button variant="secondary" size="sm" className="sediment-keep" onClick={() => setComposing(true)}>{S.keep}</Button>}
