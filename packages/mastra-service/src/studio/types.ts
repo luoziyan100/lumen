@@ -1,8 +1,8 @@
 /**
  * [INPUT]: no runtime dependencies; the objects and states of the product model in doc/studio/model.md
  * [OUTPUT]: topic, library (with authors/year/arXiv id/title source), reference, sheet, block, source and version, sediment entry/link/offer/invite DTOs,
- *           the reading of a material (sections, paragraphs and their paper/inference sources) and its list summary,
- *           plus the BlockKind/BlockState/SedimentOrigin literals
+ *           the reading of a material (sections, mixed prose/table/diagram/widget blocks and their paper/inference sources) and its list summary,
+ *           plus the BlockKind/BlockState/SedimentOrigin/ReadingBlockKind literals
  * [POS]: the pure type boundary shared by the service and the desktop; carries no database or framework objects
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -163,16 +163,51 @@ export interface SpeechHabit {
   lastSeen: string
 }
 
-/** Where a reading paragraph comes from: a verbatim quote on a page of the material (page absent for materials without pages), or the AI's own inference. */
+/** Where a reading block comes from: a verbatim quote on a page of the material (page absent for materials without pages), or the AI's own inference. */
 export type ReadingSource = { kind: 'paper'; page?: number; quote: string } | { kind: 'inference' }
 
-export interface ReadingParagraph {
+export type ReadingBlockKind = 'text' | 'table' | 'diagram' | 'widget'
+
+export interface ReadingTextBlock {
   id: string
+  /** Omitted in pre-visual readings; absent always means prose text */
+  kind?: 'text'
   text: string
   source: ReadingSource
 }
 
-/** One section of a reading; it is replaced whole, so paragraph ids change with every replace. */
+export interface ReadingTableBlock {
+  id: string
+  kind: 'table'
+  title?: string
+  columns: string[]
+  rows: string[][]
+  caption?: string
+  source: ReadingSource
+}
+
+export interface ReadingDiagramBlock {
+  id: string
+  kind: 'diagram'
+  title?: string
+  mermaid: string
+  caption?: string
+  source: ReadingSource
+}
+
+export interface ReadingWidgetBlock {
+  id: string
+  kind: 'widget'
+  title?: string
+  html: string
+  caption?: string
+  source: ReadingSource
+}
+
+/** One entry in a reading section: prose paragraph by default, or an AI-chosen table, Mermaid diagram or interactive HTML widget. */
+export type ReadingParagraph = ReadingTextBlock | ReadingTableBlock | ReadingDiagramBlock | ReadingWidgetBlock
+
+/** One section of a reading; paragraphs can be replaced whole via reading_write or extended in place via reading_insert. */
 export interface ReadingSection {
   id: string
   /** Display order, 1-based and gapless */

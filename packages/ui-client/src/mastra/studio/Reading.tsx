@@ -1,12 +1,12 @@
 /**
- * [INPUT]: components/Markdown for replies, objects/ (IsoObject, typewriterSvg/paperLines), useReading's state, the topic's questions (useTopicAsks), the pure helpers of reading-ask.ts, i18n `studio.reading`, the host's send/keep/open-source callbacks
- * [OUTPUT]: ReadingView: the centre 「解读 / Reading」 view — one centred serif column (≤700px) with numbered sections; a paper paragraph is followed by its quote in the paper's own words, ending in the source chip
- *           (「原文 p.N」 opens split reading at that page), an inference paragraph ends in a dashed chip; the quote line opens no window; the person's footprints (thin underlines on sentences asked about, inline spans with role="button" that wrap like text and open on click/Enter/Space);
- *           selecting text inside one paragraph opens AskWindow under the selection
+ * [INPUT]: components/Markdown for replies, components/MermaidBlock for inline diagrams, components/widget/WidgetFrame for inline interactive widgets, objects/ (IsoObject, typewriterSvg/paperLines), useReading's state, the topic's questions (useTopicAsks), the pure helpers of reading-ask.ts, i18n `studio.reading`, the host's send/widget-send/keep/open-source callbacks
+ * [OUTPUT]: ReadingView: the centre 「解读 / Reading」 view — one centred serif column (≤700px) with numbered sections mixing prose paragraphs, tables, Mermaid diagrams and sandboxed interactive HTML widgets (up to 3 live by default, bidirectional via WidgetFrame's onSendMessage); a paper block is followed by its quote in the paper's own words, ending in the source chip
+ *           (「原文 p.N」 opens split reading at that page), an inference block ends in a dashed chip; the quote line opens no window; the person's footprints (thin underlines on sentences asked about, inline spans with role="button" that wrap like text and open on click/Enter/Space);
+ *           selecting text inside one prose paragraph opens AskWindow under the selection
  *           and kept clear of the sprite's figure (padding on the side it sits);
  *           with no reading, ReadingStart: the typewriter alone, centred (title on the paper, typing while a requested reading has no section; no text, no button: writing starts from the Materials row);
  *           AskWindow: the quote (two lines), the exchange so far (the person's words and the streamed reply, rendered by components/Markdown as Block.tsx does), a one-line growing input, send, and 「存为我的沉淀」 (only typed words)
- * [POS]: the reading half of P1-2's first loop. It sends nothing itself: the host posts visible user messages through the conversation's own path, and replies come from the
+ * [POS]: the living reading stage. It sends nothing itself: the host posts visible user messages through the conversation's own path (for both AskWindow questions and widget __widgetSendMessage actions), and replies come from the
  *        shared conversation subscription; nothing here is a second channel
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -14,14 +14,18 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { Button } from '@cloudflare/kumo/components/button'
 import { CloseIcon, SendIcon } from '../../components/icons'
 import { Markdown } from '../../components/Markdown'
+import { MermaidBlock } from '../../components/MermaidBlock'
+import { WidgetFrame } from '../../components/widget/WidgetFrame'
 import { useT } from '../../i18n/index.ts'
-import type { Identity, ReadingParagraph, ReadingSection, TopicMaterial } from '../data/client.ts'
+import type { Identity, ReadingParagraph, ReadingSection, ReadingTextBlock, TopicMaterial } from '../data/client.ts'
 import { IsoObject } from './objects/IsoObject'
 import { paperLines, typewriterSvg } from './objects/typewriter.ts'
 import { footprintRanges, readingAsks, sectionLabel, squash, type Ask } from './reading-ask.ts'
 import type { ReadingState } from './useReading.ts'
 import type { SpriteBox } from './Sprite'
 import './reading.css'
+
+const WIDGET_SLOTS = 3
 
 /** What the window is about: one quote in one paragraph, anchored to the selection's box inside the column. */
 export interface AskTarget {
@@ -60,7 +64,7 @@ function SourceChip({ paragraph, onOpen }: { paragraph: ReadingParagraph; onOpen
 
 /** A paragraph's text with the person's footprints as thin underlines. A footprint is an inline span acting as a button, so a quote that starts mid-line wraps
  *  like the text around it (a real <button> is an atomic inline box and would push the whole quote to its own line). */
-function ParagraphText({ paragraph, quotes, onFootprint }: { paragraph: ReadingParagraph; quotes: string[]; onFootprint: (quote: string, element: HTMLElement) => void }) {
+function ParagraphText({ paragraph, quotes, onFootprint }: { paragraph: ReadingTextBlock; quotes: string[]; onFootprint: (quote: string, element: HTMLElement) => void }) {
   const S = useT().studio.reading
   const parts: ReactNode[] = []
   let at = 0
@@ -170,7 +174,36 @@ function ReadingStart({ item, requested, error }: { item: TopicMaterial | null; 
   </div>
 }
 
-export function ReadingView({ state, requested, startItem, asks, busyFor, onSend, onKeep, onOpenSource, sprite }: {
+function VisualBlock({ block, widgetActive, onActivate, onOpenSource, onWidgetSend }: {
+  block: Exclude<ReadingParagraph, ReadingTextBlock>
+  widgetActive: boolean
+  onActivate: (id: string) => void
+  onOpenSource: (page?: number) => void
+  onWidgetSend: (text: string) => void
+}) {
+  const S = useT().studio.reading
+  const chip = <SourceChip paragraph={block} onOpen={onOpenSource} />
+  const body = block.kind === 'table'
+    ? <div className="reading-table-wrap"><table className="reading-table">
+      <thead><tr>{block.columns.map((column, index) => <th key={index}>{column}</th>)}</tr></thead>
+      <tbody>{block.rows.map((row, r) => <tr key={r}>{row.map((cell, c) => <td key={c}>{cell}</td>)}</tr>)}</tbody>
+    </table></div>
+    : block.kind === 'diagram'
+      ? <div className="reading-diagram"><MermaidBlock chart={block.mermaid} /></div>
+      : widgetActive
+        ? <div className="reading-widget"><WidgetFrame widgetCode={block.html} title={block.title} isStreaming={false} light onSendMessage={onWidgetSend} /></div>
+        : <div className="reading-widget-idle"><span>{block.title || S.widgetIdle}</span><Button variant="secondary" size="sm" onClick={() => onActivate(block.id)}>{S.widgetRun}</Button></div>
+  return <figure className={`reading-block reading-block-${block.kind}`} data-block-id={block.id}>
+    {block.kind !== 'widget' && block.title && <h3 className="reading-block-title">{block.title}</h3>}
+    {body}
+    {block.caption && <figcaption className="reading-block-caption">{block.caption}</figcaption>}
+    {block.source.kind === 'paper'
+      ? <blockquote className="reading-quote reading-block-quote">{block.source.quote}{' '}{chip}</blockquote>
+      : <div className="reading-block-foot">{chip}</div>}
+  </figure>
+}
+
+export function ReadingView({ state, requested, startItem, asks, busyFor, onSend, onWidgetSend, onKeep, onOpenSource, sprite }: {
   state: ReadingState
   /** A write was asked for the shown material and no section has landed yet */
   requested: boolean
@@ -180,6 +213,8 @@ export function ReadingView({ state, requested, startItem, asks, busyFor, onSend
   /** Whether the conversation a message would go to is running or waiting (null = the open one, or a new one) */
   busyFor: (identity: Identity | null) => boolean
   onSend: (target: AskTarget, words: string) => Promise<string | null>
+  /** A widget called window.__widgetSendMessage(text): route it through the topic's normal conversation path */
+  onWidgetSend?: (text: string) => Promise<string | null>
   onKeep: (words: string) => Promise<string | null>
   onOpenSource: (itemId: string, page?: number) => void
   /** The sprite's figure in the viewport (null when docked or absent) */
@@ -202,10 +237,25 @@ export function ReadingView({ state, requested, startItem, asks, busyFor, onSend
     return () => resize.disconnect()
   }, [scroller, sprite?.left, sprite?.top, sprite?.right, sprite?.bottom])
   const [target, setTarget] = useState<AskTarget | null>(null)
+  const [extraWidgets, setExtraWidgets] = useState<string[]>([])
+  const [widgetError, setWidgetError] = useState('')
   const close = useCallback(() => setTarget(null), [])
   const reading = state.reading
-  useEffect(() => setTarget(null), [state.itemId])
+  useEffect(() => { setTarget(null); setExtraWidgets([]); setWidgetError('') }, [state.itemId])
   const mine = reading ? readingAsks(reading, asks) : []
+  const activeWidgets = useMemo(() => {
+    if (!reading) return new Set<string>()
+    const auto = reading.sections.flatMap(section => section.paragraphs)
+      .filter(paragraph => paragraph.kind === 'widget').slice(0, WIDGET_SLOTS).map(paragraph => paragraph.id)
+    return new Set([...auto, ...extraWidgets])
+  }, [reading, extraWidgets])
+  const activateWidget = useCallback((id: string) => setExtraWidgets(previous => previous.includes(id) ? previous : [...previous, id]), [])
+  const sendWidget = useCallback((text: string) => {
+    const trimmed = text.trim()
+    if (!trimmed || !onWidgetSend) return
+    setWidgetError('')
+    void onWidgetSend(trimmed).then(failure => { if (failure) setWidgetError(failure) })
+  }, [onWidgetSend])
 
   function boxOf(rect: DOMRect) {
     const host = column.current!.getBoundingClientRect()
@@ -242,10 +292,14 @@ export function ReadingView({ state, requested, startItem, asks, busyFor, onSend
       <header className="reading-head">
         <h1 className="reading-title">{reading.itemTitle}</h1>
       </header>
-      {state.error && <p className="mw-error" role="alert">{state.error}</p>}
+      {(state.error || widgetError) && <p className="mw-error" role="alert">{state.error || widgetError}</p>}
       {reading.sections.map(section => <section key={section.id} className="reading-section" data-section={section.id}>
         <h2><span className="reading-num">{section.ord}</span>{section.title}</h2>
         {section.paragraphs.map(paragraph => {
+          if (!('text' in paragraph)) {
+            return <VisualBlock key={paragraph.id} block={paragraph} widgetActive={activeWidgets.has(paragraph.id)}
+              onActivate={activateWidget} onOpenSource={page => onOpenSource(reading.itemId, page)} onWidgetSend={sendWidget} />
+          }
           const chip = <SourceChip paragraph={paragraph} onOpen={page => onOpenSource(reading.itemId, page)} />
           const text = <ParagraphText paragraph={paragraph} quotes={mine.filter(ask => squash(paragraph.text).includes(ask.quote)).map(ask => ask.quote)} onFootprint={onFootprint} />
           if (paragraph.source.kind === 'inference') return <p key={paragraph.id} className="reading-para is-inference">{text}{' '}{chip}</p>

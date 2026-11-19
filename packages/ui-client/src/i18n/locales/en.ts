@@ -54,6 +54,7 @@ export const en = {
       page: (page: number) => `Paper p.${page}`, paper: 'Paper', inference: "AI's inference",
       openSource: 'Open the paper alongside',
       footprint: 'You asked about this sentence. Open the exchange',
+      widgetIdle: 'Interactive widget', widgetRun: 'Open',
       ask: {
         label: 'Ask the AI about this sentence', placeholder: 'Ask about this sentence', send: 'Send', close: 'Close',
         keep: 'Keep as my takeaway', kept: 'Kept as your takeaway', keepFailed: "Couldn't keep it: ", keepEmpty: 'Write your words first',
@@ -143,7 +144,7 @@ export const en = {
     toolNames: {
       search_papers: 'Search papers', openalex_search: 'Search papers', web_search: 'Search the web', search_web: 'Search the web', extract_pdf: 'Read PDF',
       fetch_url: 'Fetch page', read_url: 'Fetch page', web_fetch: 'Fetch page', board_view: 'View board', board_draw: 'Draw on board', board_update: 'Edit board',
-      board_supersede: 'Mark replaced', reading_view: 'Read the reading', reading_write: 'Write a reading', write_file: 'Write file', edit_file: 'Edit file', read_file: 'Read file', list_materials: 'List materials',
+      board_supersede: 'Mark replaced', reading_view: 'Read the reading', reading_write: 'Write a reading', reading_insert: 'Add to reading', write_file: 'Write file', edit_file: 'Edit file', read_file: 'Read file', list_materials: 'List materials',
       read_material: 'Read material', list_files: 'Browse workspace', list_dir: 'List folder', grep: 'Search in files', glob: 'Find files', run_code: 'Run code',
       execute_command: 'Run command', todo_write: 'Update progress', update_plan: 'Update progress', ask_user: 'Ask you', spawn_subagent: 'Subagent',
       wait_subagents: 'Subagent (wait)', get_subagent_output: 'Subagent (read result)', kill_subagent: 'Subagent (stop)', look_at_image: 'Look at image',
@@ -329,8 +330,9 @@ export const en = {
     'sediment.link_stale': (p: P) => `“${p.title ?? p.blockId}” changed since you saw it (now version ${p.rev}, you saw ${p.baseRev}). Reload the board and link it again.`,
     'sediment.invite_blocks': (p: P) => `Block ${p.blockId} isn't on the board this turn writes to.`,
     'reading.not_found': "This material has no reading in this topic yet.", 'reading.section_not_found': (p: P) => `This reading has no section ${p.sectionId}.`,
-    'reading.invalid': (p: P) => `Paragraph ${p.paragraph} is empty.`, 'reading.too_many_sections': (p: P) => `A reading has at most ${p.limit} sections.`,
-    'reading.too_many_paragraphs': (p: P) => `A section has at most ${p.limit} paragraphs.`, 'reading.paragraph_too_long': (p: P) => `Paragraph ${p.paragraph} is longer than ${p.limit} characters.`,
+    'reading.invalid': (p: P) => `Paragraph ${p.paragraph} is empty.`, 'reading.block_invalid': (p: P) => `Block ${p.paragraph} isn't valid.`,
+    'reading.too_many_sections': (p: P) => `A reading has at most ${p.limit} sections.`,
+    'reading.too_many_paragraphs': (p: P) => `A section has at most ${p.limit} blocks.`, 'reading.section_full': (p: P) => `This section already has the maximum of ${p.limit} blocks.`, 'reading.paragraph_too_long': (p: P) => `Paragraph ${p.paragraph} is longer than ${p.limit} characters.`,
     'reading.quote_too_short': (p: P) => `The quote in paragraph ${p.paragraph} is too short; it needs at least ${p.min} characters.`, 'reading.quote_not_on_page': (p: P) => `The quote in paragraph ${p.paragraph} isn't on page ${p.page}.`,
     'reading.quote_not_in_text': (p: P) => `The quote in paragraph ${p.paragraph} isn't in the text.`, 'reading.page_required': (p: P) => `Paragraph ${p.paragraph} quotes a PDF, so it needs a page.`,
     'reading.page_not_applicable': (p: P) => `Paragraph ${p.paragraph} gives a page, but this material has no pages.`, 'reading.page_out_of_range': (p: P) => `Paragraph ${p.paragraph} cites page ${p.page}; the paper has ${p.pages}.`,

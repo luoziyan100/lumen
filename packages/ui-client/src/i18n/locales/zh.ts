@@ -50,6 +50,7 @@ export const zh: Messages = {
       page: (page: number) => `原文 p.${page}`, paper: '原文', inference: 'AI 推断',
       openSource: '在旁边打开原文',
       footprint: '你问过这一句，点开看问答',
+      widgetIdle: '交互小实验', widgetRun: '打开',
       ask: {
         label: '就这一句问 AI', placeholder: '问这一句', send: '发送', close: '关闭',
         keep: '存为我的沉淀', kept: '已存为你的沉淀', keepFailed: '没能存下：', keepEmpty: '先写下你的话',
@@ -138,7 +139,7 @@ export const zh: Messages = {
     toolNames: {
       search_papers: '检索文献', openalex_search: '检索文献', web_search: '网页搜索', search_web: '网页搜索', extract_pdf: '读取 PDF',
       fetch_url: '抓取网页', read_url: '抓取网页', web_fetch: '抓取网页', board_view: '看白板', board_draw: '在白板上画', board_update: '改白板',
-      board_supersede: '标为已取代', reading_view: '看解读', reading_write: '写解读', write_file: '写入文件', edit_file: '编辑文件', read_file: '读取文件', list_materials: '查看材料',
+      board_supersede: '标为已取代', reading_view: '看解读', reading_write: '写解读', reading_insert: '补一块进解读', write_file: '写入文件', edit_file: '编辑文件', read_file: '读取文件', list_materials: '查看材料',
       read_material: '阅读材料', list_files: '浏览工作区', list_dir: '列目录', grep: '检索内文', glob: '查找文件', run_code: '运行代码',
       execute_command: '执行命令', todo_write: '更新进度', update_plan: '更新进度', ask_user: '询问用户', spawn_subagent: '子代理',
       wait_subagents: '等待子代理', get_subagent_output: '读子代理结果', kill_subagent: '中止子代理', look_at_image: '查看图像',
@@ -324,8 +325,9 @@ export const zh: Messages = {
     'sediment.link_stale': (p: P) => `「${p.title ?? p.blockId}」在你看过之后被改过（现在第 ${p.rev} 版，你看的是第 ${p.baseRev} 版）：刷新白板后再挂。`,
     'sediment.invite_blocks': (p: P) => `区块 ${p.blockId} 不在这一轮写入的白板上。`,
     'reading.not_found': '这份材料在这个主题里还没有解读。', 'reading.section_not_found': (p: P) => `这份解读里没有 ${p.sectionId} 这一节。`,
-    'reading.invalid': (p: P) => `第 ${p.paragraph} 段是空的。`, 'reading.too_many_sections': (p: P) => `一份解读最多 ${p.limit} 节。`,
-    'reading.too_many_paragraphs': (p: P) => `一节最多 ${p.limit} 段。`, 'reading.paragraph_too_long': (p: P) => `第 ${p.paragraph} 段超过 ${p.limit} 字。`,
+    'reading.invalid': (p: P) => `第 ${p.paragraph} 段是空的。`, 'reading.block_invalid': (p: P) => `第 ${p.paragraph} 块内容不合格式。`,
+    'reading.too_many_sections': (p: P) => `一份解读最多 ${p.limit} 节。`,
+    'reading.too_many_paragraphs': (p: P) => `一节最多 ${p.limit} 块。`, 'reading.section_full': (p: P) => `这一节最多容纳 ${p.limit} 块。`, 'reading.paragraph_too_long': (p: P) => `第 ${p.paragraph} 段超过 ${p.limit} 字。`,
     'reading.quote_too_short': (p: P) => `第 ${p.paragraph} 段的引文太短，至少 ${p.min} 字。`, 'reading.quote_not_on_page': (p: P) => `第 ${p.paragraph} 段的引文不在第 ${p.page} 页上。`,
     'reading.quote_not_in_text': (p: P) => `第 ${p.paragraph} 段的引文在原文里找不到。`, 'reading.page_required': (p: P) => `第 ${p.paragraph} 段引的是 PDF，要写页码。`,
     'reading.page_not_applicable': (p: P) => `第 ${p.paragraph} 段写了页码，但这份材料没有页码。`, 'reading.page_out_of_range': (p: P) => `第 ${p.paragraph} 段写的是第 ${p.page} 页，原文只有 ${p.pages} 页。`,

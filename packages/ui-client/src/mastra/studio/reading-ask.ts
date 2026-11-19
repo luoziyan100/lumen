@@ -1,7 +1,7 @@
 /**
  * [INPUT]: native messages (feed's messageRole/messageText), MODEL_TEXT's question format and its READING_PLACE line, the service error catalog
  * [OUTPUT]: askText / parseAsk (a reading question and back), asksOf (each question with the assistant reply that followed it), footprintRanges (where a paragraph shows
- *           the person's footprints), readingSignal (completed reading_write calls, the refresh signal), answered (a request has an assistant message after it), sendErrorText (a native send refusal in the UI language)
+ *           the person's footprints), readingSignal (completed reading_write / reading_insert calls, the refresh signal), latestReadingWrite (latest completed reading write's callId/itemId for auto-focus), answered (a request has an assistant message after it), sendErrorText (a native send refusal in the UI language)
  * [POS]: pure helpers behind the Reading view. Footprints are not stored anywhere: they are rebuilt from the conversation's own messages, so a reload or another device
  *        shows the same underlines and nothing new is persisted
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -92,9 +92,9 @@ export function footprintRanges(text: string, quotes: string[]): { start: number
   return ranges.sort((a, b) => a.start - b.start)
 }
 
-/** Questions that belong to this reading: asked about its material, with a quote found in one of its paragraphs. */
+/** Questions that belong to this reading: asked about its material, with a quote found in one of its prose paragraphs. */
 export function readingAsks(reading: Reading, asks: Ask[]): Ask[] {
-  const texts = reading.sections.flatMap(section => section.paragraphs.map(paragraph => squash(paragraph.text)))
+  const texts = reading.sections.flatMap(section => section.paragraphs.flatMap(paragraph => 'text' in paragraph ? [squash(paragraph.text)] : []))
   return asks.filter(ask => ask.item === reading.itemTitle && texts.some(text => text.includes(ask.quote)))
 }
 
@@ -102,14 +102,26 @@ function record(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' ? value as Record<string, unknown> : {}
 }
 
-/** The ids of completed reading_write calls: a new id means a section landed, so the view refetches (no second event protocol). */
+/** The ids of completed reading_write and reading_insert calls: a new id means a section or inline block landed, so the view refetches (no second event protocol). */
 export function readingSignal(messages: MastraDBMessage[]): string {
   const done: string[] = []
   for (const message of messages) for (const part of message.content.parts) {
-    if (part.type !== 'tool-invocation' || part.toolInvocation.toolName !== 'reading_write' || !('result' in part.toolInvocation)) continue
+    if (part.type !== 'tool-invocation' || (part.toolInvocation.toolName !== 'reading_write' && part.toolInvocation.toolName !== 'reading_insert') || !('result' in part.toolInvocation)) continue
     if (!record(part.toolInvocation.result).error) done.push(part.toolInvocation.toolCallId)
   }
   return done.join(',')
+}
+
+/** The latest completed reading_write / reading_insert call and its material id, so the centre stage can auto-focus what the AI just wrote. */
+export function latestReadingWrite(messages: MastraDBMessage[]): { callId: string; itemId: string } | null {
+  let latest: { callId: string; itemId: string } | null = null
+  for (const message of messages) for (const part of message.content.parts) {
+    if (part.type !== 'tool-invocation' || (part.toolInvocation.toolName !== 'reading_write' && part.toolInvocation.toolName !== 'reading_insert') || !('result' in part.toolInvocation)) continue
+    if (record(part.toolInvocation.result).error) continue
+    const itemId = record(part.toolInvocation.args).itemId
+    if (typeof itemId === 'string' && itemId) latest = { callId: part.toolInvocation.toolCallId, itemId }
+  }
+  return latest
 }
 
 /** The conversation holds this user message and an assistant message after it: with no run live, that run is over even if it was never seen running */

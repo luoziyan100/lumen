@@ -46,7 +46,7 @@ register('./helpers/tsx-loader.mjs', import.meta.url)
 register('data:text/javascript,' + encodeURIComponent(`export async function resolve(specifier, context, next) { if (specifier.endsWith('?url')) return { url: 'data:text/javascript,export default "test-worker-url"', shortCircuit: true }; return next(specifier, context) } export async function load(url, context, next) { const result = await next(url, context); if (url.endsWith('/WidgetFrame.tsx')) return { ...result, source: String(result.source).replaceAll('import.meta.env.BASE_URL', JSON.stringify('/')) }; return result }`), import.meta.url)
 const { createRoot } = await import('react-dom/client')
 const { StudioApp } = await import('../src/mastra/studio/StudioApp.tsx')
-const { askText, parseAsk, asksOf, footprintRanges, readingSignal } = await import('../src/mastra/studio/reading-ask.ts')
+const { askText, parseAsk, asksOf, footprintRanges, latestReadingWrite, readingSignal } = await import('../src/mastra/studio/reading-ask.ts')
 
 const token = 'ui-reading-token-at-least-24-characters'
 const headers = { Authorization: `Bearer ${token}` }
@@ -74,8 +74,10 @@ test('reading-ask: the question format reads back; replies attach to their quest
   const asks = asksOf([message('m1', 'user', [{ type: 'text', text }]), message('m2', 'assistant', [{ type: 'text', text: '因为 KL 非负。' }]), message('m3', 'user', [{ type: 'text', text: '别的话' }]), message('m4', 'assistant', [{ type: 'text', text: '不算回答' }])], { topicId: 't', taskId: 'a' })
   assert.deepEqual(asks.map(ask => [ask.messageId, ask.reply]), [['m1', '因为 KL 非负。']])
   assert.deepEqual(footprintRanges('keeps it\nlow and more', ['it low']), [{ start: 6, end: 12, quote: 'it low' }])
-  const call = (id: string, toolName: string, result?: unknown) => ({ type: 'tool-invocation', toolInvocation: { toolCallId: id, toolName, state: result === undefined ? 'call' : 'result', ...(result === undefined ? {} : { result }) } })
-  assert.equal(readingSignal([message('m5', 'assistant', [call('c1', 'reading_write', { sections: 1 }), call('c2', 'reading_write'), call('c3', 'board_draw', {}), call('c4', 'reading_write', { error: 'x' })])]), 'c1')
+  const call = (id: string, toolName: string, result?: unknown, args?: unknown) => ({ type: 'tool-invocation', toolInvocation: { toolCallId: id, toolName, ...(args ? { args } : {}), state: result === undefined ? 'call' : 'result', ...(result === undefined ? {} : { result }) } })
+  const msg = message('m5', 'assistant', [call('c1', 'reading_write', { sections: 1 }, { itemId: 'item-1' }), call('c2', 'reading_write', undefined, { itemId: 'item-2' }), call('c3', 'board_draw', {}), call('c4', 'reading_write', { error: 'x' }, { itemId: 'item-err' }), call('c5', 'reading_insert', { blockId: 'p1' }, { itemId: 'item-1' })])
+  assert.equal(readingSignal([msg]), 'c1,c5')
+  assert.deepEqual(latestReadingWrite([msg]), { callId: 'c5', itemId: 'item-1' })
 })
 
 // One written format, two readers: the service keeps its own copy (it never imports UI code), so this test feeds the real askReading output to both
@@ -297,6 +299,96 @@ test('Reading view: write → live sections → chips → in-paragraph window �
   } finally {
     releaseSecond(); releaseHold()
     window.setInterval = original
+    await act(async () => root.unmount())
+    element.remove()
+    server.close()
+    await service.close()
+    await rm(dataRoot, { recursive: true, force: true })
+  }
+})
+
+test('Living reading UI: renders mixed table/diagram/widget blocks, refreshes on reading_insert, and routes widget __widgetSendMessage to the conversation', { timeout: 120000 }, async () => {
+  const dataRoot = await mkdtemp(join(tmpdir(), 'lumen-ui-living-reading-'))
+  let calls = 0, itemId = '', sectionId = '', firstParaId = ''
+  const call = (name: string, args: unknown) => toolReply(name, args, `call-${++calls}`)
+  const fixture = fixtureProvider(async (request: ProviderRequest) => {
+    const { text, results } = said(request)
+    const item = /材料 id：([^）"\\]+)/.exec(text)?.[1]
+    if (text.includes('写一份解读') && item) {
+      if (results === 0) return call('reading_write', {
+        itemId: item,
+        title: '双通路',
+        paragraphs: [
+          { text: PARA_1, source: { kind: 'paper', page: 1, quote: 'Free energy bounds surprise in the cortex' } },
+          { kind: 'table', title: '对照', columns: ['项', '值'], rows: [['前馈', '误差']], caption: '表注', source: { kind: 'inference' } },
+          { kind: 'widget', title: '参数试探', html: '<div><p>sim</p></div>', caption: '交互实验', source: { kind: 'inference' } },
+        ],
+      })
+      return textReply('写好了')
+    }
+    if (text.includes('我猜温度升高会更散')) {
+      if (results === 0) return call('reading_insert', {
+        itemId,
+        sectionId,
+        afterId: firstParaId,
+        block: { kind: 'table', title: '追问补表', columns: ['温度', '分布'], rows: [['高', '更平']], source: { kind: 'inference' } },
+      })
+      return textReply('猜得有意思，我在第一段下面补了对照表。')
+    }
+    return textReply('好')
+  })
+  const service = await createHttpService({ dataRoot, token, model: { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixture.fetch } })
+  const server = serve({ fetch: service.app.fetch, hostname: '127.0.0.1', port: 0 })
+  await new Promise<void>(resolve => { if (server.listening) resolve(); else server.once('listening', () => resolve()) })
+  const address = server.address() as { port: number }
+  const connection = { baseUrl: `http://127.0.0.1:${address.port}`, token }
+  const api = new LumenApi(connection)
+  const element = document.createElement('div')
+  document.body.appendChild(element)
+  const root = createRoot(element)
+  const $ = <T extends HTMLElement = HTMLElement>(selector: string) => element.querySelector<T>(selector)
+  const $$ = <T extends HTMLElement = HTMLElement>(selector: string) => [...element.querySelectorAll<T>(selector)]
+  try {
+    ensureTopic(service, 'paper', '自由能')
+    const form = new FormData()
+    form.set('file', new File([new Uint8Array(pagedPdf([PAGE_1, PAGE_2]))], 'cortex.pdf'))
+    form.set('topicId', 'paper')
+    const uploaded = await service.app.request('/lumen/library', { method: 'POST', headers, body: form })
+    assert.equal(uploaded.status, 201)
+    itemId = (await uploaded.json()).item.id as string
+    localStorage.setItem('lumen.studio.topic', 'paper')
+    await act(async () => root.render(createElement(StudioApp, { connection })))
+    await until(() => !!$('.material-reading'), '素材行没有出现')
+    await act(async () => $<HTMLButtonElement>('.material-reading')!.click())
+    await until(() => !!$('.reading-block-table') && !!$('.reading-block-widget iframe'), '表格与交互小部件没有渲染出来')
+    assert.equal($('.reading-block-table .reading-block-title')?.textContent, '对照')
+    assert.deepEqual($$('.reading-table td').map(node => node.textContent), ['前馈', '误差'])
+    assert.equal($('.reading-block-widget .reading-block-caption')?.textContent, '交互实验')
+
+    const initial = await (await service.app.request(`/lumen/topics/paper/readings/${itemId}`, { headers })).json()
+    sectionId = initial.sections[0].id
+    firstParaId = initial.sections[0].paragraphs[0].id
+
+    // ---- Widget __widgetSendMessage posts into the topic's conversation, AI responds via reading_insert, and the new block lands live ----
+    const iframe = $<HTMLIFrameElement>('.reading-block-widget iframe')!
+    await until(() => !$$('.topic .topic-light-running').length, '解读首轮没有结束')
+    await act(async () => {
+      window.dispatchEvent(new dom.window.MessageEvent('message', {
+        data: { type: 'lumen-widget:sendMessage', text: '我猜温度升高会更散' },
+        source: iframe.contentWindow,
+      }))
+    })
+    await until(() => $$('.reading-block-table').length === 2, 'reading_insert 补插的块没有实时刷新进解读')
+    assert.equal($$('.reading-block-table .reading-block-title')[0]?.textContent, '追问补表', '补插块落在第一段正下方')
+    await until(async () => {
+      const [session] = (await api.sessions('paper')).items
+      if (!session) return false
+      const id = encodeURIComponent(`paper:${session.taskId}`)
+      const response = await fetch(`${connection.baseUrl}/api/agent-controller/lumen/sessions/${id}/threads/${id}/messages`, { headers })
+      const messages = (await response.json()).messages as MastraDBMessage[]
+      return messages.some(message => messageRole(message) === 'assistant' && messageText(message).includes('补了对照表'))
+    }, '小部件发出的消息没有进入对话并得到 AI 回复')
+  } finally {
     await act(async () => root.unmount())
     element.remove()
     server.close()

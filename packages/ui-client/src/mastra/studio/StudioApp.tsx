@@ -29,7 +29,7 @@ import { Settings } from '../views/Settings'
 import { Board } from './Board'
 import { Materials, useMaterials } from './Materials'
 import { ReadingView, type AskTarget } from './Reading'
-import { answered, askText, asksOf, readingSignal, sameAsks, sendErrorText } from './reading-ask'
+import { answered, askText, asksOf, latestReadingWrite, readingSignal, sameAsks, sendErrorText } from './reading-ask'
 import { useReading, useTopicAsks } from './useReading'
 import { Sprite, useSessions, type SpriteBox } from './Sprite'
 import { Takeaways } from './Takeaways'
@@ -76,12 +76,29 @@ export function StudioApp({ connection }: { connection: Connection }) {
   // ---- The one conversation subscription: the sprite renders its full view; the shell selects only the values it shows, so a streamed token re-renders the sprite, not the workbench ----
   const feed = useSessionFeed(api, identity)
   const written = useFeedSelect(feed, view => readingSignal(view.messages))
+  const latestWrite = useFeedSelect(feed, view => latestReadingWrite(view.messages), (a, b) => a?.callId === b?.callId && a?.itemId === b?.itemId)
   const isRunning = useFeedSelect(feed, view => !!view.display?.isRunning)
   const liveAsks = useFeedSelect(feed, view => feed ? asksOf(view.messages, feed.identity) : [], sameAsks)
   const [readingItem, setReadingItem] = useState<string | null>(null), [requested, setRequested] = useState<string | null>(null)
   const readings = useReading(api, topic?.id ?? null, readingItem, `${written}|${revision}`, live)
   const asks = useTopicAsks(api, topic?.id ?? null, sessions, identity, liveAsks)
   const running = live || isRunning
+  // ---- Auto-focus the Reading stage when the AI lands a new reading_write / reading_insert in the live conversation (never on initial history hydration) ----
+  const seenWrite = useRef<{ taskId: string | null; callId: string }>({ taskId: null, callId: '' })
+  useEffect(() => {
+    const taskId = identity?.taskId ?? null
+    const callId = latestWrite?.callId ?? ''
+    if (seenWrite.current.taskId !== taskId) {
+      seenWrite.current = { taskId, callId }
+      if (latestWrite && running) { setReadingItem(latestWrite.itemId); setView('reading') }
+      return
+    }
+    if (latestWrite && callId !== seenWrite.current.callId) {
+      seenWrite.current.callId = callId
+      setReadingItem(latestWrite.itemId)
+      setView('reading')
+    }
+  }, [identity?.taskId, latestWrite, running])
   // A requested reading stops showing "waiting" once the topic's run ends, whether or not a section landed. A short run can end before this view
   // ever sees it running (the topic's flag lags the send), so an idle conversation that already answered the request also ends it
   const wasRunning = useRef(false), requestText = useRef('')
@@ -210,7 +227,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
           {!topic ? <div className="studio-later studio-pick"><p>{S.pickTopic}</p></div>
             : view === 'reading' ? <ReadingView state={readings} requested={!!requested && requested === readings.itemId} asks={asks} busyFor={busyFor}
               startItem={startItem}
-              onSend={askReading} onKeep={keepWords} onOpenSource={openSource} sprite={figure} />
+              onSend={askReading} onWidgetSend={text => say(null, text)} onKeep={keepWords} onOpenSource={openSource} sprite={figure} />
             : view === 'board' ? <Board board={board} materials={materials.items} drawing={signal.drawing} focus={focus} onOpenSource={openSource} sediment={sediment} invite={invite} />
             : view === 'settled' ? <Takeaways sediment={sediment} onJump={(blockId, sheetId) => { setView('board'); board.select(sheetId); setFocus({ blockId, nonce: Date.now() }) }} />
             // A view not open yet is its object alone, centred; 「还没开放」 is the container's name for screen readers, never visible text

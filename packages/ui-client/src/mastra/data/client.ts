@@ -16,7 +16,7 @@ export interface Connection { baseUrl: string; token: string; error?: string }
 export interface Identity { topicId: string; taskId: string }
 export type { SessionSummary as SessionInfo, Page } from '../../../../mastra-service/src/catalog/types.ts'
 import type { SessionSummary as SessionInfo, Page } from '../../../../mastra-service/src/catalog/types.ts'
-export type { Topic, LibraryItem, TopicMaterial, Sheet, SheetView, SedimentEntry, SedimentOffer, SedimentInvite, SpeechHabit, Reading, ReadingSection, ReadingParagraph, ReadingSummary } from '../../../../mastra-service/src/studio/types.ts'
+export type { Topic, LibraryItem, TopicMaterial, Sheet, SheetView, SedimentEntry, SedimentOffer, SedimentInvite, SpeechHabit, Reading, ReadingSection, ReadingParagraph, ReadingTextBlock, ReadingTableBlock, ReadingDiagramBlock, ReadingWidgetBlock, ReadingSummary } from '../../../../mastra-service/src/studio/types.ts'
 import type { Topic, LibraryItem, TopicMaterial, Sheet, SheetView, SedimentEntry, SedimentOffer, SedimentInvite, SpeechHabit, Reading, ReadingSummary } from '../../../../mastra-service/src/studio/types.ts'
 /** writable: newest live sheet (old field). selected/target come from R16 services; optional so an older service still parses. */
 export interface SheetList { items: Sheet[]; writable: string | null; selected?: string | null; target?: string | null }

@@ -1,6 +1,6 @@
 /**
  * [INPUT]: tokens.css / yan-design-system tokens, studio.css's type scale and .source-chip, the appearance pipeline's --font-serif (the reading font setting)
- * [OUTPUT]: the Reading view's styles: the in-view scroller, one centred serif column (max 700px), numbered section titles, the paper quote under each sourced paragraph, source chips, footprint underlines (inline, wrapping like text),
+ * [OUTPUT]: the Reading view's styles: the in-view scroller, one centred serif column (max 700px), numbered section titles, inline visual blocks (table, diagram, widget and idle widget slot), the paper quote under each sourced block, source chips, footprint underlines (inline, wrapping like text),
  *           the selection window (solid surface, quote clamped to two lines, Markdown replies at window size scrolling inside its max height, growing input) and the material row's reading action;
            the empty view's start block (the 300px typewriter alone, centred)
  * [POS]: Reading.tsx's own sheet next to studio.css; existing tokens only, no new colours. The window is a control and keeps a solid surface under glass/paper skins
@@ -67,6 +67,22 @@ html[data-justify="true"] .reading-para { text-align: justify; }
 .reading-ask-foot { display: flex; align-items: center; gap: 8px; min-height: 24px; }
 .reading-ask-note, .reading-ask-error { font-size: var(--st-note); color: var(--text-muted); }
 .reading-ask-error { color: var(--text-soft); }
+
+/* ---- Inline visual blocks (table, Mermaid diagram, sandboxed interactive widget) inside a reading section ---- */
+.reading-block { margin: 18px 0 22px; font-family: var(--font-sans); }
+.reading-block-title { margin: 0 0 8px; font-size: var(--st-title); font-weight: 600; color: var(--text); line-height: 1.4; }
+.reading-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-card); }
+.reading-table { width: 100%; border-collapse: collapse; font-size: var(--st-body); line-height: 1.55; }
+.reading-table th { text-align: left; font-weight: 600; color: var(--text); padding: 8px 12px; border-bottom: 1px solid var(--border-strong); background: var(--surface-fill); }
+.reading-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text-soft); vertical-align: top; }
+.reading-table tbody tr:last-child td { border-bottom: 0; }
+.reading-diagram { padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-card); overflow: hidden; }
+.reading-widget { border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; background: var(--surface-card); }
+.reading-widget .widget-frame { margin: 0; border: 0; border-radius: 0; }
+.reading-widget-idle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-card); font-size: var(--st-body); color: var(--text-soft); }
+.reading-block-caption { margin: 8px 0 0; font-size: var(--st-note); line-height: 1.6; color: var(--text-muted); }
+.reading-block-quote { margin-top: 8px; margin-bottom: 0; font-family: var(--font-serif); }
+.reading-block-foot { margin-top: 8px; }
 
 /* ---- The material row's reading action: a quiet text button, always visible ---- */
 .material-reading { flex: none; height: 24px; padding: 0 8px; border: 1px solid var(--border); border-radius: 999px; background: none; color: var(--text-soft); font-size: var(--st-label); cursor: pointer; white-space: nowrap; }

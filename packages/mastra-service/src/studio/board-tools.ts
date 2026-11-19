@@ -1,6 +1,6 @@
 /**
  * [INPUT]: the studio stores (board/sediment/topic references/run targets), content's block contract and one-line summary, the trusted session identity, the current main run id and the run-target resolution
- * [OUTPUT]: createBoardTools: board_view/board_draw/board_update/board_supersede, all against the run's target (R16); topicState: the per-request topic state (the run's target, the user's takeaways, capped)
+ * [OUTPUT]: createBoardTools: board_view/board_draw/board_update/board_supersede, all against the run's target (R16); topicState: the per-request topic state (the run's target, the user's takeaways, existing readings, materials, speech habits, capped)
  * [POS]: the AI's only path onto the board (R4). Topic and sheet always derive from the session identity — the parameters carry neither; every write records its conversation and run, versions are written by the application when the run ends
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -119,6 +119,7 @@ export function topicState(studio: Studio, topicId: string, limit = TOPIC_STATE_
   // ---- The user's takeaways (S6): newest first, text verbatim, evidence as block titles; challenge them after writing, never edit the user's words ----
   const sediment = studio.sediment.list(topicId).items.map(item =>
     `- 「${item.text}」（${item.origin === 'quoted' ? '原话引用' : '自写'}${item.links.length ? ` · 证据 ${item.links.map(link => link.deleted ? `「${link.title}」白板已删` : `「${link.title}」`).join('、')}` : ''}）`)
+  const readings = studio.readings.list(topicId).map(item => `- ${item.itemId} · 《${item.title}》· ${item.sections} 节`)
   const items = materials.map(item => `- ${item.id} · ${item.kind} · ${item.title} · ${item.addedBy === 'you' ? '用户放的' : 'AI 带来的'} · 读到 ${Math.round(item.readProgress * 100)}%`)
   const lines = [...head]
   let used = estimateTokens(lines.join('\n')), omitted = 0
@@ -134,6 +135,7 @@ export function topicState(studio: Studio, topicId: string, limit = TOPIC_STATE_
     }
   }
   fit('用户的沉淀（新的在前；只能用户自己写，你挑刺，不代写）', sediment)
+  fit('已有解读（用 reading_view 看各节与段落 id，可用 reading_insert 原地补图或小实验）', readings)
   fit('白板上的区块（新的在前）', blocks)
   fit('本主题引用的材料', items)
   // ---- S14 speech habits: one compact global section (~120 tokens) inside the same cap ----

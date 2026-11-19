@@ -13,6 +13,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createHttpService } from '../../src/server.ts'
+import { topicState } from '../../src/studio/board-tools.ts'
 import { fixtureProvider, textReply, toolReply, type ProviderRequest } from '../provider-fixture.ts'
 import { ensureTopic } from '../topic-fixture.ts'
 import { pagedPdf } from './library-fixtures.ts'
@@ -206,6 +207,87 @@ test('G1 (R13): a reading question\'s quote is the reading\'s, not the user\'s �
       .find(message => message.content.parts.some(part => part.type === 'text' && part.text?.startsWith(`> ${QUOTE}`)))
     assert.ok(question, 'the question is in the stored history')
     assert.equal(stored.message_id, question.id, 'the offer binds the question message itself')
+  } finally {
+    await service.close()
+    await rm(dataRoot, { recursive: true, force: true })
+  }
+})
+
+test('living reading: reading_write mixes prose/table/diagram/widget with quote checks; reading_insert adds in place after afterId; topicState lists existing readings', { timeout: 90000 }, async () => {
+  const dataRoot = await mkdtemp(join(tmpdir(), 'lumen-reading-visual-'))
+  let next: { name: string; args: unknown } | null = null, calls = 0
+  const fixture = fixtureProvider(request => {
+    const { answered } = said(request)
+    if (answered || !next) return textReply('写好了')
+    return toolReply(next.name, next.args, `call-${++calls}`)
+  })
+  const service = await createHttpService({ dataRoot, token, model: { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixture.fetch } })
+  const lastTool = () => String(fixture.requests.at(-1)!.messages.filter(message => message.role === 'tool').at(-1)?.content ?? '')
+  try {
+    ensureTopic(service, 'p')
+    await service.catalog.createSession('p', 'a')
+    const session = await service.application.session('p', 'a')
+    const form = new FormData()
+    form.set('file', new File([new Uint8Array(pagedPdf([PAGE_1, PAGE_2]))], 'cortex.pdf'))
+    form.set('topicId', 'p')
+    const itemId = (await (await service.app.request('/lumen/library', { method: 'POST', headers, body: form })).json()).item.id as string
+    const call = async (name: string, args: unknown) => { next = { name, args }; await session.sendMessage({ content: `call ${name} ${++calls}` }); next = null; return lastTool() }
+    const read = async () => (await service.app.request(`/lumen/topics/p/readings/${itemId}`, { headers })).json()
+
+    // Before any reading exists, topicState stays quiet about readings
+    assert.ok(!topicState(service.application.studio, 'p').includes('已有解读'))
+
+    // ---- Mixed section: prose + table (paper quote verified) + diagram (inference) + widget (inference) ----
+    const res = await call('reading_write', {
+      itemId,
+      title: '核心机制',
+      paragraphs: [
+        paper('自由能是惊讶的上界。', 1, 'Free energy bounds surprise in the cortex'),
+        { kind: 'table', title: '前馈与反馈', columns: ['方向', '传什么'], rows: [['前馈', '预测误差'], ['反馈', '预测']], caption: '双向通路', source: { kind: 'paper', page: 1, quote: 'Forward connections carry prediction error' } },
+        { kind: 'diagram', title: '误差闭环', mermaid: 'flowchart LR\n  A["预测"] --> B["比较"]\n  B --> C["误差"]', source: { kind: 'inference' } },
+        { kind: 'widget', title: '门控小实验', html: '<div><button onclick="window.__widgetSendMessage(\'试了一次\')">试</button></div>', caption: '亲手拨一下', source: { kind: 'inference' } },
+      ],
+    })
+    assert.match(res, /"sections":1/)
+    assert.match(topicState(service.application.studio, 'p'), /已有解读[\s\S]*1 节/)
+
+    let reading = await read()
+    const section = reading.sections[0]
+    assert.equal(section.paragraphs.length, 4)
+    assert.equal(section.paragraphs[1].kind, 'table')
+    assert.equal(section.paragraphs[2].kind, 'diagram')
+    assert.equal(section.paragraphs[3].kind, 'widget')
+
+    // ---- reading_view summarizes widget HTML without dumping raw bytes ----
+    const viewed = await call('reading_view', { itemId })
+    assert.match(viewed, /"kind":"widget"/)
+    assert.match(viewed, /"htmlBytes":/)
+    assert.ok(!viewed.includes('__widgetSendMessage'))
+
+    // ---- Invalid visual blocks and wrong-page quotes on visual blocks are refused ----
+    assert.match(await call('reading_write', { itemId, title: '坏表', paragraphs: [{ kind: 'table', columns: ['a', 'b'], rows: [['only-one']], source: { kind: 'inference' } }] }), /格数要和列数一致/)
+    assert.match(await call('reading_write', { itemId, title: '空图', paragraphs: [{ kind: 'diagram', mermaid: '   ', source: { kind: 'inference' } }] }), /mermaid 源码是空的/)
+    assert.match(await call('reading_write', { itemId, title: '错页表', paragraphs: [{ kind: 'table', columns: ['a'], rows: [['1']], source: { kind: 'paper', page: 1, quote: 'Backward connections carry predictions' } }] }), /不在第 1 页上/)
+
+    // ---- reading_insert: adds right after afterId without disturbing neighbours, or at end when omitted ----
+    const firstId = section.paragraphs[0].id as string
+    const inserted = await call('reading_insert', {
+      itemId,
+      sectionId: section.id,
+      afterId: firstId,
+      block: { kind: 'diagram', title: '追问补图', mermaid: 'flowchart TD\n  X["惊讶"] --> Y["自由能"]', source: { kind: 'inference' } },
+    })
+    assert.match(inserted, /"count":5/)
+    reading = await read()
+    assert.equal(reading.sections[0].paragraphs[1].title, '追问补图', '补图落在 firstId 正下方')
+    assert.equal(reading.sections[0].paragraphs[2].kind, 'table', '后续块顺延不变')
+
+    // Unknown afterId is refused cleanly
+    assert.match(await call('reading_insert', { itemId, sectionId: section.id, afterId: 'p0000000000', block: inference('x') }), /没有 id 为 p0000000000/)
+
+    // Append at end up to sectionMax (12), 13th is refused
+    for (let i = 6; i <= 12; i++) service.application.studio.readings.insert('p', itemId, { sectionId: section.id, block: inference(`补 ${i}`) }, { threadId: null, runId: null })
+    assert.match(await call('reading_insert', { itemId, sectionId: section.id, block: inference('超了') }), /最多 12 块/)
   } finally {
     await service.close()
     await rm(dataRoot, { recursive: true, force: true })
