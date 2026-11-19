@@ -1,7 +1,8 @@
 /**
  * [INPUT]: the real StudioApp and sprite Composer, React DOM, a real HTTP service with the Mastra Controller, a deterministic model; the test holds the conversation's reconnect request
- * [OUTPUT]: regression evidence that a send typed while the sprite's conversation reconnects after the first message is shown as waiting, then sent once connected (never dropped)
- * [POS]: Composer mechanism acceptance next to sediment.test.ts; the controllable model proves mechanism only; no WebKit coverage claimed
+ * [OUTPUT]: regression evidence that a send typed while the sprite's conversation reconnects after the first message is shown as waiting, then sent once connected (never dropped);
+ *           that a reading the AI writes in the live conversation pulls the view to Reading, while a write before the person's later message (history that loads after a switch) leaves the view where it is
+ * [POS]: sprite mechanism acceptance next to sediment.test.ts; the controllable model proves mechanism only; no WebKit coverage claimed
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import test, { after } from 'node:test'
@@ -15,7 +16,7 @@ import { createElement, act } from 'react'
 import { JSDOM } from 'jsdom'
 import { serve } from '@hono/node-server'
 import { createHttpService } from '../../mastra-service/src/server.ts'
-import { fixtureProvider, textReply, type ProviderRequest } from '../../mastra-service/tests/provider-fixture.ts'
+import { fixtureProvider, textReply, toolReply, type ProviderRequest } from '../../mastra-service/tests/provider-fixture.ts'
 import { ensureTopic } from '../../mastra-service/tests/topic-fixture.ts'
 import { LumenApi } from '../src/mastra/data/client.ts'
 import { zh } from './helpers/zh.ts'
@@ -95,6 +96,84 @@ test('精灵对话重连期间的发送：显示「连上后发送」，连上�
     await until(() => !$('.sprite .composer-foot [role=status]'), '发出后不再显示等待')
   } finally {
     release()
+    await act(async () => root.unmount())
+    element.remove()
+    await service.close(); server.close()
+    await rm(dataRoot, { recursive: true, force: true })
+  }
+})
+
+test('解读自动跟焦：本轮新写的解读把视图拉过去；用户之后又说过话，再选这段对话（历史晚到）不拉走视图', { timeout: 60000 }, async () => {
+  const dataRoot = await mkdtemp(join(tmpdir(), 'lumen-ui-reading-follow-'))
+  let item = ''
+  const fixture = fixtureProvider(request => {
+    const text = lastUserText(request), results = request.messages.slice(request.messages.map(message => message.role).lastIndexOf('user')).filter(message => message.role === 'tool').length
+    if (text.includes('写一节') && !results) return toolReply('reading_write', { itemId: item, title: '笔记在说什么', paragraphs: [{ text: '笔记把大脑说成预测机器。', source: { kind: 'inference' } }] }, 'call-1')
+    return textReply('好')
+  })
+  const service = await createHttpService({ dataRoot, token, model: { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixture.fetch } })
+  const server = serve({ hostname: '127.0.0.1', port: 0, fetch: request => service.app.fetch(request) })
+  if (!server.listening) await new Promise<void>(resolve => server.once('listening', resolve))
+  const address = server.address(); assert.ok(address && typeof address !== 'string')
+  const connection = { baseUrl: `http://127.0.0.1:${address.port}`, token }
+  const api = new LumenApi(connection)
+  const studio = service.application.studio
+  ensureTopic(service, 'attn', '注意力为什么能对齐')
+  const notes = await studio.library.add({ name: 'notes.md', bytes: new TextEncoder().encode('# Notes\n\nThe brain minimises free energy.'), addedBy: 'you' })
+  studio.topics.reference('attn', notes.item.id); item = notes.item.id
+  localStorage.clear()
+  const element = document.createElement('div'); document.body.append(element)
+  let root = createRoot(element)
+  const $ = <T extends Element = HTMLElement>(selector: string) => element.querySelector<T & HTMLElement>(selector)
+  const tab = (view: keyof typeof zh.studio.views) => [...element.querySelectorAll<HTMLElement>('.studio-views [role=tab]')].find(node => node.getAttribute('aria-label') === zh.studio.views[view])!
+  const openSprite = async () => {
+    await until(() => !![...element.querySelectorAll('button')].find(node => node.getAttribute('aria-label') === zh.studio.sprite.open), '精灵入口没有出现')
+    await act(async () => [...element.querySelectorAll<HTMLButtonElement>('button')].find(node => node.getAttribute('aria-label') === zh.studio.sprite.open)!.click())
+    await until(() => !!$('.sprite textarea') || !!$('.sprite-title'), '精灵没有展开')
+  }
+  const toBoard = async () => {
+    await until(() => element.querySelectorAll('.studio-views [role=tab]').length > 0, '视图导航没有出现')
+    await act(async () => tab('board').click())
+    await until(() => tab('board').getAttribute('aria-selected') === 'true', '没切到白板')
+  }
+  try {
+    // ---- Live: the AI writes while the person is on the board; the view follows ----
+    await act(async () => root.render(createElement(StudioApp, { connection })))
+    await toBoard()
+    await openSprite()
+    const input = $<HTMLTextAreaElement>('.sprite textarea')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value')!.set!.call(input, '写一节')
+      input.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
+    })
+    await act(async () => $('.sprite form')!.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })))
+    await until(() => tab('reading').getAttribute('aria-selected') === 'true', '本轮新写的解读没有把视图拉到解读')
+    await until(async () => (await api.sessions('attn')).items.every(entry => !entry.running && !entry.waiting), '服务端还在运行')
+    // The person speaks again (as an ask from the reading does): the write now sits in an earlier turn
+    await until(() => !!$('.sprite .composer-btn-send') && !$('.sprite .mw-connection'), '精灵还没回到可发送')
+    const again = $<HTMLTextAreaElement>('.sprite textarea')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value')!.set!.call(again, '还有呢')
+      again.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
+    })
+    await act(async () => $('.sprite form')!.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })))
+    await until(() => fixture.requests.some(request => lastUserText(request).includes('还有呢')), '第二句没有到模型')
+    await until(async () => (await api.sessions('attn')).items.every(entry => !entry.running && !entry.waiting), '第二轮服务端还在运行')
+    // ---- Later: a fresh page, on the board, picks that conversation from the list; its old write loads with history and is not news ----
+    await act(async () => root.unmount())
+    localStorage.clear()
+    root = createRoot(element)
+    await act(async () => root.render(createElement(StudioApp, { connection })))
+    await toBoard()
+    await openSprite()
+    await act(async () => $('.sprite-title')!.click())
+    await until(() => !!$('.sprite-session'), '对话列表没有出现')
+    await act(async () => $('.sprite-session')!.click())
+    await until(() => !!$('.sprite .mw-transcript') && !$('.sprite .mw-connection'), '选中的对话没有连上')
+    await until(() => (element.textContent ?? '').includes('还有呢'), '历史没有加载')
+    await delay(500)
+    assert.equal(tab('board').getAttribute('aria-selected'), 'true', '早于用户最新一句的旧写入不该把视图拉走')
+  } finally {
     await act(async () => root.unmount())
     element.remove()
     await service.close(); server.close()

@@ -79,6 +79,10 @@ test('reading-ask: the question format reads back; replies attach to their quest
   const msg = message('m5', 'assistant', [call('c1', 'reading_write', { sections: 1 }, { itemId: 'item-1' }), call('c2', 'reading_write', undefined, { itemId: 'item-2' }), call('c3', 'board_draw', {}), call('c4', 'reading_write', { error: 'x' }, { itemId: 'item-err' }), call('c5', 'reading_insert', { blockId: 'p1' }, { itemId: 'item-1' })])
   assert.equal(readingSignal([msg]), 'c1,c5')
   assert.deepEqual(latestReadingWrite([msg]), { callId: 'c5', itemId: 'item-1' })
+  // Only the current turn counts: once the person asks again, an older write (even one loaded late with history) is not news
+  const ask = message('m6', 'user', [{ type: 'text', text }])
+  assert.equal(latestReadingWrite([msg, ask]), null)
+  assert.deepEqual(latestReadingWrite([ask, msg]), { callId: 'c5', itemId: 'item-1' })
 })
 
 // One written format, two readers: the service keeps its own copy (it never imports UI code), so this test feeds the real askReading output to both

@@ -83,7 +83,8 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const readings = useReading(api, topic?.id ?? null, readingItem, `${written}|${revision}`, live)
   const asks = useTopicAsks(api, topic?.id ?? null, sessions, identity, liveAsks)
   const running = live || isRunning
-  // ---- Auto-focus the Reading stage when the AI lands a new reading_write / reading_insert in the live conversation (never on initial history hydration) ----
+  // ---- Auto-focus the Reading stage when the AI lands a new reading_write / reading_insert in the live conversation's current turn ----
+  // History loads after the switch, so only the current turn counts: a write before the person's latest message never pulls the view away
   const seenWrite = useRef<{ taskId: string | null; callId: string }>({ taskId: null, callId: '' })
   useEffect(() => {
     const taskId = identity?.taskId ?? null
