@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 固定身份的 SessionFeed/欢迎态按需准备、会话草稿、原生运行状态与问询插槽，原BorderBeam视觉与统一图标入口
- * [OUTPUT]: Composer：完整输入卡、模型菜单与互斥发送/停止、坞上方问询；新草稿聚焦输入，可停止期间保留草稿且不提交
+ * [OUTPUT]: Composer：完整输入卡、模型菜单与互斥发送/停止、坞上方问询；新草稿聚焦输入，可停止期间保留草稿且不提交；连接中的发送显示「连上后发送」，连上即发
  * [POS]: 视图卸载仅释放订阅；草稿、提交快照和失败材料由同会话 draft 保留
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -76,8 +76,17 @@ export function Composer({ api, identity, feed, connected, canStop, queued, onAc
     try { await prepareSession?.(); if (alive.current) setSkillsOpen(true) }
     catch (error) { if (alive.current) setError(errorText(error)) }
   }
+  // ---- A send while the conversation reconnects waits for the connection instead of vanishing ----
+  const [sendOnConnect, setSendOnConnect] = useState(false)
+  const ready = connected && Boolean(feed || prepareSession)
+  useEffect(() => {
+    if (!sendOnConnect || !ready) return
+    setSendOnConnect(false)
+    send()
+  }, [sendOnConnect, ready])
   function send() {
-    if ((!feed && !prepareSession) || !connected || canStop) return
+    if (canStop) return
+    if (!ready) { if (draft.trim() || files.length) setSendOnConnect(true); return }
     setError('')
     const target = feed ?? (async () => {
       setPreparingSend(true)
@@ -116,10 +125,10 @@ export function Composer({ api, identity, feed, connected, canStop, queued, onAc
         <DropdownMenu onOpenChange={open => { if (open) void api.settings().then(value => { if (alive.current) { setModels(value); setError('') } }).catch(() => {}) }}><DropdownMenu.Trigger render={<button className="composer-pill liquid-glass" type="button" aria-label={C.pickModel} title={C.pickModel} />}><span className="composer-pill-label">{selectedModel || C.pickModel}</span><ChevronDownIcon /></DropdownMenu.Trigger><DropdownMenu.Content align="start" side="top" sideOffset={6} className="composer-model-menu glass-card">{models?.profiles.flatMap(profile => profile.models.map(model => <DropdownMenu.Item key={`${profile.id}:${model}`} onClick={() => void changeModel(profile.id, model)}>{models.activeProfileId === profile.id && selectedModel === model && <CheckIcon />}<span>{model}</span><span className="composer-model-menu-meta">{profile.name}</span></DropdownMenu.Item>))}{onSettings && <DropdownMenu.Item icon={GearGlyph} onClick={onSettings}>{C.manageModels}</DropdownMenu.Item>}</DropdownMenu.Content></DropdownMenu></div>
         {!prepareSession && <ContextMeter api={api} identity={identity} running={canStop} />}
         <span className="composer-spacer" />
-        {(uploading || queued > 0 || pending > 0 || preparingSend) && <small role="status">{uploading ? C.uploading : queued > 0 ? `${C.queuedMessages} ${queued}` : C.submitting}</small>}
+        {(uploading || queued > 0 || pending > 0 || preparingSend || sendOnConnect) && <small role="status">{uploading ? C.uploading : sendOnConnect ? C.sendOnConnect : queued > 0 ? `${C.queuedMessages} ${queued}` : C.submitting}</small>}
         {canStop
           ? <button type="button" className="composer-btn composer-btn-stop liquid-glass" title={stopping ? C.stopping : C.stop} aria-label={stopping ? C.stopping : C.stop} disabled={stopping} onClick={() => { setStopping(true); void api.stop(identity).catch(error => { if (alive.current) setError(errorText(error)) }).finally(() => { if (alive.current) setStopping(false) }) }}><StopIcon /></button>
-          : <button className="composer-btn composer-btn-send liquid-glass" type="submit" aria-label={C.send} title={C.sendHint} disabled={!connected || uploading || preparingSend || (!draft.trim() && !files.length)}><SendIcon /></button>}
+          : <button className="composer-btn composer-btn-send liquid-glass" type="submit" aria-label={C.send} title={C.sendHint} disabled={uploading || preparingSend || sendOnConnect || (!draft.trim() && !files.length)}><SendIcon /></button>}
       </footer>
     </form></BorderBeam>
     {slash.menu}

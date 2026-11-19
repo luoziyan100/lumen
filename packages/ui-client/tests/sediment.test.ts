@@ -167,7 +167,7 @@ test('S8/S9/S14 全流程：精灵驱动画满→邀请→跳过与回返；块�
   // A turn is over when the person can see it is: the model has given its final reply, the service no longer projects the conversation as running or waiting,
   // and the sprite's conversation is connected with Send offered again. Waiting on the topic light alone raced: the light follows a 3s poll, so right
   // after a send it is often not lit yet. And after the first message the sprite swaps the welcome card for the conversation and reconnects its feed;
-  // the composer drops a send typed during that reconnect (the text stays in the box), which is what 「邀请问题没有出现」 met when it failed
+  // a send typed during that reconnect now waits for it (sprite-send.test.ts), but a turn still means the person can type again
   const turn = async (message: string, label: string) => {
     const before = replies
     await say(message)

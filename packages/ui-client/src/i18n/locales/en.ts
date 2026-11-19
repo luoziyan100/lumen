@@ -126,7 +126,7 @@ export const en = {
   },
   chat: {
     placeholder: 'Ask anything…', send: 'Send', sendHint: 'Send · Enter (Shift+Enter for a new line)', stop: 'Stop', stopping: 'Stopping…', submitting: 'Submitting…',
-    uploading: 'Uploading materials…', queuedMessages: 'Messages waiting to continue', connecting: 'Connecting', retry: 'Reconnect', working: 'Working',
+    uploading: 'Uploading materials…', queuedMessages: 'Messages waiting to continue', connecting: 'Connecting', sendOnConnect: 'Sends once connected', retry: 'Reconnect', working: 'Working',
     allow: 'Allow', deny: 'Deny', approval: 'Approval needed', answer: 'Answer', question: 'Needs your input', multipleAnswers: 'You can pick more than one',
     otherAnswer: 'Another answer or more detail', children: 'Specialist tasks', stopChild: 'Stop specialist',
     childStatus: { pending: 'Queued', running: 'Working', suspended: 'Needs your input', completed: 'Done', failed: 'Not finished', cancelled: 'Stopped', canceled: 'Stopped' },

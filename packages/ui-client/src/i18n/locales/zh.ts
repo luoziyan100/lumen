@@ -120,7 +120,7 @@ export const zh: Messages = {
   },
   chat: {
     placeholder: '问点什么…', send: '发送', sendHint: '发送 · Enter（Shift+Enter 换行）', stop: '停止', stopping: '正在停止…', submitting: '正在提交…',
-    uploading: '正在上传材料…', queuedMessages: '等待继续的消息', connecting: '正在连接', retry: '重新连接', working: '执行中',
+    uploading: '正在上传材料…', queuedMessages: '等待继续的消息', connecting: '正在连接', sendOnConnect: '连上后发送', retry: '重新连接', working: '执行中',
     allow: '允许', deny: '拒绝', approval: '需要确认操作', answer: '回答', question: '需要你的补充', multipleAnswers: '可以选择多项',
     otherAnswer: '其他回答或补充', children: '专家任务', stopChild: '停止专家',
     childStatus: { pending: '等待执行', running: '研究中', suspended: '等待补充', completed: '已完成', failed: '未完成', cancelled: '已停止', canceled: '已停止' },
