@@ -1,7 +1,7 @@
 /**
  * [INPUT]: studio/db 的连接与事务、studio/board 的 insertSheet
- * [OUTPUT]: TopicStore：主题增改与列举、主题引用材料（引用/取消/进度/被引用数）
- * [POS]: 主题是基本单元；新主题同事务建第一张进行中白板。引用清单就是 AI 在该主题的材料边界（R15）
+ * [OUTPUT]: TopicStore：主题增改与列举（标题去首尾空白、不能为空，R18）、主题引用材料（引用/取消/进度/被引用数）
+ * [POS]: 主题是基本单元；新主题同事务建第一张进行中白板。引用清单就是 AI 在该主题的材料边界（R15）。删除中的主题（pending_deletions）对列表和查找都不存在（R20）
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { randomUUID } from 'node:crypto'
@@ -11,6 +11,9 @@ import { transaction } from './db.ts'
 import { StudioError } from './errors.ts'
 import { libraryItem } from './library.ts'
 import type { Topic, TopicMaterial } from './types.ts'
+
+/** Topics with a pending deletion record (studio/deletions) are hidden everywhere. */
+const VISIBLE = `NOT EXISTS (SELECT 1 FROM pending_deletions d WHERE d.topic_id = topics.id AND d.task_id = '')`
 
 function topic(row: Record<string, SQLOutputValue>): Topic {
   return { id: String(row.id), title: String(row.title), archived: row.archived === 1, createdAt: String(row.created_at), updatedAt: String(row.updated_at) }
@@ -22,12 +25,13 @@ export class TopicStore {
   constructor(db: DatabaseSync) { this.db = db }
 
   list(archived: boolean | 'all' = false): Topic[] {
-    const where = archived === 'all' ? '' : 'WHERE archived = ?'
-    return this.db.prepare(`SELECT * FROM topics ${where} ORDER BY updated_at DESC, id`).all(...(archived === 'all' ? [] : [Number(archived)])).map(topic)
+    const where = archived === 'all' ? '' : 'AND archived = ?'
+    return this.db.prepare(`SELECT * FROM topics WHERE ${VISIBLE} ${where} ORDER BY updated_at DESC, id`).all(...(archived === 'all' ? [] : [Number(archived)])).map(topic)
   }
 
+  /** A topic being deleted (R20) is already gone for every lookup: no list, no conversation, no run. */
   get(id: string): Topic {
-    const row = this.db.prepare('SELECT * FROM topics WHERE id = ?').get(id)
+    const row = this.db.prepare(`SELECT * FROM topics WHERE id = ? AND ${VISIBLE}`).get(id)
     if (!row) throw new StudioError('没有这个主题', 404, 'topic.not_found')
     return topic(row)
   }
@@ -42,10 +46,13 @@ export class TopicStore {
     return this.get(id)
   }
 
+  /** R18: a title is trimmed and cannot end up empty. Archiving while a conversation runs is refused before this (lifecycle/deletion). */
   update(id: string, patch: { title?: string; archived?: boolean }): Topic {
     this.get(id)
+    const title = patch.title === undefined ? null : patch.title.trim()
+    if (title === '') throw new StudioError('主题标题不能为空', 400, 'topic.title_empty')
     this.db.prepare('UPDATE topics SET title = COALESCE(?, title), archived = COALESCE(?, archived), updated_at = ? WHERE id = ?')
-      .run(patch.title ?? null, patch.archived === undefined ? null : Number(patch.archived), new Date().toISOString(), id)
+      .run(title, patch.archived === undefined ? null : Number(patch.archived), new Date().toISOString(), id)
     return this.get(id)
   }
 

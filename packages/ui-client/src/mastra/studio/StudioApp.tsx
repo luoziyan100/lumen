@@ -56,11 +56,11 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const appearance = useAppearance()
   const [revision, setRevision] = useState(0)
   const activity = useCallback(() => setRevision(value => value + 1), [])
-  const { topics, error: topicsError } = useTopics(api, revision)
+  const { topics, error: topicsError, edit: editTopics } = useTopics(api, revision)
   const [topicId, setTopicId] = useState<string | null>(() => { try { return localStorage.getItem(TOPIC_KEY) } catch { return null } })
   const topic = topics?.find(item => item.id === topicId) ?? null
   const [identity, setIdentity] = useState<Identity | null>(null)
-  const { sessions } = useSessions(api, topic?.id ?? null, revision)
+  const { sessions, edit: editSessions } = useSessions(api, topic?.id ?? null, revision)
   const [view, setView] = useState<View>('reading')
   const [signal, setSignal] = useState<BoardSignal>({ drawing: null, done: '' })
   const [focus, setFocus] = useState<{ blockId: string; nonce: number } | null>(null)
@@ -213,7 +213,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const split = topic && reading
 
   return <ExternalLinkGate><main className={`app studio${docked ? ' studio-docked' : ''}${topic ? '' : ' studio-no-topic'}${panes.left ? ' studio-left-collapsed' : ''}${panes.right ? ' studio-right-collapsed' : ''}`}>
-    <TopicPanel api={api} topics={topics} error={topicsError} selected={topic?.id ?? null} takeaway={newestTakeaway(sediment.items, topic?.id ?? null)} collapsed={panes.left} onToggle={() => flip('left')} onSelect={setTopicId}
+    <TopicPanel api={api} topics={topics} error={topicsError} selected={topic?.id ?? null} takeaway={newestTakeaway(sediment.items, topic?.id ?? null)} collapsed={panes.left} onToggle={() => flip('left')} onSelect={setTopicId} onEdit={editTopics}
       onCreated={next => { created.current = next.id; setTopicId(next.id); activity() }} onSettings={() => setSettingsOpen(true)} />
     <section ref={setCenter} className={`studio-panel studio-center${split ? full ? ' studio-full' : ' studio-split' : ''}`} aria-label={topic?.title}
       style={{ '--split-ratio': panes.ratio } as CSSProperties}>
@@ -244,7 +244,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
       loaded={materials.loaded} collapsed={panes.right} onToggle={() => flip('right')}
       onOpen={item => openMaterial(item)} onChanged={materials.refresh}
       readings={readings.items.map(reading => reading.itemId)} readingBusy={busyFor(null)} onReading={writeReading} />}
-    {topic && <Sprite api={api} topic={topic} identity={identity} feed={feed} sessions={sessions} onIdentity={setIdentity} onActivity={activity}
+    {topic && <Sprite api={api} topic={topic} identity={identity} feed={feed} sessions={sessions} onSessions={editSessions} onIdentity={setIdentity} onActivity={activity}
       onOpenFile={target => setReading({ target })} onFocusBlock={onFocusBlock} onBoard={onBoard} onSettings={() => setSettingsOpen(true)} onDocked={setDocked} onFigure={setFigure} />}
     {settingsOpen && <Settings api={api} appearance={appearance} onClose={() => setSettingsOpen(false)} />}
   </main></ExternalLinkGate>

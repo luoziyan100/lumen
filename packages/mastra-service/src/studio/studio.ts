@@ -1,11 +1,12 @@
 /**
- * [INPUT]: an explicit data root; studio/db, topics, board, sediment, readings, library
- * [OUTPUT]: openStudio / Studio: topic, board, sediment, reading and library stores over one shared catalog.sqlite connection (db) plus close; schema=false only opens and never changes the schema
+ * [INPUT]: an explicit data root; studio/db, topics, board, sediment, readings, library, deletions
+ * [OUTPUT]: openStudio / Studio: topic, board, sediment, reading and library stores and the R20 deletion journal over one shared catalog.sqlite connection (db) plus close; schema=false only opens and never changes the schema
  * [POS]: the studio module's composition entry; the server assembles HTTP and board tools read/write the same instance from S3 on — no second connection
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { BoardStore } from './board.ts'
 import { openStudioDb } from './db.ts'
+import { DeletionJournal } from './deletions.ts'
 import { LibraryStore } from './library.ts'
 import { ReadingStore } from './reading.ts'
 import { SedimentStore } from './sediment.ts'
@@ -23,6 +24,7 @@ export function openStudio(dataRoot: string, options: { schema?: boolean } = {})
     sediment: new SedimentStore(db),
     readings: new ReadingStore(db),
     library: new LibraryStore(db, dataRoot),
+    deletions: new DeletionJournal(db),
     close() {
       if (closed) return
       closed = true

@@ -1,6 +1,6 @@
 /**
  * [INPUT]: Hono 路由、Zod 输入校验、主题会话目录用例与原生实时运行态投影
- * [OUTPUT]: catalogRoutes：主题下的原生 thread 目录（新开对话受 R1 准入）与按持久消息 ID 确认已读及显式切换未读的 HTTP 接口
+ * [OUTPUT]: catalogRoutes：主题下的原生 thread 目录（新开对话受 R1 准入；归档要等这段对话空闲，R19）与按持久消息 ID 确认已读及显式切换未读的 HTTP 接口
  * [POS]: 认证保护之后的产品路由，不代理 Controller 执行协议；主题本身的增改在 studio/routes
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -19,11 +19,13 @@ const page = z.object({
   search: z.string().trim().max(200).optional(),
 })
 const sessionCreate = z.object({ taskId: id.optional(), title: title.optional() }).strict()
-const sessionPatch = z.object({ title: title.optional(), pinned: z.boolean().optional(), archived: z.boolean().optional() })
+// The catalog trims a new title and refuses an empty one with its own code (R18), so the patch takes it untrimmed
+const sessionPatch = z.object({ title: z.string().max(200).optional(), pinned: z.boolean().optional(), archived: z.boolean().optional() })
   .strict().refine(value => Object.keys(value).length > 0)
 const readReceipt = z.object({ messageId: z.string().min(1).max(512) }).strict()
 
-export function catalogRoutes(catalog: Catalog, activity?: () => Promise<Map<string, { running: boolean; waiting: boolean }>>, assertIdle?: (topicId: string, taskId?: string) => Promise<void>) {
+export function catalogRoutes(catalog: Catalog, activity?: () => Promise<Map<string, { running: boolean; waiting: boolean }>>, assertIdle?: (topicId: string, taskId?: string) => Promise<void>,
+  whileIdle?: <T>(topicId: string, taskId: string | null, work: () => Promise<T> | T) => Promise<T>) {
   const app = new Hono()
   app.onError((error, c) => {
     if (error instanceof StudioError) return c.json(errorBody(error.message, error.code, error.params, error.detail), error.status)
@@ -45,8 +47,12 @@ export function catalogRoutes(catalog: Catalog, activity?: () => Promise<Map<str
   })
   app.get('/topics/:topicId/sessions/:taskId', async c => c.json(await catalog.getSession(
     id.parse(c.req.param('topicId')), id.parse(c.req.param('taskId')))))
-  app.patch('/topics/:topicId/sessions/:taskId', async c => c.json(await catalog.updateSession(
-    id.parse(c.req.param('topicId')), id.parse(c.req.param('taskId')), sessionPatch.parse(await c.req.json()))))
+  app.patch('/topics/:topicId/sessions/:taskId', async c => {
+    const topicId = id.parse(c.req.param('topicId')), taskId = id.parse(c.req.param('taskId')), patch = sessionPatch.parse(await c.req.json())
+    // R19: archiving waits until this conversation neither runs nor waits (409 session.running); renaming works while it runs (R18)
+    const update = () => catalog.updateSession(topicId, taskId, patch)
+    return c.json(patch.archived && whileIdle ? await whileIdle(topicId, taskId, update) : await update())
+  })
   app.post('/topics/:topicId/sessions/:taskId/read', async c => {
     const { messageId } = readReceipt.parse(await c.req.json())
     return c.json(await catalog.markSessionRead(id.parse(c.req.param('topicId')), id.parse(c.req.param('taskId')), messageId))

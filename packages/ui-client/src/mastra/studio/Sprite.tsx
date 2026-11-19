@@ -5,8 +5,9 @@
  *           idle/running/waiting/speaking; motion and glow follow it, and the state is in aria-label); it can be dragged anywhere in the window and stays where dropped. Opening grows
  *           the window softly from the figure's centre and closing shrinks it back (useSpriteMove); the window keeps to the figure's side and the title bar drags the anchor, or it docks
  *           as the right column. The open header shows the same face; collapsed it still watches the text stream, and opening reuses the same subscription. It switches this topic's
- *           conversations, starts a new one (disabled while the topic is busy; the reason is a tooltip on the span around the list's button, never a visible line), and opens the specialist list and diagnostics; anchor, size and shape live in localStorage
- *           (sprite-place); it reports the figure's box (onFigure) so the Reading view keeps text clear of it. useSessions: the topic's conversation list, polled every 3s
+ *           conversations (each row has the shared 「⋯」 menu, RowActions: rename, copy ID, archive, delete; the open one that leaves hands over to the next, else to a new conversation; on delete it hands over first and back on a refusal),
+ *           starts a new one only from the header's ＋ (disabled while the topic is busy; the list has no 新对话 button), and opens the specialist list and diagnostics; anchor, size and shape live in localStorage
+ *           (sprite-place); it reports the figure's box (onFigure) so the Reading view keeps text clear of it. useSessions: the topic's conversation list, polled every 3s, with `edit` for changes shown before the poll
  * [POS]: projects the four states straight to the desktop and takes open requests back; visibility only gates local drawing. The conversation stepped back into a sprite: the board is
  *        the topic's shared draft and the conversation is only the record of talk. Messages, approvals and questions still go through the native Conversation; the subscription
  *        itself belongs to StudioApp, so the Reading view's window shows the same stream without opening a second one; the full view is read here, so a streamed token
@@ -15,9 +16,8 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
-import { Tooltip } from '@cloudflare/kumo/components/tooltip'
 import { BackIcon, CloseIcon, PanelIcon, PlusIcon } from '../../components/icons'
-import { useT } from '../../i18n/index.ts'
+import { errorText, useT } from '../../i18n/index.ts'
 import type { LumenApi, Identity, SessionInfo, Topic } from '../data/client.ts'
 import { useFeedView } from '../data/useSession.ts'
 import type { SessionFeed } from '../data/feed.ts'
@@ -27,6 +27,7 @@ import { Welcome } from '../views/conversation/welcome/Welcome'
 import { Specialists } from '../views/conversation/Specialists'
 import { Diagnostics } from '../diagnostics/Diagnostics'
 import { Light } from './TopicPanel'
+import { ActionRow } from './RowActions'
 import { SpriteFigure } from './SpriteFigure'
 import { useDesktopSprite, useSpriteDesktopOpenBridge } from './sprite-desktop/bridge'
 import { SpriteFace } from './SpriteFace'
@@ -53,19 +54,23 @@ export function useSessions(api: LumenApi, topicId: string | null, signal: numbe
     const timer = window.setInterval(read, 3000)
     return () => { active = false; clearInterval(timer) }
   }, [api, topicId, signal])
-  return { sessions, error }
+  /** A rename, archive or delete shows at once; the next poll confirms it */
+  const edit = useCallback((change: (sessions: SessionInfo[]) => SessionInfo[]) => setSessions(change), [])
+  return { sessions, error, edit }
 }
 
 /** Where the figure sits in the viewport, so content can keep its text out from under it */
 export interface SpriteBox { left: number; top: number; right: number; bottom: number }
 
-export function Sprite({ api, topic, identity, feed, sessions, onIdentity, onActivity, onOpenFile, onFocusBlock, onBoard, onSettings, onDocked, onFigure }: {
+export function Sprite({ api, topic, identity, feed, sessions, onSessions, onIdentity, onActivity, onOpenFile, onFocusBlock, onBoard, onSettings, onDocked, onFigure }: {
   api: LumenApi
   topic: Topic
   identity: Identity | null
   /** The one subscription of `identity`, owned by StudioApp */
   feed: SessionFeed | null
   sessions: SessionInfo[]
+  /** Applies a rename, archive or delete to the shown list before the next poll */
+  onSessions: (change: (sessions: SessionInfo[]) => SessionInfo[]) => void
   onIdentity: (identity: Identity | null) => void
   onActivity: () => void
   onOpenFile: (target: FileTarget) => void
@@ -79,7 +84,7 @@ export function Sprite({ api, topic, identity, feed, sessions, onIdentity, onAct
 }) {
   const S = useT().studio
   const [shape, setShape] = useState<Shape>(loadShape)
-  const [listing, setListing] = useState(false), [diagnostics, setDiagnostics] = useState(false)
+  const [listing, setListing] = useState(false), [diagnostics, setDiagnostics] = useState(false), [rowError, setRowError] = useState('')
   const session = { feed, view: useFeedView(feed) }
   const activeMessage = session.view.display?.currentMessage
   const message = activeMessage ? session.view.messages.find(item => item.id === activeMessage.id) : undefined
@@ -94,7 +99,28 @@ export function Sprite({ api, topic, identity, feed, sessions, onIdentity, onAct
   const update = useCallback((patch: Partial<Shape>) => setShape(previous => { const next = { ...previous, ...patch }; saveShape(next); return next }), [])
   const reduced = useReducedMotion()
   const move = useSpriteMove(shape, update, reduced)
-  useEffect(() => { setListing(false); setDiagnostics(false) }, [topic.id])
+  useEffect(() => { setListing(false); setDiagnostics(false); setRowError('') }, [topic.id])
+  // ---- R18–R20: the row menu's actions; a refusal shows in the list's alert line ----
+  async function act(work: () => Promise<unknown>) {
+    setRowError('')
+    try { await work() } catch (error) { setRowError(errorText(error)) }
+  }
+  /** U4/U5: the open conversation that leaves hands over to the list's next one, else to a new conversation */
+  function handOff(taskId: string) {
+    const index = sessions.findIndex(session => session.taskId === taskId), next = sessions[index + 1]
+    if (taskId === identity?.taskId) onIdentity(next ? { topicId: next.topicId, taskId: next.taskId } : null)
+  }
+  function drop(taskId: string) {
+    onSessions(list => list.filter(session => session.taskId !== taskId))
+    onActivity()
+  }
+  // As with topics, the open conversation hands over before the delete starts, so its feed never asks for a conversation that answers 404; a refusal hands it back
+  async function remove(own: { topicId: string; taskId: string }) {
+    const was = identity?.taskId
+    handOff(own.taskId)
+    try { await api.deleteSession(own) } catch (error) { if (was === own.taskId) onIdentity(own); throw error }
+    drop(own.taskId)
+  }
   useEffect(() => { onDocked?.(shape.open && shape.docked) }, [shape.open, shape.docked, onDocked])
   const figureDocked = shape.open && shape.docked
   useEffect(() => {
@@ -132,14 +158,18 @@ export function Sprite({ api, topic, identity, feed, sessions, onIdentity, onAct
       </div>
     </header>
     {listing ? <div className="sprite-list">
-      {/* While the topic runs, why 新对话 is off is a tooltip, not a line: a disabled button gets no pointer or focus, so the span around it carries
-          the tooltip and joins the Tab order only then. The tooltip stays mounted and is switched off instead */}
-      <Tooltip content={S.sprite.busy} disabled={!busy} render={<span className="sprite-new-why" tabIndex={busy ? 0 : undefined} />}>
-        <Button variant="secondary" disabled={busy} aria-description={busy ? S.sprite.busy : undefined} onClick={() => { onIdentity(null); setListing(false) }}>{S.sprite.newConversation}</Button>
-      </Tooltip>
-      <ul>{sessions.map(session => <li key={session.taskId}><button type="button" className={`sprite-session${session.taskId === identity?.taskId ? ' on' : ''}`} onClick={() => { onIdentity({ topicId: session.topicId, taskId: session.taskId }); setListing(false) }}>
-        <span>{session.title}</span>{session.unread && <span className="sprite-unread" aria-label={S.sprite.unread} />}<Light topic={session} />
-      </button></li>)}</ul>
+      {rowError && <p className="mw-error studio-note" role="alert">{rowError}</p>}
+      <ul>{sessions.map(session => {
+        const own = { topicId: session.topicId, taskId: session.taskId }
+        return <ActionRow key={session.taskId} kind="session" copyId={`${session.topicId}:${session.taskId}`} title={session.title} untitled={S.sprite.untitled}
+          selected={session.taskId === identity?.taskId} busy={!!(session.running || session.waiting)} className={`sprite-session${session.taskId === identity?.taskId ? ' on' : ''}`} deferSelect
+          onSelect={() => { onIdentity(own); setListing(false) }}
+          onRename={title => act(async () => { const next = await api.updateSession(own, { title }); onSessions(list => list.map(item => item.taskId === session.taskId ? { ...item, title: next.title } : item)) })}
+          onArchive={() => act(async () => { await api.updateSession(own, { archived: true }); handOff(session.taskId); drop(session.taskId) })}
+          onRemove={() => act(() => remove(own))}>
+          {session.unread && <span className="sprite-unread" aria-label={S.sprite.unread} />}<Light topic={session} />
+        </ActionRow>
+      })}</ul>
       {identity && <div className="sprite-tools">
         <Specialists className="sprite-specialists" api={api} identity={identity} idle={idle} onActivity={onActivity} />
         <Button variant="ghost" onClick={() => setDiagnostics(true)}>{S.sprite.diagnostics}</Button>

@@ -1,5 +1,5 @@
 /**
- * [INPUT]: Hono, zod, the studio stores (sediment included), the research network, the native running/waiting projection
+ * [INPUT]: Hono, zod, the studio stores (sediment included), the research network, the native running/waiting projection and the idle guard archiving waits on
  * [OUTPUT]: studioRoutes: topics; readings (the topic's list and one material's reading, ETag-tagged, read-only); sheets (ETag-tagged; the list carries the user's selection and the running turn's target; storing the selection; the ＋ sheet becomes the selection; the user deletes one, R17; which sheet a block is on); sediment entries create/list/edit/delete with offer confirm/dismiss (R13: user HTTP only) and per-sheet invites; the library upload/link routes (arXiv links fetch the PDF), originals and their on-disk location (for the native "open in system" check); topic references
  * [POS]: the product routes behind auth; there is no block-write route — blocks are written only through board tools (R4), and no reading-write route — readings only through reading_write; sheet deletion lives only here, the AI has no such tool (R17); so does sediment entry text (S2)
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -16,7 +16,8 @@ import type { Topic } from './types.ts'
 const id = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/)
 const title = z.string().trim().min(1).max(200)
 const topicCreate = z.object({ title }).strict()
-const topicPatch = z.object({ title: title.optional(), archived: z.boolean().optional() }).strict().refine(value => Object.keys(value).length > 0)
+// The store trims a new title and refuses an empty one with its own code (R18), so the patch takes it untrimmed
+const topicPatch = z.object({ title: z.string().max(200).optional(), archived: z.boolean().optional() }).strict().refine(value => Object.keys(value).length > 0)
 const sheetCreate = z.object({ title: title.optional() }).strict()
 const sedimentCreate = z.union([
   z.object({ offerId: z.string().min(1).max(128), text: z.string().max(600).optional(), blocks: z.array(z.object({ id: z.string().min(1).max(128), rev: z.number().int().min(1) })).max(8).optional() }).strict(),
@@ -29,6 +30,7 @@ const reference = z.object({ itemId: z.string().min(1).max(128) }).strict()
 const archived = z.enum(['true', 'false', 'all']).default('false').transform(value => value === 'all' ? value : value === 'true')
 
 type Activity = () => Promise<Map<string, { running: boolean; waiting: boolean }>>
+type WhileIdle = <T>(topicId: string, taskId: string | null, work: () => Promise<T> | T) => Promise<T>
 
 /** The topic's status light: folds the running/waiting state of every conversation (resourceId = topicId:taskId) into one. */
 function withActivity(topics: Topic[], states: Map<string, { running: boolean; waiting: boolean }> | undefined): Topic[] {
@@ -51,7 +53,7 @@ function tagged(c: Context, body: unknown) {
   return c.json(body)
 }
 
-export function studioRoutes(options: { studio: Studio; http: ResearchHttp; activity?: Activity }) {
+export function studioRoutes(options: { studio: Studio; http: ResearchHttp; activity?: Activity; whileIdle?: WhileIdle }) {
   const { topics, board, sediment, readings, library } = options.studio
   const app = new Hono()
   app.onError((error, c) => {
@@ -64,7 +66,12 @@ export function studioRoutes(options: { studio: Studio; http: ResearchHttp; acti
   app.get('/topics', async c => c.json({ items: withActivity(topics.list(archived.parse(c.req.query('archived'))), await options.activity?.()) }))
   app.post('/topics', async c => c.json(topics.create(topicCreate.parse(await c.req.json()).title), 201))
   app.get('/topics/:topicId', async c => c.json(withActivity([topics.get(id.parse(c.req.param('topicId')))], await options.activity?.())[0]))
-  app.patch('/topics/:topicId', async c => c.json(topics.update(id.parse(c.req.param('topicId')), topicPatch.parse(await c.req.json()))))
+  app.patch('/topics/:topicId', async c => {
+    const topicId = id.parse(c.req.param('topicId')), patch = topicPatch.parse(await c.req.json())
+    // R19: archiving waits until no conversation runs or waits (409 topic.running); renaming works while one runs (R18)
+    const update = () => topics.update(topicId, patch)
+    return c.json(patch.archived && options.whileIdle ? await options.whileIdle(topicId, null, update) : update())
+  })
 
   // ---- Sheets: read-only for the user; ＋ opens one ----
   app.get('/topics/:topicId/sheets', async c => {

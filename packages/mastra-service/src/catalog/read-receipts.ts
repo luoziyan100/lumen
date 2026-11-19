@@ -1,6 +1,6 @@
 /**
  * [INPUT]: Node SQLite、产品目录数据根与原生 thread/message 身份
- * [OUTPUT]: ReadReceipts：每个会话最后确认看过的持久消息 ID；空字符串为显式未读游标
+ * [OUTPUT]: ReadReceipts：每个会话最后确认看过的持久消息 ID；空字符串为显式未读游标；删除时按会话或按主题前缀清除
  * [POS]: 产品阅读游标与 studio 表共用 catalog.sqlite；不复制消息，不修改框架 thread 元数据或排序时间
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -30,6 +30,12 @@ export class ReadReceipts {
   }
 
   clear(threadId: string): boolean { return this.db.prepare('DELETE FROM read_receipts WHERE thread_id = ?').run(threadId).changes > 0 }
+
+  /** R20: every cursor whose thread id starts with the prefix (`topicId:` for a topic, `topicId:taskId` exactly for one conversation). */
+  clearPrefix(prefix: string): void {
+    if (prefix.endsWith(':')) this.db.prepare('DELETE FROM read_receipts WHERE substr(thread_id, 1, ?) = ?').run(prefix.length, prefix)
+    else this.clear(prefix)
+  }
 
   close(): void { this.db.close() }
 }

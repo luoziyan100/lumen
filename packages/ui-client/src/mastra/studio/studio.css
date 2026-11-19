@@ -64,7 +64,16 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 /* The box sits in the free space under the list, absolutely placed: it never pushes the list or Settings, and TopicPanel shows it only while it fits with 16px of air */
 .iso-host.topics-box { position: absolute; left: 50%; bottom: 16px; width: 200px; margin-left: -100px; }
 .topics-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
-.topic-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.action-row-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ---- R18–R21 row menu, shared by topics and conversations: the 「⋯」 sits over the row's right end and shows on hover, keyboard focus, the selected row or an open menu;
+        the row makes room for it only then, so titles keep their full width otherwise ---- */
+.action-row { position: relative; }
+.action-row:is(:hover, :focus-within, .is-on) > button:first-child { padding-right: 34px; }
+.studio .action-row-more { position: absolute; right: 10px; top: 50%; translate: 0 -50%; width: 24px; height: 24px; opacity: 0; color: var(--text-muted); }
+.action-row:is(:hover, .is-on) .action-row-more, .action-row-more:focus-visible, .action-row-more[data-popup-open] { opacity: 1; }
+.action-row-more:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.action-row > .row-rename { flex: none; display: block; width: calc(100% - 12px); height: 32px; margin: 0 6px; }
+.action-row-copied { position: absolute; right: 40px; top: 50%; translate: 0 -50%; padding: 2px 8px; border-radius: 6px; background: var(--text); color: var(--surface); font-size: var(--st-note); pointer-events: none; }
 .topic-light { flex: none; width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
 .topic-light-running { background: var(--accent); animation: studio-pulse 1.4s var(--ease-out) infinite; }
 .topic-light-waiting { background: var(--warning); }
@@ -266,14 +275,8 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 .sprite-title:hover { background: var(--fill-subtle); }
 .sprite-actions { display: inline-flex; gap: 2px; }
 .sprite-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 0; }
-.sprite-list > .sprite-new-why { margin-left: var(--st-inset); margin-right: var(--st-inset); }
-/* The span is the tooltip trigger for 新对话's reason while the topic runs; the disabled button passes the pointer through to it */
-.sprite-new-why { display: inline-flex; align-self: flex-start; border-radius: 999px; }
-.sprite-new-why:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
-.sprite-new-why button:disabled { pointer-events: none; }
 .sprite-list ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
 .sprite-session { box-sizing: border-box; width: calc(100% - 12px); margin: 0 6px; min-height: 32px; display: flex; align-items: center; gap: 8px; border: 0; background: none; text-align: left; color: var(--text-soft); padding: 0 8px; border-radius: 8px; cursor: pointer; font-size: var(--st-body); }
-.sprite-session span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sprite-session:hover, .sprite-session.on { background: var(--fill-subtle); color: var(--text); }
 .sprite-unread { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
 .sprite-tools { border-top: 1px solid var(--border); padding: 8px var(--st-inset) 0; display: flex; flex-direction: column; gap: 8px; }
@@ -344,6 +347,11 @@ button.sediment-chip:hover { color: var(--accent-ink); border-color: var(--accen
 .habits-counts { flex: 1; font-size: var(--st-label); color: var(--text-soft); }
 .habits-remove { background: none; border: none; padding: 4px; color: var(--text-soft); cursor: pointer; border-radius: 6px; }
 .habits-remove:hover { color: var(--danger); }
+/* Settings › Archived (U7): two short lists in the habits rows' shape; a conversation carries its topic's title, quieter */
+.archived-h { margin: 16px 0 4px; font-size: var(--st-label); font-weight: var(--w-semi); color: var(--text-muted); }
+.archived-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--st-body); color: var(--text); }
+.archived-topic { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--st-label); color: var(--text-muted); }
+.archived-row .archived-remove { color: var(--danger); }
 
 @media (max-width: 1100px) {
   .studio { --st-left-w: 200px; --st-right-w: 240px; }

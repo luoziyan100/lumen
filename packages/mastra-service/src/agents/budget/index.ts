@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 原生模型步骤用量、受信父线程身份、threadState 与显式预算/模型价格
- * [OUTPUT]: createFamilyBudget：父子共享的响应身份准入、输入输出配对结算和只读用量
+ * [OUTPUT]: createFamilyBudget：父子共享的响应身份准入、输入输出配对结算和只读用量；FAMILY_BUDGET_STATE（thread state 类型，删除对话时一并删）
  * [POS]: 在 Mastra processor 边界控制下一次调用；不实现模型循环或账单系统
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -12,7 +12,9 @@ import type { RequestContext } from '@mastra/core/request-context'
 import type { MastraStorage } from '@mastra/core/storage'
 import type { ModelPricing, ResearchBudget } from '../../settings/types.ts'
 
-const STATE = 'lumen.family-budget.v1', SCOPE = 'lumen.family-budget-scope', PROCESSOR = 'lumen-family-budget'
+/** Exported for R20: deleting a conversation removes this thread state too (lifecycle/deletion). */
+export const FAMILY_BUDGET_STATE = 'lumen.family-budget.v1'
+const STATE = FAMILY_BUDGET_STATE, SCOPE = 'lumen.family-budget-scope', PROCESSOR = 'lumen-family-budget'
 interface ModelStep { key: string; scope: Scope }
 const stepsFor = (state: Record<string, unknown>) => (state.steps ??= {}) as Record<string, ModelStep>
 const stepSlot = (step: number, retry: number) => `${step}:${retry}`

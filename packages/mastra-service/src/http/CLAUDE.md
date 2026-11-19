@@ -4,6 +4,7 @@
 框架 HTTP 能力由产品显式开放。Controller 仅消费已绑定的任务会话，不能通过原生管理路由改变 Lumen 的工作区归属。
 
 - `error-codes.ts`: the one list of stable error codes (`ERROR_CODES`) and `errorBody()`, which builds every product error response as `{ error, code, params? }`. `error` stays Chinese (people reading logs, and the same sentence models get as a tool refusal); clients choose their own text from `code` + `params`. A UI test keeps this list equal to both UI catalogs' `errors` keys, so a new code needs an entry in each.
+- `lifecycle.ts`：用户删除主题/对话的唯一入口（R18：AI 没有此类工具）与 `GET /archived`（设置 › 已归档）。在空闲检查与主题串行段内记账，之后调 `lifecycle/deletion` 清除，204；运行或等待中返回 409（`topic.running` / `session.running`）。归档仍走 studio/catalog 的 PATCH。
 - `native-routes.ts`：白名单开放消息、状态、SSE 与交互恢复；历史读取只验证固定 topic:task 归属，状态/订阅/执行才绑定会话，避免读历史写配置或改排序时间；拒绝 scope、身份重绑定及其他执行入口；`/messages`、`/steer` 开跑前过主题准入（R1，409 原因可读），回应审批/问答不再准入。
 
 - `snapshot.ts`：读取原生 DisplayState 并转换 Map，以官方 SSE 的 wire 形状恢复 UI；独立附加专家累计 childTokenUsage，不改写原生主用量。

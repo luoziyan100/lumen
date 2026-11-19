@@ -1,7 +1,7 @@
 /**
  * [INPUT]: node:child_process execFileSync (lsof)
  * [OUTPUT]: assertRoot(defaultRoot) returns LUMEN_ASSERT_ROOT or the default, refusing anything outside /tmp/lumen-*; assertPortFree(port) throws when something already listens there
- * [POS]: scripts/sprite shared guard for the suites that wipe a fixture root and start their own vite (sediment, reading, objects)
+ * [POS]: scripts/sprite shared guard for the suites that wipe a fixture root and start their own vite (sediment, reading, objects, lifecycle)
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { execFileSync } from 'node:child_process'

@@ -432,16 +432,61 @@ export async function createApplication(options: ApplicationOptions) {
     const mine = !other
     admitting.set(topicId, resourceId)
     try {
+      await assertOpen(topicId, task)
       const holder = await topicHolder(topicId, resourceId)
       if (holder) throw busy(holder)
       return await work()
     } finally { if (mine && admitting.get(topicId) === resourceId) admitting.delete(topicId) }
   }
+  /** R19/R20, checked inside the admission slot: an archived topic or conversation takes no message, one being deleted no longer exists. */
+  async function assertOpen(topicId: string, taskId: string) {
+    if (studio.topics.get(topicId).archived) throw new StudioError('这个主题已归档，先在设置的「已归档」里取消归档', 409, 'topic.archived')
+    if (studio.deletions.pending(topicId, taskId)) throw new StudioError('没有这段对话', 404, 'session.not_found')
+    const thread = await memory.getThreadById({ threadId: `${topicId}:${taskId}` })
+    if (thread?.metadata?.lumenArchived === true) throw new StudioError('这段对话已归档，先在设置的「已归档」里取消归档', 409, 'session.archived')
+  }
+  /**
+   * R19/R20: archive and delete only what neither runs nor waits (R1's projection). The topic's admission slot is held across the check and the work,
+   * so no run can start in between; a conversation of the topic being admitted blocks a topic operation, any other only blocks itself.
+   */
+  async function whileIdle<T>(topic: string, task: string | null, work: () => Promise<T> | T): Promise<T> {
+    const topicId = safeId(topic), resourceId = task === null ? null : `${topicId}:${safeId(task)}`
+    const refusal = () => resourceId
+      ? new StudioError('这段对话正在运行或在等你回应，先停下再归档或删除', 409, 'session.running')
+      : new StudioError('这个主题里有对话正在运行或在等你回应，先停下再归档或删除', 409, 'topic.running')
+    const other = admitting.get(topicId), slot = `${topicId}:`
+    if (other && (resourceId === null || other === resourceId)) throw refusal()
+    const mine = !other
+    if (mine) admitting.set(topicId, slot)
+    try {
+      for (const [id, state] of await liveSessionStates())
+        if ((resourceId ? id === resourceId : id.startsWith(slot)) && (state.running || state.waiting)) throw refusal()
+      return await work()
+    } finally { if (mine && admitting.get(topicId) === slot) admitting.delete(topicId) }
+  }
+  /** R20: drop the in-process state of a conversation (or of every conversation of a topic, with its workspace and memory mounts) before its data is removed. */
+  async function release(topic: string, task: string | null) {
+    const topicId = safeId(topic), prefix = `${topicId}:`
+    for (const [resourceId, pending] of [...sessions]) {
+      if (task === null ? !resourceId.startsWith(prefix) : resourceId !== `${prefix}${safeId(task)}`) continue
+      sessions.delete(resourceId)
+      const opened = await pending.catch(() => null)
+      if (opened) await controller.deleteSession({ sessionId: resourceId }).catch(() => {})
+      bound.delete(resourceId); sessionModelIds.delete(resourceId); activeMainRuns.delete(resourceId)
+    }
+    if (task !== null) return
+    const workspace = topicWorkspaces.get(topicId)
+    topicWorkspaces.delete(topicId)
+    if (workspace) await workspace.then(value => value.destroy(), () => {})
+    const files = memoryFilesystems.get(`topic:${topicId}`)
+    memoryFilesystems.delete(`topic:${topicId}`)
+    if (files) await files.then(value => value.destroy(), () => {})
+  }
 
   return {
     controller, mastra, storage, memory, root, studio, skillsFor, workspaceFor, memoryFiles, agent, diagnostics, specialists, childUsage, familyBudget, specialistHistory,
     hasModel: () => !!selectedModel,
-    liveSessionStates, admitRun, assertTopicIdle,
+    liveSessionStates, admitRun, assertTopicIdle, whileIdle, release,
     async isBusy() {
       for (const pending of sessions.values()) {
         const session = await pending

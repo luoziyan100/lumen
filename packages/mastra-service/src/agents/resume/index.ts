@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 原生委派/Memory/threadState 与受信父任务；不读取旧调度器
- * [OUTPUT]: createSpecialistHistory：稳定专家身份、只读历史重入、原目录绑定与显式继续验证
+ * [OUTPUT]: createSpecialistHistory：稳定专家身份、只读历史重入、原目录绑定与显式继续验证；SPECIALISTS_STATE 与 SpecialistRecord（删除对话时据此找到专家线程）
  * [POS]: 原生子线程的授权索引；消息仍由 Memory 保存，不执行或重放历史工具
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -13,7 +13,9 @@ import type { SpecialistRole } from '../roles.ts'
 import { cancelPriorDelegations } from './cancellation.ts'
 import { specialistDirectory } from '../workspaces.ts'
 
-const STATE = 'lumen.specialists.v1', SCOPE = 'lumen.specialist-history'
+/** Exported for R20: a deleted conversation's specialist threads are found through this record, and the record goes with them. */
+export const SPECIALISTS_STATE = 'lumen.specialists.v1'
+const STATE = SPECIALISTS_STATE, SCOPE = 'lumen.specialist-history'
 export interface SpecialistRecord {
   id: string; role: string; agentId: string; parentResourceId: string; directory: string
   title: string; status: 'running' | 'completed' | 'incomplete' | 'failed' | 'interrupted'

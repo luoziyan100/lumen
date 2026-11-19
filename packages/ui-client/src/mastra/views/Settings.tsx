@@ -1,6 +1,6 @@
 /**
  * [INPUT]: the shared Disclosure, redacted settings DTOs, the model-profile update API, the settings row styles, the shared icons, the specialists and appearance panes, the speech-habits table (S14)
- * [OUTPUT]: Settings: five sections — models, research preferences, specialists, appearance and speech habits; provider cards, per-row model ids, vision/context/pricing settings; habits are view-and-delete only; a specialist write locks the sections and close like a save does
+ * [OUTPUT]: Settings: six sections — models, research preferences, specialists, appearance, speech habits and archived topics/conversations (Archived.tsx); provider cards, per-row model ids, vision/context/pricing settings; habits are view-and-delete only; a specialist write locks the sections and close like a save does
  * [POS]: the settings composition layer; browsing and writing stay separate, appearance applies locally at once; keys submit one-way and survive a failure as drafts, the service rules what may change while running
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -13,6 +13,7 @@ import { useT, errorText } from '../../i18n/index.ts'
 import { CloseIcon, BackIcon, MinusIcon, PlusIcon, PlayIcon, TrashIcon, ICON_SM } from '../../components/icons'
 import { PreferencePane } from './chrome/Appearance'
 import { AgentsPane } from '../agents/Agents'
+import { ArchivedPane } from './Archived'
 import type { useAppearance } from '../../appearance'
 import { LumenApi, type PublicModelProfile, type PublicSettings, type SettingsPatch, type SpeechHabit } from '../data/client.ts'
 
@@ -47,7 +48,7 @@ function HabitsPane({ api }: { api: LumenApi }) {
 
 export function Settings({ api, onClose, appearance }: { api: LumenApi; onClose: () => void; appearance?: ReturnType<typeof useAppearance> }) {
   const { settings: C, common } = useT()
-  const [pane, setPane] = useState<'model' | 'prompt' | 'agents' | 'preference' | 'habits'>('model')
+  const [pane, setPane] = useState<keyof typeof C.tabs>('model')
   const [editing, setEditing] = useState(false)
   const [settings, setSettings] = useState<PublicSettings | null>(null), [profile, setProfile] = useState<PublicModelProfile>(emptyProfile)
   const [key, setKey] = useState(''), [keyFocused, setKeyFocused] = useState(false), [instructions, setInstructions] = useState('')
@@ -102,6 +103,7 @@ export function Settings({ api, onClose, appearance }: { api: LumenApi; onClose:
     <button type="button" className="settings-close" disabled={locked} onClick={onClose} aria-label={C.close}><CloseIcon size={18} /></button>
     {pane === 'preference' && (appearance ? <PreferencePane state={appearance.state} onChange={appearance.setAppearance} /> : <p className="set-hint">{C.appearanceUnavailable}</p>)}
     {pane === 'habits' && <HabitsPane api={api} />}
+    {pane === 'archived' && <ArchivedPane api={api} />}
     {pane === 'agents' && <AgentsPane api={api} onBusy={setAgentsBusy} />}
     {(pane === 'model' || pane === 'prompt') && !settings && <p className="set-hint">{common.loading}</p>}
     {pane === 'model' && settings && !editing && <><div className="mp-head"><h2 className="settings-h">{C.models}</h2><Button type="button" disabled={busy || configurationBusy} variant="outline" size="sm" onClick={() => { edit(emptyProfile()); setEditing(true) }}>{C.addModel}</Button></div>{configurationBusy && <p className="set-hint">{C.busyHint}</p>}<div className="mpc-list">{settings.profiles.map(item => <div className={`mpc-card glass-card ${settings.activeProfileId === item.id ? 'is-in-use' : ''}`} key={item.id}><button type="button" disabled={busy || configurationBusy} className="mpc-main" onClick={() => { edit(item); setEditing(true) }}><span className="mpc-name">{item.name}</span><span className="mpc-url">{item.baseUrl}</span><span className="mpc-model">{item.models.join(' · ') || C.noModelId}{!item.hasApiKey && C.noKey}</span></button><div className="mpc-aside"><div className="mpc-aside-idle">{settings.activeProfileId === item.id && <span className="mp-active">{C.inUse}</span>}</div><div className="mpc-aside-hot">{settings.activeProfileId !== item.id && <button type="button" disabled={busy} className="mpc-act mpc-act-enable" onClick={() => void save({ activeProfileId: item.id })}><PlayIcon size={ICON_SM} /><span>{C.enable}</span></button>}{settings.profiles.length > 1 && <button type="button" disabled={busy || configurationBusy} className="mpc-act mpc-act-danger" aria-label={C.deleteProfile(item.name)} onClick={() => void save({ deleteProfileId: item.id })}><TrashIcon size={16} /></button>}</div></div></div>)}</div></>}

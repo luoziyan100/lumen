@@ -1,7 +1,7 @@
 /**
  * [INPUT]: Node SQLite, an explicit data root
  * [OUTPUT]: openStudioDb: catalog.sqlite tables for topics/library/references/sheets/blocks/versions, the user's selected sheet (sheet_selection) and each run's write target (run_targets),
- *           the sediment tables (entries/revisions/evidence links/offers/per-sheet invites), the global speech_habits and the readings/reading_sections pair — all additive, no legacy column migrations; older libraries get
+ *           the sediment tables (entries/revisions/evidence links/offers/per-sheet invites), the global speech_habits, the readings/reading_sections pair and the R20 pending_deletions journal — all additive, no legacy column migrations; older libraries get
  *           missing columns on demand (only on this service-start path)
  *           schema=false only opens, never creates or adds columns, and refuses an incomplete schema (for data-only tools like backfill); schemaGaps; transaction: a synchronous immediate transaction
  * [POS]: the only place studio tables are created; shares the file with catalog/ reading cursors, never touches Mastra's mastra.sqlite
@@ -100,6 +100,10 @@ CREATE TABLE IF NOT EXISTS reading_sections (
 -- S14 speech habits: one global table, counted only by the user's keep action (kept = deletion left standing, restored = fragment restored); the AI only reads it
 CREATE TABLE IF NOT EXISTS speech_habits (
   fragment TEXT PRIMARY KEY, kept INTEGER NOT NULL DEFAULT 0, restored INTEGER NOT NULL DEFAULT 0, last_seen TEXT NOT NULL
+) STRICT;
+-- R20 deletion journal: written before anything is removed, deleted last; task_id '' is the whole topic. No foreign key: the row outlives the topic row by one statement
+CREATE TABLE IF NOT EXISTS pending_deletions (
+  topic_id TEXT NOT NULL, task_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (topic_id, task_id)
 ) STRICT;
 `
 

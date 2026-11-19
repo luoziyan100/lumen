@@ -13,6 +13,8 @@ import { z } from 'zod'
 import { createApplication, type ApplicationOptions } from './application.ts'
 import { CatalogError, createCatalog } from './catalog/catalog.ts'
 import { catalogRoutes } from './catalog/routes.ts'
+import { createDeletion, type DeletionOptions } from './lifecycle/deletion.ts'
+import { lifecycleRoutes } from './http/lifecycle.ts'
 import { specialistRoutes } from './agents/resume/routes.ts'
 import { agentCatalogRoutes } from './agents/catalog/routes.ts'
 import { nativeRoutePolicy } from './http/native-routes.ts'
@@ -41,7 +43,7 @@ function authorized(header: string | undefined, token: string): boolean {
   return actual.length === expected.length && timingSafeEqual(actual, expected)
 }
 
-export async function createHttpService(options: ApplicationOptions & { token: string; allowedOrigins?: string[] }) {
+export async function createHttpService(options: ApplicationOptions & { token: string; allowedOrigins?: string[]; deletion?: Pick<DeletionOptions, 'afterMemory'> }) {
   if (options.token.length < 24) throw new Error('Service token must contain at least 24 characters')
   const settings = await openSettingsStore({ dataRoot: options.dataRoot })
   function configuredModel() {
@@ -58,8 +60,13 @@ export async function createHttpService(options: ApplicationOptions & { token: s
   })
   const studio = application.studio
   let catalog: ReturnType<typeof createCatalog>
-  try { catalog = createCatalog(application.root, application.memory, studio.topics) }
+  try { catalog = createCatalog(application.root, application.memory, studio.topics, studio.deletions) }
   catch (error) { await application.close(); throw error }
+  // -------- R20: a deletion a stop left half done is finished before the service answers anything --------
+  const deletion = createDeletion({ root: application.root, journal: studio.deletions, memory: application.memory, storage: application.storage,
+    diagnostics: application.diagnostics, receipts: catalog, release: application.release, afterMemory: options.deletion?.afterMemory })
+  try { await deletion.resume() }
+  catch (error) { await catalog.close(); await application.close(); throw error }
   const app = new Hono<{ Bindings: HonoBindings; Variables: HonoVariables }>()
   let closing = false
   let reconfiguring = false
@@ -152,8 +159,9 @@ export async function createHttpService(options: ApplicationOptions & { token: s
     await application.stop(topicId!, taskId!)
     return c.json({ ok: true })
   })
-  app.route('/lumen', catalogRoutes(catalog, application.liveSessionStates, application.assertTopicIdle))
-  app.route('/lumen', studioRoutes({ studio, http: researchHttp(options.research?.fetch), activity: application.liveSessionStates }))
+  app.route('/lumen', catalogRoutes(catalog, application.liveSessionStates, application.assertTopicIdle, application.whileIdle))
+  app.route('/lumen', studioRoutes({ studio, http: researchHttp(options.research?.fetch), activity: application.liveSessionStates, whileIdle: application.whileIdle }))
+  app.route('/lumen', lifecycleRoutes({ catalog, studio, whileIdle: application.whileIdle, deletion }))
   app.route('/lumen', specialistRoutes({ history: application.specialistHistory, budget: application.familyBudget, session: bindSession, admit: application.admitRun,
     withExecution: async work => {
       if (reconfiguring) throw new SettingsError('配置正在保存，请稍后重试', 409, 'settings.saving')

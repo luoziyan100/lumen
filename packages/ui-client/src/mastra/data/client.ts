@@ -1,6 +1,6 @@
 /**
  * [INPUT]: the official MastraClient, the native-injected local service discovery and the chosen skill file manifest
- * [OUTPUT]: LumenApi, Connection, the topic/session catalog, library and topic references, the read-only board view and the user's selected sheet (R16; silent on an older service
+ * [OUTPUT]: LumenApi, Connection, the topic/session catalog (rename, archive and delete of topics and conversations, the archived listing — R18–R20), library and topic references, the read-only board view and the user's selected sheet (R16; silent on an older service
  *           without the route, other failures throw), the user's sheet delete and block lookup (R17; an older service answers unsupported/unknown as due), the sediment endpoints
  *           (entries/offers/invites, R13: user HTTP only) and speech habits, the topic's readings and one reading by ETag (read-only), RequestError carrying status and JSON body (messages map through the code into the UI language, i18n I6),
  *           whole skill packages, diagnostics and issue evaluation, snapshots with specialist usage, and ETag file versions; identities are {topicId, taskId}, reads and writes of one
@@ -14,8 +14,8 @@ import { serviceErrorText, t } from '../../i18n/index.ts'
 
 export interface Connection { baseUrl: string; token: string; error?: string }
 export interface Identity { topicId: string; taskId: string }
-export type { SessionSummary as SessionInfo, Page } from '../../../../mastra-service/src/catalog/types.ts'
-import type { SessionSummary as SessionInfo, Page } from '../../../../mastra-service/src/catalog/types.ts'
+export type { SessionSummary as SessionInfo, ArchivedSession, Page } from '../../../../mastra-service/src/catalog/types.ts'
+import type { SessionSummary as SessionInfo, ArchivedSession, Page } from '../../../../mastra-service/src/catalog/types.ts'
 export type { Topic, LibraryItem, TopicMaterial, Sheet, SheetView, SedimentEntry, SedimentOffer, SedimentInvite, SpeechHabit, Reading, ReadingSection, ReadingParagraph, ReadingTextBlock, ReadingTableBlock, ReadingDiagramBlock, ReadingWidgetBlock, ReadingSummary } from '../../../../mastra-service/src/studio/types.ts'
 import type { Topic, LibraryItem, TopicMaterial, Sheet, SheetView, SedimentEntry, SedimentOffer, SedimentInvite, SpeechHabit, Reading, ReadingSummary } from '../../../../mastra-service/src/studio/types.ts'
 /** writable: newest live sheet (old field). selected/target come from R16 services; optional so an older service still parses. */
@@ -70,7 +70,7 @@ export class LumenApi {
       const detail = await response.json().catch(() => null)
       throw new RequestError(serviceErrorText(detail, t().data.requestFailed(response.status)), response.status, detail && typeof detail === 'object' ? detail : null)
     }
-    return response.json()
+    return response.status === 204 ? undefined as T : response.json()
   }
   query(identity: Identity, extra: Record<string, string> = {}) { return new URLSearchParams({ topicId: identity.topicId, taskId: identity.taskId, ...extra }).toString() }
   private sessionPath(identity: Identity) { return `/lumen/topics/${encodeURIComponent(identity.topicId)}/sessions/${encodeURIComponent(identity.taskId)}` }
@@ -80,6 +80,10 @@ export class LumenApi {
   topics(archived = false) { return this.request<{ items: Topic[] }>(`/lumen/topics?archived=${archived}`) }
   createTopic(title: string) { return this.request<Topic>('/lumen/topics', 'POST', { title }) }
   updateTopic(topicId: string, updates: { title?: string; archived?: boolean }) { return this.request<Topic>(`/lumen/topics/${encodeURIComponent(topicId)}`, 'PATCH', updates) }
+  /** R20: deletes the topic and everything it owns (library originals stay); resolves once the service has removed it all. 409 while a conversation runs or waits. */
+  deleteTopic(topicId: string) { return this.request<void>(`/lumen/topics/${encodeURIComponent(topicId)}`, 'DELETE') }
+  /** L7: archived topics, and archived conversations of topics still in the list (with that topic's title), newest first. */
+  archived() { return this.request<{ topics: Topic[]; sessions: ArchivedSession[] }>('/lumen/archived') }
   /** selected: where the next message writes; target: where the run in progress writes. Both absent on services older than R16. */
   sheets(topicId: string) { return this.request<SheetList>(`/lumen/topics/${encodeURIComponent(topicId)}/sheets`) }
   /** Record the user's tab choice so the next run writes there (R16). */
@@ -175,7 +179,9 @@ export class LumenApi {
   }
   libraryContentUrl(itemId: string) { return `${this.connection.baseUrl}/lumen/library/${encodeURIComponent(itemId)}/content` }
   sessions(topicId: string, page = 0, archived = false, search = '') { return this.request<Page<SessionInfo>>(`/lumen/topics/${encodeURIComponent(topicId)}/sessions?${new URLSearchParams({ page: String(page), archived: String(archived), search })}`) }
-  updateSession(identity: Identity, updates: Partial<Pick<SessionInfo, 'title' | 'pinned' | 'archived'>>) { return this.request<SessionInfo>(this.sessionPath(identity), 'PATCH', updates) }
+  updateSession(identity: Identity, updates: { title?: string; pinned?: boolean; archived?: boolean }) { return this.request<SessionInfo>(this.sessionPath(identity), 'PATCH', updates) }
+  /** R20: deletes the conversation's messages, memory, cursor, traces and diagnostics; what it produced stays with the topic. 409 while it runs or waits. */
+  deleteSession(identity: Identity) { return this.request<void>(this.sessionPath(identity), 'DELETE') }
   private changeReadState(identity: Identity, action: string, body: unknown) {
     const key = `${identity.topicId}:${identity.taskId}`
     const result = (this.readChanges.get(key) ?? Promise.resolve()).catch(() => {}).then(() => this.request<{ changed: boolean }>(`${this.sessionPath(identity)}/${action}`, 'POST', body))

@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 公开委派身份、专家 processOutputStep 的真实 usage、Mastra threadState
- * [OUTPUT]: createChildUsage / ChildUsage：专家用量派生快照、原生步骤去重与持久读取
+ * [OUTPUT]: createChildUsage / ChildUsage：专家用量派生快照、原生步骤去重与持久读取；CHILD_USAGE_STATE（thread state 类型，删除对话时一并删）
  * [POS]: 仅补齐 Controller 未汇总的专家消耗；不调度运行、不设置费用或 token 限额
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -10,7 +10,9 @@ import type { AgentControllerRequestContext, TokenUsage } from '@mastra/core/age
 import type { OutputProcessor } from '@mastra/core/processors'
 import type { MastraStorage } from '@mastra/core/storage'
 
-const STATE_TYPE = 'lumen.child-token-usage.v1'
+/** Exported for R20: deleting a conversation removes this thread state too (lifecycle/deletion). */
+export const CHILD_USAGE_STATE = 'lumen.child-token-usage.v1'
+const STATE_TYPE = CHILD_USAGE_STATE
 const SCOPE_KEY = 'lumen.child-token-usage'
 interface Scope { threadId: string; runId: string; toolCallId: string }
 interface UsageState { steps: Record<string, TokenUsage> }

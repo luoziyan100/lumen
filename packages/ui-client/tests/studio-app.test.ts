@@ -206,7 +206,7 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     assert.deepEqual($$('.studio-foot button').map(node => node.textContent), [S.settings])
     await click(S.settings)
     const nav = () => [...document.querySelectorAll<HTMLButtonElement>('.settings-nav-item')]
-    assert.deepEqual(nav().map(node => node.textContent), ['模型', '研究偏好', '专家', '外观', '说话习惯'])
+    assert.deepEqual(nav().map(node => node.textContent), ['模型', '研究偏好', '专家', '外观', '说话习惯', '已归档'])
     await act(async () => nav()[2]!.click())
     await until(() => document.querySelectorAll('.settings-body .agent-card').length > 0, '专家分页没有列出专家')
     assert.equal(document.querySelector('.settings-body .settings-h')!.textContent, '专家')

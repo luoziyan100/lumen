@@ -4,6 +4,7 @@
  *           the offer's strikethrough restore/re-delete and keep as a quoted entry with the original expandable (S9), evidence chips jumping or reporting the deleted board, the R17 dialog carrying the affected takeaway count (S3),
  *           the speech-habits list and per-line delete in settings (S14), and the English catalog render
  * [POS]: P1-1's UI mechanism acceptance; the controllable model proves mechanism only and never stands in for real-model acceptance; no WebKit coverage claimed
+ *        Each sprite turn waits until it is over as the person sees it (model done, service idle, conversation connected with Send back), never on the polled topic light alone
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import test, { after } from 'node:test'
@@ -122,7 +123,14 @@ test('S8/S9/S14 全流程：精灵驱动画满→邀请→跳过与回返；块�
   const dataRoot = await mkdtemp(join(tmpdir(), 'lumen-ui-sediment-'))
   let calls = 0
   const call = (name: string, args: unknown) => toolReply(name, args, `call-${++calls}`)
+  // Counts the model's final text replies: each closes a turn on the model side (see turn below)
+  let replies = 0
   const fixture = fixtureProvider((request: ProviderRequest) => {
+    const reply = respond(request)
+    if (!reply.call) replies++
+    return reply
+  })
+  function respond(request: ProviderRequest) {
     const { text, results } = said(request)
     if (text.includes('画满')) return results < 8 ? call('board_draw', { kind: 'text', title: `第${results + 1}块`, content: { markdown: `内容 ${results + 1}` } }) : textReply('画满了')
     if (text.includes('邀请')) return results ? textReply('等你写一句') : call('sediment_invite', { blockIds: lastBlockIds(request).slice(0, 2), question: '对齐是在做什么，用你自己的话说？' })
@@ -130,7 +138,7 @@ test('S8/S9/S14 全流程：精灵驱动画满→邀请→跳过与回返；块�
     if (text.includes('腾位补满')) return results === 0 ? call('board_supersede', { blockId: lastBlockIds(request)[0] })
       : results === 1 ? call('board_draw', { kind: 'text', title: '补的一块', content: { markdown: '补' } }) : textReply('补满了')
     return textReply('好')
-  })
+  }
   const service = await createHttpService({ dataRoot, token, model: { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixture.fetch } })
   const server = serve({ hostname: '127.0.0.1', port: 0, fetch: request => service.app.fetch(request) })
   if (!server.listening) await new Promise<void>(resolve => server.once('listening', resolve))
@@ -156,6 +164,19 @@ test('S8/S9/S14 全流程：精灵驱动画满→邀请→跳过与回返；块�
     })
     await act(async () => $('.sprite form')!.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })))
   }
+  // A turn is over when the person can see it is: the model has given its final reply, the service no longer projects the conversation as running or waiting,
+  // and the sprite's conversation is connected with Send offered again. Waiting on the topic light alone raced: the light follows a 3s poll, so right
+  // after a send it is often not lit yet. And after the first message the sprite swaps the welcome card for the conversation and reconnects its feed;
+  // the composer drops a send typed during that reconnect (the text stays in the box), which is what 「邀请问题没有出现」 met when it failed
+  const turn = async (message: string, label: string) => {
+    const before = replies
+    await say(message)
+    await until(() => replies > before, `${label}：模型没有答完`)
+    await until(async () => (await api.sessions('attn')).items.every(item => !item.running && !item.waiting), `${label}：服务端还在运行`)
+    await until(() => !$('.topic .topic-light-running'), `${label}：运行灯没灭`)
+    // The conversation view is up, connected (no 「连接中…」) and offers Send, not Stop
+    await until(() => !$('.sprite-welcome') && !$('.sprite .mw-connection') && !!$('.sprite .composer-btn-send'), `${label}：精灵还没回到可发送`)
+  }
   try {
     await act(async () => root.render(createElement(StudioApp, { connection })))
     await until(() => $$('.studio-views [role=tab]').length > 0, '视图导航没有出现')
@@ -172,23 +193,18 @@ test('S8/S9/S14 全流程：精灵驱动画满→邀请→跳过与回返；块�
     // ---- Sprite: the first sentence is quote material, then fill the board ----
     await click(S.sprite.open)
     await until(() => !!$('.sprite textarea'), '精灵没有展开')
-    await say('我觉得那个注意力就是把查询和键对齐')
-    await until(async () => (await api.sessions('attn')).total > 0, '会话没有建立')
-    await until(() => !$('.topic .topic-light-running'), '第一轮没结束')
-    await say('画满')
-    await until(() => !$('.topic .topic-light-running'), '画满这轮没结束')
+    await turn('我觉得那个注意力就是把查询和键对齐', '第一轮')
+    await turn('画满', '画满这轮')
     await until(() => !!$('.board-sediment-row'), '写满后没有出现沉淀行')
     assert.ok(!$('.board-sediment-invite'), '还没邀请，不显示问题')
     // ---- The invite: its question sits above the input (S9c) ----
-    await say('邀请')
-    await until(() => !$('.topic .topic-light-running'), '邀请这轮没结束')
+    await turn('邀请', '邀请这轮')
     await until(() => !!$('.board-sediment-invite'), '邀请问题没有出现')
     assert.match($('.board-sediment-invite')!.textContent!, /对齐是在做什么/)
     // ---- Skip hides it; after freeing and refilling a slot the row returns ----
     await click(S.sediment.skip)
     await until(() => !$('.board-sediment-row'), '跳过后应收起')
-    await say('腾位补满')
-    await until(() => !$('.topic .topic-light-running'), '腾位补满没结束')
+    await turn('腾位补满', '腾位补满')
     await until(() => !!$('.board-sediment-row'), '白板变化且再次写满后行应回来')
     // ---- S9b from-block entry: the block is pre-linked and the kept entry carries its evidence chip ----
     const fromBlock = $$('.block-takeaway')[0]
@@ -212,8 +228,7 @@ test('S8/S9/S14 全流程：精灵驱动画满→邀请→跳过与回返；块�
     assert.equal(tab('board').getAttribute('aria-selected'), 'true')
     // ---- The offer: strikethrough restore/re-delete, keep as a quoted entry, the original expands (S9) ----
     await act(async () => tab('settled').click())
-    await say('递回')
-    await until(() => !$('.topic .topic-light-running'), '递回没结束')
+    await turn('递回', '递回')
     await until(() => $$('.sediment-offer').length === 1, '报价单应出现在输入上方')
     const strike = $('.sediment-offer .sediment-strike') as HTMLButtonElement
     assert.ok(strike, '被删的字带删除线')

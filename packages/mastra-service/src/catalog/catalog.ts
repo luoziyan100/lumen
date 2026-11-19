@@ -10,26 +10,31 @@ import type { StorageThreadType } from '@mastra/core/memory'
 import { StudioError } from '../studio/errors.ts'
 import type { ErrorCode } from '../http/error-codes.ts'
 import type { TopicStore } from '../studio/topics.ts'
+import type { DeletionJournal } from '../studio/deletions.ts'
 import { ReadReceipts } from './read-receipts.ts'
-import type { CatalogQuery, Page, SessionPatch, SessionSummary } from './types.ts'
+import type { ArchivedSession, CatalogQuery, Page, SessionPatch, SessionSummary } from './types.ts'
 
 export class CatalogError extends Error {
-  readonly status: 404 | 409
+  readonly status: 400 | 404 | 409
   readonly code: ErrorCode
-  constructor(message: string, status: 404 | 409, code: ErrorCode) { super(message); this.status = status; this.code = code }
+  constructor(message: string, status: 400 | 404 | 409, code: ErrorCode) { super(message); this.status = status; this.code = code }
 }
+
+/** Threads created before L8 stored this word as their title; they read as untitled, so the UI can say it in its own language. */
+const LEGACY_UNTITLED = '新对话'
+const titleOf = (thread: StorageThreadType) => thread.title && thread.title !== LEGACY_UNTITLED ? thread.title : null
 
 function summary(thread: StorageThreadType, lastMessageId: string | null = null, unread = false): SessionSummary {
   return {
     topicId: String(thread.metadata?.lumenTopicId), taskId: String(thread.metadata?.lumenTaskId),
-    resourceId: thread.resourceId, threadId: thread.id, title: thread.title ?? '新对话',
+    resourceId: thread.resourceId, threadId: thread.id, title: titleOf(thread),
     pinned: thread.metadata?.lumenPinned === true, archived: thread.metadata?.lumenArchived === true,
     createdAt: thread.createdAt.toISOString(), updatedAt: thread.updatedAt.toISOString(),
     lastMessageId, unread,
   }
 }
 
-export function createCatalog(root: string, memory: Memory, topics: TopicStore) {
+export function createCatalog(root: string, memory: Memory, topics: TopicStore, deletions: DeletionJournal) {
   const receipts = new ReadReceipts(root)
   const pending = new Map<string, Promise<unknown>>()
   let closing: Promise<void> | undefined
@@ -52,7 +57,8 @@ export function createCatalog(root: string, memory: Memory, topics: TopicStore) 
     requireTopic(topicId)
     const id = `${topicId}:${taskId}`
     const thread = await memory.getThreadById({ threadId: id, resourceId: id })
-    if (!thread || thread.metadata?.lumenTopicId !== topicId || thread.metadata?.lumenTaskId !== taskId)
+    // A conversation being deleted (R20) is gone for every lookup, so nothing can open or run it again
+    if (!thread || thread.metadata?.lumenTopicId !== topicId || thread.metadata?.lumenTaskId !== taskId || deletions.pending(topicId, taskId))
       throw new CatalogError('Session not found', 404, 'session.not_found')
     return thread
   }
@@ -75,7 +81,8 @@ export function createCatalog(root: string, memory: Memory, topics: TopicStore) 
     const result = await memory.listThreads({ perPage: false,
       orderBy: { field: 'updatedAt', direction: 'DESC' }, filter: { metadata } })
     const search = query.search?.trim().toLocaleLowerCase()
-    const entries = result.threads.filter(thread => !search || (thread.title ?? '新对话').toLocaleLowerCase().includes(search))
+    const entries = result.threads.filter(thread => !deletions.pending(topicId, String(thread.metadata?.lumenTaskId)))
+      .filter(thread => !search || (titleOf(thread) ?? '').toLocaleLowerCase().includes(search))
       .sort((a, b) => Number(b.metadata?.lumenPinned === true) - Number(a.metadata?.lumenPinned === true) || b.updatedAt.getTime() - a.updatedAt.getTime())
     const start = query.page * query.perPage
     return { items: await Promise.all(entries.slice(start, start + query.perPage).map(describe)), page: query.page, perPage: query.perPage,
@@ -88,7 +95,8 @@ export function createCatalog(root: string, memory: Memory, topics: TopicStore) 
     const existing = await memory.getThreadById({ threadId: id, resourceId: id })
     if (existing) return describe(await requireSession(topicId, taskId))
     if (topic.archived) throw new CatalogError('Topic is archived', 409, 'topic.archived')
-    return summary(await memory.createThread({ threadId: id, resourceId: id, title: title ?? '新对话',
+    // L8: no title until the first message gives one or the user sets one; the UI shows its own word meanwhile
+    return summary(await memory.createThread({ threadId: id, resourceId: id, title,
       metadata: { lumenTopicId: topicId, lumenTaskId: taskId, lumenPinned: false, lumenArchived: false, lumenAutoTitle: title === undefined } }))
   }
 
@@ -100,6 +108,17 @@ export function createCatalog(root: string, memory: Memory, topics: TopicStore) 
     createSession(topicId: string, taskId: string = randomUUID(), title?: string) {
       return change(topicId, () => ensureSession(topicId, taskId, title))
     },
+    /** L7: archived topics, and archived conversations of topics still in the list, newest first; one thread query, not a walk over topics. */
+    async listArchived(): Promise<{ topics: ReturnType<TopicStore['list']>; sessions: ArchivedSession[] }> {
+      const open = new Map(topics.list(false).map(topic => [topic.id, topic.title]))
+      const { threads } = await memory.listThreads({ perPage: false, orderBy: { field: 'updatedAt', direction: 'DESC' }, filter: { metadata: { lumenArchived: true } } })
+      const sessions = threads.filter(thread => open.has(String(thread.metadata?.lumenTopicId)) && !deletions.pending(String(thread.metadata?.lumenTopicId), String(thread.metadata?.lumenTaskId)))
+      return { topics: topics.list(true), sessions: await Promise.all(sessions.map(async thread => ({ ...await describe(thread), topicTitle: open.get(String(thread.metadata?.lumenTopicId))! }))) }
+    },
+    /** R20: the read cursor of one conversation, or of every conversation of a topic (by the `topicId:` prefix, so a resumed deletion finds them after the threads are gone). */
+    forgetReceipts(prefix: string) { receipts.clearPrefix(prefix) },
+    /** Run work in this topic's catalog order (archive and deletion share it with every other catalog write). */
+    serialized: change,
     markSessionRead(topicId: string, taskId: string, messageId: string) {
       return change(topicId, async () => {
         const thread = await requireSession(topicId, taskId)
@@ -126,10 +145,13 @@ export function createCatalog(root: string, memory: Memory, topics: TopicStore) 
     updateSession(topicId: string, taskId: string, patch: SessionPatch) {
       return change(topicId, async () => {
         const thread = await requireSession(topicId, taskId)
+        // R18: trimmed, never empty; a title the user set is never replaced by the generated one (lumenAutoTitle)
+        const title = patch.title?.trim()
+        if (title === '') throw new CatalogError('Session title is empty', 400, 'session.title_empty')
         const metadata = { ...(patch.pinned === undefined ? {} : { lumenPinned: patch.pinned }),
           ...(patch.archived === undefined ? {} : { lumenArchived: patch.archived }),
-          ...(patch.title === undefined ? {} : { lumenAutoTitle: false }) }
-        return describe(await memory.updateThread({ id: thread.id, title: patch.title, metadata }))
+          ...(title === undefined ? {} : { lumenAutoTitle: false }) }
+        return describe(await memory.updateThread({ id: thread.id, title, metadata }))
       })
     },
     close() {

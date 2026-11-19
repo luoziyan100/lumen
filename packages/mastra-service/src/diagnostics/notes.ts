@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 隔离数据根、已授权 resourceId 和经过校验/脱敏的用户评语
- * [OUTPUT]: CaseStore：按会话限定的问题标注与最近隔离评估结果
+ * [OUTPUT]: CaseStore：按会话限定的问题标注与最近隔离评估结果；按会话或主题前缀删除（R20）
  * [POS]: 人的观察及派生评估结果；不保存运行状态、不改原生 trace；编辑使旧评估失效
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -35,6 +35,11 @@ export class CaseStore {
     const total = Number(this.db.prepare('SELECT COUNT(*) AS total FROM diagnostic_cases WHERE resource_id = ?').get(resourceId)!.total)
     const items = this.db.prepare('SELECT * FROM diagnostic_cases WHERE resource_id = ? ORDER BY created_at DESC, id ASC LIMIT ? OFFSET ?').all(resourceId, perPage, page * perPage).map(decode)
     return { items, total, page, perPage, hasMore: (page + 1) * perPage < total }
+  }
+  /** R20: `topicId:` removes a topic's cases, `topicId:taskId` exactly one conversation's. */
+  removePrefix(prefix: string): void {
+    if (prefix.endsWith(':')) this.db.prepare('DELETE FROM diagnostic_cases WHERE substr(resource_id, 1, ?) = ?').run(prefix.length, prefix)
+    else this.db.prepare('DELETE FROM diagnostic_cases WHERE resource_id = ?').run(prefix)
   }
   mark(resourceId: string, input: MarkCaseInput, redacted: boolean): BadCase {
     const id = randomUUID(), now = new Date().toISOString()

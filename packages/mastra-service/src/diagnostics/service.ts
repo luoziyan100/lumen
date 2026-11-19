@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 原生 LibSQL observability、可信会话授权、用户标注与脱敏规则
- * [OUTPUT]: createDiagnostics：采集、授权 trace、问题标注、隔离评估和本地导出
+ * [OUTPUT]: createDiagnostics：采集、授权 trace、问题标注、隔离评估和本地导出；删除对话/主题时清掉其 trace 与标注（R20，forgetTraces/forgetCases）
  * [POS]: 产品诊断组合；仅按原生身份查询，既不猜测最后一轮，也不把 trace 等同完整审计
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -165,6 +165,24 @@ export function createDiagnostics(options: Options) {
       return encodeDiagnosticPack(pack)
     },
     readRecorded: (content: string) => readRecorded(content, secrets()),
+    /** R20: every trace whose root span carries this resourceId (child spans go with their trace). Flushes first so a late span is not left behind. */
+    async forgetTraces(resourceId: string) {
+      await observability.flush()
+      const store = await domain()
+      for (;;) {
+        const { spans } = await store.listTraces({ filters: { resourceId }, pagination: { page: 0, perPage: 100 } })
+        if (!spans.length) return
+        await store.batchDeleteTraces({ traceIds: [...new Set(spans.map(span => span.traceId))] })
+      }
+    },
+    /** R20: the cases of one conversation (`topicId:taskId`) or of a whole topic (`topicId:`), after their running evaluations stop. */
+    async forgetCases(prefix: string) {
+      const matches = (key: string) => prefix.endsWith(':') ? key.startsWith(prefix) : key.startsWith(`${prefix}/`)
+      const running = [...evaluations].filter(([key]) => matches(key)).map(([, pending]) => pending)
+      for (const pending of running) pending.abort.abort(new Error('Conversation deleted'))
+      await Promise.allSettled(running.map(pending => pending.result))
+      cases.removePrefix(prefix)
+    },
     async close() {
       if (closed) return
       closed = true

@@ -100,8 +100,8 @@ test('研究进行中四个设置分类可切换且无预算入口，配置写�
     assert.ok(dialog)
     assert.equal(element.contains(dialog), false, '设置窗口经 Kumo portal 挂在 document 中')
     // the zh catalog's own tab labels, 说话习惯 included since S14
-    assert.deepEqual([...document.querySelectorAll('.settings-nav-item')].map(item => item.textContent), ['模型', '研究偏好', '专家', '外观', '说话习惯'])
-    for (const label of ['模型', '研究偏好', '专家', '外观', '说话习惯']) assert.equal(nav(label).disabled, false, `${label} 分类可进入`)
+    assert.deepEqual([...document.querySelectorAll('.settings-nav-item')].map(item => item.textContent), ['模型', '研究偏好', '专家', '外观', '说话习惯', '已归档'])
+    for (const label of ['模型', '研究偏好', '专家', '外观', '说话习惯', '已归档']) assert.equal(nav(label).disabled, false, `${label} 分类可进入`)
 
     await act(async () => nav('研究偏好').click())
     assert.equal(document.querySelector('.settings-h')?.textContent, '研究偏好')
