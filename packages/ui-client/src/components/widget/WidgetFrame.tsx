@@ -1,5 +1,5 @@
 /**
- * [INPUT]: receiver/sanitize;宿主 onSendMessage;collectThemeVars/hostChromeIsDark
+ * [INPUT]: receiver/sanitize;宿主 onSendMessage;collectThemeVars/hostChromeIsDark;MODEL_TEXT.widgetSend(回发的消息带小实验标记)
  * [OUTPUT]: WidgetFrame —— 沙箱 iframe + 高度同步(策略见 height.ts);
  *           WIDGET_DIAG 常挂 data-widget-diag,可见条默认隐藏(localStorage lumen:widgetDiag=1 打开);
  *           finalize 前 hoistInlineScripts(内联→lumenwidget: src);同代同内容只推送一次
@@ -13,6 +13,7 @@
  * iframe 用同源 /widget-receiver.html(非 srcdoc),避开父 CSP 继承掐死 bootstrap。
  */
 import { useT } from '../../i18n/index.ts'
+import { MODEL_TEXT } from '../../i18n/locales/model.ts'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   WIDGET_DIAG,
@@ -158,7 +159,8 @@ export function WidgetFrame({
           if (typeof e.data.href === 'string') void import('../../openExternal').then((m) => m.openExternalUrl(e.data.href as string))
           break
         case WIDGET_SEND:
-          if (typeof e.data.text === 'string') onSendRef.current?.(e.data.text)
+          // Marked as the widget's: the conversation answers it, sediment never takes it for the person's words (R13)
+          if (typeof e.data.text === 'string') onSendRef.current?.(MODEL_TEXT.widgetSend(e.data.text))
           break
         case WIDGET_DIAG: {
           const kind = String(e.data.kind ?? '')

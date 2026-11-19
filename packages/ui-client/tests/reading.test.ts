@@ -6,7 +6,8 @@
  *           inference chips are dashed; only a selection inside one paragraph opens the window (not on a chip or the quote line); Enter sends the documented message; the reply streams into the window from the one
  *           shared subscription; Esc closes; the footprint reopens the exchange; a follow-up continues the same conversation and its Markdown reply renders as strong/li/blockquote (G3); keep stores only typed words; another
  *           conversation's run gets the service's readable 409 and nothing is sent; footprints survive a reload and are inline role="button" spans opened by Enter/Space (G4);
- *           the service's readingQuestion reads the real askReading output exactly as parseAsk does, and userWords drops the quote (G1 binding)
+ *           the service's readingQuestion reads the real askReading output exactly as parseAsk does, and userWords drops the quote (G1 binding); userWords gives nothing for the
+ *           program-written messages (write request, widget message, diagram fix) and drops the upload list (R13)
  * [POS]: P1-2's UI mechanism acceptance; the controllable model proves mechanism only and never stands in for real-model acceptance; layout and WebKit are covered by the
  *        browser assertions (scripts/sprite/ui-assert-reading.mts), not here
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -100,6 +101,23 @@ test('reading question format: the service reads MODEL_TEXT.askReading exactly a
     assert.equal(readingQuestion(text), null)
     assert.equal(userWords(text), text, '普通消息整条都是用户的话')
   }
+})
+
+// Everything the program writes in the person's name, fed as the real MODEL_TEXT output: none of it is the person's words (R13)
+test('program-written messages are not the person\'s words: write request, widget message, diagram fix, the upload list', () => {
+  for (const text of [
+    MODEL_TEXT.writeReading('A theory of cortical responses', 'item-1'),
+    MODEL_TEXT.writeReading('Title · with 《marks》）and more', 'item-2'),
+    MODEL_TEXT.widgetSend('我猜 B'),
+    MODEL_TEXT.widgetSend('  参数 3\n第二行 '),
+    MODEL_TEXT.mermaidFix('graph TD\nA-->B', 'Parse error on line 2'),
+  ]) assert.equal(userWords(text), '', `程序代写的不算用户的话：${text}`)
+  assert.equal(MODEL_TEXT.widgetSend(' 我猜 B '), '— 小实验\n\n我猜 B', 'the widget mark is its own first line')
+  const typed = '这里的上界为什么成立？'
+  const withList = `${typed}\n\n${MODEL_TEXT.uploadedMaterials}\n- paper.pdf: item-9`
+  assert.equal(userWords(withList), typed, '上传清单不算用户的话')
+  assert.equal(userWords('我说的话里提到 — 小实验 也没关系'), '我说的话里提到 — 小实验 也没关系', 'the mark counts only as the first line')
+  assert.equal(userWords('请为《X》写一份解读。我自己还想补一句'), '请为《X》写一份解读。我自己还想补一句', 'a typed sentence that starts like the request stays the person\'s')
 })
 
 test('Reading view: write → live sections → chips → in-paragraph window → shared reply → footprint → keep typed words → 409 → reload', { timeout: 180000 }, async () => {

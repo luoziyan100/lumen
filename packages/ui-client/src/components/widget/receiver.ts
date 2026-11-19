@@ -3,7 +3,7 @@
  * [OUTPUT]: buildReceiverSrcdoc —— receiver HTML(供 emit 成 public/ 同源页;勿再当 srcdoc);
  *           WIDGET_DIAG 走查打点(csp/error/finalize/appended);
  *           finalize 吃 src(CDN + lumenwidget:);同内容幂等且拒绝旧世代异步脚本
- * [POS]: widget/ 沙箱壳 —— CSP + 高度同步 + 链接拦截 + __widgetSendMessage;
+ * [POS]: widget/ 沙箱壳 —— CSP + 高度同步 + 链接拦截 + __widgetSendMessage(只在用户刚点过或按过键的 SEND_WINDOW_MS 内放行，脚本自发的一律丢弃);
  *       主题变量见 themeVars.ts;THEME.fillHeight 切岛内滚动(阅读器)vs hidden(对话跟高);
  *       控件去系统外观以吃 inline 背景,滑块/勾选/单选保留系统外观(否则浅档连轨道都看不见)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
@@ -13,6 +13,9 @@
  */
 
 import { CDN_WHITELIST } from './sanitize'
+
+/** How long after a trusted pointer or key event in the widget a __widgetSendMessage still counts as the person's act */
+export const SEND_WINDOW_MS = 5000
 
 export const WIDGET_RESIZE = 'lumen-widget:resize'
 export const WIDGET_READY = 'lumen-widget:ready'
@@ -162,8 +165,15 @@ document.addEventListener('click',function(e){
   parent.postMessage({type:'${WIDGET_LINK}',href:h},'*');
 });
 
+/* A widget speaks for the person only right after the person touched it: a trusted pointer or key event in this document within SEND_WINDOW_MS.
+   Script cannot forge isTrusted, so a widget that calls __widgetSendMessage on load or on a timer sends nothing */
+var _touched=-Infinity;
+function _touch(e){if(e.isTrusted)_touched=Date.now()}
+window.addEventListener('pointerdown',_touch,true);
+window.addEventListener('keydown',_touch,true);
 window.__widgetSendMessage=function(t){
   if(typeof t!=='string'||t.length>500)return;
+  if(Date.now()-_touched>${SEND_WINDOW_MS})return;
   parent.postMessage({type:'${WIDGET_SEND}',text:t},'*');
 };
 
