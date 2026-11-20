@@ -1,6 +1,6 @@
 /**
  * [INPUT]: components/Markdown for replies, components/MermaidBlock for inline diagrams, components/widget/WidgetFrame for inline interactive widgets, objects/ (IsoObject, typewriterSvg/paperLines), useReading's state, the topic's questions (useTopicAsks), the pure helpers of reading-ask.ts, i18n `studio.reading`, the host's send/widget-send/keep/open-source callbacks
- * [OUTPUT]: ReadingView: the centre 「解读 / Reading」 view — a centred 960px column whose prose, headings, quotes, tables and diagrams stay within 700px while interactive HTML widgets (`WidgetFrame`, up to 3 active by default, bidirectional via onSendMessage) use the full 960px column width and can expand in place via `position: fixed` (same mounted WidgetFrame/iframe so interactive state survives expand/collapse, same-height placeholder, solid light stage, closes AskWindow first so one Esc handles it); a paper block is followed by its quote in the paper's own words, ending in the source chip
+ * [OUTPUT]: ReadingView: the centre 「解读 / Reading」 view — a centred 960px column whose prose, headings, quotes, tables and diagrams stay within 700px while interactive HTML widgets (`WidgetFrame`, up to 3 active by default, bidirectional via onSendMessage) use the full 960px column width and can expand in place via `position: fixed` (same mounted WidgetFrame/iframe so interactive state survives expand/collapse, same-height placeholder, solid light stage, closes AskWindow first so one Esc handles it, including Esc pressed while focus is inside the expanded iframe via `onEscape`); a paper block is followed by its quote in the paper's own words, ending in the source chip
  *           (「原文 p.N」 opens split reading at that page), an inference block ends in a dashed chip; the quote line opens no window; the person's footprints (thin underlines on sentences asked about, inline spans with role="button" that wrap like text and open on click/Enter/Space);
  *           selecting text inside one prose paragraph opens AskWindow under the selection
  *           and kept clear of the sprite's figure (padding on the side it sits);
@@ -174,13 +174,14 @@ function ReadingStart({ item, requested, error }: { item: TopicMaterial | null; 
   </div>
 }
 
-function VisualBlock({ block, widgetActive, expanded, slotHeight, onActivate, onToggleExpand, onOpenSource, onWidgetSend }: {
+function VisualBlock({ block, widgetActive, expanded, slotHeight, onActivate, onToggleExpand, onCollapse, onOpenSource, onWidgetSend }: {
   block: Exclude<ReadingParagraph, ReadingTextBlock>
   widgetActive: boolean
   expanded: boolean
   slotHeight: number
   onActivate: (id: string) => void
   onToggleExpand: (id: string, slot: HTMLElement | null) => void
+  onCollapse: () => void
   onOpenSource: (page?: number) => void
   onWidgetSend: (text: string) => void
 }) {
@@ -207,7 +208,7 @@ function VisualBlock({ block, widgetActive, expanded, slotHeight, onActivate, on
                 {expanded ? <CollapseIcon /> : <ExpandIcon />}
               </button>
             </div>
-            <WidgetFrame widgetCode={block.html} isStreaming={false} light fillHeight={expanded} onSendMessage={onWidgetSend} />
+            <WidgetFrame widgetCode={block.html} isStreaming={false} light fillHeight={expanded} onSendMessage={onWidgetSend} onEscape={expanded ? onCollapse : undefined} />
           </div>
           {expanded && <div className="reading-widget-backdrop" aria-hidden onClick={() => onToggleExpand(block.id, slotRef.current)} />}
         </div>
@@ -351,7 +352,7 @@ export function ReadingView({ state, requested, startItem, asks, busyFor, onSend
             const isExpanded = expanded?.id === paragraph.id
             return <VisualBlock key={paragraph.id} block={paragraph} widgetActive={activeWidgets.has(paragraph.id)}
               expanded={isExpanded} slotHeight={isExpanded ? expanded.height : 0}
-              onActivate={activateWidget} onToggleExpand={toggleExpand}
+              onActivate={activateWidget} onToggleExpand={toggleExpand} onCollapse={collapseWidget}
               onOpenSource={page => onOpenSource(reading.itemId, page)} onWidgetSend={sendWidget} />
           }
           const chip = <SourceChip paragraph={paragraph} onOpen={page => onOpenSource(reading.itemId, page)} />

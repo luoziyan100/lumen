@@ -1,5 +1,5 @@
 /**
- * [INPUT]: receiver/sanitize;宿主 onSendMessage;collectThemeVars/hostChromeIsDark;MODEL_TEXT.widgetSend(回发的消息带小实验标记)
+ * [INPUT]: receiver/sanitize;宿主 onSendMessage/onEscape;collectThemeVars/hostChromeIsDark;MODEL_TEXT.widgetSend(回发的消息带小实验标记)
  * [OUTPUT]: WidgetFrame —— 沙箱 iframe + 高度同步(策略见 height.ts);
  *           WIDGET_DIAG 常挂 data-widget-diag,可见条默认隐藏(localStorage lumen:widgetDiag=1 打开);
  *           finalize 前 hoistInlineScripts(内联→lumenwidget: src);同代同内容只推送一次
@@ -17,6 +17,7 @@ import { MODEL_TEXT } from '../../i18n/locales/model.ts'
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   WIDGET_DIAG,
+  WIDGET_ESCAPE,
   WIDGET_FINALIZE,
   WIDGET_LINK,
   WIDGET_READY,
@@ -66,6 +67,7 @@ export function WidgetFrame({
   isStreaming,
   showOverlay,
   onSendMessage,
+  onEscape,
   fillHeight,
   light,
 }: {
@@ -74,6 +76,8 @@ export function WidgetFrame({
   isStreaming: boolean
   showOverlay?: boolean
   onSendMessage?: (text: string) => void
+  /** 焦点在 iframe 内按 Esc 时触发（按 e.source 校验后转发给宿主） */
+  onEscape?: () => void
   /** 阅读器等满高场景:iframe 吃满容器,不跟内容高度收缩 */
   fillHeight?: boolean
   /** 白板区块：岛始终浅档，不随系统暗色变黑（浅色白板里黑底小部件读不清） */
@@ -87,6 +91,8 @@ export function WidgetFrame({
   const contentPushRef = useRef<ContentPushState>({ iframe: null, key: '', token: 0, nextToken: 0 })
   const onSendRef = useRef(onSendMessage)
   onSendRef.current = onSendMessage
+  const onEscapeRef = useRef(onEscape)
+  onEscapeRef.current = onEscape
 
   const initial = heightCache.get(cacheKey(widgetCode)) ?? (fillHeight ? undefined : 120)
   const [height, setHeight] = useState<number | undefined>(initial)
@@ -161,6 +167,9 @@ export function WidgetFrame({
         case WIDGET_SEND:
           // Marked as the widget's: the conversation answers it, sediment never takes it for the person's words (R13)
           if (typeof e.data.text === 'string') onSendRef.current?.(MODEL_TEXT.widgetSend(e.data.text))
+          break
+        case WIDGET_ESCAPE:
+          onEscapeRef.current?.()
           break
         case WIDGET_DIAG: {
           const kind = String(e.data.kind ?? '')

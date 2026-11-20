@@ -8,7 +8,7 @@
  *           conversation's run gets the service's readable 409 and nothing is sent; footprints survive a reload and are inline role="button" spans opened by Enter/Space (G4);
  *           the service's readingQuestion reads the real askReading output exactly as parseAsk does, and userWords drops the quote (G1 binding); userWords gives nothing for the
  *           program-written messages (write request, widget message, diagram fix) and drops the upload list (R13);
- *           living-reading explorable: in-place widget expand closes AskWindow first, keeps the exact iframe DOM node and 3-slot auto-run quota, routes expanded WIDGET_SEND with R13 marker + live reading_insert + 8255d27 auto-focus, Esc collapses in place, and receiver re-reports natural height on leaving fillHeight
+ *           living-reading explorable: in-place widget expand closes AskWindow first, keeps the exact iframe DOM node and 3-slot auto-run quota, routes expanded WIDGET_SEND with R13 marker + live reading_insert + 8255d27 auto-focus, Esc collapses in place (both outer window Esc and iframe-focused WIDGET_ESCAPE with source check; inline WIDGET_ESCAPE is a no-op), and receiver re-reports natural height on leaving fillHeight and forwards Escape in capture phase
  * [POS]: P1-2's UI mechanism acceptance; the controllable model proves mechanism only and never stands in for real-model acceptance; layout and WebKit are covered by the
  *        browser assertions (scripts/sprite/ui-assert-reading.mts), not here
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -433,6 +433,23 @@ test('Living reading UI: renders mixed table/diagram/widget blocks, refreshes on
     assert.equal($('.reading-widget.is-expanded'), null, 'Esc 收起放大态')
     assert.equal($('.reading-widget .widget-frame-fill'), null, '收起后退出 fillHeight')
     assert.equal($<HTMLIFrameElement>('.reading-block-widget iframe'), iframe, '收起后仍是同一 iframe DOM 节点')
+
+    // ---- R1: inline WIDGET_ESCAPE is a no-op; expanded WIDGET_ESCAPE checks e.source and collapses in place ----
+    await act(async () => {
+      window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'lumen-widget:escape' }, source: iframe.contentWindow }))
+    })
+    assert.equal($('.reading-widget.is-expanded'), null, '非放大态下 iframe 内按 Esc 不触发任何动作')
+    await act(async () => toggleBtn.click())
+    assert.ok($('.reading-widget.is-expanded'), '再次进入放大态')
+    await act(async () => {
+      window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'lumen-widget:escape' }, source: window }))
+    })
+    assert.ok($('.reading-widget.is-expanded'), '非本 iframe source 的 WIDGET_ESCAPE 必须忽略')
+    await act(async () => {
+      window.dispatchEvent(new dom.window.MessageEvent('message', { data: { type: 'lumen-widget:escape' }, source: iframe.contentWindow }))
+    })
+    assert.equal($('.reading-widget.is-expanded'), null, '放大态焦点在 iframe 内按 Esc 经 WIDGET_ESCAPE 收起')
+    assert.equal($<HTMLIFrameElement>('.reading-block-widget iframe'), iframe, 'iframe 内 Esc 收起后仍是同一 iframe DOM 节点')
   } finally {
     await act(async () => root.unmount())
     element.remove()
@@ -442,10 +459,11 @@ test('Living reading UI: renders mixed table/diagram/widget blocks, refreshes on
   }
 })
 
-test('receiver 退出 fillHeight 时重置 _lastH 并重新上报自然高度', async () => {
-  const { buildReceiverSrcdoc, WIDGET_FINALIZE, WIDGET_RESIZE, WIDGET_THEME } = await import('../src/components/widget/receiver.ts')
+test('receiver 退出 fillHeight 时重置 _lastH 并重新上报自然高度，且捕获阶段转发 Escape', async () => {
+  const { buildReceiverSrcdoc, WIDGET_ESCAPE, WIDGET_FINALIZE, WIDGET_RESIZE, WIDGET_THEME } = await import('../src/components/widget/receiver.ts')
   const srcdoc = buildReceiverSrcdoc('', false)
   const resizes: number[] = []
+  let escapes = 0
   const rdom = new JSDOM(srcdoc, {
     runScripts: 'dangerously',
     pretendToBeVisual: true,
@@ -458,6 +476,7 @@ test('receiver 退出 fillHeight 时重置 _lastH 并重新上报自然高度', 
     root.getBoundingClientRect = () => ({ height: 240, width: 600, top: 0, left: 0, right: 600, bottom: 240, x: 0, y: 0, toJSON() {} })
     rdom.window.addEventListener('message', (e: MessageEvent) => {
       if (e.data?.type === WIDGET_RESIZE) resizes.push(e.data.height)
+      if (e.data?.type === WIDGET_ESCAPE) escapes++
     })
     rdom.window.postMessage({ type: WIDGET_FINALIZE, html: '<div>hello</div>', generation: 1 }, '*')
     await delay(120)
@@ -469,6 +488,11 @@ test('receiver 退出 fillHeight 时重置 _lastH 并重新上报自然高度', 
     rdom.window.postMessage({ type: WIDGET_THEME, fillHeight: false }, '*')
     await delay(180)
     assert.ok(resizes.length > countBefore && resizes.at(-1) === 240, `退出 fillHeight 后应强制重报自然高度，实际 ${JSON.stringify(resizes)}`)
+    // Capture-phase Escape forwards WIDGET_ESCAPE to parent; other keys do not
+    root.dispatchEvent(new rdom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    root.dispatchEvent(new rdom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await delay(20)
+    assert.equal(escapes, 1, '捕获阶段仅 Escape 应转发 WIDGET_ESCAPE')
   } finally {
     rdom.window.close()
   }

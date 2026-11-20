@@ -3,7 +3,7 @@
  * [OUTPUT]: buildReceiverSrcdoc —— receiver HTML(供 emit 成 public/ 同源页;勿再当 srcdoc);
  *           WIDGET_DIAG 走查打点(csp/error/finalize/appended);
  *           finalize 吃 src(CDN + lumenwidget:);同内容幂等且拒绝旧世代异步脚本
- * [POS]: widget/ 沙箱壳 —— CSP + 高度同步 + 链接拦截 + __widgetSendMessage(只在用户刚点过或按过键的 SEND_WINDOW_MS 内放行，脚本自发的一律丢弃);
+ * [POS]: widget/ 沙箱壳 —— CSP + 高度同步 + 链接拦截 + Esc 捕获转发(WIDGET_ESCAPE) + __widgetSendMessage(只在用户刚点过或按过键的 SEND_WINDOW_MS 内放行，脚本自发的一律丢弃);
  *       主题变量见 themeVars.ts;THEME.fillHeight 切岛内滚动(阅读器/解读放大)vs hidden(对话/解读跟高),退出 fillHeight 时重置 _lastH 并主动重报自然高度;
  *       控件去系统外观以吃 inline 背景,滑块/勾选/单选保留系统外观(否则浅档连轨道都看不见)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
@@ -24,6 +24,7 @@ export const WIDGET_FINALIZE = 'lumen-widget:finalize'
 export const WIDGET_THEME = 'lumen-widget:theme'
 export const WIDGET_LINK = 'lumen-widget:link'
 export const WIDGET_SEND = 'lumen-widget:sendMessage'
+export const WIDGET_ESCAPE = 'lumen-widget:escape'
 /** 走查仪表:CSP violation / onerror / finalize 计数,抬宿主 */
 export const WIDGET_DIAG = 'lumen-widget:diag'
 
@@ -173,7 +174,13 @@ document.addEventListener('click',function(e){
 var _touched=-Infinity;
 function _touch(e){if(e.isTrusted)_touched=Date.now()}
 window.addEventListener('pointerdown',_touch,true);
-window.addEventListener('keydown',_touch,true);
+window.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&!e.shiftKey){
+    parent.postMessage({type:'${WIDGET_ESCAPE}'},'*');
+    return;
+  }
+  _touch(e);
+},true);
 window.__widgetSendMessage=function(t){
   if(typeof t!=='string'||t.length>500)return;
   if(Date.now()-_touched>${SEND_WINDOW_MS})return;

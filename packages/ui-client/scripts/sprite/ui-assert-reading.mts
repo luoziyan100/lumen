@@ -6,7 +6,7 @@
  *           input and send button pass elementFromPoint and which never covers the selected sentence (below, or above near the bottom); the reply arrives in the window;
  *           no text line in view runs under the sprite's figure (top and bottom of the reading);
  *           a footprint on a sentence that starts mid-line leaves the paragraph's line count unchanged and its first line box on the line of the text before it (G4); footprints from earlier page loads are rebuilt; the header holds the title only; the empty state is the typewriter alone;
- *           in-place widget expand/collapse (position:fixed solid light stage above side panes/sprite, state preserved, single iframe load, button + Esc restore height & scrollTop, 8b13fde user-activation gate + R13 marker in expanded state, split-reader convergence); the live write from the Materials row (zh 1440 light)
+ *           in-place widget expand/collapse (position:fixed solid light stage above side panes/sprite, state preserved, single iframe load, button + iframe-focused Esc restore height & scrollTop, inline iframe Esc no-op, 8b13fde user-activation gate + R13 marker in expanded state, split-reader convergence); the live write from the Materials row (zh 1440 light)
  * [POS]: an acceptance script that swaps the model network only and touches no product protocol; screenshots land in the evidence directory, never in the repo
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -146,9 +146,10 @@ if (process.argv.includes('--hold')) {
   await new Promise(() => {})
 }
 const useWebkit = process.argv.includes('--webkit')
+// Avoid Chrome for Testing OOPIF auto-attach race when React StrictMode assigns iframe.src twice on mount; sandbox="allow-scripts" opaque origin & CSP stay intact
 const browser = useWebkit
   ? await webkit.launch()
-  : await chromium.launch({ executablePath: exe })
+  : await chromium.launch({ executablePath: exe, args: ['--disable-features=IsolateSandboxedIframes'] })
 /** Drag-select characters [from, to) of a paragraph's text with the real mouse; returns the selected sentence's box */
 async function dragSelect(page, paragraph, from, to) {
   const box = await page.evaluate(([index, start, end]) => {
@@ -363,11 +364,17 @@ try {
       await page.waitForTimeout(400)
       let frame = null
       for (let attempt = 0; attempt < 60; attempt++) {
-        const candidate = page.frames().find(item => item.url().includes('widget-receiver.html'))
-        if (candidate && await candidate.locator('#gain').count().catch(() => 0) > 0) { frame = candidate; break }
+        const candidates = [
+          await page.locator('.reading-block-widget iframe').elementHandle().then(h => h?.contentFrame()).catch(() => null),
+          ...page.frames().filter(item => !item.isDetached() && item.url().includes('widget-receiver.html')),
+        ].filter(Boolean)
+        for (const candidate of candidates) {
+          if (await candidate.locator('#gain').count().catch(() => 0) > 0) { frame = candidate; break }
+        }
+        if (frame) break
         await page.waitForTimeout(150)
       }
-      if (!frame) throw new Error('widget receiver frame with #gain did not appear')
+      if (!frame) throw new Error(`widget receiver frame with #gain did not appear; frames=${JSON.stringify(page.frames().map(f => ({ url: f.url(), detached: f.isDetached() })))}`)
       await frame.locator('#gain').waitFor({ state: 'visible', timeout: 10000 })
       // Count any reload on the iframe from here on (must stay 0 across expand + collapse => total load = 1)
       await page.evaluate(() => {
@@ -375,9 +382,13 @@ try {
         window.__widgetReloads = 0
         iframe.addEventListener('load', () => { window.__widgetReloads++ })
       })
-      // Mutate control inside the widget before expanding
+      // Mutate control inside the widget before expanding; Esc while focus is inside the non-expanded iframe must be a no-op
       await frame.locator('#gain').fill('8')
       await frame.locator('#gain').dispatchEvent('input')
+      await frame.locator('#gain').focus()
+      await page.keyboard.press('Escape')
+      await page.waitForTimeout(120)
+      check(`${tag} 非放大态下 iframe 内按 Esc 不触发任何动作`, !(await page.$('.reading-widget.is-expanded')) && (await frame.locator('#gain').inputValue()) === '8')
       const beforeWidget = await page.evaluate(() => ({
         scrollTop: document.querySelector('.reading-scroll').scrollTop,
         height: document.querySelector('.reading-block-widget iframe').getBoundingClientRect().height,
@@ -452,11 +463,16 @@ try {
       const reloadsAfterBtn = await page.evaluate(() => window.__widgetReloads)
       check(`${tag} 点收起按钮后控件值不变且 iframe 未重载`, valAfterBtn === '8' && reloadsAfterBtn === 0, `gain=${valAfterBtn} reloads=${reloadsAfterBtn}`)
 
+      // Re-expand, interact with #gain inside the iframe so focus stays inside the iframe, then press Esc without clicking outer page (R1)
       await page.click('.reading-widget-toggle')
       await page.waitForSelector('.reading-widget.is-expanded')
       await page.waitForTimeout(150)
+      await frame.locator('#gain').focus()
+      await frame.locator('#gain').fill('9')
+      await frame.locator('#gain').dispatchEvent('input')
+      const focusInIframe = await page.evaluate(() => document.activeElement === document.querySelector('.reading-block-widget iframe'))
       await page.keyboard.press('Escape')
-      await page.waitForFunction(() => !document.querySelector('.reading-widget.is-expanded'))
+      await page.waitForFunction(() => !document.querySelector('.reading-widget.is-expanded'), null, { timeout: 5000 })
       await page.waitForTimeout(300)
       const afterCollapse = await page.evaluate(() => ({
         reloads: window.__widgetReloads,
@@ -465,7 +481,7 @@ try {
         fill: !!document.querySelector('.reading-widget .widget-frame-fill'),
       }))
       const valAfter = await frame.locator('#gain').inputValue()
-      check(`${tag} 收起后控件值不变且 iframe 仅加载 1 次`, valAfter === '8' && afterCollapse.reloads === 0 && !afterCollapse.fill, JSON.stringify({ valAfter, ...afterCollapse }))
+      check(`${tag} 放大态焦点在 iframe 内按 Esc 收起，控件值不变且 iframe 仅加载 1 次`, focusInIframe && valAfter === '9' && afterCollapse.reloads === 0 && !afterCollapse.fill, JSON.stringify({ focusInIframe, valAfter, ...afterCollapse }))
       check(`${tag} 收起后高度与滚动位置还原`, Math.abs(afterCollapse.height - beforeWidget.height) <= 40 && Math.abs(afterCollapse.scrollTop - beforeWidget.scrollTop) <= 8, JSON.stringify({ before: beforeWidget, after: afterCollapse }))
 
       // Split reader convergence: open PDF alongside and check no overflow
