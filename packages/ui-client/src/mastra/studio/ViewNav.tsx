@@ -1,14 +1,13 @@
 /**
- * [INPUT]: the view names of i18n studio.views, this file's VIEWS/VIEW_AVAILABLE (reading, board and takeaways open), the six view icons (16, currentColor), Kumo Tooltip
+ * [INPUT]: the view names of i18n studio.views, this file's VIEWS/VIEW_AVAILABLE (reading, board and takeaways open), the six view icons (16, currentColor); icon-only tabs carry `title` for components/Tips
  * [OUTPUT]: ViewNav: the center header's main navigation (Reading · Board · Takeaways · Concept map · Ideas · All), icon left, text right; icons alone when narrow (aria-label always,
- *           a Kumo tooltip under each tab, enabled only when compact, on hover and focus); navFits: does the full navigation fit when centered with equal room reserved for the pane toggles
+ *           a `title` on each tab only when compact, shown by the app's tooltip layer); navFits: does the full navigation fit when centered with equal room reserved for the pane toggles
  * [POS]: part of StudioApp's center header; the full width is measured by an invisible twin navigation (same header, same styles), so toggling compact never jitters
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { useLayoutEffect, useRef, useState } from 'react'
 import type { Icon } from '@phosphor-icons/react'
 import { AllViewIcon, BoardViewIcon, IdeasViewIcon, MapViewIcon, ReadingViewIcon, SettledViewIcon } from '../../components/icons'
-import { Tooltip, TooltipProvider } from '@cloudflare/kumo/components/tooltip'
 import { useT } from '../../i18n/index.ts'
 
 export const VIEWS = ['reading', 'board', 'settled', 'map', 'ideas', 'all'] as const
@@ -17,7 +16,6 @@ export type View = typeof VIEWS[number]
 export const VIEW_AVAILABLE: Record<View, boolean> = { reading: true, board: true, settled: true, map: false, ideas: false, all: false }
 export const VIEW_ICONS: Record<View, Icon> = { reading: ReadingViewIcon, board: BoardViewIcon, settled: SettledViewIcon, map: MapViewIcon, ideas: IdeasViewIcon, all: AllViewIcon }
 /** Well inside the 600ms in which a name must appear; the provider makes neighbouring tabs open at once */
-const TIP_DELAY = 250
 /** At least this much air between the navigation and either toggle */
 const BREATH = 8
 
@@ -39,14 +37,12 @@ function Tabs({ view, onView, compact, ghost }: { view: View; onView?: (view: Vi
   const S = useT().studio
   return VIEWS.map(key => {
     const Glyph = VIEW_ICONS[key], label = S.views[key], available = VIEW_AVAILABLE[key]
-    const tab = <button type="button" key={key} {...(ghost ? { tabIndex: -1 } : { role: 'tab', 'aria-selected': view === key, 'aria-label': label })}
+    // Icon-only tabs name themselves through `title`, which the app's one tooltip layer (components/Tips) shows.
+    // Only the attribute toggles as `compact` flips; the tab element itself never changes (swapping it made WebKit report a ResizeObserver loop on load)
+    return <button type="button" key={key} {...(ghost ? { tabIndex: -1 } : { role: 'tab', 'aria-selected': view === key, 'aria-label': label, title: compact ? label : undefined })}
       className={view === key ? 'on' : undefined} data-available={available} onClick={ghost ? undefined : () => onView?.(key)}>
       <Glyph />{!compact && <span>{label}</span>}
     </button>
-    // The native title shows late and only sometimes in the desktop WKWebView, so icon-only tabs get a real tooltip (hover and keyboard focus).
-    // The tooltip stays mounted and is only disabled while the labels show: swapping the tab's element as `compact` flips during the first layout
-    // made WebKit report a ResizeObserver loop on every load (12 of 12; 0 of 12 with a stable tree)
-    return ghost ? tab : <Tooltip key={key} content={label} side="bottom" delay={TIP_DELAY} disabled={!compact} render={tab} />
   })
 }
 
@@ -65,7 +61,7 @@ export function ViewNav({ view, onView }: { view: View; onView: (view: View) => 
     return () => { resize.disconnect(); mutate.disconnect() }
   }, [])
   return <>
-    <nav ref={nav} className={`studio-seg studio-views${compact ? ' is-compact' : ''}`} role="tablist" aria-label={S.viewsNav}><TooltipProvider delay={TIP_DELAY}><Tabs view={view} onView={onView} compact={compact} /></TooltipProvider></nav>
+    <nav ref={nav} className={`studio-seg studio-views${compact ? ' is-compact' : ''}`} role="tablist" aria-label={S.viewsNav}><Tabs view={view} onView={onView} compact={compact} /></nav>
     <div ref={ghost} className="studio-seg studio-views studio-views-ghost" aria-hidden inert><Tabs view={view} ghost /></div>
   </>
 }

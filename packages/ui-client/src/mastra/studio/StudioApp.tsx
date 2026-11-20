@@ -1,5 +1,5 @@
 /**
- * [INPUT]: the service connection, topic/session/board/material/reading data hooks, the one conversation feed (useSessionFeed, read through useFeedSelect), the sprite and reader, settings (specialists pane included), the appearance subscription, the newest takeaway (useSediment.newestTakeaway)
+ * [INPUT]: components/Tips (the app's one tooltip layer, mounted once here), the service connection, topic/session/board/material/reading data hooks, the one conversation feed (useSessionFeed, read through useFeedSelect), the sprite and reader, settings (specialists pane included), the appearance subscription, the newest takeaway (useSediment.newestTakeaway)
  * [OUTPUT]: StudioApp: the new shell — the prototype v7 skeleton: rounded panels with 8px gaps over the canvas (topics left, center, materials right, docked sprite), every panel's
  *           first row on one 50px header line; the center header holds only the centered view navigation (icon + text, icons alone when narrow; the topic name goes to aria-label and
  *           the window title), and in split view the reader header shares the board header's line; the sprite positions itself on the whole window (no longer inside the board area);
@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { ExternalLinkGate } from '../../components/ExternalLinkDialog'
+import { Tips } from '../../components/Tips'
 import { useAppearance } from '../../appearance'
 import { useT } from '../../i18n/index.ts'
 import { LumenApi, type Connection, type Identity, type SedimentInvite, type TopicMaterial } from '../data/client.ts'
@@ -213,7 +214,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const reopenRight = topic && panes.right && <PaneToggle side="right" open={false} onToggle={() => flip('right')} className="head-trail" />
   const split = topic && reading
 
-  return <ExternalLinkGate><main className={`app studio${docked ? ' studio-docked' : ''}${topic ? '' : ' studio-no-topic'}${panes.left ? ' studio-left-collapsed' : ''}${panes.right ? ' studio-right-collapsed' : ''}`}>
+  return <ExternalLinkGate><Tips /><main className={`app studio${docked ? ' studio-docked' : ''}${topic ? '' : ' studio-no-topic'}${panes.left ? ' studio-left-collapsed' : ''}${panes.right ? ' studio-right-collapsed' : ''}`}>
     <TopicPanel api={api} topics={topics} error={topicsError} selected={topic?.id ?? null} takeaway={newestTakeaway(sediment.items, topic?.id ?? null)} collapsed={panes.left} onToggle={() => flip('left')} onSelect={setTopicId} onEdit={editTopics}
       onCreated={next => { created.current = next.id; setTopicId(next.id); activity() }} onSettings={() => setSettingsOpen(true)} />
     <section ref={setCenter} className={`studio-panel studio-center${split ? full ? ' studio-full' : ' studio-split' : ''}`} aria-label={topic?.title}

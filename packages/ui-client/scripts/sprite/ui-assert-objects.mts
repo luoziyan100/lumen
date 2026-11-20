@@ -4,17 +4,16 @@
  * [OUTPUT]: browser evidence for the objects in the product (1440x900 and 1280x800, light and dark, zh and en): each object shows only in its empty state (typewriter: no
  *           reading, alone and centred; cabinet: no material, alone and centred; box: room under the topic list; easel: no sheet, or a live sheet with no stroke (V0), alone and centred on the canvas;
  *           press: no takeaway, alone and centred, gone with one (and 「写一条沉淀」 back) (V1); cork board, lamp and type case alone and centred (V2–V4), named 「还没开放」 for screen readers only;
- *           every empty view holds only its object: 280–320 wide, centre within 8px of the view's, no visible text outside the drawing, no button;
+ *           every empty view holds only its object: min(560px, its room) wide, centre within 8px of the view's, no visible text outside the drawing, no button;
  *           the real controls next to them pass elementFromPoint (the Materials row's 写解读, upload, 写一条沉淀 once a takeaway exists, every view tab, ＋ new sheet, the lone tab and its 「⋯」, the canvas's zoom (Excalidraw's own since the canvas), Settings, every topic);
  *           the lamp's pool overlaps no text and no control; objects are aria-hidden, untabbable and never take focus; the box's card carries the topic's newest takeaway and
- *           a click on it changes nothing else; stillness (two captures 1 s apart identical) at rest, hovered and opened; reduced motion leaves no transition over 100ms;
+ *           a click on it changes nothing else; settled at rest, hovered and opened (no transition still running, only looping animations: the objects move on purpose); reduced motion leaves no transition over 100ms;
  *           the typewriter types (with no state line) while a reading requested from the row has no section and stops at the first one (zh 1440 light); one sheet shows one tab (glyph + 1) whose 「⋯」 still
  *           deletes it (V8); the box's boundary measured on both sides at 1440×900 and 1440×700 (topics added one by one), a 900→700→900 drag that folds and restores it once
  *           each way with the first/last rows and Settings unmoved; no console or page errors. V6 in Chromium and WebKit, zh and en: with icons only and the sprite parked under
- *           the navigation, every tab shows its name within 600ms by hover and by keyboard Tab, under the tab, inside the window, on top of the sprite, with no native title.
+ *           the navigation, every tab shows its name within 600ms by hover and by keyboard Tab, under the tab, inside the window, on top of the sprite, its name in title drawn by Tips (title borrowed while shown, so no native box); a pane toggle's title shows the same tip and comes back on leave.
  *           WebKit: rest and open captures of every object (zh 1440×1400 light)
- * [POS]: an acceptance script that swaps the model network only and touches no product protocol; Chromium runs with --disable-gpu so stillness compares raster, not GPU
- *        noise. Screenshots land in the evidence directory, never in the repo. Usage: node --experimental-strip-types ui-assert-objects.mts <evidence-dir> [--no-easel]. Prints BOX_BOUNDARY for the report
+ * [POS]: an acceptance script that swaps the model network only and touches no product protocol; Chromium runs with --disable-gpu. Screenshots land in the evidence directory, never in the repo. Usage: node --experimental-strip-types ui-assert-objects.mts <evidence-dir> [--no-easel]. Prints BOX_BOUNDARY for the report
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { chromium, webkit } from '/tmp/lumen-s0-pw/node_modules/playwright-core/index.mjs'
@@ -57,13 +56,17 @@ const allHit = (page, selector) => page.evaluate(target => [...document.querySel
   const box = element.getBoundingClientRect(), hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
   return box.width > 0 && !!hit && (hit === element || element.contains(hit))
 }), selector)
-/** Two captures 1 s apart are byte-identical */
-async function still(page, selector) {
-  const a = await page.locator(selector).screenshot({ animations: 'allow' })
-  await sleep(1000)
-  const b = await page.locator(selector).screenshot({ animations: 'allow' })
-  return a.equals(b)
-}
+/** Settled: no transition is still running inside the object and every running animation is a loop. The objects move on purpose
+ *  (the plotter draws, the belt advances), so pixels never hold still; a state change that never finishes or a one-shot stuck mid-way does */
+const settled = (page, selector) => page.evaluate(target => {
+  const host = document.querySelector(target)
+  if (!host) return 'missing'
+  const running = host.getAnimations({ subtree: true }).filter(a => a.playState === 'running')
+  const moving = running.filter(a => a.constructor.name === 'CSSTransition').map(a => (a as CSSTransition).transitionProperty)
+  const stuck = running.filter(a => a.constructor.name !== 'CSSTransition' && a.effect?.getTiming().iterations !== Infinity).map(a => (a as CSSAnimation).animationName)
+  const loops = running.length - moving.length - stuck.length
+  return moving.length || stuck.length ? JSON.stringify({ moving, stuck }) : `ok:${loops}`
+}, selector)
 /** An object is decoration: aria-hidden, untabbable, its SVG passes pointer events through, and a mousedown on it leaves focus where it was */
 const decoration = (page, selector) => page.evaluate(target => {
   const host = document.querySelector(target)
@@ -147,7 +150,7 @@ async function open(browser, { locale, w, h, dark = false, reduced = false }) {
   await page.waitForSelector('.studio-topics .topic')
   return { context, page, errors }
 }
-/** An empty view is its object alone (Q2 rework): 280–320 wide, centre within 8px of the view's centre, inside the stage, the expected drawing,
+/** An empty view is its object alone: min(560px, its container's content width) wide (the CAD instruments, a1be9e6), centre within 8px of the view's centre, inside the stage, the expected drawing,
  *  and nothing else in the view: no visible text outside the drawing (the drawing's own <text> is illustration) and no button, input or link */
 const aloneCentred = (page, host, svg) => page.evaluate(([host, svg]) => {
   const h = document.querySelector(host), stage = document.querySelector('.studio-stage')
@@ -157,12 +160,14 @@ const aloneCentred = (page, host, svg) => page.evaluate(([host, svg]) => {
   const bare = stage.cloneNode(true) as HTMLElement
   bare.querySelectorAll('.iso-host').forEach(node => node.remove())
   const text = bare.textContent.trim(), controls = stage.querySelectorAll('button, input, textarea, a, [role=button]').length
-  const ok = a.width >= 280 && a.width <= 320 && off <= 8 && a.top >= s.top && a.bottom <= s.bottom && a.left >= s.left && a.right <= s.right && !!h.querySelector(`svg.${svg}`) && !text && !controls
-  return ok ? 'ok' : { width: Math.round(a.width), off, text, controls, svg: !!h.querySelector(`svg.${svg}`) }
+  const box = getComputedStyle(h.parentElement), room = h.parentElement.clientWidth - parseFloat(box.paddingLeft) - parseFloat(box.paddingRight)
+  const sized = Math.abs(a.width - Math.min(560, room)) < 1
+  const ok = sized && off <= 8 && a.top >= s.top && a.bottom <= s.bottom && a.left >= s.left && a.right <= s.right && !!h.querySelector(`svg.${svg}`) && !text && !controls
+  return ok ? 'ok' : { width: Math.round(a.width), room: Math.round(room), off, text, controls, svg: !!h.querySelector(`svg.${svg}`) }
 }, [host, svg])
-/** The lamp's pool (open or not, its box is the same) overlaps no text line and no control anywhere on the page */
+/** The lamp's pool overlaps no text line and no control anywhere on the page. The lamp is off at rest; the pool's box is the same lit or not */
 const poolClear = page => page.evaluate(() => {
-  const pool = document.querySelector('.studio-later-object [fill="url(#iso-lamp-pool)"]')
+  const pool = document.querySelector('.studio-later-object .lm-light-pool ellipse')
   if (!pool) return 'no pool'
   const p = pool.getBoundingClientRect()
   const over = [...document.querySelectorAll('button, input, textarea, a, [role=tab], [role=button], p, h1, h2, h3, li')].filter(node => {
@@ -171,7 +176,7 @@ const poolClear = page => page.evaluate(() => {
   }).map(node => node.className || node.tagName)
   return over.length ? over.join(',') : 'ok'
 })
-/** The easel alone on the canvas (no line beside it): centred across the canvas, inside it, clear of the editor's controls and the tab strip, about 320 wide */
+/** The easel alone on the canvas (no line beside it): centred across the canvas, inside it, clear of the editor's controls and the tab strip, at most 560 wide (smaller when the stage is short) */
 const easelAlone = page => page.evaluate(() => {
   const e = document.querySelector('.board-easel')!.getBoundingClientRect(), v = document.querySelector('.board-viewport')!.getBoundingClientRect()
   const s = document.querySelector('.board-sheets')!.getBoundingClientRect()
@@ -180,23 +185,26 @@ const easelAlone = page => page.evaluate(() => {
   const controls = [...document.querySelectorAll('.board-canvas .excalidraw button, .board-canvas .excalidraw label.ToolIcon')].map(el => el.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0)
   const result = { width: Math.round(e.width), centred: Math.abs((e.left + e.right) / 2 - (v.left + v.right) / 2) < 2, inside: e.top >= v.top && e.bottom <= v.bottom && e.left >= v.left && e.right <= v.right,
     zoom: controls.every(r => apart(e, r)), sheets: apart(e, s), noLine: !document.querySelector('.board-empty') }
-  return { ...result, ok: result.centred && result.inside && result.zoom && result.sheets && result.noLine && result.width <= 320 && result.width >= 200 }
+  return { ...result, ok: result.centred && result.inside && result.zoom && result.sheets && result.noLine && result.width <= 560 && result.width >= 200 }
 })
 const PLACEHOLDERS = [['map', 'iso-cork', 'cork'], ['ideas', 'iso-lamp', 'lamp'], ['all', 'iso-case', 'case']]
 /** The last topic picked and view opened, so a console error says where it came from */
 let step = ''
 const pick = async (page, title) => { step = title;  await page.locator('.studio-topics .topic', { hasText: title }).click(); await page.waitForSelector('.studio-topics .topic.on >> text=' + title) }
 const view = async (page, S, name) => { step = step.split(' / ')[0] + ' / ' + name; return page.locator(`.studio-views:not(.studio-views-ghost) [role=tab][aria-label="${S.views[name]}"]`).click() }
-/** Rest, hovered (mouse parked on the host) and opened (clicked): each settles, then holds still; the host is closed and left again afterwards */
+/** Rest, hovered (mouse parked on the host) and opened (clicked): each must settle (see settled); the host is closed and left again afterwards */
 async function states(page, selector, name, tag) {
   await page.mouse.move(2, 2); await sleep(1400)
-  check(`${tag} ${name} 静止时不动`, await still(page, selector))
+  const rest = await settled(page, selector)
+  check(`${tag} ${name} 静止时停稳：没有进行中的过渡，只有循环动画`, rest.startsWith('ok'), rest)
   await page.screenshot({ path: `${out}/${tag.replaceAll(' ', '-')}-${name}-rest.png` })
   await page.hover(selector); await sleep(1400)
-  check(`${tag} ${name} 悬停停稳后不动`, await still(page, selector))
+  const hovered = await settled(page, selector)
+  check(`${tag} ${name} 悬停后停稳`, hovered.startsWith('ok'), hovered)
   const focus = await page.evaluate(() => document.activeElement?.className ?? '')
   await page.click(selector); await sleep(name === 'easel' ? 3200 : 1600)
-  check(`${tag} ${name} 点开停稳后不动`, await still(page, selector))
+  const opened = await settled(page, selector)
+  check(`${tag} ${name} 点开后停稳`, opened.startsWith('ok'), opened)
   check(`${tag} ${name} 点击不夺焦点`, await page.evaluate(before => (document.activeElement?.className ?? '') === before, focus))
   await page.screenshot({ path: `${out}/${tag.replaceAll(' ', '-')}-${name}-open.png` })
   await page.click(selector); await page.mouse.move(2, 2); await sleep(1400)
@@ -217,10 +225,20 @@ async function tooltips(browser, name, locale, key = 'Tab') {
   const tag = `${name} ${locale} ${width}px`
   check(`${tag} 只剩图标：六个标签悬停与 Tab 聚焦都在 600ms 内出名字、在标签下方、不出窗口、在最上层`, tips.length === 12 && bad.length === 0, JSON.stringify(bad.length ? bad : tips.map(tip => `${tip.via}:${'ms' in tip ? tip.ms : '-'}`)))
   check(`${tag} 精灵就在提示下方，被提示盖住而不是盖住提示`, tips.some(tip => 'overSprite' in tip && tip.overSprite))
-  check(`${tag} 不再有原生 title`, titles === 0, String(titles))
+  check(`${tag} 名字放在 title 里，由 Tips 画`, titles === 6, String(titles))
   const box = await page.locator('.studio-views:not(.studio-views-ghost) [role=tab]').nth(3).boundingBox()
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await sleep(700)
+  check(`${tag} 提示显示时 title 被借走（原生框不出现）`, await page.evaluate(() => { const tab = document.querySelectorAll('.studio-views:not(.studio-views-ghost) [role=tab]')[3]!; return !tab.hasAttribute('title') && !!document.querySelector('.lumen-tip[data-shown]') }))
   await page.screenshot({ path: `${out}/${name}-${locale}-tooltip.png` })
+  // Any other titled control gets the same tip: a pane toggle, and its title comes back on leave
+  const toggle = page.locator('.pane-toggle').first(), want = await toggle.getAttribute('title'), tb = await toggle.boundingBox()
+  await page.mouse.move(2, 2); await sleep(700)
+  await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height / 2); await sleep(700)
+  const shown = await page.evaluate(() => ({ text: document.querySelector('.lumen-tip[data-shown] .kumo-tooltip-popup')?.textContent ?? null, title: document.querySelector('.pane-toggle')!.getAttribute('title') }))
+  await page.screenshot({ path: `${out}/${name}-${locale}-tooltip-toggle.png` })
+  await page.mouse.move(2, 2); await sleep(300)
+  const back = await page.evaluate(() => ({ title: document.querySelector('.pane-toggle')!.getAttribute('title'), tip: !!document.querySelector('.lumen-tip') }))
+  check(`${tag} 收起按钮的 title 也画成同一种提示，移开后 title 还原`, shown.text === want && shown.title === null && back.title === want && !back.tip, JSON.stringify({ want, shown, back }))
   check(`${tag} 提示：无控制台错误`, errors.length === 0, errors.slice(0, 2).join(' | '))
   await context.close()
   return tips
@@ -244,7 +262,6 @@ try {
     check(`${tag} 卡片柜是装饰`, (await decoration(page, '.materials-cabinet')) === 'ok', await decoration(page, '.materials-cabinet'))
     const typewriter = await aloneCentred(page, '.reading-typewriter', 'iso-typewriter')
     check(`${tag} 解读为空：只有打字机、居中（≤8px）、没有文字和按钮`, typewriter === 'ok', JSON.stringify(typewriter))
-    check(`${tag} 打字机约 300px`, await page.evaluate(() => Math.abs(document.querySelector('.reading-typewriter').getBoundingClientRect().width - 300) < 1))
     check(`${tag} 上传可点`, await hits(page, '.materials-upload'))
     check(`${tag} 每个主题可点`, await allHit(page, '.studio-topics .topic'))
     check(`${tag} 设置可点`, await page.evaluate(label => { const b = [...document.querySelectorAll('.studio-topics .studio-item')].find(node => node.textContent === label); const r = b?.getBoundingClientRect(); const hit = r && document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!hit && b.contains(hit) }, S.settings))
@@ -257,7 +274,7 @@ try {
     // ---- V1–V4 on BLANK: the press, the cork board, the lamp and the type case, each alone and centred in its view ----
     await view(page, S, 'settled'); await page.waitForSelector('.sediment-press')
     const press = await aloneCentred(page, '.sediment-press', 'iso-press')
-    check(`${tag} 沉淀为空：只有压花板、居中（≤8px）、280–320 宽、没有文字和按钮`, press === 'ok', JSON.stringify(press))
+    check(`${tag} 沉淀为空：只有压花板、居中（≤8px）、宽 min(560, 可用宽)、没有文字和按钮`, press === 'ok', JSON.stringify(press))
     check(`${tag} 压花板是装饰`, (await decoration(page, '.sediment-press')) === 'ok', await decoration(page, '.sediment-press'))
     await page.screenshot({ path: `${out}/${tag.replaceAll(' ', '-')}-settled.png` })
     if (!dark && w === 1440) await states(page, '.sediment-press', 'press', tag)
@@ -296,7 +313,7 @@ try {
       await view(page, S, 'board')
       await page.waitForSelector('.board-easel')
       const easel = await easelAlone(page)
-      check(`${tag} 没有白板：画架独自居中、约 320 宽（矮时等比缩小）、不碰缩放条和标签条、没有说明句`, easel.ok, JSON.stringify(easel))
+      check(`${tag} 没有白板：画架独自居中、至多 560 宽（矮时等比缩小）、不碰缩放条和标签条、没有说明句`, easel.ok, JSON.stringify(easel))
       check(`${tag} 画架是装饰`, (await decoration(page, '.board-easel')) === 'ok', await decoration(page, '.board-easel'))
       check(`${tag} ＋ 新白板可点`, await hits(page, '.board-sheet-new'))
       await page.screenshot({ path: `${out}/${tag.replaceAll(' ', '-')}-board.png` })

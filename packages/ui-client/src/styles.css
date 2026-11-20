@@ -2272,3 +2272,16 @@ html[data-material="paper"] .composer-beam[data-beam] [data-beam-bloom] {
   display: none;
 }
 html[data-material="paper"] .composer-beam[data-beam] { animation: none; }
+
+/* The app's one tooltip (components/Tips): Kumo's popup inside, placed by Tips, never in the pointer's way.
+   Above dialogs and menus so a tip on a dialog's button is never hidden */
+.lumen-tip { position: fixed; z-index: calc(var(--z-popover) + 10); pointer-events: none; max-width: min(360px, calc(100vw - 16px));
+  opacity: 0; scale: .9; transition: opacity 150ms, scale 150ms; }
+.lumen-tip[data-side="bottom"] { transform-origin: top center; }
+.lumen-tip[data-side="top"] { transform-origin: bottom center; }
+.lumen-tip[data-shown] { opacity: 1; scale: 1; }
+.lumen-tip .kumo-tooltip-popup { position: relative; overflow-wrap: anywhere; }
+.lumen-tip-arrow { position: absolute; display: flex; }
+.lumen-tip[data-side="bottom"] .lumen-tip-arrow { top: -8px; }
+.lumen-tip[data-side="top"] .lumen-tip-arrow { bottom: -8px; rotate: 180deg; }
+@media (prefers-reduced-motion: reduce) { .lumen-tip { transition-duration: 1ms; } }

@@ -1,5 +1,5 @@
 /**
- * [INPUT]: a Playwright page on the studio with a topic picked, the locale's six view labels; Kumo's tooltip popup (`.kumo-tooltip-popup`)
+ * [INPUT]: a Playwright page on the studio with a topic picked, the locale's six view labels; the Kumo-styled tooltip popup (`.kumo-tooltip-popup`, drawn by components/Tips.tsx from the tab's title)
  * [OUTPUT]: compactNav (narrows the window until ViewNav shows icons only), tipChecks (V6: per tab, by hover and by keyboard Tab, how long the label takes to show,
  *           whether it sits under the tab, inside the window, and is the topmost thing at its centre, plus whether it ever overlapped the sprite)
  * [POS]: shared by ui-assert-objects.mts's Chromium and WebKit passes so both browsers run the same measurement. Times run from just before the input
@@ -38,7 +38,11 @@ async function measure(page: Page, index: number, label: string, since: number) 
     if (!popup) return null
     await new Promise(resolve => setTimeout(resolve, 250))              // the 150ms scale-in finishes before the box is measured
     const p = popup.getBoundingClientRect(), t = tab.getBoundingClientRect(), orb = document.querySelector('.sprite-orb')?.getBoundingClientRect()
+    // Tips' layer passes the pointer through (pointer-events: none); hit-testing is switched on for this one probe so it measures what is drawn on top
+    const layer = popup.closest<HTMLElement>('.lumen-tip')
+    if (layer) layer.style.pointerEvents = 'auto'
     const top = document.elementFromPoint(p.left + p.width / 2, p.top + p.height / 2)
+    if (layer) layer.style.pointerEvents = ''
     return { ms, under: p.top >= t.bottom && p.left < t.right && p.right > t.left, inside: p.left >= 0 && p.top >= 0 && p.right <= innerWidth && p.bottom <= innerHeight,
       topmost: !!top && popup.contains(top), overSprite: !!orb && !(orb.right <= p.left || p.right <= orb.left || orb.bottom <= p.top || p.bottom <= orb.top) }
   }, { selector: TABS, index, label, since })

@@ -1,7 +1,7 @@
 /**
  * [INPUT]: the real Materials filterMaterials/shortLink and ViewNav's navFits plus its component (React DOM + jsdom, widths injected at element-size boundaries)
  * [OUTPUT]: unit evidence for the chrome task: material search (title/link, case, surrounding spaces, CJK substrings, no match), short links (arXiv abstract pages, paths and queries, trailing slash, no link),
- *           all six views (Reading first) with icon and aria-label, icons alone when narrow (aria-label kept, no native title: the Kumo tooltip names them), no compact switch at header width 0
+ *           all six views (Reading first) with icon and aria-label, icons alone when narrow (aria-label kept, the label in title for the app's one tooltip layer, Tips), no compact switch at header width 0
  * [POS]: pure functions and component wiring; real layout (centering, no wrap, three states) is verified in the browser assertions, not faked here
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -68,7 +68,7 @@ test('navFits：居中时两侧都让出较宽一侧的按钮再留 8px', () => 
   assert.equal(navFits(415, 400, 0), false)
 })
 
-test('视图导航：五项都有图标与 aria-label；放不下只留图标（提示由 Kumo tooltip 给出）；头部宽 0 不切换', async () => {
+test('视图导航：五项都有图标与 aria-label；放不下只留图标（title 交给全局 Tips 提示层）；头部宽 0 不切换', async () => {
   const sizes = { head: 0, nav: 395 }
   Object.defineProperty(dom.window.HTMLElement.prototype, 'clientWidth', { configurable: true, get(this: HTMLElement) { return this.matches('header') ? sizes.head : 0 } })
   Object.defineProperty(dom.window.HTMLElement.prototype, 'offsetWidth', { configurable: true, get(this: HTMLElement) { return this.matches('.studio-views-ghost') ? sizes.nav : this.matches('.pane-toggle') ? 30 : 0 } })
@@ -97,7 +97,7 @@ test('视图导航：五项都有图标与 aria-label；放不下只留图标（
     assert.equal(element.querySelectorAll('[role=tablist]').length, 1)
     assert.ok(!element.querySelector('nav')!.classList.contains('is-compact'), '头部宽 0（没在排版）时保持完整')
 
-    // ---- Fits: full entry; too narrow: icons only, aria-label kept, no native title (a Kumo tooltip names it; shown in the browser suite) ----
+    // ---- Fits: full entry; too narrow: icons only, aria-label kept, title names it (Tips draws it; shown in the browser suite) ----
     sizes.head = 395 + 2 * (38 + 8)
     await render(true)
     await act(async () => observed.forEach(callback => callback()))
@@ -105,7 +105,7 @@ test('视图导航：五项都有图标与 aria-label；放不下只留图标（
     sizes.head -= 1
     await act(async () => observed.forEach(callback => callback()))
     assert.ok(element.querySelector('nav')!.classList.contains('is-compact'))
-    assert.deepEqual(tabs().map(tab => [tab.getAttribute('aria-label'), tab.textContent, tab.title, !!tab.querySelector('svg')]), VIEWS.map(view => [S.views[view], '', '', true]))
+    assert.deepEqual(tabs().map(tab => [tab.getAttribute('aria-label'), tab.textContent, tab.title, !!tab.querySelector('svg')]), VIEWS.map(view => [S.views[view], '', S.views[view], true]))
     assert.equal(ghost.textContent, VIEWS.map(view => S.views[view]).join(''), '副本一直是完整宽度')
     // ---- The toggles reclaim their room (same header size, children change) and it fits again ----
     await render(false)
