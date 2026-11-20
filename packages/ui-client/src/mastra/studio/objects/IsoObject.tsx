@@ -6,7 +6,7 @@
  *        events, so only the host's own box answers a click. The shared sheet is injected once per document
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
-import { useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { BASE } from './iso.ts'
 import { BOX_CSS } from './box.ts'
 import { CABINET_CSS } from './cabinet.ts'
@@ -26,7 +26,7 @@ function ensureSheet() {
   document.head.appendChild(style)
 }
 
-export function IsoObject({ markup, className, typing = false }: {
+export const IsoObject = memo(function IsoObject({ markup, className, typing = false }: {
   /** One builder's SVG; build it with useMemo over its data so it changes only when the data does */
   markup: string
   /** Placement and size from the view's own sheet */
@@ -36,6 +36,8 @@ export function IsoObject({ markup, className, typing = false }: {
 }) {
   ensureSheet()
   const [open, setOpen] = useState(false)
+  // Memoize { __html } by markup so parent re-renders (e.g. 3s polling) or open/typing toggles never rewrite innerHTML and restart SVG animations
+  const html = useMemo(() => ({ __html: markup }), [markup])
   return <div className={`iso-host ${className}${typing ? ' is-typing' : ''}`} aria-hidden="true" data-open={open ? '' : undefined}
-    onMouseDown={event => event.preventDefault()} onClick={() => setOpen(value => !value)} dangerouslySetInnerHTML={{ __html: markup }} />
-}
+    onMouseDown={event => event.preventDefault()} onClick={() => setOpen(value => !value)} dangerouslySetInnerHTML={html} />
+})

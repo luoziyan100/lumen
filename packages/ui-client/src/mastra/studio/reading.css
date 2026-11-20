@@ -26,9 +26,9 @@ html[data-justify="true"] .reading-para { text-align: justify; }
 .reading-chip { display: inline-block; vertical-align: 2px; max-width: 14em; font-family: var(--font-sans); line-height: 1.5; }
 .reading-more { font: var(--st-note) var(--font-sans); color: var(--text-muted); }
 .reading-empty p { margin: 0; }
-/* The empty view is the typewriter alone, centred by .studio-later (it types while a requested reading has no section yet); only a load error joins it */
-.reading-start { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.iso-host.reading-typewriter { width: 300px; }
+/* The empty view is the optical reading desk alone, centred by .studio-later (it types while a requested reading has no section yet); only a load error joins it */
+.studio-later.reading-start { max-width: min(620px, 100%); width: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.iso-host.reading-typewriter { width: min(560px, 100%); }
 
 /* ---- Footprints: a thin underline on sentences the person asked about; they read as text, click to reopen the exchange ---- */
 .reading-footprint { display: inline; cursor: pointer; border-radius: 2px; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent); text-decoration-thickness: 1px; text-underline-offset: 4px; }

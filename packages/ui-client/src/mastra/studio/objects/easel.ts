@@ -1,211 +1,275 @@
 /**
- * [INPUT]: the kit in ./iso.ts
- * [OUTPUT]: easelSvg(): the easel SVG (a tripod leaning back 12°, a blank canvas on a tray with a brush and two chalk sticks, a cloth folded over the cross brace); EASEL_CSS:
- *           --iso-tilt (hover and open 7: the canvas swivels about the mast toward the viewer), --iso-brush (open 0→100: lift, one stroke, back to the tray) and --iso-wet
- *           (the stroke's paint; closing fades it, then the brush value resets while the brush already lies in the tray, so nothing jumps)
- * [POS]: object 4 of studio/objects/, for the board view with no sheets. It follows no event (the AI cannot draw without a sheet). Same strokes, three tones and brass as the box;
- *        inclined bars are drawn by solid(), which shows a convex block's three faces that look toward the viewer (1, 1, 1), so their order inside one block never matters
+ * [INPUT]: shared White-Porcelain CAD helpers in ./instrument.ts
+ * [OUTPUT]: easelSvg(): overhead gantry CNC drafting plotter SVG (640×400 monochrome white-porcelain CAD: bolted dual rails, gliding gantry,
+ *           Y carriage with a 2-link truss arm whose pen draws one closed hypotrochoid, construction circles of that curve, rail-end pulley
+ *           belted to a ribbed stepper by true tangents); EASEL_CSS (keyframes solved from the curve, reduced-motion rest on the loop's first frame)
+ * [POS]: object 4 of studio/objects/, shown in the empty Board view. The curve drives the machine: gantry X, carriage Y and both arm angles
+ *        come from one arc-length sample per keyframe, so the nib stays on the growing line (measured ≤0.1 unit in Chromium and WebKit).
+ *        Pure valid XML SVG with uniquely prefixed ids (`ea-`)
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
-import { circle, grain, kit, line, rect, show, type Vec } from './iso.ts'
+import { bolt, coolingFins, dotGridBackdrop, gearPath, instrumentDefs, r2, rivet, rivetRow, spinKeyframes, trussArm } from './instrument.ts'
 
-const { face } = kit({ x0: 214, y0: 300 })        // model origin in the 320×380 viewBox
-
-/* ============================================================
-   Vectors
-   ============================================================ */
-const add = (...vs: Vec[]): Vec => vs.reduce((s, v) => [s[0] + v[0], s[1] + v[1], s[2] + v[2]], [0, 0, 0] as Vec)
-const mul = (v: Vec, k: number): Vec => [v[0] * k, v[1] * k, v[2] * k]
-const sub = (a: Vec, b: Vec): Vec => add(a, mul(b, -1))
-const dot = (a: Vec, b: Vec) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-const crs = (a: Vec, b: Vec): Vec => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
-const len = (v: Vec) => Math.hypot(...v)
-const unit = (v: Vec) => mul(v, 1 / len(v))
-const r3 = (v: Vec): Vec => v.map(n => Math.round(n * 1000) / 1000) as Vec
-/** Rodrigues: v turned by deg about the unit axis k */
-function turn(v: Vec, k: Vec, deg: number): Vec {
-  const a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a)
-  return add(mul(v, c), mul(crs(k, v), s), mul(k, dot(k, v) * (1 - c)))
-}
-/** A turn about the axis through P along k by a CSS degree expression */
-const pivot = (P: Vec, k: Vec, deg: string) => `translate3d(${r3(P).map(n => `${n}px`)}) rotate3d(${r3(k)}, calc((${deg}) * 1deg)) translate3d(${r3(P).map(n => `${-n}px`)})`
-/** A move along v (model px) scaled by a CSS expression */
-const along = (v: Vec, amount: string) => `translate3d(${r3(v).map(n => (n ? `calc((${amount}) * ${n}px)` : '0px'))})`
+const PFX = 'ea-'
 
 /* ============================================================
-   Tones and solids · the faces of a convex block that look toward the viewer, toned by the axis they face (top lightest, +x middle, +y darkest)
+   Plot kinematics: the curve drives the machine
+   ------------------------------------------------------------
+   The pen draws one closed hypotrochoid. The gantry and the carriage follow
+   only its slow circle; the 2-link arm takes up the rest. Every keyframe is
+   solved from the same arc-length sample, so the nib sits on the line's
+   growing end at every instant and returns to its start for the next loop.
    ============================================================ */
-const WOOD = { top: '#fbf7ee', right: '#f0e8d8', left: '#e4d9c4' }
-const DARK = { top: '#efe6d3', right: '#e4d9c4', left: '#d6cab2' }
-const BRASS = { top: '#f0d79d', right: '#e3c27e', left: '#c99f52' }
-const CHALK = { top: '#fffefa', right: '#f6f1e6', left: '#e9e1d1' }
-const CHAR = { top: '#8a8176', right: '#6d6458', left: '#5a5249' }
-const VIEW: Vec = [1, 1, 1]
-type Tones = typeof WOOD
+const PLOT = { cx: 300, cy: 198, a: 52, d: 26, k: 4 }        // nib(t) = c + a·e^{it} + d·e^{-ikt}
+const SHOULDER0 = { x: 311, y: 176 }                          // where the carriage is drawn at rest
+const L1 = 66, L2 = 60                                        // reach 6..126; the plot needs 29..119
+const STEPS = 96                                              // keyframes per loop
+const DRAW_END = 80                                           // % of the loop spent drawing; then hold and fade
 
-function solid(O: Vec, E: [Vec, Vec, Vec], tones: Tones, { seed = 0, grains = 0, extra = '', detail, skip }: { seed?: number; grains?: number; extra?: string; detail?: (normal: Vec, w: number, h: number) => string; skip?: (normal: Vec) => boolean } = {}) {
-  const centre = add(O, mul(add(...E), .5))
-  let out = ''
-  for (let k = 0; k < 3; k++) for (const f of [0, 1]) {
-    const [Ei, Ej] = [E[(k + 1) % 3]!, E[(k + 2) % 3]!]
-    const origin = add(O, mul(E[k]!, f))
-    const n0 = unit(crs(Ei, Ej)), mid = add(origin, mul(add(Ei, Ej), .5))
-    const normal = dot(sub(mid, centre), n0) > 0 ? n0 : mul(n0, -1)
-    if (dot(normal, VIEW) <= 1e-6 || skip?.(normal)) continue
-    // The longer edge runs along u, so grain follows the length of a bar
-    const [A, B] = len(Ei) >= len(Ej) ? [Ei, Ej] : [Ej, Ei]
-    const w = len(A), h = len(B), axis = normal.map(Math.abs)
-    const fill = axis[2]! >= axis[0]! && axis[2]! >= axis[1]! ? tones.top : axis[0]! >= axis[1]! ? tones.right : tones.left
-    out += face(r3(origin), r3(unit(A)), r3(unit(B)), rect(0, 0, +w.toFixed(2), +h.toFixed(2), fill) + (grains && w > 20 ? grain(+w.toFixed(2), +h.toFixed(2), seed + k * 2 + f, grains) : '') +
-      (detail ? detail(normal, w, h) : ''), extra)
+const nibAt = (t: number) => ({
+  x: PLOT.cx + PLOT.a * Math.cos(t) + PLOT.d * Math.cos(PLOT.k * t),
+  y: PLOT.cy + PLOT.a * Math.sin(t) - PLOT.d * Math.sin(PLOT.k * t),
+})
+const shoulderAt = (t: number) => ({ x: PLOT.cx - 70 + 0.6 * PLOT.a * Math.cos(t), y: PLOT.cy - 20 + 0.6 * PLOT.a * Math.sin(t) })
+
+const KINEMATICS = (() => {
+  // Arc-length table, so a linear dash reveal and linear keyframes advance together
+  const N = 2400
+  const ts: number[] = [0], lens: number[] = [0]
+  for (let i = 1; i <= N; i++) {
+    const t = (i / N) * Math.PI * 2
+    const p = nibAt(t), q = nibAt(ts[i - 1]!)
+    ts.push(t); lens.push(lens[i - 1]! + Math.hypot(p.x - q.x, p.y - q.y))
   }
-  return out
+  const total = lens[N]!
+  const tAtLength = (l: number) => {
+    let i = 1
+    while (i < N && lens[i]! < l) i++
+    const f = (l - lens[i - 1]!) / ((lens[i]! - lens[i - 1]!) || 1)
+    return ts[i - 1]! + (ts[i]! - ts[i - 1]!) * f
+  }
+  // Two-link inverse kinematics, elbow always on the upper side; angles unwrapped so no keyframe spins the long way round
+  const deg = (r: number) => (r * 180) / Math.PI
+  const unwrap = (prev: number | undefined, a: number) => { if (prev === undefined) return a; while (a - prev > 180) a -= 360; while (a - prev < -180) a += 360; return a }
+  const frames: { at: number, gx: number, cy: number, a1: number, a2: number }[] = []
+  for (let i = 0; i <= STEPS; i++) {
+    const t = tAtLength((i / STEPS) * total)
+    const n = nibAt(t), s = shoulderAt(t)
+    const dx = n.x - s.x, dy = n.y - s.y, dist = Math.hypot(dx, dy)
+    const inner = Math.acos(Math.min(1, (dist * dist + L1 * L1 - L2 * L2) / (2 * dist * L1)))
+    const a1 = Math.atan2(dy, dx) - inner
+    const ex = s.x + L1 * Math.cos(a1), ey = s.y + L1 * Math.sin(a1)
+    const a2 = Math.atan2(n.y - ey, n.x - ex)
+    const prev = frames[i - 1]
+    const u1 = unwrap(prev?.a1, deg(a1))
+    const u2 = unwrap(prev && prev.a1 + prev.a2, deg(a2)) - u1     // the forearm turns relative to the upper arm
+    frames.push({ at: (i / STEPS) * DRAW_END, gx: s.x - SHOULDER0.x, cy: s.y - SHOULDER0.y, a1: u1, a2: u2 })
+  }
+  let path = ''
+  for (let i = 0; i <= 360; i++) { const p = nibAt((i / 360) * Math.PI * 2); path += `${i ? 'L' : 'M'}${r2(p.x)} ${r2(p.y)}` }
+  return { frames, path: path + 'Z' }
+})()
+
+const keyframes = (name: string, value: (f: (typeof KINEMATICS.frames)[number]) => string) => {
+  const rows = KINEMATICS.frames.map(f => `${r2(f.at)}% { transform: ${value(f)}; }`)
+  return `@keyframes ${name} { ${rows.join(' ')} 100% { transform: ${value(KINEMATICS.frames[0]!)}; } }`
+}
+const START = KINEMATICS.frames[0]!
+
+// The construction the plot is built from: the hypotrochoid's envelope (a ± d), its slow circle and centre
+const BLUEPRINT = `<g class="ea-blueprint">` +
+  `<circle cx="${PLOT.cx}" cy="${PLOT.cy}" r="${PLOT.a + PLOT.d}" fill="none" stroke="#a49e93" stroke-width="0.6" stroke-dasharray="3 2.5"/>` +
+  `<circle cx="${PLOT.cx}" cy="${PLOT.cy}" r="${PLOT.a}" fill="none" stroke="#b2aca1" stroke-width="0.55"/>` +
+  `<circle cx="${PLOT.cx}" cy="${PLOT.cy}" r="${PLOT.a - PLOT.d}" fill="none" stroke="#a49e93" stroke-width="0.55" stroke-dasharray="2 2"/>` +
+  `<line x1="${PLOT.cx - 96}" y1="${PLOT.cy}" x2="${PLOT.cx + 96}" y2="${PLOT.cy}" stroke="#c0bab0" stroke-width="0.5"/>` +
+  `<line x1="${PLOT.cx}" y1="${PLOT.cy - 92}" x2="${PLOT.cx}" y2="${PLOT.cy + 92}" stroke="#c0bab0" stroke-width="0.5"/>` +
+  // The one warm-amber line: the pen's own trace
+  `<path d="${KINEMATICS.path}" fill="none" stroke="#dfae52" stroke-width="1.2" stroke-linejoin="round" pathLength="100" class="ea-trace"/>` +
+  `<circle cx="${PLOT.cx}" cy="${PLOT.cy}" r="2.6" fill="#ffffff" stroke="#7c766b" stroke-width="0.7"/>` +
+  `<text x="458" y="286" font-size="4.6" fill="#9a9489" text-anchor="end" letter-spacing="1.2" font-family="var(--font-mono, ui-monospace, monospace)">PLOT · X:${PLOT.cx} Y:${PLOT.cy} R:${PLOT.a + PLOT.d}.0</text>` +
+  `<text x="458" y="110" font-size="4.6" fill="#9a9489" text-anchor="end" letter-spacing="1.2" font-family="var(--font-mono, ui-monospace, monospace)">DRAFT · II</text>` +
+`</g>`
+
+/** Open belt between two pulleys: the two outer tangents */
+function belt(x1: number, y1: number, r1: number, x2: number, y2: number, r2_: number) {
+  const th = Math.atan2(y2 - y1, x2 - x1)
+  const b = Math.acos((r1 - r2_) / Math.hypot(x2 - x1, y2 - y1))
+  return [th + b, th - b].map(a =>
+    `<line x1="${r2(x1 + r1 * Math.cos(a))}" y1="${r2(y1 + r1 * Math.sin(a))}" x2="${r2(x2 + r2_ * Math.cos(a))}" y2="${r2(y2 + r2_ * Math.sin(a))}" stroke="#8d877c" stroke-width="1.1" stroke-linecap="round"/>`,
+  ).join('')
 }
 
-/* ============================================================
-   The frame · the front legs and the mast lie in one plane leaning back 12°; P(y, s) is the point at y, s up that plane from the floor
-   ============================================================ */
-const LEAN = 12 * Math.PI / 180
-const N: Vec = [Math.cos(LEAN), 0, Math.sin(LEAN)]           // the plane's front normal
-const UPW: Vec = [-Math.sin(LEAN), 0, Math.cos(LEAN)]        // up along the plane
-const P = (y: number, s: number): Vec => add([0, y, 0], mul(UPW, s))
-const APEX = 238, MID = 60, LEFT_FOOT = 132, RIGHT_FOOT = -12, BRACE_S = 22
+const PLOTTER_BED = (() => {
+  // Fine architectural drafting grid inside vellum sheet (122..468 × 98..296)
+  let grid = ''
+  for (let x = 140; x <= 452; x += 24) grid += `<line x1="${x}" y1="100" x2="${x}" y2="294" stroke="#e4dfd4" stroke-width="0.45"/>`
+  for (let y = 118; y <= 280; y += 24) grid += `<line x1="124" y1="${y}" x2="466" y2="${y}" stroke="#e4dfd4" stroke-width="0.45"/>`
 
-function frontLeg(footY: number, seed: number) {
-  const foot = P(footY, 0), top = P(MID, APEX), d = unit(sub(top, foot)), w = unit(crs(N, d))
-  return solid(sub(foot, mul(w, 3.5)), [mul(d, len(sub(top, foot))), mul(w, 7), mul(N, -6)], WOOD, { seed, grains: 3 }) +
-    solid(add(sub(foot, mul(w, 4)), mul(N, .5)), [mul(d, 7), mul(w, 8), mul(N, -7)], BRASS) +           // the brass shoe
-    face(r3(add(P(footY + (MID - footY) * (BRACE_S + 3) / APEX, BRACE_S + 3), mul(N, .3))), [0, -1, 0], r3(mul(UPW, -1)), circle(0, 0, 2.2, '#e3c27e', 'brass') + circle(0, 0, .8, '#2f2b25'))   // the brace bolt
-}
-// A cross brace between the front legs, a little behind their fronts, so the legs overlap its ends
-const brace = solid(add(P(RIGHT_FOOT + (MID - RIGHT_FOOT) * BRACE_S / APEX, BRACE_S), mul(N, -1)), [[0, (LEFT_FOOT - RIGHT_FOOT) * (1 - BRACE_S / APEX), 0], mul(UPW, 6), mul(N, -4)], DARK, { seed: 9, grains: 2 })
-const BACK_TOP = add(P(MID, APEX - 6), mul(N, -6)), BACK_FOOT: Vec = [-84, MID, 0]
-const backD = unit(sub(BACK_FOOT, BACK_TOP)), backT = unit(crs([0, 1, 0], backD))
-const backLeg = solid(sub(BACK_TOP, [0, 3.5, 0]), [mul(backD, len(sub(BACK_FOOT, BACK_TOP))), [0, 7, 0], mul(backT, 6)], DARK, { seed: 7, grains: 3 }) +
-  solid(add(sub(BACK_FOOT, mul(backD, 7)), [0, -4, 0]), [mul(backD, 7), [0, 8, 0], mul(backT, 7)], BRASS)
-// The mast: height holes above the clamp, a brass cap on top
-const MAST_LOW = 52, MAST_HIGH = 258
-const mast = solid(P(MID - 4, MAST_LOW), [mul(UPW, MAST_HIGH - MAST_LOW), [0, 8, 0], mul(N, -6)], WOOD, {
-  seed: 3, grains: 2,
-  detail: (normal, w, h) => dot(normal, N) > .9 ? Array.from({ length: 5 }, (_, i) => circle(154 + i * 6, h / 2, 1.1, '#6d6458')).join('') : '',
-}) + solid(add(P(MID - 5, MAST_HIGH), mul(N, .5)), [mul(UPW, 5), [0, 10, 0], mul(N, -7)], BRASS)
-// The wing nut where the legs meet
-const wingNut = face(r3(add(P(MID, APEX - 3), mul(N, .4))), [0, -1, 0], r3(mul(UPW, -1)),
-  `<path d="M-2.6 -1.6L-9 -4.2Q-10.6 0 -9 4.2L-2.6 1.6Z" class="brass"/><path d="M2.6 -1.6L9 -4.2Q10.6 0 9 4.2L2.6 1.6Z" class="brass"/>` +
-  circle(0, 0, 3.6, '#e3c27e', 'brass') + circle(0, 0, 1.2, '#2f2b25'))
+  // Precision millimeter scale ticks along top and bottom rails
+  let railTicks = ''
+  for (let i = 0; i <= 72; i++) {
+    const x = 114 + i * 5
+    const major = i % 10 === 0
+    const mid = i % 5 === 0
+    const h = major ? 6.5 : mid ? 4.2 : 2.4
+    railTicks += `<line x1="${x}" y1="84" x2="${x}" y2="${r2(84 + h)}" stroke="${major ? '#7c766b' : '#b2aca1'}" stroke-width="${major ? 0.6 : 0.38}"/>`
+    railTicks += `<line x1="${x}" y1="312" x2="${x}" y2="${r2(312 - h)}" stroke="${major ? '#7c766b' : '#b2aca1'}" stroke-width="${major ? 0.6 : 0.38}"/>`
+    if (major && i > 0 && i < 70) {
+      railTicks += `<text x="${x}" y="81.5" font-size="4.4" fill="#9a9489" text-anchor="middle" font-family="var(--font-mono, ui-monospace, monospace)">${String(i * 5).padStart(3, '0')}</text>`
+    }
+  }
 
-/* ============================================================
-   The cloth · a linen rag folded over the cross brace: its top lies on the brace with a rounded fold at the front edge, the front half hangs before the brace,
-   the back half hangs behind it a little longer and shows below; the fringe grows from each hem and the brass stripes follow the folds
-   ============================================================ */
-const BRACE_TOP = BRACE_S + 6, CLOTH_Y = 104, CLOTH_W = 32, BACK_SHIFT = -4
-const LINEN = '#ebe1cc', LINEN_BACK = '#d9ccb2', LINEN_TOP = '#f4ecdb', STRIPE = 'hair" style="stroke:#c99f52'
-// The hem: a soft wave whose depth at u is hem(u); fringe threads start on it, so they never float
-const hem = (u: number, base: number) => base + Math.sin(u * .42) * 1.3 + Math.sin(u * .17 + 1) * 1.1
-const hemPath = (w: number, base: number) => Array.from({ length: 13 }, (_, i) => { const u = w * (12 - i) / 12; return `L${u.toFixed(2)} ${hem(u, base).toFixed(2)}` }).join('')
-const fringe = (w: number, base: number, n: number) => Array.from({ length: n }, (_, i) => { const u = 2.5 + i * (w - 5) / (n - 1), v = hem(u, base); return line(+u.toFixed(2), +(v - .3).toFixed(2), +(u + .3).toFixed(2), +(v + 2.6).toFixed(2), 'hair') }).join('')
-// The stripes run parallel to the hem, kinked where the folds cross them
-const stripe = (w: number, at: number) => `<path d="M1 ${hem(1, at).toFixed(2)}${[8, 15, 22, 29].filter(u => u < w).map(u => `L${u} ${(hem(u, at) + (u % 2 ? .5 : -.4)).toFixed(2)}`).join('')}L${w - 1} ${hem(w - 1, at).toFixed(2)}" fill="none" class="${STRIPE}"/>`
-const clothBack = (() => {
-  const w = CLOTH_W, base = 27.5
-  return face(r3(add(P(CLOTH_Y + BACK_SHIFT, BRACE_TOP), mul(N, -5.6))), [0, -1, 0], r3(mul(UPW, -1)),
-    `<path d="M0 0H${w}${hemPath(w, base)}Z" fill="${LINEN_BACK}" class="ln"/>` + line(9, 1, 8.5, base - 1, 'hair') + line(20, 1, 20.5, base - 1, 'hair') + fringe(w, base, 6))
+  return `<g class="ea-bed">` +
+    `<ellipse cx="320" cy="356" rx="236" ry="11" fill="#2d261c" opacity="0.1" filter="url(#${PFX}soft-blur)"/>` +
+
+    // Machined porcelain flatbed plinth with double-bevel flange & corner leveling feet
+    `<rect x="86" y="330" width="38" height="12" rx="2.5" fill="url(#${PFX}machined-h)" stroke="#888277" stroke-width="0.7"/>` +
+    `<rect x="466" y="330" width="38" height="12" rx="2.5" fill="url(#${PFX}machined-h)" stroke="#888277" stroke-width="0.7"/>` +
+    `<rect x="74" y="68" width="442" height="266" rx="10" fill="url(#${PFX}porcelain-v)" stroke="#7c766b" stroke-width="0.85"/>` +
+    `<rect x="77" y="71" width="436" height="260" rx="8" fill="none" stroke="#ffffff" stroke-width="0.85" opacity="0.9"/>` +
+    `<rect x="82" y="76" width="426" height="250" rx="6" fill="url(#${PFX}porcelain-top)" stroke="#cbc5b9" stroke-width="0.55"/>` +
+
+    // Signature architectural flange rivet rows along left & right side bulkheads
+    rivetRow(80, 96, 80, 304, 11, PFX, 1.2) +
+    rivetRow(510, 96, 510, 304, 11, PFX, 1.2) +
+    bolt(88, 82, PFX, 2.2, 22) + bolt(502, 82, PFX, 2.2, -32) +
+    bolt(88, 320, PFX, 2.2, -18) + bolt(502, 320, PFX, 2.2, 40) +
+
+    // Top & bottom machined linear guide rails + timing belts
+    `<rect x="102" y="74" width="386" height="14" rx="2.5" fill="url(#${PFX}machined)" stroke="#8a8479" stroke-width="0.65"/>` +
+    `<rect x="102" y="308" width="386" height="14" rx="2.5" fill="url(#${PFX}machined)" stroke="#8a8479" stroke-width="0.65"/>` +
+    `<line x1="108" y1="78.5" x2="482" y2="78.5" stroke="#a6a095" stroke-width="0.7" stroke-dasharray="2.5 1.8"/>` +
+    `<line x1="108" y1="317.5" x2="482" y2="317.5" stroke="#a6a095" stroke-width="0.7" stroke-dasharray="2.5 1.8"/>` +
+    railTicks +
+
+    // Recessed vellum drafting platen + precision corner magnetic clamps
+    `<rect x="114" y="94" width="362" height="208" rx="3" fill="url(#${PFX}recess)" stroke="#a39d92" stroke-width="0.65"/>` +
+    `<rect x="120" y="98" width="350" height="200" rx="1.5" fill="url(#${PFX}paper-grad)" stroke="#bdb7ac" stroke-width="0.55"/>` +
+    grid +
+    // Magnetic porcelain paper clamps
+    `<rect x="126" y="95" width="34" height="7" rx="1.5" fill="url(#${PFX}porcelain-v)" stroke="#857f74" stroke-width="0.6"/>` +
+    `<rect x="430" y="95" width="34" height="7" rx="1.5" fill="url(#${PFX}porcelain-v)" stroke="#857f74" stroke-width="0.6"/>` +
+    `<rect x="126" y="294" width="34" height="7" rx="1.5" fill="url(#${PFX}porcelain-v)" stroke="#857f74" stroke-width="0.6"/>` +
+    `<rect x="430" y="294" width="34" height="7" rx="1.5" fill="url(#${PFX}porcelain-v)" stroke="#857f74" stroke-width="0.6"/>` +
+    rivet(132, 98.5, PFX, 0.9) + rivet(154, 98.5, PFX, 0.9) +
+    rivet(436, 98.5, PFX, 0.9) + rivet(458, 98.5, PFX, 0.9) +
+
+    BLUEPRINT +
+  `</g>`
 })()
-const clothFront = (() => {
-  const w = CLOTH_W, base = 19
-  return face(r3(add(P(CLOTH_Y, BRACE_TOP + .5), mul(N, -.6))), [0, -1, 0], r3(mul(UPW, -1)),
-    `<path d="M0 0H${w}${hemPath(w, base)}Z" fill="${LINEN}" class="ln"/>` +
-    // The fold: a rounded band where the cloth turns over the brace's front edge
-    `<path d="M0 1.2Q0 -3.4 3 -3.4H${w - 3}Q${w} -3.4 ${w} 1.2Q${w / 2} 2.2 0 1.2Z" fill="${LINEN_TOP}" class="ln"/>` + line(3, -1.6, w - 3, -1.6, 'grain') +
-    // Folds: hairlines that fan out a little toward the hem
-    [[7, 6.2], [13.5, 14], [21, 22], [27, 28.4]].map(([a, b], i) => line(a!, 2.6, b!, hem(b!, base) - 1.2, i % 2 ? 'grain' : 'hair')).join('') +
-    stripe(w, base - 4.2) + stripe(w, base - 2.6) + fringe(w, base, 9))
+
+/* ============================================================
+   Gliding Overhead Porcelain Gantry Bridge & Articulated Weight-Relieved Truss Arm
+   ============================================================ */
+const GANTRY_BRIDGE = (() => {
+  return `<g class="ea-gantry">` +
+    // Top & bottom rail carriage trucks
+    `<rect x="292" y="65" width="38" height="24" rx="3" fill="url(#${PFX}porcelain-v)" stroke="#7c766b" stroke-width="0.75"/>` +
+    `<rect x="292" y="307" width="38" height="24" rx="3" fill="url(#${PFX}porcelain-v)" stroke="#7c766b" stroke-width="0.75"/>` +
+    rivet(298, 71, PFX, 1.1) + rivet(324, 71, PFX, 1.1) +
+    rivet(298, 325, PFX, 1.1) + rivet(324, 325, PFX, 1.1) +
+
+    // Twin vertical machined porcelain bridge spars with lightening slot
+    `<rect x="301" y="88" width="20" height="220" rx="2" fill="url(#${PFX}porcelain-h)" stroke="#7c766b" stroke-width="0.75"/>` +
+    `<rect x="307.5" y="102" width="7" height="192" rx="3" fill="url(#${PFX}recess)" stroke="#a39d92" stroke-width="0.5"/>` +
+    `<line x1="304" y1="94" x2="304" y2="302" stroke="#ffffff" stroke-width="0.7" opacity="0.85"/>` +
+
+    // Y carriage riding the spar; the arm's shoulder bearing is bolted through it
+    `<g class="ea-y-carriage">` +
+      `<ellipse cx="314" cy="${SHOULDER0.y + 18}" rx="20" ry="5" fill="#2d261c" opacity="0.08" filter="url(#${PFX}soft-blur)"/>` +
+      `<rect x="296" y="156" width="30" height="34" rx="3.5" fill="url(#${PFX}porcelain-v)" stroke="#787267" stroke-width="0.78"/>` +
+      `<rect x="300" y="160" width="22" height="26" rx="2" fill="url(#${PFX}porcelain-top)" stroke="#bcb6ab" stroke-width="0.5"/>` +
+      `<rect x="304" y="162.5" width="14" height="3" rx="1.2" fill="url(#${PFX}accent-amber)" opacity="0.85"/>` +
+      // Upper arm about the shoulder; the forearm turns about the elbow inside it. Drawn straight out (angle 0), posed by keyframes
+      `<g class="ea-link1" style="transform-box:view-box;transform-origin:${SHOULDER0.x}px ${SHOULDER0.y}px">` +
+        `<g class="ea-link2" style="transform-box:view-box;transform-origin:${SHOULDER0.x + L1}px ${SHOULDER0.y}px">` +
+          trussArm(SHOULDER0.x + L1, SHOULDER0.y, SHOULDER0.x + L1 + L2, SHOULDER0.y, 9.5, 7.5, 3, PFX) +
+          // Pen holder: collar, spring clip and the nib on the paper
+          `<circle cx="${SHOULDER0.x + L1 + L2}" cy="${SHOULDER0.y}" r="8" fill="url(#${PFX}porcelain-v)" stroke="#787267" stroke-width="0.75"/>` +
+          `<circle cx="${SHOULDER0.x + L1 + L2}" cy="${SHOULDER0.y}" r="5" fill="url(#${PFX}recess)" stroke="#a39d92" stroke-width="0.5"/>` +
+          `<circle cx="${SHOULDER0.x + L1 + L2}" cy="${SHOULDER0.y}" r="2" fill="#e6b655" stroke="#787267" stroke-width="0.5" class="ea-nib ea-nib-glow"/>` +
+        `</g>` +
+        trussArm(SHOULDER0.x, SHOULDER0.y, SHOULDER0.x + L1, SHOULDER0.y, 12, 9.5, 4, PFX) +
+      `</g>` +
+      bolt(SHOULDER0.x, SHOULDER0.y, PFX, 2.4, 30) +
+    `</g>` +
+  `</g>`
 })()
 
 /* ============================================================
-   The canvas and its clamp · they swivel together about the mast by --iso-tilt
+   Right Side · Ribbed Porcelain Stepper Drive Motor & Belt Coupler (Factory-style)
    ============================================================ */
-const TRAY_Z = 66, TRAY_S = TRAY_Z / Math.cos(LEAN), XP = -TRAY_Z * Math.tan(LEAN)   // the tray's top, its distance up the plane, the plane's x there
-const CW = 108, CH = 124, BACK = 4, THICK = 7, FRONT = BACK + THICK
-const CANVAS_TOP = TRAY_S + CH
-const SWIVEL = pivot([0, MID, 0], UPW, 'var(--iso-tilt)')
-const TILT_OPEN = 7
-
-const canvasFace: { O: Vec; U: Vec; V: Vec } = { O: add(P(MID + CW / 2, CANVAS_TOP), mul(N, FRONT)), U: [0, -1, 0], V: mul(UPW, -1) }
-// The stroke: u(s) = U0 + DU·s, v(s) = V0 + DV·s − A·sin(πs), a short rising swoosh; the brush tip follows the same curve
-const U0 = 30, DU = 46, V0 = 74, DV = -16, ARC = 9
-const B = 'var(--iso-brush)'
-const LIFT = `clamp(0, ${B} / 28, 1)`, STROKE = `clamp(0, (${B} - 30) / 42, 1)`, BACKTO = `clamp(0, (${B} - 78) / 22, 1)`
-const strokePath = Array.from({ length: 25 }, (_, i) => { const s = i / 24; return `${i ? 'L' : 'M'}${(U0 + DU * s).toFixed(2)} ${(V0 + DV * s - ARC * Math.sin(Math.PI * s)).toFixed(2)}` }).join('')
-
-const canvas = solid(add(P(MID - CW / 2, TRAY_S), mul(N, BACK)), [mul(UPW, CH), [0, CW, 0], mul(N, THICK)], { top: '#fbf7ee', right: '#fffefa', left: '#efe6d3' }, {
-  extra: SWIVEL,
-  skip: normal => dot(normal, N) > .9,                                         // the front is drawn on its own face below, with the stroke
-  detail: (normal, w, h) => {
-    if (normal[1] > .9) return Array.from({ length: 11 }, (_, i) => circle(8 + i * 11, h / 2, .55, '#6d6458')).join('') + line(4, h - 1.6, w - 4, h - 1.6, 'grain')   // tacks on the wrap
-    return line(3, h - 2, w - 3, h - 2, 'hair') + [14, 36, 54, 72, 94].map(u => line(u, h - 4.4, u + 3, h - 4.4, 'hair')).join('')   // the fold over the stretcher's top, and its staples
-  },
-}) + face(r3(canvasFace.O), canvasFace.U, r3(canvasFace.V),
-  rect(0, 0, CW, CH, '#fffefa') + rect(3, 3, CW - 6, CH - 6, 'none', 'grain', 1) +
-  `<path d="${strokePath}" pathLength="100" fill="none" style="vector-effect:none; stroke:#4a4339; stroke-width:2.4; stroke-linecap:round; stroke-linejoin:round;` +
-  ` stroke-dasharray:100 100; stroke-dashoffset:calc(100 - 100 * ${STROKE}); opacity:calc(var(--iso-wet) * clamp(0, ${STROKE} * 60, 1))"/>`, SWIVEL)
-const clamp = solid(add(P(MID - 7, CANVAS_TOP - 6), mul(N, BACK)), [mul(UPW, 16), [0, 14, 0], mul(N, THICK + 4)], WOOD, {
-  extra: SWIVEL, seed: 5, grains: 1,
-  detail: (normal, w, h) => dot(normal, N) > .9 ? circle(w / 2, h / 2, 3, '#e3c27e', 'brass') + circle(w / 2, h / 2, 1, '#2f2b25') : '',
-})
-
-/* ============================================================
-   The tray · a shelf on the front legs; its right end sits behind what lies in it, the lip and the left end in front
-   ============================================================ */
-const TD = 24, TY0 = -4, TY1 = 124, LIP = 3.5
-const trayBase = solid([XP, TY0, TRAY_Z - 5], [[TD, 0, 0], [0, TY1 - TY0, 0], [0, 0, 5]], WOOD, { seed: 12, grains: 2 })
-const trayRight = solid([XP, TY0, TRAY_Z], [[TD, 0, 0], [0, 3, 0], [0, 0, LIP]], WOOD)
-const trayLip = solid([XP + TD - 3, TY0 + 3, TRAY_Z], [[3, 0, 0], [0, TY1 - TY0 - 6, 0], [0, 0, LIP]], WOOD, {
-  detail: (normal, w, h) => normal[0] > .9 ? [18, w - 18].map(u => circle(u, h / 2, .9, '#e3c27e', 'brass-d')).join('') : '',
-})
-const trayLeft = solid([XP, TY1 - 3, TRAY_Z], [[TD, 0, 0], [0, 3, 0], [0, 0, LIP]], WOOD)
-const dust = face([XP + 2, 118, TRAY_Z + .05], [0, -1, 0], [1, 0, 0],
-  [[3, 6, .7], [8, 9, .5], [12, 5, .6], [17, 11, .45], [22, 7, .55], [6, 14, .4]].map(([u, v, r]) => circle(u!, v!, r!, '#e9e1d1')).join(''))
-const chalk = dust + solid([XP + 9, 86, TRAY_Z], [[4, 0, 0], [0, 15, 0], [0, 0, 4]], CHALK) + solid([XP + 15, 104, TRAY_Z], [[3.4, 0, 0], [0, 11, 0], [0, 0, 3.4]], CHAR)
-
-/* ============================================================
-   The brush · a profile in its own plane, tip at the origin. At rest it lies in the tray along y; open lifts it, lays its plane parallel to the
-   turned canvas (lean, then swivel), runs the tip along the stroke and brings it back. One variable drives the phases: lift 0–28, stroke 30–72, return 78–100
-   ============================================================ */
-const REST: Vec = [XP + 13, 20, TRAY_Z + 2.2]
-const brushProfile = `<path d="M-50 -1.3Q-52 0 -50 1.3L-16 2.1H-16V-2.1Z" fill="#f0e8d8" class="ln"/>` + line(-46, 0, -20, 0, 'grain') +
-  rect(-16, -2.3, 7, 4.6, '#e3c27e', 'brass', .8) + line(-13.5, -2.3, -13.5, 2.3, 'hair') + line(-11.5, -2.3, -11.5, 2.3, 'hair') +
-  `<path d="M-9 -2.4Q-3 -2.6 0 0Q-3 2.6 -9 2.4Z" fill="#4a4339" class="ln"/>` + line(-8, -1, -3, -.4, 'hair').replace('hair', 'hair" style="stroke:#8a8176')
-const brushTurned = (() => {
-  // Where the tip touches the canvas: the canvas face point turned by the open swivel, 1.5 in front of the cloth
-  const axis = UPW, at = (u: number, v: number) => add(turn(sub(add(canvasFace.O, mul(canvasFace.U, u), mul(canvasFace.V, v), mul(N, 1.5)), [0, MID, 0]), axis, TILT_OPEN), [0, MID, 0])
-  const S0 = at(U0, V0), S1 = at(U0 + DU, V0 + DV), Uw = turn(canvasFace.U, axis, TILT_OPEN), Vw = turn(canvasFace.V, axis, TILT_OPEN)
-  const held = `(${LIFT}) * (1 - ${BACKTO})`
-  const path = along(sub(S0, REST), LIFT) + ' ' + along(Uw, `${DU} * ${STROKE}`) + ' ' + along(Vw, `${DV} * ${STROKE} - ${ARC} * sin(${STROKE} * 3.14159)`) + ' ' +
-    along(sub(REST, S1), BACKTO) + ' ' + along([0, 0, 1], `16 * sin(${LIFT} * 3.14159) + 14 * sin(${BACKTO} * 3.14159)`)
-  const pose = pivot(REST, axis, `${TILT_OPEN} * ${held}`) + ' ' + pivot(REST, [0, 1, 0], `${-12} * ${held}`) + ' ' + pivot(REST, [1, 0, 0], `-146 * ${held}`)
-  return { held, motion: `${path} ${pose}` }
+const STEPPER_DRIVE = (() => {
+  const cx = 556, cy = 274
+  return `<g class="ea-stepper">` +
+    `<ellipse cx="554" cy="342" rx="34" ry="6" fill="#2d261c" opacity="0.1" filter="url(#${PFX}soft-blur)"/>` +
+    // Drive belt: true outer tangents from the rail's end pulley to the motor pulley, so it wraps both
+    belt(482, 315, 7, cx, cy, 13.5) +
+    // Rail end pulley, seated in the bottom rail's end cap
+    `<circle cx="482" cy="315" r="7" fill="url(#${PFX}porcelain-v)" stroke="#7c766b" stroke-width="0.7"/>` +
+    `<g class="ea-pulley-spin" style="transform-box:view-box;transform-origin:482px 315px">` +
+      `<line x1="477.5" y1="315" x2="486.5" y2="315" stroke="#857f74" stroke-width="0.7"/>` +
+      `<line x1="482" y1="310.5" x2="482" y2="319.5" stroke="#857f74" stroke-width="0.7"/>` +
+    `</g>` +
+    `<circle cx="482" cy="315" r="1.6" fill="#ffffff" stroke="#7c766b" stroke-width="0.5"/>` +
+    // Motor base plate
+    `<rect x="524" y="328" width="60" height="10" rx="2.5" fill="url(#${PFX}porcelain-h)" stroke="#7c766b" stroke-width="0.75"/>` +
+    bolt(530, 333, PFX, 1.5, 20) + bolt(578, 333, PFX, 1.5, -25) +
+    // Ribbed motor housing with cooling fins
+    `<rect x="530" y="286" width="48" height="42" rx="4" fill="url(#${PFX}porcelain-h)" stroke="#7c766b" stroke-width="0.8"/>` +
+    coolingFins(536, 294, 36, 26, 7, false) +
+    // Top exposed spoked flywheel pulley
+    `<circle cx="${cx}" cy="${cy}" r="18" fill="url(#${PFX}drum-outer)" stroke="#7c766b" stroke-width="0.8"/>` +
+    `<g class="ea-motor-spin" style="transform-box:view-box;transform-origin:${cx}px ${cy}px">` +
+      `<path d="${gearPath(cx, cy, 13.5, 11.2, 14)}" fill="url(#${PFX}machined)" stroke="#8a8479" stroke-width="0.55"/>` +
+      `<circle cx="${cx}" cy="${cy}" r="7.5" fill="url(#${PFX}porcelain-top)" stroke="#9a9489" stroke-width="0.55"/>` +
+      `<line x1="${cx - 6}" y1="${cy}" x2="${cx + 6}" y2="${cy}" stroke="#857f74" stroke-width="0.75"/>` +
+      `<line x1="${cx}" y1="${cy - 6}" x2="${cx}" y2="${cy + 6}" stroke="#857f74" stroke-width="0.75"/>` +
+    `</g>` +
+    `<circle cx="${cx}" cy="${cy}" r="2.6" fill="#ffffff" stroke="#7c766b" stroke-width="0.6"/>` +
+    // Small terminal junction box + single 2px warm amber status dot
+    `<rect x="538" y="317" width="32" height="8" rx="1.5" fill="#fbf9f4" stroke="#9a9489" stroke-width="0.5"/>` +
+    `<circle cx="543" cy="321" r="1.5" fill="#e5b34f" class="ea-nib-glow"/>` +
+    `<text x="557" y="322.6" font-size="4.1" fill="#7c766b" text-anchor="middle" letter-spacing="0.8" font-family="var(--font-mono, ui-monospace, monospace)">DRV.02</text>` +
+  `</g>`
 })()
-const brush = face(r3(REST), [0, -1, 0], [0, 0, -1], brushProfile, brushTurned.motion)
-
-const shadow = face([-96, 140, 0], [0, -1, 0], [1, 0, 0],
-  `<rect x="0" y="0" width="160" height="128" rx="40" fill="#3b2f1e" opacity=".14" filter="url(#iso-easel-soft)"/>`)
 
 export function easelSvg() {
-  return `<svg class="iso iso-easel" viewBox="0 0 320 380" role="img" aria-hidden="true">
-    <defs><filter id="iso-easel-soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="8"/></filter></defs>
-    ${shadow}${backLeg}${clothBack}${brace}${clothFront}${frontLeg(RIGHT_FOOT, 1)}${frontLeg(LEFT_FOOT, 4)}${mast}${wingNut}
-    ${canvas}${clamp}
-    ${trayBase}${trayRight}${show(`1 - ${brushTurned.held} * 40`, brush)}${chalk}${trayLip}${trayLeft}
-    ${show(`${brushTurned.held} * 40`, brush)}
+  return `<svg class="iso iso-easel" viewBox="0 0 640 400" role="img" aria-hidden="true">
+    <defs>
+      ${instrumentDefs(PFX, 640, 400)}
+    </defs>
+    ${dotGridBackdrop(PFX, 640, 400, 344)}
+    ${PLOTTER_BED}
+    ${STEPPER_DRIVE}
+    ${GANTRY_BRIDGE}
   </svg>`
 }
 
-/* ---------- States · hover and open turn the canvas; open paints (2.6s), closing fades the paint and then resets the brush, which already lies in the tray ---------- */
 export const EASEL_CSS = ['--iso-tilt', '--iso-brush', '--iso-wet'].map(v => `@property ${v} { syntax: '<number>'; inherits: true; initial-value: 0; }`).join('\n') + `
-.iso-easel { --iso-tilt: 0; --iso-brush: 0; --iso-wet: 0; transition: --iso-tilt 700ms cubic-bezier(.32, .72, 0, 1), --iso-brush 0ms linear 520ms, --iso-wet 500ms ease; }
-.iso-host:hover .iso-easel { --iso-tilt: ${TILT_OPEN}; }
-.iso-host[data-open] .iso-easel { --iso-tilt: ${TILT_OPEN}; --iso-brush: 100; --iso-wet: 1;
-  transition: --iso-tilt 700ms cubic-bezier(.32, .72, 0, 1), --iso-brush 2600ms cubic-bezier(.45, .05, .4, .95), --iso-wet 0ms; }
-@media (prefers-reduced-motion: reduce) { .iso-easel, .iso-host[data-open] .iso-easel { transition-duration: 1ms; transition-delay: 0ms; } }
+.iso-easel { --iso-tilt: 0; --iso-brush: 0; --iso-wet: 0; transition: --iso-tilt 700ms cubic-bezier(.22, 1, .36, 1), --iso-brush 900ms cubic-bezier(.22, 1, .36, 1); }
+.iso-host:hover .iso-easel { --iso-tilt: 1; }
+.iso-host[data-open] .iso-easel { --iso-tilt: 1; --iso-brush: 1; --iso-wet: 1; }
+
+${spinKeyframes('ea-spin')}
+${keyframes('ea-gantry-plot', f => `translateX(${r2(f.gx)}px)`)}
+${keyframes('ea-carriage-plot', f => `translateY(${r2(f.cy)}px)`)}
+${keyframes('ea-link1-plot', f => `rotate(${r2(f.a1)}deg)`)}
+${keyframes('ea-link2-plot', f => `rotate(${r2(f.a2)}deg)`)}
+@keyframes ea-trace { 0% { stroke-dashoffset: 100; opacity: 1; } ${DRAW_END}% { stroke-dashoffset: 0; opacity: 1; } 90% { stroke-dashoffset: 0; opacity: 1; } 97% { stroke-dashoffset: 0; opacity: 0; } 100% { stroke-dashoffset: 100; opacity: 0; } }
+@keyframes ea-glow { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+/* One clock for the pen and its line: same duration, linear between solved keyframes. The rest pose is the loop's first frame, so reduced motion still shows the nib on the finished curve */
+.iso-easel .ea-gantry { transform: translateX(${r2(START.gx)}px); animation: ea-gantry-plot 18s linear infinite; }
+.iso-easel .ea-y-carriage { transform: translateY(${r2(START.cy)}px); animation: ea-carriage-plot 18s linear infinite; }
+.iso-easel .ea-link1 { transform: rotate(${r2(START.a1)}deg); animation: ea-link1-plot 18s linear infinite; }
+.iso-easel .ea-link2 { transform: rotate(${r2(START.a2)}deg); animation: ea-link2-plot 18s linear infinite; }
+.iso-easel .ea-trace { stroke-dasharray: 100 100; stroke-dashoffset: 0; animation: ea-trace 18s linear infinite; }
+.iso-easel .ea-motor-spin { animation: ea-spin 14s linear infinite; }
+.iso-easel .ea-pulley-spin { animation: ea-spin 9s linear infinite; }
+.iso-easel .ea-nib-glow { animation: ea-glow 2.8s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .iso-easel, .iso-easel * { animation: none !important; transition-duration: 1ms !important; }
+}
 `

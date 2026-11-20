@@ -1,125 +1,204 @@
 /**
- * [INPUT]: the kit in ./iso.ts; the solid layer in ./solid.ts (solid, cylinder, tones, pivot, along)
- * [OUTPUT]: pressSvg(): the flower press SVG (two square boards, four threaded posts with brass wing nuts, a stack of blotting paper with notched corners, a pressed
- *           leaf whose tip shows at the front-right edge); PRESS_CSS: --iso-spin (hover and open 1: the wing nuts turn a quarter) and --iso-lift (open 1: the top board,
- *           its washers and nuts climb the posts and the leaf shows)
- * [POS]: object 5 of studio/objects/, for the Takeaways view with nothing kept yet. It carries no data and follows no event. Posts are drawn once in full before the stack
- *        (they show in the gap when the board lifts) and again above each nut, shortened by the lift, so a nut always sits on a post that runs on above it
+ * [INPUT]: shared White-Porcelain CAD helpers in ./instrument.ts
+ * [OUTPUT]: pressSvg(): white-porcelain nipping press coupled to a ribbed motor and cutaway turbine (640×400 monochrome CAD: bolted
+ *           crown with the screw's nut, screw + T-handle + platen travelling as one piece, folio stack whose top face carries the pressed leaf
+ *           and seal, shaft-coupled motor and turbine); PRESS_CSS (--iso-lift travel, handle half-turn per state change, turbine/needle idle,
+ *           reduced-motion guard)
+ * [POS]: object 5 of studio/objects/, shown in the empty Takeaways view. At rest the plate presses the folio; hover lifts it a crack,
+ *        open lifts it clear to show the leaf. Pure valid XML SVG with uniquely prefixed ids (`pr-`)
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
-import { circle, css, grain, kit, line, rect, type Vec } from './iso.ts'
-import { add, along, BRASS, DARK, IRON, mix, pivot, solids, WOOD } from './solid.ts'
+import { bolt, coolingFins, dotGridBackdrop, gearPath, instrumentDefs, r2, rivet, rivetRow, spinKeyframes, vernierRing } from './instrument.ts'
 
-const { face } = kit({ x0: 160, y0: 150 })        // model origin (the back corner of the bottom board) in the 320×300 viewBox
-const { solid, cylinder } = solids(face)
-
-/* ---------- Size · boards 130 square, 10 thick; seven sheets of 2.2 between; posts inset 9, radius 3.6, up to z 84; the top board climbs 30 when open ---------- */
-const B = 130, T = 10, SHEET = 2.2, SHEETS = 7, NOTCH = 16
-const STACK = T + SHEET * SHEETS, TOP = STACK + T             // the stack's top and the top board's top, at rest
-const POSTS: [number, number][] = [[9, 9], [B - 9, 9], [9, B - 9], [B - 9, B - 9]]   // back, right, left, front: back to front
-const PR = 3.6, POST_TOP = 84, LIFT = 30
-const WASH = 1.2, HUB = 6, HUB_TOP = TOP + WASH + HUB
-const UP = along([0, 0, LIFT], 'var(--iso-lift)')
-const SPIN = (c: Vec) => pivot(c, [0, 0, 1], '90 * var(--iso-spin)')
-const PAPER = ['#f6efe1', '#efdcd4', '#f6efe1', '#e4d2b0', '#f6efe1', '#efdcd4', '#f8f2e6']
+const PFX = 'pr-'
 
 /* ============================================================
-   The boards · grain, a routed border on top, a blank brass plate on the front
+   Left & Center · Monolithic Bolted Porcelain Arch Specimen Press (SEAL · III)
    ============================================================ */
-const bottom = solid([0, 0, 0], [[B, 0, 0], [0, B, 0], [0, 0, T]], DARK, { seed: 3, grains: 2 })
-const topBoard = solid([0, 0, STACK], [[B, 0, 0], [0, B, 0], [0, 0, T]], WOOD, {
-  seed: 8, grains: 3, extra: UP,
-  detail: (normal, w, h) => {
-    if (normal[2] > .9) return rect(9, 9, w - 18, h - 18, 'none', 'hair', 3) + rect(13, 13, w - 26, h - 26, 'none', 'grain', 2)
-    if (normal[0] > .9) return rect(w / 2 - 15, 2.4, 30, h - 4.8, '#e3c27e', 'brass', 1) + rect(w / 2 - 12.5, 3.8, 25, h - 7.6, '#fffdf6', 'hair', .6) +
-      circle(w / 2 - 13.4, h / 2, .7, '#2f2b25') + circle(w / 2 + 13.4, h / 2, .7, '#2f2b25')
-    return ''
-  },
-})
-
-/* ============================================================
-   The stack · sheets the size of the boards with their corners notched for the posts; each edge sits a little off true, as paper does
-   ============================================================ */
-function sheet(i: number) {
-  const z = T + SHEET * (i + 1), d = Math.sin(i * 2.1) * 1.2, fill = PAPER[i % PAPER.length]!, edge = mix(fill, '#6d6458', .18)
-  const span = B - 2 * NOTCH
-  return face([B + d, B - NOTCH, z], [0, -1, 0], [0, 0, -1], rect(0, 0, span, SHEET, mix(fill, '#d6cab2', .25), 'none') + line(0, SHEET, span, SHEET, 'hair').replace('hair', `hair" style="stroke:${edge}`)) +
-    face([NOTCH, B - d * .6, z], [1, 0, 0], [0, 0, -1], rect(0, 0, span, SHEET, mix(fill, '#c9b996', .3), 'none') + line(0, SHEET, span, SHEET, 'hair').replace('hair', `hair" style="stroke:${edge}`))
-}
-const stackSides = face([B, B - NOTCH, STACK], [0, -1, 0], [0, 0, -1], rect(0, 0, B - 2 * NOTCH, STACK - T, 'none')) +
-  face([NOTCH, B, STACK], [1, 0, 0], [0, 0, -1], rect(0, 0, B - 2 * NOTCH, STACK - T, 'none'))
-// The top sheet: the notched square, seen only while the board is up
-const topSheet = face([0, B, STACK], [0, -1, 0], [1, 0, 0],
-  `<path d="M${NOTCH} 0H${B - NOTCH}V${NOTCH}H${B}V${B - NOTCH}H${B - NOTCH}V${B}H${NOTCH}V${B - NOTCH}H0V${NOTCH}H${NOTCH}Z" fill="${PAPER[6]}" class="ln"/>` +
-  [24, 40, 56, 72, 88, 104].map((v, i) => line(NOTCH + 6, v, B - NOTCH - 6 - (i % 3) * 10, v + .6, 'grain')).join(''))
-
-/* ============================================================
-   The leaf · on the top sheet, its tip out past the front-right edge. In (u, v): u runs along −y from y = 92, v along +x from x = 70; the edge is at v = 60.
-   The part under the board is drawn before it, the tip after it, so the tip always lies in front of the board's side
-   ============================================================ */
-const LEAF_Y = 92, LEAF_X = 70, EDGE = B - LEAF_X
-const leafBody = (() => {
-  const mid = 14, tip = 76
-  let veins = ''
-  for (let i = 0; i < 7; i++) {
-    const v = 10 + i * 8.2, spread = 9.5 * Math.sin(Math.PI * (v + 4) / (tip + 8))
-    veins += `<path d="M${mid} ${v}Q${mid - spread * .5} ${v + 2} ${mid - spread} ${v + 6}" class="hair" style="stroke:#6f7f58"/>` +
-      `<path d="M${mid} ${v + 2}Q${mid + spread * .5} ${v + 4} ${mid + spread} ${v + 8}" class="hair" style="stroke:#6f7f58"/>`
+const PRESS_FRAME = (() => {
+  const threads = (x: number, y0: number, y1: number, w: number) => {
+    let s = ''
+    for (let y = y0; y <= y1; y += 4.2) s += `<line x1="${x}" y1="${r2(y)}" x2="${r2(x + w)}" y2="${r2(y + 1.5)}" stroke="#a49e93" stroke-width="0.5"/>`
+    return s
   }
-  return `<path d="M${mid} 4C${mid - 13} 18 ${mid - 12} 50 ${mid} ${tip}C${mid + 12} 52 ${mid + 13} 18 ${mid} 4Z" fill="#b6c39a" class="ln"/>` +
-    `<path d="M${mid} 0V${tip - 2}" class="hair" style="stroke:#6f7f58;stroke-width:.8"/>` + veins +
-    // The stem, flattened and a little bent
-    `<path d="M${mid} 4Q${mid - 1} -2 ${mid + 2} -7" fill="none" class="ln"/>`
+
+  return `<g class="pr-frame">` +
+    `<ellipse cx="228" cy="356" rx="154" ry="11" fill="#2d261c" opacity="0.11" filter="url(#${PFX}soft-blur)"/>` +
+
+    // Twin precision-ground steel/porcelain vertical guide columns + acme thread ticks
+    `<rect x="128" y="114" width="12" height="202" rx="2" fill="url(#${PFX}machined-h)" stroke="#7f796e" stroke-width="0.72"/>` +
+    threads(129, 122, 298, 10) +
+    `<rect x="316" y="114" width="12" height="202" rx="2" fill="url(#${PFX}machined-h)" stroke="#7f796e" stroke-width="0.72"/>` +
+    threads(317, 122, 298, 10) +
+
+    // Screw, handle and platen are one piece: they travel together through the crown's nut
+    `<g class="pr-travel">` +
+      `<rect x="221" y="44" width="14" height="172" rx="2" fill="url(#${PFX}machined-h)" stroke="#7f796e" stroke-width="0.75"/>` +
+      threads(222, 52, 206, 12) +
+      `<g class="pr-handle" style="transform-box:view-box;transform-origin:228px 41px">` +
+        `<rect x="158" y="36" width="140" height="10" rx="5" fill="url(#${PFX}porcelain-v)" stroke="#7c766b" stroke-width="0.8"/>` +
+        `<line x1="164" y1="39" x2="292" y2="39" stroke="#ffffff" stroke-width="0.8" opacity="0.85"/>` +
+        `<circle cx="158" cy="41" r="7.5" fill="url(#${PFX}porcelain-rivet)" stroke="#7c766b" stroke-width="0.75"/>` +
+        `<circle cx="298" cy="41" r="7.5" fill="url(#${PFX}porcelain-rivet)" stroke="#7c766b" stroke-width="0.75"/>` +
+      `</g>` +
+      `<rect x="213" y="30" width="30" height="22" rx="4" fill="url(#${PFX}porcelain-h)" stroke="#7c766b" stroke-width="0.8"/>` +
+      rivet(228, 41, PFX, 2) +
+    `</g>` +
+
+    // Sculpted overhead cast-porcelain arch bridge with weight-relief recess & rivet rows
+    `<path d="M108 106 Q108 92 122 92 L334 92 Q348 92 348 106 L348 128 L108 128 Z" fill="url(#${PFX}porcelain-v)" stroke="#7c766b" stroke-width="0.85"/>` +
+    `<path d="M114 96 L342 96" stroke="#ffffff" stroke-width="0.9" opacity="0.85"/>` +
+    `<rect x="148" y="102" width="160" height="16" rx="3" fill="url(#${PFX}recess)" stroke="#b3ada2" stroke-width="0.55"/>` +
+    rivetRow(118, 121, 142, 121, 3, PFX, 1.15) +
+    rivetRow(314, 121, 338, 121, 3, PFX, 1.15) +
+    bolt(118, 104, PFX, 2.1, 24) + bolt(338, 104, PFX, 2.1, -28) +
+    // The nut the screw turns in: the screw shows through the crown's window
+    `<rect x="219" y="100" width="18" height="20" rx="1.5" fill="url(#${PFX}machined-h)" stroke="#7f796e" stroke-width="0.7"/>` +
+    threads(220, 103, 116, 16) +
+
+    // Heavy stepped architectural bedplate + recessed instrument window (0042)
+    `<rect x="116" y="346" width="32" height="8" rx="2" fill="url(#${PFX}machined-h)" stroke="#857f74" stroke-width="0.7"/>` +
+    `<rect x="308" y="346" width="32" height="8" rx="2" fill="url(#${PFX}machined-h)" stroke="#857f74" stroke-width="0.7"/>` +
+    `<rect x="98" y="308" width="260" height="38" rx="6" fill="url(#${PFX}porcelain-v)" stroke="#7c766b" stroke-width="0.85"/>` +
+    `<line x1="104" y1="311.5" x2="352" y2="311.5" stroke="#ffffff" stroke-width="0.9" opacity="0.88"/>` +
+    `<rect x="108" y="317" width="240" height="22" rx="3" fill="url(#${PFX}porcelain-top)" stroke="#cbc5b9" stroke-width="0.55"/>` +
+    rivetRow(114, 342, 342, 342, 13, PFX, 1.05) +
+    bolt(108, 328, PFX, 2.1, 18) + bolt(348, 328, PFX, 2.1, -30) +
+    // Recessed monochrome mechanical counter on left of bedplate
+    `<rect x="122" y="322" width="44" height="12" rx="2" fill="url(#${PFX}recess)" stroke="#9a9489" stroke-width="0.55"/>` +
+    `<text x="144" y="330" font-size="6.4" fill="#6b655c" text-anchor="middle" letter-spacing="1.6" font-family="var(--font-mono, ui-monospace, monospace)">0042</text>` +
+    // Center engraved code plate
+    `<rect x="192" y="322" width="72" height="12" rx="2" fill="#ffffff" stroke="#a6a095" stroke-width="0.55"/>` +
+    `<text x="228" y="329.8" font-size="5.6" fill="#6d675d" text-anchor="middle" letter-spacing="1.8" font-family="var(--font-mono, ui-monospace, monospace)">SEAL · III</text>` +
+    // Tiny functional warm-amber status bar on right of bedplate (3% accent)
+    `<rect x="292" y="325.5" width="22" height="4.5" rx="1.5" fill="url(#${PFX}recess)" stroke="#a39d92" stroke-width="0.45"/>` +
+    `<rect x="294" y="326.8" width="12" height="2" rx="0.8" fill="#e5b34f" class="pr-glow"/>` +
+
+    // Folio stack seen slightly from above: its top face carries the pressed leaf and the seal, under the plate at rest
+    `<g class="pr-specimen">` +
+      `<path d="M156 272 L300 272 L306 286 L150 286 Z" fill="url(#${PFX}paper-grad)" stroke="#8f897e" stroke-width="0.7" stroke-linejoin="round"/>` +
+      `<rect x="150" y="286" width="156" height="22" rx="1.5" fill="url(#${PFX}paper-grad)" stroke="#8f897e" stroke-width="0.72"/>` +
+      `<line x1="153" y1="292" x2="303" y2="292" stroke="#ded9ce" stroke-width="0.6"/>` +
+      `<line x1="153" y1="297" x2="303" y2="297" stroke="#d5cfc3" stroke-width="0.6"/>` +
+      `<line x1="153" y1="302" x2="303" y2="302" stroke="#ded9ce" stroke-width="0.6"/>` +
+      // The leaf, pressed flat: its outline foreshortened onto the top face
+      `<g class="pr-leaf">` +
+        `<path d="M182 281 C200 271, 240 271, 258 278 C240 283, 202 284, 182 281 Z" fill="#f3f1eb" stroke="#7d776c" stroke-width="0.7"/>` +
+        `<path d="M182 281 Q220 276 256 278" fill="none" stroke="#857f74" stroke-width="0.55"/>` +
+        `<path d="M200 279 L208 274.5 M216 278.5 L225 274 M232 278.5 L241 275 M206 280.5 L214 282 M224 280 L232 281.8" fill="none" stroke="#9e988d" stroke-width="0.45"/>` +
+      `</g>` +
+      `<ellipse cx="282" cy="279" rx="10" ry="4" fill="#f5d98e" opacity="0.3" class="pr-glow"/>` +
+      `<ellipse cx="282" cy="279" rx="6.5" ry="2.6" fill="url(#${PFX}accent-amber)" stroke="#9a7e46" stroke-width="0.6"/>` +
+      `<ellipse cx="282" cy="279" rx="3.8" ry="1.5" fill="none" stroke="#ffffff" stroke-width="0.5" opacity="0.85"/>` +
+    `</g>` +
+
+    // Movable machined porcelain platen + twin guide bushings (lifts smoothly on hover/click)
+    `<g class="pr-travel">` +
+      `<rect x="116" y="214" width="224" height="24" rx="4.5" fill="url(#${PFX}porcelain-v)" stroke="#7c766b" stroke-width="0.8"/>` +
+      `<line x1="122" y1="217.5" x2="334" y2="217.5" stroke="#ffffff" stroke-width="0.85" opacity="0.88"/>` +
+      `<rect x="122" y="210" width="24" height="32" rx="2.5" fill="url(#${PFX}machined)" stroke="#7c766b" stroke-width="0.72"/>` +
+      `<rect x="310" y="210" width="24" height="32" rx="2.5" fill="url(#${PFX}machined)" stroke="#7c766b" stroke-width="0.72"/>` +
+      rivet(134, 218, PFX, 1.3) + rivet(134, 234, PFX, 1.3) +
+      rivet(322, 218, PFX, 1.3) + rivet(322, 234, PFX, 1.3) +
+      // Pressing plate as wide as the folio; the screw's swivel foot bolts it to the platen
+      `<rect x="146" y="238" width="164" height="9" rx="1.5" fill="url(#${PFX}machined)" stroke="#7c766b" stroke-width="0.72"/>` +
+      `<line x1="150" y1="240" x2="306" y2="240" stroke="#ffffff" stroke-width="0.6" opacity="0.8"/>` +
+      `<rect x="216" y="208" width="24" height="8" rx="2" fill="url(#${PFX}porcelain-h)" stroke="#7c766b" stroke-width="0.7"/>` +
+    `</g>` +
+  `</g>`
 })()
-const leafAt = (clip: string) => face([LEAF_X, LEAF_Y, STACK + .05], [0, -1, 0], [1, 0, 0], `<g clip-path="url(#${clip})">${leafBody}</g>`)
-// A pressed sprig on a lower sheet: only its two florets, out past the front-left edge (v < 0 is outside), are drawn; the rest is under the sheets above
-const floret = (u: number, v: number) => [0, 72, 144, 216, 288].map(a => {
-  const cx = +(u + 2 * Math.cos(a * Math.PI / 180)).toFixed(2), cy = +(v + 2 * Math.sin(a * Math.PI / 180)).toFixed(2)
-  return `<ellipse cx="${cx}" cy="${cy}" rx="1.9" ry="1.1" transform="rotate(${a} ${cx} ${cy})" fill="#e7c3c7" class="hair"/>`
-}).join('') + circle(u, v, .9, '#d9a95f')
-const sprig = face([94, B, T + SHEET * 4 + .05], [1, 0, 0], [0, -1, 0],
-  `<path d="M2 .2Q6 -1 12 -3.4" class="hair" style="stroke:#6f7f58"/>` + floret(12, -3.6) + floret(18, -2.2))
 
 /* ============================================================
-   Posts and nuts · threads are slanted hairlines across the post's face to the viewer
+   Right Side · Ribbed Electric-Porcelain Drive Motor & Cutaway Rotary Turbine (Factory-inspired)
    ============================================================ */
-const threads = (c: Vec, z0: number, z1: number, extra = '') => face(add(c, [0, 0, z1]), [.707, -.707, 0], [0, 0, -1],
-  Array.from({ length: Math.floor((z1 - z0) / 2.6) }, (_, i) => `<path d="M${-PR} ${1.4 + i * 2.6}Q0 ${2.6 + i * 2.6} ${PR} ${1.8 + i * 2.6}" class="hair"/>`).join(''), extra)
-const postFull = ([x, y]: [number, number]) => cylinder([x, y, T], PR, POST_TOP - T, IRON, { n: 14 }) + threads([x, y, 0], T, POST_TOP)
-// Above the nut: the same post from the nut's top to its end; as the nut climbs, the stretch shortens about the post's end
-function postAbove([x, y]: [number, number]) {
-  const len = POST_TOP - HUB_TOP, shrink = `translate3d(0px, 0px, ${POST_TOP}px) scale3d(1, 1, calc((${len} - ${LIFT} * var(--iso-lift)) / ${len})) translate3d(0px, 0px, ${-POST_TOP}px)`
-  return cylinder([x, y, HUB_TOP], PR, len, IRON, { n: 14, extra: shrink, top: circle(0, 0, PR * .45, '#8a8176') }) + threads([x, y, 0], HUB_TOP, POST_TOP, shrink)
-}
-// A wing: an ear-shaped brass plate standing on the hub, in the plane of its direction and z
-const wingPath = 'M3.6 0L4.4 -5C5.4 -11.5 12.6 -14.4 14.4 -9.4C15.4 -5.6 11 -1.6 4.8 .6Z'
-const wing = (c: Vec, dir: Vec) => face(add(c, [0, 0, TOP + WASH + 1.5]), dir, [0, 0, -1], `<path d="${wingPath}" class="brass"/><path d="M5.6 -4.2C7 -9 11.2 -11 12.6 -8.6" class="hair"/>`, `${UP} ${SPIN(c)}`)
-function nut([x, y]: [number, number]) {
-  const c: Vec = [x, y, 0]
-  const washer = cylinder([x, y, TOP], 7, WASH, BRASS, { n: 20, extra: UP, top: circle(0, 0, PR + .4, '#c99f52', 'hair') })
-  const hub = cylinder([x, y, TOP + WASH], 4.6, HUB, BRASS, { n: 6, extra: `${UP} ${SPIN(c)}`, cut: true })
-  const hubTop = face([x, y, HUB_TOP], [0, -1, 0], [1, 0, 0], `<path d="${Array.from({ length: 6 }, (_, i) => `${i ? 'L' : 'M'}${(4.6 * Math.cos(i * Math.PI / 3)).toFixed(2)} ${(4.6 * Math.sin(i * Math.PI / 3)).toFixed(2)}`).join('')}Z" fill="${BRASS.top}" class="ln"/>`, `${UP} ${SPIN(c)}`)
-  // Wings start along x and turn to y: both planes face the viewer at either end (along the diagonal they would be edge-on). The +x wing stays in the
-  // front half through the quarter turn and goes over the post above it; the −x wing stays behind and goes under the hub
-  return { back: washer + wing(c, [-1, 0, 0]), front: hub + hubTop + postAbove([x, y]) + wing(c, [1, 0, 0]) }
-}
+const RIGHT_TURBINE = (() => {
+  const cx = 508, cy = 286
+  return `<g class="pr-turbine">` +
+    `<ellipse cx="478" cy="355" rx="92" ry="8" fill="#2d261c" opacity="0.1" filter="url(#${PFX}soft-blur)"/>` +
 
-const shadow = face([-8, B + 14, 0], [0, -1, 0], [1, 0, 0],
-  `<rect x="0" y="0" width="${B + 26}" height="${B + 22}" rx="20" fill="#3b2f1e" opacity=".15" filter="url(#iso-press-soft)"/>`)
+    // Shared heavy bolted machine skid tying motor + turbine together
+    `<rect x="382" y="340" width="186" height="10" rx="2.5" fill="url(#${PFX}porcelain-h)" stroke="#7c766b" stroke-width="0.8"/>` +
+    rivetRow(390, 345, 560, 345, 9, PFX, 1.1) +
+
+    // Exposed horizontal drive shaft & flange couplings connecting Press bed -> Ribbed Motor -> Turbine
+    `<rect x="358" y="318" width="38" height="10" rx="1.5" fill="url(#${PFX}machined)" stroke="#7c766b" stroke-width="0.7"/>` +
+    `<rect x="370" y="314" width="6" height="18" rx="1" fill="url(#${PFX}porcelain-v)" stroke="#7c766b" stroke-width="0.65"/>` +
+    `<rect x="378" y="314" width="6" height="18" rx="1" fill="url(#${PFX}porcelain-v)" stroke="#7c766b" stroke-width="0.65"/>` +
+
+    // Compact ribbed porcelain motor housing
+    `<rect x="394" y="276" width="56" height="64" rx="4" fill="url(#${PFX}porcelain-v)" stroke="#7c766b" stroke-width="0.8"/>` +
+    `<rect x="398" y="280" width="48" height="56" rx="2.5" fill="url(#${PFX}porcelain-top)" stroke="#cbc5b9" stroke-width="0.5"/>` +
+    coolingFins(402, 286, 40, 34, 8, false) +
+    // Motor coupling shaft into cutaway turbine
+    `<rect x="450" y="282" width="22" height="10" rx="1" fill="url(#${PFX}machined)" stroke="#7c766b" stroke-width="0.7"/>` +
+
+    // Cutaway rotary compressor turbine housing (inspired by Factory's right-side turbine!)
+    `<rect x="492" y="324" width="32" height="16" rx="2" fill="url(#${PFX}porcelain-h)" stroke="#7c766b" stroke-width="0.75"/>` +
+    // Top vertical discharge manifold pipe with flange collars & micro-gauge
+    `<path d="M508 242 V204 Q508 194 518 194 H544 V252" fill="none" stroke="#7c766b" stroke-width="5.2" stroke-linecap="round"/>` +
+    `<path d="M508 242 V204 Q508 194 518 194 H544 V252" fill="none" stroke="#f7f5ef" stroke-width="3.4" stroke-linecap="round"/>` +
+    `<rect x="502" y="228" width="12" height="4.5" rx="1" fill="url(#${PFX}machined)" stroke="#7c766b" stroke-width="0.6"/>` +
+    `<rect x="538" y="220" width="12" height="4.5" rx="1" fill="url(#${PFX}machined)" stroke="#7c766b" stroke-width="0.6"/>` +
+    // Circular turbine outer flange ring with 12 perimeter bolts
+    `<circle cx="${cx}" cy="${cy}" r="46" fill="url(#${PFX}drum-outer)" stroke="#7c766b" stroke-width="0.85"/>` +
+    `<circle cx="${cx}" cy="${cy}" r="38" fill="url(#${PFX}recess)" stroke="#9a9489" stroke-width="0.65"/>` +
+    vernierRing(cx, cy, 44, 41, 40, 24, 2) +
+    Array.from({ length: 12 }, (_, i) => {
+      const a = (i * 30) * (Math.PI / 180)
+      return rivet(cx + Math.cos(a) * 41.5, cy + Math.sin(a) * 41.5, PFX, 1.2)
+    }).join('') +
+    // Monotonic rotating 8-blade impeller rotor inside cutaway chamber
+    `<g class="pr-rotor-spin" style="transform-box:view-box;transform-origin:${cx}px ${cy}px">` +
+      `<circle cx="${cx}" cy="${cy}" r="33" fill="url(#${PFX}dial-face)" stroke="#b3ada2" stroke-width="0.55"/>` +
+      `<path d="${gearPath(cx, cy, 29, 25, 18)}" fill="url(#${PFX}machined)" stroke="#888277" stroke-width="0.6"/>` +
+      Array.from({ length: 6 }, (_, i) => {
+        const a = (i * 60) * (Math.PI / 180)
+        return `<path d="M${cx} ${cy} Q${r2(cx + Math.cos(a + 0.35) * 18)} ${r2(cy + Math.sin(a + 0.35) * 18)} ${r2(cx + Math.cos(a) * 26)} ${r2(cy + Math.sin(a) * 26)}" fill="none" stroke="#7f796e" stroke-width="1.35" stroke-linecap="round"/>`
+      }).join('') +
+      `<circle cx="${cx}" cy="${cy}" r="11" fill="url(#${PFX}porcelain-v)" stroke="#7c766b" stroke-width="0.7"/>` +
+    `</g>` +
+    `<circle cx="${cx}" cy="${cy}" r="4.5" fill="url(#${PFX}porcelain-rivet)" stroke="#7c766b" stroke-width="0.65"/>` +
+    // Small top pressure dial on manifold
+    `<circle cx="526" cy="194" r="10" fill="url(#${PFX}dial-face)" stroke="#7c766b" stroke-width="0.7"/>` +
+    `<line x1="526" y1="194" x2="531" y2="189" stroke="#7c766b" stroke-width="0.9" stroke-linecap="round" class="pr-mini-needle" style="transform-box:view-box;transform-origin:526px 194px"/>` +
+    `<circle cx="526" cy="194" r="1.4" fill="#7c766b"/>` +
+  `</g>`
+})()
 
 export function pressSvg() {
-  const nuts = POSTS.map(nut)
-  return `<svg class="iso iso-press" viewBox="0 0 320 300" role="img" aria-hidden="true">
-    <defs><filter id="iso-press-soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="7"/></filter>
-    <clipPath id="iso-press-under" clipPathUnits="userSpaceOnUse"><rect x="-20" y="-20" width="60" height="${EDGE + 20}"/></clipPath>
-    <clipPath id="iso-press-tip" clipPathUnits="userSpaceOnUse"><rect x="-20" y="${EDGE}" width="60" height="40"/></clipPath></defs>
-    ${shadow}${bottom}
-    ${POSTS.map(postFull).join('')}
-    ${stackSides}${Array.from({ length: SHEETS }, (_, i) => sheet(i)).join('')}${sprig}${topSheet}${leafAt('iso-press-under')}
-    ${topBoard}
-    ${nuts.map(n => n.back + n.front).join('')}
-    ${leafAt('iso-press-tip')}
+  return `<svg class="iso iso-press" viewBox="0 0 640 400" role="img" aria-hidden="true">
+    <defs>
+      ${instrumentDefs(PFX, 640, 400)}
+    </defs>
+    ${dotGridBackdrop(PFX, 640, 400, 354)}
+    ${RIGHT_TURBINE}
+    ${PRESS_FRAME}
   </svg>`
 }
 
-export const PRESS_CSS = css('.iso-press', { '--iso-spin': { hover: 1, open: 1, ms: 700 }, '--iso-lift': { open: 1, ms: 1100 } })
+export const PRESS_CSS = ['--iso-spin', '--iso-lift'].map(v => `@property ${v} { syntax: '<number>'; inherits: true; initial-value: 0; }`).join('\n') + `
+.iso-press { --iso-spin: 0; --iso-lift: 0; transition: --iso-spin 700ms cubic-bezier(.22, 1, .36, 1), --iso-lift 900ms cubic-bezier(.22, 1, .36, 1); }
+.iso-host:hover .iso-press { --iso-spin: 1; --iso-lift: 0.3; }
+.iso-host[data-open] .iso-press { --iso-spin: 1; --iso-lift: 1; }
+
+.iso-press .pr-travel { transform: translateY(calc(39px - var(--iso-lift) * 62px)); }
+/* The handle turns while the screw travels: a half-turn read as the bar's foreshortening. Each state has its own keyframes so the turn replays on every change */
+@keyframes pr-turn-a { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(-1); } }
+@keyframes pr-turn-b { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(-1); } }
+@keyframes pr-turn-c { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(-1); } }
+.iso-press .pr-handle { animation: pr-turn-a 0.9s cubic-bezier(.45, 0, .55, 1) 1; }
+.iso-host:hover .iso-press .pr-handle { animation-name: pr-turn-b; }
+.iso-host[data-open] .iso-press .pr-handle { animation-name: pr-turn-c; }
+
+${spinKeyframes('pr-spin')}
+@keyframes pr-needle { 0%, 100% { transform: rotate(-28deg); } 50% { transform: rotate(22deg); } }
+@keyframes pr-glow { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+
+.iso-press .pr-rotor-spin { animation: pr-spin 20s linear infinite; }
+.iso-press .pr-mini-needle { animation: pr-needle 6.8s ease-in-out infinite; }
+.iso-press .pr-glow { animation: pr-glow 3.4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .iso-press, .iso-press * { animation: none !important; transition-duration: 1ms !important; }
+}
+`

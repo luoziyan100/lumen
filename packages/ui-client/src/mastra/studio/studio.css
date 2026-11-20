@@ -97,9 +97,9 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 .studio-head .head-trail { margin-left: auto; }
 .studio-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .studio-stage { position: relative; flex: 1; min-height: 0; display: flex; }
-.studio-later { margin: auto; max-width: 420px; text-align: center; color: var(--text-muted); font-size: var(--st-note); padding: 24px; }
+.studio-later { margin: auto; width: 100%; max-width: min(620px, 100%); text-align: center; color: var(--text-muted); font-size: var(--st-note); padding: 24px; box-sizing: border-box; }
 /* A placeholder view is its object alone; .studio-later's auto margins centre it in the stage */
-.iso-host.studio-later-object { width: 300px; margin: 0 auto; }
+.iso-host.studio-later-object { width: min(560px, 100%); margin: 0 auto; }
 /* View navigation (G6, prototype .seg): belongs to the board pane and centers on that pane's midline (U1), never drifting over the reader in split view.
    图标在左（16，currentColor，随三态文字色）；放不下时（ViewNav 用不可见的完整副本量宽度）只留图标，不换行、不挤偏中线 */
 .studio-center-head { position: relative; justify-content: center; }
@@ -141,8 +141,9 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 /* Notices over the canvas sit below Excalidraw's top toolbar and on solid surfaces: no stroke shows through */
 .board-empty { position: absolute; left: 50%; z-index: 5; margin: 0; padding: 4px 10px; border-radius: 999px; background: var(--surface-elevated); border: 1px solid var(--border); text-align: center; color: var(--text-muted); font-size: var(--st-note); pointer-events: none; }
 .board-hint { bottom: 64px; transform: translateX(-50%); }
-/* The easel stands alone in the middle of an empty sheet until the first stroke: 320 wide, scaled down only when the stage is short. Over a canvas strokes go through it */
-.iso-host.board-easel { position: absolute; z-index: 3; left: 50%; top: 50%; height: min(380px, calc(100% - 150px)); aspect-ratio: 320 / 380; transform: translate(-50%, -50%); }
+/* The drafting easel stands alone in the middle of an empty sheet until the first stroke: 560 wide (640×400), scaled down when the stage is narrow or short. Over a canvas strokes go through it */
+.iso-host.board-easel { position: absolute; z-index: 3; left: 50%; top: 50%; width: min(560px, calc(100% - 48px)); max-height: calc(100% - 150px); height: auto; aspect-ratio: 640 / 400; transform: translate(-50%, -50%); }
+.iso-host.board-easel > svg { width: 100%; height: 100%; }
 .iso-host.board-easel.is-on-canvas { pointer-events: none; }
 .board-error { position: absolute; z-index: 5; left: 50%; bottom: 64px; transform: translateX(-50%); max-width: calc(100% - 2 * var(--st-inset)); margin: 0; padding: 6px 10px; border-radius: 8px; background: var(--surface-elevated); border: 1px solid var(--border); }
 .board-drawing { position: absolute; z-index: 5; top: 64px; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; height: var(--st-control); box-sizing: border-box; padding: 0 12px; border-radius: 999px; background: var(--surface-elevated); border: 1px solid var(--border); box-shadow: var(--shadow-2); font-size: var(--st-note); color: var(--text-soft); white-space: nowrap; }
@@ -258,7 +259,7 @@ button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-
 .sediment-list { display: flex; flex-direction: column; gap: 12px; max-width: 720px; margin: 0 auto; }
 /* An empty Takeaways view is the press alone, centred in the view like every other empty view */
 .sediment-empty-view { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
-.iso-host.sediment-press { width: 300px; }
+.iso-host.sediment-press { width: min(560px, 100%); }
 .sediment-empty { color: var(--text-soft); font-size: var(--st-note); padding: 8px 2px; }
 .sediment-entry { border: 1.5px dashed var(--border-strong, var(--border)); border-radius: 10px; padding: 10px 14px 8px; background: var(--fill-subtle); }
 .sediment-entry-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }

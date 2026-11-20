@@ -1,19 +1,17 @@
 /**
- * [INPUT]: the kit in ./iso.ts; the drawn labels from the locale catalog (studio.objects.cabinet)
- * [OUTPUT]: cabinetSvg({ labels }): the card cabinet SVG (2 × 3 drawers; the middle-left one moves); CABINET_CSS: its variable --iso-drawer (hover 14, open 64, in model px)
- * [POS]: object 2 of studio/objects/, shown in empty Materials. It carries no data: the labels and the sample card are drawing, not content. Geometry is phase 1's and renders
- *        pixel-identical to it at rest
+ * [INPUT]: shared White-Porcelain CAD helpers in ./instrument.ts; XML-escaping text brush in ./iso.ts; locale labels (studio.objects.cabinet)
+ * [OUTPUT]: cabinetSvg({ labels }): white-porcelain index cabinet SVG (280×340 for the 220px Materials pane: plinth, body and cornice
+ *           as oblique blocks sharing one DEPTH, 2×3 flush drawers with shadowed reveals, twin microfilm reels on the cornice's top face,
+ *           and one drawer that is a real box: slot, tray, right side, standing index cards); CABINET_CSS (reels/film, hover/open pull
+ *           along −DEPTH with cards rising, reduced-motion guard)
+ * [POS]: object 2 of studio/objects/, shown in empty Materials. The open drawer shows only where it stands outside the cabinet (a static
+ *        clip: its slot swept out by the full pull). Labels are escaped via text() (escapeXml); uniquely prefixed ids (`cb-`)
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
-import { circle, css, grain, joints, kit, line, move, rect, show, text, type Vec } from './iso.ts'
+import { text } from './iso.ts'
+import { bolt, coolingFins, dotGridBackdrop, gearPath, instrumentDefs, prism, r2, rivet, rivetRow, spinKeyframes } from './instrument.ts'
 
-const { face } = kit({ x0: 152, y0: 196 })        // model origin in the 320×360 viewBox
-
-/* ---------- Size · cabinet 96 (x) × 150 (y) × 152 (z); plinth 12, a top slab 8 that overhangs 4 to the front and the left ---------- */
-const W = 96, D = 150, H = 152, PL = 12, SL = 8, OV = 4
-const F = 7, G = 6, CW = 65, CH = 38                    // frame, divider, drawer cell
-const WOOD_TOP = '#fbf7ee', WOOD_R = '#f0e8d8', WOOD_L = '#e4d9c4', FRONT = '#f5eee0', FLOOR = '#e6dcc8', IN_LEFT = '#dcd0b8'
-const MOVING = { c: 0, r: 1 }                           // the moving cell: middle row, left column, nearest the viewer
+const PFX = 'cb-'
 
 export interface CabinetLabels {
   /** Three rows of two drawer labels, top first */
@@ -25,121 +23,233 @@ export interface CabinetLabels {
   card: readonly string[]
 }
 
-/* ============================================================
-   A drawer front · in its own (u, v): wood, inner frame, brass label frame, brass pull
-   ============================================================ */
-function drawerFront(w: number, h: number, label: string, seed: number) {
-  const lx = w / 2 - 12, ly = 7, py = 24
-  return rect(0, 0, w, h, FRONT, 'ln', 1) + rect(3, 3, w - 6, h - 6, 'none', 'hair', 1) + grain(w, h, seed, 3) +
-    rect(lx, ly, 24, 11, '#e3c27e', 'brass', 1) + rect(lx + 2, ly + 2, 20, 7, '#fffdf6', 'hair', .5) +
-    text(w / 2, ly + 7.4, 5, label, 'text-anchor="middle"') +
-    circle(lx + 1, ly + 5.5, .6, '#2f2b25') + circle(lx + 23, ly + 5.5, .6, '#2f2b25') +
-    rect(w / 2 - 13, py, 26, 5, '#e3c27e', 'brass', 1.5) +
-    `<path d="M${w / 2 - 8} ${py + 2.5}A8 5.5 0 0 0 ${w / 2 + 8} ${py + 2.5}Z" class="brass-d"/>` +
-    circle(w / 2 - 10.8, py + 2.5, .8, '#2f2b25') + circle(w / 2 + 10.8, py + 2.5, .8, '#2f2b25')
-}
-
-// The empty cell behind the moving drawer: the darkest cream at the back, the right wall and floor receding isometrically (in-face (−d, −d)) as two lighter slopes.
-// It shows only once the drawer leaves the front, so at rest this cell looks like the other five
-function cavity(w: number, h: number, d = 24) {
-  return show('var(--iso-drawer) * 4', rect(0, 0, w, h, '#c4b597') +
-    `<path d="M${w} 0V${h}L${w - d} ${h - d}V0Z" fill="#d0c2a6"/>` +
-    `<path d="M0 ${h}H${w}L${w - d} ${h - d}H0Z" fill="#d7cbb1"/>` + rect(0, 0, w, h, 'none'))
-}
+const MOVING = { c: 0, r: 1 }
 
 /* ============================================================
-   The carcass
+   Top Machined Monochrome Microfilm Reel Transport Bridge
    ============================================================ */
-const cell = (c: number, r: number) => ({ u: F + c * (CW + G), v: F + r * (CH + G) })
-
-function carcass(labels: CabinetLabels) {
-  let fronts = ''
-  labels.drawers.forEach((row, r) => row.forEach((label, c) => {
-    const { u, v } = cell(c, r)
-    fronts += c === MOVING.c && r === MOVING.r
-      ? `<g transform="translate(${u} ${v})">${cavity(CW, CH)}</g>`
-      : `<g transform="translate(${u + .8} ${v + .8})">${drawerFront(CW - 1.6, CH - 1.6, label, 11 + r * 2 + c)}</g>`
-  }))
-  const bodyFront = face([W, D, H], [0, -1, 0], [0, 0, -1],
-    rect(0, 0, D, H - PL, WOOD_R) + grain(D, H - PL, 3, 7) + joints(0, 6, H - PL, 0) + fronts + line(0, H - PL - .5, D, H - PL - .5, 'ln'))
-  const bodySide = face([0, D, H], [1, 0, 0], [0, 0, -1],
-    rect(0, 0, W, H - PL, WOOD_L) + rect(9, 9, W - 21, H - PL - 18, 'none', 'hair', 2) + grain(W, H - PL, 6, 7) + joints(W - 6, 6, H - PL, 8))
-  const plinthFront = face([W - 3, D - 3, PL], [0, -1, 0], [0, 0, -1],
-    rect(0, 0, D - 6, PL, '#e6dcc8') + line(4, 2.5, D - 10, 2.5, 'hair') +
-    text((D - 6) / 2, 9, 4.4, 'LUMEN', 'text-anchor="middle" letter-spacing="2.4" fill="#8a8d95"'))
-  const plinthSide = face([0, D - 3, PL], [1, 0, 0], [0, 0, -1], rect(0, 0, W - 3, PL, '#d6cab2') + line(4, 2.5, W - 7, 2.5, 'hair'))
-  const slabLeft = face([0, D + OV, H + SL], [1, 0, 0], [0, 0, -1], rect(0, 0, W + OV, SL, WOOD_L) + grain(W + OV, SL, 4, 1))
-  const slabFront = face([W + OV, D + OV, H + SL], [0, -1, 0], [0, 0, -1], rect(0, 0, D + OV, SL, WOOD_R) + grain(D + OV, SL, 5, 1))
-  const slabTop = face([0, D + OV, H + SL], [0, -1, 0], [1, 0, 0],
-    rect(0, 0, D + OV, W + OV, WOOD_TOP) + rect(6, 6, D + OV - 12, W + OV - 12, 'none', 'hair', 2) + grain(D + OV, W + OV, 9, 6))
-  return plinthSide + plinthFront + bodySide + bodyFront + slabLeft + slabFront + slabTop
-}
-
-// Three unfiled cards lie on top
-const loose = ([[0, 0, -8], [1, 3, 4], [2, -2, 13]] as const).map(([k, du, rot]) =>
-  face([58, 112, H + SL + .8 * (k + 1)], [0, -1, 0], [1, 0, 0],
-    `<g transform="translate(${18 + du} ${10 + k}) rotate(${rot} 25 14)">` + rect(0, 0, 50, 28, k === 2 ? '#f8e9c6' : '#fffefa') +
-    (k === 2 ? line(5, 7, 45, 7, 'hair') + line(5, 13, 45, 13, 'grain') + line(5, 19, 34, 19, 'grain') : '') + '</g>'))
-
-const shadow = face([-6, D + 10, 0], [0, -1, 0], [1, 0, 0],
-  `<rect x="0" y="0" width="${D + 22}" height="${W + 22}" rx="18" fill="#3b2f1e" opacity=".16" filter="url(#iso-cab-soft)"/>`)
-
-/* ============================================================
-   The moving drawer · hidden in the carcass at rest; pulled out by --iso-drawer, only the part in front of the face shows.
-   Faces along x take x = W as origin, clip in-face to u ≥ 0 and slide inside the clip: the grain travels with the drawer and the part still inside never shows
-   ============================================================ */
-const { u: mu, v: mv } = cell(MOVING.c, MOVING.r)
-const yL = D - mu - .8, yR = yL - (CW - 1.6), zTop = H - mv - .8, zBot = zTop - (CH - 1.6)   // the drawer front's four edges
-const T = 5, L = 86, SIDE = 20, FLR = zBot + 2.5                                          // panel thickness, drawer depth, side height, tray floor
-const nearY = yL - 2, farY = yR + 2, t = 3
-const SLIDE = 'transform:translateX(calc(var(--iso-drawer) * 1px))'
-const out = (O: Vec, V: Vec, body: string) => face([W, O[1], O[2]], [1, 0, 0], V, `<g clip-path="url(#iso-cab-out)"><g style="${SLIDE}">${body}</g></g>`)
-const DOWN: Vec = [0, 0, -1], ALONG_Y: Vec = [0, 1, 0]
-const BACK = -T - (L - T)                                   // where the tray starts in-face
-
-const trayFloor = out([0, farY, FLR], ALONG_Y, rect(BACK, t, L - T, nearY - farY - 2 * t, FLOOR))
-const farWall = out([0, farY + t, FLR + SIDE], DOWN, rect(BACK, 0, L - T, SIDE, IN_LEFT) + `<g transform="translate(${BACK} 0)">${grain(L - T, SIDE, 21, 2)}</g>`)
-const farTop = out([0, farY, FLR + SIDE], ALONG_Y, rect(BACK, 0, L - T, t, WOOD_TOP))
-const nearWall = out([0, nearY, FLR + SIDE], DOWN,
-  rect(BACK, 0, L - T, SIDE, WOOD_L) + `<g transform="translate(${BACK} 0)">${grain(L - T, SIDE, 22, 3)}</g>` + joints(-T - 6, 6, SIDE, 0))
-const nearTop = out([0, nearY - t, FLR + SIDE], ALONG_Y, rect(BACK, 0, L - T, t, WOOD_TOP))
-const panelTop = out([0, yR, zTop], ALONG_Y, rect(-T, 0, T, yL - yR, WOOD_TOP))
-const panelSide = out([0, yL, zTop], DOWN, rect(-T, 0, T, zTop - zBot, WOOD_L))
-
-// Cards in the drawer: g is the distance from the panel's back; a card shows once it is wholly out of the face, and past 34 it rises by k
-interface Card { g: number; k: number; tab?: number; label?: 0 | 1; fill?: string; words?: true }
-const CARDS: Card[] = [
-  { g: 40, k: .30 }, { g: 34, k: .36 }, { g: 28, tab: 30, label: 0, k: .46 },
-  { g: 21, k: .40 }, { g: 15, tab: 4, label: 1, k: .58, fill: '#f8e9c6' }, { g: 9, k: .5 },
-  { g: 3, k: 1.3, words: true },
-]
-const CWID = nearY - farY - 2 * t - 4, CHT = 22
-function card(c: Card, labels: CabinetLabels) {
-  let body = ''
-  if (c.tab != null) body += `<path d="M${c.tab} 0V-6Q${c.tab} -7.5 ${c.tab + 1.5} -7.5H${c.tab + 18.5}Q${c.tab + 20} -7.5 ${c.tab + 20} -6V0" fill="${c.fill || '#fffefa'}" class="ln"/>` +
-    text(c.tab + 10, -2.3, 4, labels.tabs[c.label!] ?? '', 'text-anchor="middle"')
-  body += rect(0, 0, CWID, CHT, c.fill || '#fffefa')
-  if (c.words) {
-    body += line(4, 7, CWID - 4, 7, 'hair" style="stroke:#c9a0a0') +
-      text(4.5, 5.4, 3.4, labels.stamp, 'fill="#8a8d95"') +
-      text(4.5, 12.4, 4.6, labels.card[0] ?? '') + text(4.5, 18.2, 4.6, labels.card[1] ?? '')
-  } else {
-    for (let i = 0; i < 3; i++) body += line(4, 7 + i * 5.5, CWID - 4 - (i % 2) * 12, 7 + i * 5.5, 'grain')
+const TOP_REELS = (() => {
+  const reel = (cx: number, cy: number, cls: string) => {
+    let spokes = ''
+    for (let i = 0; i < 3; i++) {
+      const a = (i * 120 - 90) * (Math.PI / 180)
+      spokes += `<line x1="${cx}" y1="${cy}" x2="${r2(cx + Math.cos(a) * 14)}" y2="${r2(cy + Math.sin(a) * 14)}" stroke="#8d877c" stroke-width="1.8" stroke-linecap="round"/>`
+    }
+    return `<g class="${cls}" style="transform-box:view-box;transform-origin:${cx}px ${cy}px">` +
+      `<circle cx="${cx}" cy="${cy}" r="18.5" fill="url(#${PFX}drum-outer)" stroke="#7c766b" stroke-width="0.8"/>` +
+      `<circle cx="${cx}" cy="${cy}" r="15" fill="url(#${PFX}recess)" stroke="#a39d92" stroke-width="0.55"/>` +
+      spokes +
+      `<path d="${gearPath(cx, cy, 9.5, 7.8, 12)}" fill="url(#${PFX}machined)" stroke="#888277" stroke-width="0.5"/>` +
+      `<circle cx="${cx}" cy="${cy}" r="4.2" fill="url(#${PFX}porcelain-rivet)" stroke="#7c766b" stroke-width="0.6"/>` +
+      `<circle cx="${cx}" cy="${cy}" r="1.4" fill="#ffffff"/>` +
+    `</g>`
   }
-  const x = W - T - c.g
-  return show(`var(--iso-drawer) - ${T + c.g}`,
-    face([x, nearY - t - 2, FLR + CHT], [0, -1, 0], DOWN, body, move([1, 0, 0], 'var(--iso-drawer)') + ' ' + move([0, 0, c.k], 'max(0, var(--iso-drawer) - 34)')))
+
+  return `<g class="cb-reels">` +
+    `<rect x="92" y="64" width="8" height="20" rx="1.5" fill="url(#${PFX}porcelain-h)" stroke="#7c766b" stroke-width="0.72"/>` +
+    `<rect x="180" y="64" width="8" height="20" rx="1.5" fill="url(#${PFX}porcelain-h)" stroke="#7c766b" stroke-width="0.72"/>` +
+    // Backlit architectural microfiche strip housing
+    `<rect x="96" y="48" width="88" height="17" rx="3" fill="url(#${PFX}porcelain-v)" stroke="#7c766b" stroke-width="0.78"/>` +
+    `<rect x="106" y="51.5" width="68" height="10" rx="1.8" fill="#ffffff" stroke="#a6a095" stroke-width="0.55"/>` +
+    `<g clip-path="url(#${PFX}film-clip)">` +
+      `<g class="cb-film-strip">` +
+        Array.from({ length: 14 }, (_, i) => {
+          const x = 94 + i * 11
+          return `<rect x="${x}" y="53.2" width="8" height="6.6" rx="0.8" fill="#e5e0d6" stroke="#b6b0a5" stroke-width="0.4"/>` +
+            `<line x1="${x + 1.5}" y1="55.6" x2="${x + 6.5}" y2="55.6" stroke="#8d877c" stroke-width="0.5"/>` +
+            `<line x1="${x + 1.5}" y1="58" x2="${x + 5.2}" y2="58" stroke="#a6a095" stroke-width="0.45"/>`
+        }).join('') +
+      `</g>` +
+    `</g>` +
+    // Single hairline warm-amber optical reading slit (3% accent!)
+    `<line x1="140" y1="50" x2="140" y2="63" stroke="#e5b34f" stroke-width="1.15" class="cb-pilot"/>` +
+    `<path d="M96 36.5 L184 36.5" stroke="#a6a095" stroke-width="0.75" stroke-dasharray="2 2"/>` +
+    reel(96, 56, 'cb-reel-l') +
+    reel(184, 56, 'cb-reel-r') +
+  `</g>`
+})()
+
+/* ============================================================
+   Volume: one oblique depth for the whole cabinet
+   ------------------------------------------------------------
+   Depth runs up-right by DEPTH. The body, cornice and plinth show their top and
+   right faces along it; every drawer slot is a hole along it, and the open
+   drawer slides out against it (down-left), so the pull reads as coming
+   toward the viewer instead of sliding across a flat front.
+   ============================================================ */
+const DEPTH = { x: 20, y: -14 }
+const PULL = { hover: 0.3, open: 0.85 }                       // fraction of DEPTH the drawer travels out
+const CARD_DEPTHS = [0.62, 0.4, 0.18]                         // back, middle, front card, as fractions of DEPTH inside the drawer
+
+const B = { x: 50, y: 88, w: 164, h: 202 }                    // body front
+const CW = 68, CH = 52, GX = 8, GY = 10, PAD_X = 10, PAD_Y = 14
+
+const at = (k: number) => ({ x: DEPTH.x * k, y: DEPTH.y * k })
+const poly = (pts: number[][]) => pts.map(([a, b], i) => `${i ? 'L' : 'M'}${r2(a!)} ${r2(b!)}`).join(' ') + ' Z'
+
+/** Closed drawer front: flush, with the shadowed reveal on its left and bottom where the slot's walls show */
+function drawerFace(x: number, y: number, w: number, h: number, label: string, active: boolean) {
+  const cx = x + w / 2
+  return `<g>` +
+    `<path d="M${x - 1.4} ${y + 1} V${y + h + 1.4} H${x + w - 1}" fill="none" stroke="#b9b3a8" stroke-width="1.6"/>` +
+    `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2.6" fill="url(#${PFX}porcelain-v)" stroke="${active ? '#6f695e' : '#8d877c'}" stroke-width="${active ? 0.85 : 0.72}"/>` +
+    `<path d="M${x + 2} ${y + h - 1.2} H${x + w - 2.4} V${y + 2}" fill="none" stroke="#d3cdc2" stroke-width="0.9"/>` +
+    `<path d="M${x + 1.6} ${y + h - 3} V${y + 1.6} H${x + w - 3}" fill="none" stroke="#ffffff" stroke-width="0.85" opacity="0.9"/>` +
+    // Recessed label frame
+    `<rect x="${cx - 24}" y="${y + 9}" width="48" height="14.5" rx="1.8" fill="url(#${PFX}recess)" stroke="#a39d92" stroke-width="0.55"/>` +
+    `<rect x="${cx - 22}" y="${y + 11}" width="44" height="10.5" rx="1" fill="#ffffff" stroke="#ccc6ba" stroke-width="0.4"/>` +
+    text(cx, y + 18.4, 6.1, label, 'text-anchor="middle" fill="#4f4940"') +
+    rivet(cx - 22.5, y + 16.2, PFX, 0.75) + rivet(cx + 22.5, y + 16.2, PFX, 0.75) +
+    // Bar pull standing proud of the face: its own shadow down-left, then the bar
+    `<rect x="${cx - 13.2}" y="${y + 33.6}" width="26" height="5.5" rx="2.5" fill="#2d261c" opacity="0.12"/>` +
+    `<rect x="${cx - 13}" y="${y + 32}" width="26" height="5.5" rx="2.5" fill="url(#${PFX}machined)" stroke="#888277" stroke-width="0.62"/>` +
+    `<line x1="${cx - 9}" y1="${y + 33.6}" x2="${cx + 9}" y2="${y + 33.6}" stroke="#ffffff" stroke-width="0.6" opacity="0.8"/>` +
+  `</g>`
+}
+
+/** The slot behind a drawer: a dark hole whose left and bottom inner walls recede along DEPTH */
+function slot(x: number, y: number, w: number, h: number) {
+  const d = DEPTH
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#bdb7ab" stroke="#8d877c" stroke-width="0.7"/>` +
+    `<g clip-path="url(#${PFX}slot-clip)">` +
+      `<path d="${poly([[x, y], [x + d.x, y + d.y], [x + d.x, y + h + d.y], [x, y + h]])}" fill="#cfc9bd"/>` +
+      `<path d="${poly([[x, y + h], [x + d.x, y + h + d.y], [x + w, y + h + d.y], [x + w, y + h]])}" fill="#d8d2c7"/>` +
+    `</g>` +
+    `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="#8d877c" stroke-width="0.7"/>`
+}
+
+/** The drawer that opens: a real box (front, open top, right side) slid out by CSS along −DEPTH, clipped to where it stands outside the cabinet */
+function movingDrawer(x: number, y: number, w: number, h: number, labels: CabinetLabels) {
+  const label = labels.drawers[MOVING.r]?.[MOVING.c] ?? ''
+  const d = DEPTH
+  // Tray: rim and dark well of the open top
+  const tray = `<path d="${poly([[x, y], [x + d.x, y + d.y], [x + w + d.x, y + d.y], [x + w, y]])}" fill="url(#${PFX}porcelain-top)" stroke="#8d877c" stroke-width="0.65"/>` +
+    `<path d="${poly([[x + 3, y - 0.5], [x + 3 + d.x * 0.9, y + d.y * 0.9 - 0.5], [x + w - 3 + d.x * 0.9, y + d.y * 0.9 - 0.5], [x + w - 3, y - 0.5]])}" fill="url(#${PFX}recess)" stroke="#a39d92" stroke-width="0.5"/>`
+  const side = `<path d="${poly([[x + w, y], [x + w + d.x, y + d.y], [x + w + d.x, y + h + d.y], [x + w, y + h]])}" fill="url(#${PFX}porcelain-side)" stroke="#8d877c" stroke-width="0.65"/>`
+  // Index cards standing across the tray, tabs up; deeper cards sit higher and further right
+  const card = (k: number, cls: string, fill: string, stroke: string, tabX: number, tab: string, body = '') => {
+    const o = at(k), cx0 = x + 4 + o.x, cy0 = y + o.y - 8
+    return `<g class="${cls}">` +
+      `<path d="M${r2(cx0 + tabX)} ${r2(cy0)} V${r2(cy0 - 6)} Q${r2(cx0 + tabX)} ${r2(cy0 - 8)} ${r2(cx0 + tabX + 2)} ${r2(cy0 - 8)} H${r2(cx0 + tabX + 24)} Q${r2(cx0 + tabX + 26)} ${r2(cy0 - 8)} ${r2(cx0 + tabX + 26)} ${r2(cy0 - 6)} V${r2(cy0)}" fill="${fill}" stroke="${stroke}" stroke-width="0.6"/>` +
+      (tab ? text(r2(cx0 + tabX + 13), r2(cy0 - 2.2), 4.4, tab, 'text-anchor="middle" fill="#6b655c"') : '') +
+      `<rect x="${r2(cx0)}" y="${r2(cy0)}" width="${w - 8}" height="${h - 6}" rx="1.4" fill="${fill}" stroke="${stroke}" stroke-width="0.6"/>` +
+      body +
+    `</g>`
+  }
+  const front = at(CARD_DEPTHS[2]!)
+  const fx = x + 4 + front.x, fy = y + front.y - 8
+  const sample = `<line x1="${r2(fx + 4)}" y1="${r2(fy + 8)}" x2="${r2(fx + w - 12)}" y2="${r2(fy + 8)}" stroke="#c8bdb0" stroke-width="0.55"/>` +
+    `<g clip-path="url(#${PFX}card-clip)">` +
+      text(r2(fx + 4), r2(fy + 6), 4, labels.stamp, 'fill="#8a8479"') +
+      text(r2(fx + 4), r2(fy + 14.5), 4.9, labels.card[0] ?? '', 'fill="#4d473e"') +
+      text(r2(fx + 4), r2(fy + 21.5), 4.9, labels.card[1] ?? '', 'fill="#4d473e"') +
+    `</g>`
+  const clipped = (inner: string) => `<g clip-path="url(#${PFX}pull-clip)"><g class="cb-drawer-slide">${inner}</g></g>`
+  return slot(x, y, w, h) +
+    clipped(tray) +
+    `<g class="cb-drawer-slide">` +
+      card(CARD_DEPTHS[0]!, 'cb-card cb-card-back', '#f7f5ef', '#8d877c', 34, labels.tabs[0] ?? '') +
+      card(CARD_DEPTHS[1]!, 'cb-card cb-card-mid', '#fcf5e3', '#9a8d74', 6, labels.tabs[1] ?? '') +
+      card(CARD_DEPTHS[2]!, 'cb-card cb-card-front', '#fffdf8', '#7c766b', 20, '', sample) +
+    `</g>` +
+    clipped(side) +
+    `<g class="cb-drawer-slide">` +
+      `<rect x="${x + 4}" y="${y + h - 3}" width="${w - 2}" height="8" rx="3" fill="#2d261c" class="cb-drawer-shadow" filter="url(#${PFX}soft-blur)"/>` +
+      drawerFace(x, y, w, h, label, true) +
+    `</g>`
 }
 
 export function cabinetSvg({ labels }: { labels: CabinetLabels }) {
-  const panelFront = face([W, yL, zTop], [0, -1, 0], DOWN, drawerFront(yL - yR, zTop - zBot, labels.drawers[MOVING.r]?.[MOVING.c] ?? '', 30), move([1, 0, 0], 'var(--iso-drawer)'))
-  const drawer = trayFloor + farWall + farTop + CARDS.map(c => card(c, labels)).join('') + nearWall + nearTop + panelTop + panelSide + panelFront
-  return `<svg class="iso iso-cabinet" viewBox="0 0 320 360" role="img" aria-hidden="true">
-    <defs><filter id="iso-cab-soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="7"/></filter>
-    <clipPath id="iso-cab-out" clipPathUnits="userSpaceOnUse"><rect x="0" y="-400" width="400" height="800"/></clipPath></defs>
-    ${shadow}${carcass(labels)}${loose.join('')}
-    ${drawer}
+  let staticDrawers = ''
+  let moving = ''
+  let mx = 0, my = 0
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 2; c++) {
+      const dx = B.x + PAD_X + c * (CW + GX)
+      const dy = B.y + PAD_Y + r * (CH + GY)
+      if (r === MOVING.r && c === MOVING.c) { moving = movingDrawer(dx, dy, CW, CH, labels); mx = dx; my = dy }
+      else staticDrawers += drawerFace(dx, dy, CW, CH, labels.drawers[r]?.[c] ?? '', false)
+    }
+  }
+  // Where the drawer may show outside the cabinet: its slot swept out along −DEPTH by the full pull
+  const out = at(-PULL.open)
+  const pullClip = poly([[mx, my], [mx + CW, my], [mx + CW, my + CH], [mx + CW + out.x, my + CH + out.y], [mx + out.x, my + CH + out.y], [mx + out.x, my + out.y]])
+  const frontCard = at(CARD_DEPTHS[2]!)
+  // Louvres on the right face follow its slope
+  const slope = DEPTH.y / DEPTH.x
+  let louvres = ''
+  for (let i = 0; i < 6; i++) {
+    const y0 = B.y + 46 + i * 5
+    louvres += `<line x1="${B.x + B.w + 4}" y1="${r2(y0 + 4 * slope)}" x2="${B.x + B.w + DEPTH.x - 4}" y2="${r2(y0 + (DEPTH.x - 4) * slope)}" stroke="#a39d92" stroke-width="0.6"/>`
+  }
+
+  return `<svg class="iso iso-cabinet" viewBox="0 0 280 340" role="img" aria-hidden="true">
+    <defs>
+      ${instrumentDefs(PFX, 280, 340)}
+      <clipPath id="${PFX}film-clip"><rect x="106" y="51.5" width="68" height="10" rx="1.8"/></clipPath>
+      <clipPath id="${PFX}card-clip"><rect x="${r2(mx + 4 + frontCard.x)}" y="${r2(my + frontCard.y - 8)}" width="${CW - 10}" height="${CH - 8}"/></clipPath>
+      <clipPath id="${PFX}slot-clip"><rect x="${mx}" y="${my}" width="${CW}" height="${CH}"/></clipPath>
+      <clipPath id="${PFX}pull-clip"><path d="${pullClip}"/></clipPath>
+    </defs>
+    ${dotGridBackdrop(PFX, 280, 340, 318)}
+    <ellipse cx="146" cy="318" rx="104" ry="10" fill="#2d261c" opacity="0.11" filter="url(#${PFX}soft-blur)"/>
+
+    <g class="cb-chassis">
+      <!-- Feet, plinth, body and cornice share one depth -->
+      <rect x="62" y="306" width="24" height="8" rx="2" fill="url(#${PFX}machined-h)" stroke="#857f74" stroke-width="0.7"/>
+      <rect x="182" y="306" width="24" height="8" rx="2" fill="url(#${PFX}machined-h)" stroke="#857f74" stroke-width="0.7"/>
+      ${prism(44, 290, 176, 16, DEPTH.x, DEPTH.y, PFX, 'porcelain-h')}
+      ${coolingFins(52, 295.5, 22, 7, 4, false)}
+      ${coolingFins(190, 295.5, 22, 7, 4, false)}
+      <rect x="114" y="293" width="56" height="10.5" rx="1.8" fill="#ffffff" stroke="#a6a095" stroke-width="0.55"/>
+      <text x="142" y="300" font-size="5.2" fill="#6f695e" text-anchor="middle" letter-spacing="1.8" font-family="var(--font-mono, ui-monospace, monospace)">ARCH · VI</text>
+      ${prism(B.x, B.y, B.w, B.h, DEPTH.x, DEPTH.y, PFX)}
+      ${louvres}
+      ${prism(44, 78, 176, 12, DEPTH.x, DEPTH.y, PFX, 'porcelain-h')}
+      ${rivetRow(52, 84, 212, 84, 9, PFX, 0.95)}
+      ${bolt(57, 96, PFX, 1.7, 25)}${bolt(207, 96, PFX, 1.7, -22)}
+      ${bolt(57, 283, PFX, 1.7, -15)}${bolt(207, 283, PFX, 1.7, 38)}
+      ${staticDrawers}
+      ${moving}
+    </g>
+    <g transform="translate(${DEPTH.x / 2 + 2} ${DEPTH.y / 2 + 3})">${TOP_REELS}</g>
   </svg>`
 }
 
-export const CABINET_CSS = css('.iso-cabinet', { '--iso-drawer': { hover: 14, open: 64, ms: 1000 } })
+export const CABINET_CSS = `
+${spinKeyframes('cb-spin')}
+@keyframes cb-film { 0% { transform: translateX(0px); } 100% { transform: translateX(-22px); } }
+@keyframes cb-pilot-glow { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
+
+.iso-cabinet .cb-reel-l { animation: cb-spin 20s linear infinite; }
+.iso-cabinet .cb-reel-r { animation: cb-spin 20s linear infinite; }
+.iso-cabinet .cb-film-strip { animation: cb-film 4.8s linear infinite; }
+.iso-cabinet .cb-pilot { animation: cb-pilot-glow 3.4s ease-in-out infinite; }
+
+/* The drawer travels along −DEPTH; its cards rise out of the tray once it is clear of the cabinet */
+.iso-cabinet .cb-drawer-slide { transform: translate(0px, 0px); transition: transform 0.72s cubic-bezier(.22, 1, .36, 1); }
+.iso-cabinet .cb-drawer-shadow { opacity: 0; transition: opacity 0.72s ease; }
+.iso-cabinet .cb-card { opacity: 0; transform: translateY(10px); transition: transform 0.72s cubic-bezier(.22, 1, .36, 1), opacity 0.4s ease; }
+.iso-cabinet .cb-card-mid { transition-delay: 40ms; }
+.iso-cabinet .cb-card-front { transition-delay: 80ms; }
+
+.iso-host:hover .iso-cabinet .cb-drawer-slide { transform: translate(${r2(-DEPTH.x * PULL.hover)}px, ${r2(-DEPTH.y * PULL.hover)}px); }
+.iso-host:hover .iso-cabinet .cb-drawer-shadow { opacity: 0.08; }
+.iso-host:hover .iso-cabinet .cb-card-front { opacity: 1; transform: translateY(4px); }
+
+.iso-host[data-open] .iso-cabinet .cb-drawer-slide { transform: translate(${r2(-DEPTH.x * PULL.open)}px, ${r2(-DEPTH.y * PULL.open)}px); }
+.iso-host[data-open] .iso-cabinet .cb-drawer-shadow { opacity: 0.16; }
+.iso-host[data-open] .iso-cabinet .cb-card-back { opacity: 1; transform: translateY(-21px); }
+.iso-host[data-open] .iso-cabinet .cb-card-mid { opacity: 1; transform: translateY(-17px); }
+.iso-host[data-open] .iso-cabinet .cb-card-front { opacity: 1; transform: translateY(-14px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .iso-cabinet .cb-reel-l,
+  .iso-cabinet .cb-reel-r,
+  .iso-cabinet .cb-film-strip,
+  .iso-cabinet .cb-pilot { animation: none; }
+  .iso-cabinet .cb-drawer-slide,
+  .iso-cabinet .cb-drawer-shadow,
+  .iso-cabinet .cb-card { transition-duration: 1ms; transition-delay: 0ms; }
+}
+`
