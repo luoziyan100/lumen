@@ -1,5 +1,5 @@
 /**
- * [INPUT]: Mastra Memory 公开 thread/message 接口、studio 主题存储、阅读游标存储、目录 DTO
+ * [INPUT]: Mastra Memory 公开 thread/message 接口、studio 主题存储、阅读游标存储、目录 DTO、studio/reading-question 的解读提问解析（自动标题取引文）
  * [OUTPUT]: createCatalog、纯归属 requireSession 与可识别的 CatalogError
  * [POS]: 主题下会话的目录用例；授权与描述分离，阅读状态只保存已见消息 ID 或显式未读游标，不回写框架 thread 或复制运行状态
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto'
 import type { Memory } from '@mastra/memory'
 import type { StorageThreadType } from '@mastra/core/memory'
 import { StudioError } from '../studio/errors.ts'
+import { readingQuestion } from '../studio/reading-question.ts'
 import type { ErrorCode } from '../http/error-codes.ts'
 import type { TopicStore } from '../studio/topics.ts'
 import type { DeletionJournal } from '../studio/deletions.ts'
@@ -138,7 +139,8 @@ export function createCatalog(root: string, memory: Memory, topics: TopicStore, 
       return change(topicId, async () => {
         const thread = await requireSession(topicId, taskId)
         if (thread.metadata?.lumenAutoTitle !== true) return
-        const title = message.split('\n').map(line => line.trim()).find(Boolean)?.slice(0, 60)
+        const question = readingQuestion(message)
+        const title = (question ? question.quote.replaceAll('**', '') : message).split('\n').map(line => line.trim()).find(Boolean)?.slice(0, 60)
         if (title) await memory.updateThread({ id: thread.id, title, metadata: { lumenAutoTitle: false } })
       })
     },

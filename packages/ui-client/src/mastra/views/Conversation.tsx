@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 原生 SessionFeed/DisplayState、原生reasoning/工具轮次投影与真实用户消息计时、子任务轮询、当前会话稿件路径与已有 AssistantContent 沙箱
- * [OUTPUT]: Conversation：原消息舞台与输入坞、折叠思考和轮次导航；白板写入只显示卡片（R6，点卡把元素交给白板；擦除卡没有可跳的元素；BoardCardRow 导出给新旧历史卡片的测试）并把「正在画/已写完」通过 onBoard 交给外壳；可复用精灵持有的原生 session，收起不确认已读、展开不重复订阅；运行错误保留，连接错误可重试；审批/追问与进行中的专家任务固定在输入卡上方(专家目录在右轨，对话底部始终是最新消息)，消息按坞高度让位；子任务轮询同一世代串行；滚动只在用户停留底部时追新；widget 回调稳定以保留历史消息 memo
+ * [OUTPUT]: Conversation：原消息舞台与输入坞、折叠思考和轮次导航；白板写入只显示卡片（R6，点卡把元素交给白板；擦除卡没有可跳的元素；BoardCardRow 导出给新旧历史卡片的测试）并把「正在画/已写完」通过 onBoard 交给外壳；可复用精灵持有的原生 session，收起不确认已读、展开不重复订阅；reveal 把对话滚到指定消息并短暂高亮（无 messageId 则回到最新；消息还没加载就等历史到了再滚）；运行错误保留，连接错误可重试；审批/追问与进行中的专家任务固定在输入卡上方(专家目录在右轨，对话底部始终是最新消息)，消息按坞高度让位；子任务轮询同一世代串行；滚动只在用户停留底部时追新；widget 回调稳定以保留历史消息 memo
  * [POS]: 新会话组合，不依赖旧 chat reducer；按身份 key 挂载以隔离草稿和迟到结果
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -33,13 +33,14 @@ function Approval({ approval, onReply }: { approval: DisplayState['pendingApprov
 }
 /** 白板动态：哪块正在画（新块为 'new'），以及已完成写入的签名——变了就该重新取白板。 */
 export interface BoardSignal { drawing: string | null; done: string }
+export interface Reveal { messageId: string | null; nonce: number }
 export function BoardCardRow({ card, onFocus }: { card: BoardCard; onFocus?: (blockId: string) => void }) {
   const S = useT().studio
   const verb = card.status === 'failed' ? S.card.failed : card.running ? S.card.running[card.action] : S.card.done[card.action]
   const body = <><span className="board-card-verb">{verb}</span>{card.title && <> · <b>{card.title}</b></>}{card.error && <span className="board-card-error">{S.card.error(card.error)}</span>}</>
   return <div className={`board-card board-card-${card.status}`}>{card.blockId && onFocus && card.status !== 'failed' ? <button type="button" onClick={() => onFocus(card.blockId!)}>{body}</button> : <span>{body}</span>}</div>
 }
-export function Conversation({ api, identity, onActivity, onOpenFile, onSettings, activePath, onClearActivePath, onFocusBlock, onBoard, session: sharedSession }: { api: LumenApi; identity: Identity; onActivity: () => void; onOpenFile: (target: FileTarget) => void; onSettings?: () => void; activePath?: string | null; onClearActivePath?: () => void; onFocusBlock?: (blockId: string) => void; onBoard?: (signal: BoardSignal) => void; session?: ReturnType<typeof useSession> }) {
+export function Conversation({ api, identity, onActivity, onOpenFile, onSettings, activePath, onClearActivePath, onFocusBlock, onBoard, session: sharedSession, reveal }: { api: LumenApi; identity: Identity; onActivity: () => void; onOpenFile: (target: FileTarget) => void; onSettings?: () => void; activePath?: string | null; onClearActivePath?: () => void; onFocusBlock?: (blockId: string) => void; onBoard?: (signal: BoardSignal) => void; session?: ReturnType<typeof useSession>; reveal?: Reveal | null }) {
   const { chat: C, greeting } = useT()
   const localSession = useSession(api, sharedSession ? null : identity)
   const { feed, view } = sharedSession ?? localSession
@@ -72,6 +73,21 @@ export function Conversation({ api, identity, onActivity, onOpenFile, onSettings
     return () => { cancelled = true; clearInterval(timer) }
   }, [api, identity.topicId, identity.taskId, feed])
   const stick = useTranscriptStick(empty)
+  const revealed = useRef(0), [lit, setLit] = useState<string | null>(null)
+  useEffect(() => {
+    if (!reveal || revealed.current === reveal.nonce) return
+    if (!reveal.messageId) { revealed.current = reveal.nonce; stick.jumpToLatest(); return }
+    const node = document.getElementById(messageAnchor(reveal.messageId)), root = stick.transcript.current
+    if (!node || !root?.contains(node)) return
+    revealed.current = reveal.nonce
+    stick.scrollToOffset(root.scrollTop + node.getBoundingClientRect().top - root.getBoundingClientRect().top - 24)
+    setLit(reveal.messageId)
+  }, [reveal, timeline, stick])
+  useEffect(() => {
+    if (!lit) return
+    const timer = setTimeout(() => setLit(null), 1600)
+    return () => clearTimeout(timer)
+  }, [lit, reveal?.nonce])
   // ---- 白板卡片的状态变化告诉外壳：开始画 → 显示「AI 正在画」；写完 → 重新取白板 ----
   const boardCards = timeline.filter((row): row is BoardCard => row.kind === 'board')
   const drawing = boardCards.find(card => card.running), drawingKey = drawing ? (drawing.blockId ?? 'new') : null
@@ -108,7 +124,7 @@ export function Conversation({ api, identity, onActivity, onOpenFile, onSettings
         if (row.kind === 'process') return <ProcessRow key={row.id} row={row} />
         if (row.kind === 'board') return <BoardCardRow key={row.id} card={row} onFocus={onFocusBlock} />
         const message = row.message
-        return <article className={`msg-group msg-group-${messageRole(message)} mw-message mw-${messageRole(message)}`} key={row.id} id={messageAnchor(message.id)}>
+        return <article className={`msg-group msg-group-${messageRole(message)} mw-message mw-${messageRole(message)}${lit === message.id ? ' is-revealed' : ''}`} key={row.id} id={messageAnchor(message.id)}>
         <div className={`bubble bubble-${messageRole(message)}`}>
         {messageRole(message) === 'assistant' ? <AssistantContent content={messageText(message)} isStreaming={running && display?.currentMessage?.id === message.id} onSendMessage={sendWidgetMessage} fixScope={`${identity.topicId}:${identity.taskId}`} /> : <UserMessage message={message} onOpenFile={onOpenFile} />}
         </div><MessageCopy user={messageRole(message) === 'user'} text={messageRole(message) === 'user' ? userContent(message).text : messageText(message)} />

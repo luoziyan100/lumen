@@ -17,7 +17,7 @@ components/
 └── widget/                 # HTML 隔离沙箱
 ```
 
-- `Markdown.tsx`：GFM、数学、代码高亮和 Mermaid 的统一渲染器；流式输入暂缓不完整数学，文件链接由调用方处理，禁全局 React 树缓存。
+- `Markdown.tsx`：GFM、数学、代码高亮和 Mermaid 的统一渲染器；终稿与流式都接 remark-cjk-friendly（`**` 贴着全角标点、后接汉字时照样加粗，CommonMark 原规则会不加粗或错配）；流式输入暂缓不完整数学，文件链接由调用方处理，禁全局 React 树缓存。
 - `markdownMath.ts`：感知围栏与代码片段的数学定界符归一，避免跨代码区配对。
 - `MermaidBlock.tsx`：官方 Mermaid/ELK 渲染与箱外测量，颜色随当前外观、换皮肤重画，渲染串行，缓存 LRU 64 条；外层 figure、SVG 层 role=img(按钮与错误对读屏可达)；失败显示源码并可「请模型修正」(会话内普通消息，同会话同图只发一次)。
 - `MermaidLightbox.tsx`：流程图放大层的缩放/拖移/Esc 交互。

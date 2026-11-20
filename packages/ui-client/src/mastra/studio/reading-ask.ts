@@ -1,6 +1,6 @@
 /**
  * [INPUT]: native messages (feed's messageRole/messageText), MODEL_TEXT's question format and its READING_PLACE line, the service error catalog
- * [OUTPUT]: askText / parseAsk (a reading question and back), asksOf (each question with the assistant reply that followed it), footprintRanges (where a paragraph shows
+ * [OUTPUT]: prose (a prose block's shown text and its bold and code marks), askText / parseAsk (a reading question and back), asksOf (each question with the assistant reply that followed it), footprintRanges (where a paragraph shows
  *           the person's footprints), readingSignal (completed reading_write / reading_insert calls, the refresh signal), latestReadingWrite (the current turn's latest completed reading write's callId/itemId for auto-focus), answered (a request has an assistant message after it), sendErrorText (a native send refusal in the UI language)
  * [POS]: pure helpers behind the Reading view. Footprints are not stored anywhere: they are rebuilt from the conversation's own messages, so a reload or another device
  *        shows the same underlines and nothing new is persisted
@@ -14,6 +14,21 @@ import type { Identity, Reading, ReadingSection } from '../data/client.ts'
 
 /** Whitespace runs collapse to one space; quotes match on this form. */
 export const squash = (text: string) => text.replace(/\s+/g, ' ').trim()
+
+export interface Prose { text: string; marks: { start: number; end: number; kind: 'strong' | 'code' }[] }
+const MARKS = /`([^`\n]+)`|\*\*(?!\s)([^*\n]+?)(?<!\s)\*\*/g
+export function prose(source: string): Prose {
+  const marks: Prose['marks'] = []
+  let text = '', at = 0
+  for (const match of source.matchAll(MARKS)) {
+    const inner = match[1] ?? match[2]!
+    text += source.slice(at, match.index)
+    marks.push({ start: text.length, end: text.length + inner.length, kind: match[1] !== undefined ? 'code' : 'strong' })
+    text += inner
+    at = match.index + match[0].length
+  }
+  return { text: text + source.slice(at), marks }
+}
 
 /** Where the question sits: the section's number and title, as the reading shows them. */
 export const sectionLabel = (section: Pick<ReadingSection, 'ord' | 'title'>) => `${section.ord}. ${section.title}`
@@ -30,7 +45,7 @@ export function parseAsk(text: string): { quote: string; item: string; section: 
   while (at < lines.length && lines[at]!.startsWith('> ')) quote.push(lines[at++]!.slice(2))
   const place = quote.length ? READING_PLACE.exec(lines[at] ?? '') : null
   if (!place) return null
-  return { quote: squash(quote.join(' ')), item: place[1]!, section: place[2]!, words: lines.slice(at + 1).join('\n').trim() }
+  return { quote: squash(quote.join(' ')).replaceAll('**', ''), item: place[1]!, section: place[2]!, words: lines.slice(at + 1).join('\n').trim() }
 }
 
 export interface Ask {
@@ -94,7 +109,7 @@ export function footprintRanges(text: string, quotes: string[]): { start: number
 
 /** Questions that belong to this reading: asked about its material, with a quote found in one of its prose paragraphs. */
 export function readingAsks(reading: Reading, asks: Ask[]): Ask[] {
-  const texts = reading.sections.flatMap(section => section.paragraphs.flatMap(paragraph => 'text' in paragraph ? [squash(paragraph.text)] : []))
+  const texts = reading.sections.flatMap(section => section.paragraphs.flatMap(paragraph => 'text' in paragraph ? [squash(prose(paragraph.text).text)] : []))
   return asks.filter(ask => ask.item === reading.itemTitle && texts.some(text => text.includes(ask.quote)))
 }
 

@@ -1,5 +1,5 @@
 /**
- * [INPUT]: react-markdown + remark-gfm/math + rehype-katex/highlight;MermaidBlock;markdownMath
+ * [INPUT]: react-markdown + remark-gfm/math + remark-cjk-friendly(含 GFM 删除线版) + rehype-katex/highlight;MermaidBlock;markdownMath
  * [OUTPUT]: Markdown —— GFM/数学/代码高亮 + ```mermaid 流程图;deferMath 流式暂缓 KaTeX
  * [POS]: .md 阅读器与 AssistantContent 的文本段;show-widget 不经此组件;
  *        终稿在 ReactMarkdown 前走 normalizeMathDelimiters(\( \)/\[ \]→$/$$);流式不归一、不跑 KaTeX。
@@ -12,6 +12,8 @@ import { Children, isValidElement, memo, useMemo, type ComponentProps, type Reac
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
+import remarkCjkFriendly from 'remark-cjk-friendly'
+import remarkCjkFriendlyStrikethrough from 'remark-cjk-friendly-gfm-strikethrough'
 import rehypeKatex from 'rehype-katex'
 import rehypeHighlight from 'rehype-highlight'
 import 'katex/dist/katex.min.css'
@@ -21,10 +23,11 @@ import { MermaidBlock } from './MermaidBlock'
 import { useOpenExternal } from './ExternalLinkDialog'
 import { normalizeMathDelimiters } from './markdownMath.ts'
 
-const REMARK_FULL = [remarkGfm, remarkMath]
+const CJK = [remarkCjkFriendly, remarkCjkFriendlyStrikethrough]
+const REMARK_FULL = [remarkGfm, ...CJK, remarkMath]
 const REHYPE_FULL = [rehypeKatex, rehypeHighlight]
-/** 流式期关掉 math:半截公式会使 KaTeX 成败交替 → 高度非单调 → 贴底振荡 */
-const REMARK_STREAM = [remarkGfm]
+/** No math while streaming: a half-written formula makes KaTeX alternate between success and failure, the height jumps and the stick-to-bottom scroll oscillates */
+const REMARK_STREAM = [remarkGfm, ...CJK]
 const REHYPE_STREAM = [rehypeHighlight]
 
 type CodeProps = { className?: string; children?: ReactNode }
@@ -46,9 +49,9 @@ export const Markdown = memo(function Markdown({
   mermaidFix,
 }: {
   children: string
-  /** true:流式中暂缓 KaTeX/remark-math,定稿后再渲染 */
+  /** true: hold KaTeX/remark-math while streaming, render it once the text is final */
   deferMath?: boolean
-  /** 失败图交回当前会话修正 */
+  /** A diagram that fails goes back to the current conversation to be fixed */
   mermaidFix?: MermaidFix
 }) {
   const remarkPlugins = deferMath ? REMARK_STREAM : REMARK_FULL
@@ -77,7 +80,7 @@ export const Markdown = memo(function Markdown({
       const kids = Children.toArray(children)
       const code = kids[0]
       if (isMermaidCode(code)) {
-        // 流式未闭合的 mermaid 不渲染,避免高度狂抖
+        // An unclosed mermaid block mid-stream stays source, or the height would thrash
         if (deferMath) {
           return (
             <pre {...props}>

@@ -4,7 +4,8 @@
  *           first row on one 50px header line; the center header holds only the centered view navigation (icon + text, icons alone when narrow; the topic name goes to aria-label and
  *           the window title), and in split view the reader header shares the board header's line; the sprite positions itself on the whole window (no longer inside the board area);
  *           both side panes collapse to width 0 (reopen buttons at the center header's ends, ⌘B / ⌘⌥B); the reader has three states: closed / split (draggable divider) / full center
- *           (the board hides but stays mounted with its camera; Esc restores); the Reading view (first in the navigation, the default) with its material action and selection window;
+ *           (the board hides but stays mounted with its camera; Esc restores); the Reading view (first in the navigation, the default) with its material action and selection window
+ *           (whether the conversation is open decides where an answer shows; a sent question or a footprint reveals it there, switching to the footprint's conversation first);
  *           the material on the empty Reading view's typewriter (the picked one, else the one open beside, else the only one) and the request's end (first section, run end, or an idle
  *           conversation that already answered: a short run can end unseen); each placeholder view is its object alone, centred, named 「还没开放」 for screen readers only
  *           (Map the cork board, Ideas the lamp, All the type case)
@@ -24,13 +25,13 @@ import { LumenApi, type Connection, type Identity, type SedimentInvite, type Top
 import { useFeedSelect, useSessionFeed } from '../data/useSession.ts'
 import { MODEL_TEXT } from '../../i18n/locales/model.ts'
 import type { FileTarget } from '../data/file-links'
-import type { BoardSignal } from '../views/Conversation'
+import type { BoardSignal, Reveal } from '../views/Conversation'
 import { DocumentReader } from '../views/reader/DocumentReader'
 import { Settings } from '../views/Settings'
 import { Board } from './Board'
 import { Materials, useMaterials } from './Materials'
 import { ReadingView, type AskTarget } from './Reading'
-import { answered, askText, asksOf, latestReadingWrite, readingSignal, sameAsks, sendErrorText } from './reading-ask'
+import { answered, askText, asksOf, latestReadingWrite, readingSignal, sameAsks, sendErrorText, type Ask } from './reading-ask'
 import { useReading, useTopicAsks } from './useReading'
 import { Sprite, useSessions, type SpriteBox } from './Sprite'
 import { Takeaways } from './Takeaways'
@@ -67,6 +68,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const [focus, setFocus] = useState<{ elementId: string; nonce: number } | null>(null)
   const [reading, setReading] = useState<{ target: FileTarget; title?: string } | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false), [docked, setDocked] = useState(false), [figure, setFigure] = useState<SpriteBox | null>(null)
+  const [chatShown, setChatShown] = useState(false), [reveal, setReveal] = useState<Reveal | null>(null)
   const [full, setFull] = useState(false), [center, setCenter] = useState<HTMLElement | null>(null)
   const panes = usePanes()
   const live = !!topic?.running
@@ -204,7 +206,15 @@ export function StudioApp({ connection }: { connection: Connection }) {
   // ---- The empty Reading view's typewriter shows the picked material's title, else the one open beside, else the only one ----
   const opened = reading?.target.scope === 'library' ? reading.target.path : null
   const startItem = materials.items.find(item => item.id === (readingItem ?? opened)) ?? (materials.items.length === 1 ? materials.items[0]! : null)
-  const askReading = (target: AskTarget, words: string) => say(target.identity, askText(target.quote, target.section, readings.reading?.itemTitle ?? '', words))
+  async function askReading(target: AskTarget, words: string) {
+    const failure = await say(target.identity, askText(target.quote, target.section, readings.reading?.itemTitle ?? '', words))
+    if (!failure && chatShown) setReveal({ messageId: null, nonce: Date.now() })
+    return failure
+  }
+  function revealAsk(ask: Ask) {
+    if (ask.identity.taskId !== identity?.taskId) setIdentity(ask.identity)
+    setReveal({ messageId: ask.messageId, nonce: Date.now() })
+  }
   // The window keeps only the person's own words, through the takeaways' own route (R13); the quote never goes in
   async function keepWords(text: string): Promise<string | null> {
     if (!topic) return null
@@ -229,7 +239,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
           {!topic ? <div className="studio-later studio-pick"><p>{S.pickTopic}</p></div>
             : view === 'reading' ? <ReadingView state={readings} requested={!!requested && requested === readings.itemId} asks={asks} busyFor={busyFor}
               startItem={startItem}
-              onSend={askReading} onWidgetSend={text => say(null, text)} onKeep={keepWords} onOpenSource={openSource} sprite={figure} />
+              onSend={askReading} onWidgetSend={text => say(null, text)} onKeep={keepWords} onOpenSource={openSource} sprite={figure} chatShown={chatShown} onReveal={revealAsk} />
             : view === 'board' ? <Board api={api} board={board} drawing={signal.drawing} focus={focus} sediment={sediment} invite={invite} />
             : view === 'settled' ? <Takeaways sediment={sediment} onJump={(elementId, sheetId) => { setView('board'); board.select(sheetId); setFocus({ elementId, nonce: Date.now() }) }} />
             // A view not open yet is its object alone, centred; 「还没开放」 is the container's name for screen readers, never visible text
@@ -247,7 +257,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
       onOpen={item => openMaterial(item)} onChanged={materials.refresh}
       readings={readings.items.map(reading => reading.itemId)} readingBusy={busyFor(null)} onReading={writeReading} />}
     {topic && <Sprite api={api} topic={topic} identity={identity} feed={feed} sessions={sessions} onSessions={editSessions} onIdentity={setIdentity} onActivity={activity}
-      onOpenFile={target => setReading({ target })} onFocusBlock={onFocusBlock} onBoard={onBoard} onSettings={() => setSettingsOpen(true)} onDocked={setDocked} onFigure={setFigure} />}
+      onOpenFile={target => setReading({ target })} onFocusBlock={onFocusBlock} onBoard={onBoard} onSettings={() => setSettingsOpen(true)} onDocked={setDocked} onFigure={setFigure} onShown={setChatShown} reveal={reveal} />}
     {settingsOpen && <Settings api={api} appearance={appearance} onClose={() => setSettingsOpen(false)} />}
   </main></ExternalLinkGate>
 }

@@ -359,6 +359,9 @@ test('重命名与标题：去首尾空白、空的拒绝；运行中手改的�
     assert.equal((await env.open('p', 'b')).status, 201)
     await env.turn('p', 'b', '为什么负反馈能稳住系统\n第二行')
     await until(async () => (await env.json('/lumen/topics/p/sessions/b')).body.title === '为什么负反馈能稳住系统', '自动标题没写上')
+    assert.equal((await env.open('p', 'c')).status, 201)
+    await env.turn('p', 'c', '> 深度反馈控制（DFC）**源于运动控制\n— 解读《Paper》· 1. 核心结论\n\n这个是什么')
+    await until(async () => (await env.json('/lumen/topics/p/sessions/c')).body.title === '深度反馈控制（DFC）源于运动控制', 'a reading question names its conversation by its quote')
     // A thread from before L8 stored the word itself
     await env.http.application.memory.createThread({ threadId: 'p:old', resourceId: 'p:old', title: '新对话',
       metadata: { lumenTopicId: 'p', lumenTaskId: 'old', lumenPinned: false, lumenArchived: false, lumenAutoTitle: true } })

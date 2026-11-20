@@ -7,7 +7,8 @@
  *           as the right column. The open header shows the same face; collapsed it still watches the text stream, and opening reuses the same subscription. It switches this topic's
  *           conversations (each row has the shared 「⋯」 menu, RowActions: rename, copy ID, archive, delete; the open one that leaves hands over to the next, else to a new conversation; on delete it hands over first and back on a refusal),
  *           starts a new one only from the header's ＋ (disabled while the topic is busy; the list has no 新对话 button), and opens the specialist list and diagnostics; anchor, size and shape live in localStorage
- *           (sprite-place); it reports the figure's box (onFigure) so the Reading view keeps text clear of it. useSessions: the topic's conversation list, polled every 3s, with `edit` for changes shown before the poll
+ *           (sprite-place); it reports the figure's box (onFigure) so the Reading view keeps text clear of it, and whether the conversation is open (onShown); reveal goes to the
+ *           Conversation (leaving the list or diagnostics first) so the Reading view can point at a question. useSessions: the topic's conversation list, polled every 3s, with `edit` for changes shown before the poll
  * [POS]: projects the four states straight to the desktop and takes open requests back; visibility only gates local drawing. The conversation stepped back into a sprite: the board is
  *        the topic's shared draft and the conversation is only the record of talk. Messages, approvals and questions still go through the native Conversation; the subscription
  *        itself belongs to StudioApp, so the Reading view's window shows the same stream without opening a second one; the full view is read here, so a streamed token
@@ -22,7 +23,7 @@ import type { LumenApi, Identity, SessionInfo, Topic } from '../data/client.ts'
 import { useFeedView } from '../data/useSession.ts'
 import type { SessionFeed } from '../data/feed.ts'
 import type { FileTarget } from '../data/file-links'
-import { Conversation, type BoardSignal } from '../views/Conversation'
+import { Conversation, type BoardSignal, type Reveal } from '../views/Conversation'
 import { Welcome } from '../views/conversation/welcome/Welcome'
 import { Specialists } from '../views/conversation/Specialists'
 import { Diagnostics } from '../diagnostics/Diagnostics'
@@ -62,7 +63,7 @@ export function useSessions(api: LumenApi, topicId: string | null, signal: numbe
 /** Where the figure sits in the viewport, so content can keep its text out from under it */
 export interface SpriteBox { left: number; top: number; right: number; bottom: number }
 
-export function Sprite({ api, topic, identity, feed, sessions, onSessions, onIdentity, onActivity, onOpenFile, onFocusBlock, onBoard, onSettings, onDocked, onFigure }: {
+export function Sprite({ api, topic, identity, feed, sessions, onSessions, onIdentity, onActivity, onOpenFile, onFocusBlock, onBoard, onSettings, onDocked, onFigure, onShown, reveal }: {
   api: LumenApi
   topic: Topic
   identity: Identity | null
@@ -81,6 +82,8 @@ export function Sprite({ api, topic, identity, feed, sessions, onSessions, onIde
   onDocked?: (docked: boolean) => void
   /** The figure's box (open or closed, since the anchor is the same), null when docked in its own column */
   onFigure?: (box: SpriteBox | null) => void
+  onShown?: (shown: boolean) => void
+  reveal?: Reveal | null
 }) {
   const S = useT().studio
   const [shape, setShape] = useState<Shape>(loadShape)
@@ -122,6 +125,9 @@ export function Sprite({ api, topic, identity, feed, sessions, onSessions, onIde
     drop(own.taskId)
   }
   useEffect(() => { onDocked?.(shape.open && shape.docked) }, [shape.open, shape.docked, onDocked])
+  useEffect(() => { onShown?.(shape.open) }, [shape.open, onShown])
+  useEffect(() => () => onShown?.(false), [onShown])
+  useEffect(() => { if (reveal) { setListing(false); setDiagnostics(false) } }, [reveal])
   const figureDocked = shape.open && shape.docked
   useEffect(() => {
     onFigure?.(figureDocked ? null : { left: move.orb.x, top: move.orb.y, right: move.orb.x + SPRITE_W, bottom: move.orb.y + SPRITE_H })
@@ -175,7 +181,7 @@ export function Sprite({ api, topic, identity, feed, sessions, onSessions, onIde
         <Button variant="ghost" onClick={() => setDiagnostics(true)}>{S.sprite.diagnostics}</Button>
       </div>}
     </div>
-      : identity ? <Conversation key={`${identity.topicId}:${identity.taskId}`} api={api} identity={identity} onActivity={onActivity} onSettings={onSettings} onOpenFile={onOpenFile} onFocusBlock={onFocusBlock} onBoard={onBoard} session={session} />
+      : identity ? <Conversation key={`${identity.topicId}:${identity.taskId}`} api={api} identity={identity} onActivity={onActivity} onSettings={onSettings} onOpenFile={onOpenFile} onFocusBlock={onFocusBlock} onBoard={onBoard} session={session} reveal={reveal} />
       : busy ? null
       : <div className="sprite-welcome"><Welcome key={`${api.connection.baseUrl}:${topic.id}`} api={api} topicId={topic.id} onSettings={onSettings} onSession={next => { onIdentity(next); onActivity() }} /></div>}
     {diagnostics && identity && <Diagnostics api={api} identity={identity} onClose={() => setDiagnostics(false)} />}

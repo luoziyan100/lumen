@@ -6,7 +6,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import type { SettingsPatch } from './types.ts'
+import { PROVIDER_IDS, type SettingsPatch } from './types.ts'
 import type { ErrorCode } from '../http/error-codes.ts'
 
 export class SettingsError extends Error {
@@ -16,7 +16,7 @@ export class SettingsError extends Error {
 }
 
 export const profileId = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/)
-const provider = z.enum(['openai', 'anthropic'])
+const provider = z.enum(PROVIDER_IDS)
 const vision = z.enum(['auto', 'on', 'off'])
 const models = z.array(z.string().trim().max(256)).max(200).transform(list => [...new Set(list.filter(Boolean))])
 const baseUrl = z.string().trim().max(2048).refine(value => {

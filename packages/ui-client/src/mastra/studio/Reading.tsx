@@ -2,10 +2,12 @@
  * [INPUT]: components/Markdown for replies, components/MermaidBlock for inline diagrams, components/widget/WidgetFrame for inline interactive widgets, objects/ (IsoObject, typewriterSvg/paperLines), useReading's state, the topic's questions (useTopicAsks), the pure helpers of reading-ask.ts, i18n `studio.reading`, the host's send/widget-send/keep/open-source callbacks
  * [OUTPUT]: ReadingView: the centre 「解读 / Reading」 view — a centred 960px column whose prose, headings, quotes, tables and diagrams stay within 700px while interactive HTML widgets (`WidgetFrame`, up to 3 active by default, bidirectional via onSendMessage) use the full 960px column width and can expand in place via `position: fixed` (same mounted WidgetFrame/iframe so interactive state survives expand/collapse, same-height placeholder, solid light stage, closes AskWindow first so one Esc handles it, including Esc pressed while focus is inside the expanded iframe via `onEscape`); a paper block is followed by its quote in the paper's own words, ending in the source chip
  *           (「原文 p.N」 opens split reading at that page), an inference block ends in a dashed chip; the quote line opens no window; the person's footprints (thin underlines on sentences asked about, inline spans with role="button" that wrap like text and open on click/Enter/Space);
- *           selecting text inside one prose paragraph opens AskWindow under the selection
+ *           selecting text inside one prose paragraph opens AskWindow under the selection. An answer shows in one place only: with the conversation open (chatShown) the window is
+ *           the quote and the input, closes once the question is sent and a footprint asks the host to reveal its question there (onReveal); with it closed the exchange runs in the
+ *           window, and opening the conversation closes a window that shows answers. Esc, × and a press outside close it
  *           and kept clear of the sprite's figure (padding on the side it sits);
  *           with no reading, ReadingStart: the typewriter alone, centred (title on the paper, typing while a requested reading has no section; no text, no button: writing starts from the Materials row);
- *           AskWindow: the quote (two lines), the exchange so far (the person's words and the streamed reply, rendered by components/Markdown as Block.tsx does), a one-line growing input, send, and 「存为我的沉淀」 (only typed words)
+ *           AskWindow: the quote (two lines), the exchange so far (the person's words and the streamed reply, rendered by components/Markdown as Block.tsx does), a one-line growing input, send, and, once a question was asked, 「把我的话记成沉淀」 (only the person's words)
  * [POS]: the living reading stage. It sends nothing itself: the host posts visible user messages through the conversation's own path (for both AskWindow questions and widget __widgetSendMessage actions), and replies come from the
  *        shared conversation subscription; nothing here is a second channel
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -20,7 +22,7 @@ import { useT } from '../../i18n/index.ts'
 import type { Identity, ReadingParagraph, ReadingSection, ReadingTextBlock, TopicMaterial } from '../data/client.ts'
 import { IsoObject } from './objects/IsoObject'
 import { paperLines, typewriterSvg } from './objects/typewriter.ts'
-import { footprintRanges, readingAsks, sectionLabel, squash, type Ask } from './reading-ask.ts'
+import { footprintRanges, prose, readingAsks, sectionLabel, squash, type Ask, type Prose } from './reading-ask.ts'
 import type { ReadingState } from './useReading.ts'
 import type { SpriteBox } from './Sprite'
 import './reading.css'
@@ -62,25 +64,40 @@ function SourceChip({ paragraph, onOpen }: { paragraph: ReadingParagraph; onOpen
   return <button type="button" className="source-chip reading-chip" title={S.openSource} onClick={() => onOpen(page)}>{page ? S.page(page) : S.paper}</button>
 }
 
+function marked({ text, marks }: Prose, from: number, to: number): ReactNode[] {
+  const parts: ReactNode[] = []
+  let at = from
+  for (const mark of marks) {
+    const start = Math.max(mark.start, from), end = Math.min(mark.end, to)
+    if (start >= end) continue
+    if (start > at) parts.push(text.slice(at, start))
+    parts.push(mark.kind === 'code' ? <code key={start}>{text.slice(start, end)}</code> : <strong key={start}>{text.slice(start, end)}</strong>)
+    at = end
+  }
+  if (at < to) parts.push(text.slice(at, to))
+  return parts
+}
+
 /** A paragraph's text with the person's footprints as thin underlines. A footprint is an inline span acting as a button, so a quote that starts mid-line wraps
  *  like the text around it (a real <button> is an atomic inline box and would push the whole quote to its own line). */
-function ParagraphText({ paragraph, quotes, onFootprint }: { paragraph: ReadingTextBlock; quotes: string[]; onFootprint: (quote: string, element: HTMLElement) => void }) {
+function ParagraphText({ id, shown, quotes, onFootprint }: { id: string; shown: Prose; quotes: string[]; onFootprint: (quote: string, element: HTMLElement) => void }) {
   const S = useT().studio.reading
   const parts: ReactNode[] = []
   let at = 0
-  for (const range of footprintRanges(paragraph.text, quotes)) {
-    if (range.start > at) parts.push(paragraph.text.slice(at, range.start))
-    parts.push(<span role="button" tabIndex={0} key={range.start} className="reading-footprint" title={S.footprint} aria-label={S.footprint}
+  for (const range of footprintRanges(shown.text, quotes)) {
+    if (range.start > at) parts.push(...marked(shown, at, range.start))
+    parts.push(<span role="button" tabIndex={0} key={`f${range.start}`} className="reading-footprint" title={S.footprint} aria-label={S.footprint}
       onClick={event => onFootprint(range.quote, event.currentTarget)}
-      onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onFootprint(range.quote, event.currentTarget) } }}>{paragraph.text.slice(range.start, range.end)}</span>)
+      onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onFootprint(range.quote, event.currentTarget) } }}>{marked(shown, range.start, range.end)}</span>)
     at = range.end
   }
-  if (at < paragraph.text.length) parts.push(paragraph.text.slice(at))
-  return <span className="reading-text" data-paragraph={paragraph.id}>{parts}</span>
+  if (at < shown.text.length) parts.push(...marked(shown, at, shown.text.length))
+  return <span className="reading-text" data-paragraph={id}>{parts}</span>
 }
 
-export function AskWindow({ target, asks, busy, onSend, onKeep, onClose, column }: {
+export function AskWindow({ target, asks, log = true, busy, onSend, onKeep, onClose, column }: {
   target: AskTarget
+  log?: boolean
   /** Earlier exchanges on this quote, oldest first */
   asks: Ask[]
   /** The conversation the next message goes to is running or waiting: the composer's rule, no send until it ends */
@@ -104,8 +121,10 @@ export function AskWindow({ target, asks, busy, onSend, onKeep, onClose, column 
       if (event.key !== 'Escape' || event.defaultPrevented || (field && !frame.current?.contains(field))) return
       event.preventDefault(); onClose()
     }
+    const onDown = (event: PointerEvent) => { if (!frame.current?.contains(event.target as Node)) onClose() }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    document.addEventListener('pointerdown', onDown, true)
+    return () => { window.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', onDown, true) }
   }, [onClose])
 
   // ---- Under the selection when it fits in the visible part of the scroller, else above it; never over the sentence ----
@@ -133,9 +152,8 @@ export function AskWindow({ target, asks, busy, onSend, onKeep, onClose, column 
   }
   async function keep() {
     // Only what the person typed: the input, else their own words of the last exchange — never the quote, never the reply (R13)
-    const text = words.trim() || asks.at(-1)?.words.trim() || ''
+    const text = words.trim() || asks.at(-1)!.words.trim()
     setError(''); setNote('')
-    if (!text) { setNote(S.ask.keepEmpty); return }
     const failure = await onKeep(text)
     if (failure) setError(S.ask.keepFailed + failure)
     else { setNote(S.ask.kept); if (words.trim()) setWords('') }
@@ -147,7 +165,7 @@ export function AskWindow({ target, asks, busy, onSend, onKeep, onClose, column 
       <blockquote className="reading-ask-quote" title={target.quote}>{target.quote}</blockquote>
       <button type="button" className="icon-btn" aria-label={S.ask.close} title={S.ask.close} onClick={onClose}><CloseIcon /></button>
     </header>
-    {asks.length > 0 && <div className="reading-ask-log">{asks.map(ask => <div key={ask.messageId} className="reading-ask-turn">
+    {log && asks.length > 0 && <div className="reading-ask-log">{asks.map(ask => <div key={ask.messageId} className="reading-ask-turn">
       <p className="reading-ask-you"><b>{S.ask.you}</b>{ask.words}</p>
       {ask.reply ? <div className="reading-ask-reply"><Markdown>{ask.reply}</Markdown></div> : <p className="reading-ask-reply is-waiting" role="status">{S.ask.thinking}</p>}
     </div>)}</div>}
@@ -158,7 +176,7 @@ export function AskWindow({ target, asks, busy, onSend, onKeep, onClose, column 
       <button type="button" className="reading-ask-send" aria-label={S.ask.send} title={busy ? S.busy : S.ask.send} disabled={!words.trim() || busy || sending} onClick={() => void send()}><SendIcon /></button>
     </div>
     <div className="reading-ask-foot">
-      <Button variant="ghost" size="sm" onClick={() => void keep()}>{S.ask.keep}</Button>
+      {asks.length > 0 && <Button variant="ghost" size="sm" onClick={() => void keep()}>{S.ask.keep}</Button>}
       {(error || note) && <span className={error ? 'reading-ask-error' : 'reading-ask-note'} role={error ? 'alert' : 'status'}>{error || note}</span>}
     </div>
   </section>
@@ -223,7 +241,7 @@ function VisualBlock({ block, widgetActive, expanded, slotHeight, onActivate, on
   </figure>
 }
 
-export function ReadingView({ state, requested, startItem, asks, busyFor, onSend, onWidgetSend, onKeep, onOpenSource, sprite }: {
+export function ReadingView({ state, requested, startItem, asks, busyFor, onSend, onWidgetSend, onKeep, onOpenSource, sprite, chatShown = false, onReveal }: {
   state: ReadingState
   /** A write was asked for the shown material and no section has landed yet */
   requested: boolean
@@ -239,6 +257,8 @@ export function ReadingView({ state, requested, startItem, asks, busyFor, onSend
   onOpenSource: (itemId: string, page?: number) => void
   /** The sprite's figure in the viewport (null when docked or absent) */
   sprite: SpriteBox | null
+  chatShown?: boolean
+  onReveal?: (ask: Ask) => void
 }) {
   const { studio: { reading: S } } = useT()
   const column = useRef<HTMLDivElement>(null)
@@ -262,6 +282,8 @@ export function ReadingView({ state, requested, startItem, asks, busyFor, onSend
   const savedScroll = useRef<number | null>(null)
   const [widgetError, setWidgetError] = useState('')
   const close = useCallback(() => setTarget(null), [])
+  const answering = useRef(false)
+  useEffect(() => { if (chatShown && answering.current) setTarget(null) }, [chatShown])
   const reading = state.reading
   useEffect(() => { setTarget(null); setExtraWidgets([]); setExpanded(null); savedScroll.current = null; setWidgetError('') }, [state.itemId])
   const restoreScroll = useCallback(() => {
@@ -334,11 +356,13 @@ export function ReadingView({ state, requested, startItem, asks, busyFor, onSend
     const last = mine.filter(ask => ask.quote === quote).at(-1)
     if (!section) return
     setTarget({ quote, section: sectionLabel(section), paragraphId, box: boxOf(element.getBoundingClientRect()), identity: last?.identity ?? null })
+    if (chatShown && last) onReveal?.(last)
   }
 
   if (!reading) return <ReadingStart item={startItem} requested={requested} error={state.error} />
   const exchange = target ? mine.filter(ask => ask.quote === target.quote) : []
   const conversation = target ? exchange.at(-1)?.identity ?? target.identity : null
+  answering.current = !chatShown && exchange.length > 0
   return <div ref={setScroller} className="reading-scroll" style={{ paddingInlineStart: pad.start, paddingInlineEnd: pad.end }}>
     <div ref={column} className="reading-column" onMouseUp={onSelect} onKeyUp={event => { if (event.shiftKey) onSelect() }}>
       <header className="reading-head">
@@ -356,7 +380,8 @@ export function ReadingView({ state, requested, startItem, asks, busyFor, onSend
               onOpenSource={page => onOpenSource(reading.itemId, page)} onWidgetSend={sendWidget} />
           }
           const chip = <SourceChip paragraph={paragraph} onOpen={page => onOpenSource(reading.itemId, page)} />
-          const text = <ParagraphText paragraph={paragraph} quotes={mine.filter(ask => squash(paragraph.text).includes(ask.quote)).map(ask => ask.quote)} onFootprint={onFootprint} />
+          const shown = prose(paragraph.text), flat = squash(shown.text)
+          const text = <ParagraphText id={paragraph.id} shown={shown} quotes={mine.filter(ask => flat.includes(ask.quote)).map(ask => ask.quote)} onFootprint={onFootprint} />
           if (paragraph.source.kind === 'inference') return <p key={paragraph.id} className="reading-para is-inference">{text}{' '}{chip}</p>
           // The quote stands under its paragraph, in the paper's own words, so a sentence that leads into it ("…the key line:") points at something the reader can see
           return <Fragment key={paragraph.id}>
@@ -366,8 +391,12 @@ export function ReadingView({ state, requested, startItem, asks, busyFor, onSend
         })}
       </section>)}
       {requested && <p className="reading-more" role="status">{S.more}</p>}
-      {target && <AskWindow target={target} asks={exchange} busy={busyFor(conversation)} column={column.current}
-        onSend={words => onSend({ ...target, identity: conversation }, words)} onKeep={onKeep} onClose={close} />}
+      {target && <AskWindow target={target} asks={exchange} log={!chatShown} busy={busyFor(conversation)} column={column.current}
+        onSend={async words => {
+          const failure = await onSend({ ...target, identity: conversation }, words)
+          if (!failure && chatShown) close()
+          return failure
+        }} onKeep={onKeep} onClose={close} />}
     </div>
   </div>
 }

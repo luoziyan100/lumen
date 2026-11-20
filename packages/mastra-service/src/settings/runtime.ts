@@ -1,10 +1,11 @@
 /**
- * [INPUT]: 私有设置快照、现有模型网关的纯类型契约
+ * [INPUT]: 私有设置快照、现有模型网关的纯类型契约、providers.ts 的地址规整
  * [OUTPUT]: effectiveSettings / gatewaySettings，仅服务内部可读取的生效模型配置
  * [POS]: 设置领域到 SDK 网关的单向转换；不暴露为 HTTP 返回值
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import type { ModelSettings } from '../model.ts'
+import { gatewayBaseUrl } from '../providers.ts'
 import { SettingsError, type StoredSettings } from './schema.ts'
 import type { Provider, VisionMode } from './types.ts'
 
@@ -35,9 +36,6 @@ export function gatewaySettings(data: StoredSettings): ModelSettings | null {
   const active = effectiveSettings(data)
   if (!active) return null
   if (!active.apiKey || !active.model) throw new SettingsError('Active model profile is incomplete', 409, 'settings.profile_incomplete')
-  const fallback = active.provider === 'anthropic' ? 'https://api.anthropic.com/v1' : 'https://api.openai.com/v1'
-  const url = new URL(active.baseUrl || fallback)
-  url.pathname = url.pathname.replace(/\/(chat\/completions|messages)\/?$/, '').replace(/\/$/, '') || '/v1'
-  return { provider: active.provider, baseURL: url.toString().replace(/\/$/, ''), apiKey: active.apiKey, model: active.model,
+  return { provider: active.provider, baseURL: gatewayBaseUrl(active.provider, active.baseUrl), apiKey: active.apiKey, model: active.model,
     contextWindow: active.contextWindow, pricing: active.pricing, vision: active.vision }
 }

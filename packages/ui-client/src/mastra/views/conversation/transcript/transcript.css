@@ -11,3 +11,7 @@
 .mw-history-image { padding: 0; border: 0; border-radius: var(--radius-md); overflow: hidden; cursor: zoom-in; background: none; }
 .mw-history-image img { display: block; max-width: 220px; max-height: 160px; object-fit: contain; }
 @media (hover: none) { .mw-message .msg-copy { opacity: 1; pointer-events: auto; } }
+.msg-ask-quote { margin: 0 0 var(--s-2); padding-left: 8px; border-left: 2px solid var(--border-strong); color: var(--text-soft); font-size: var(--t-body-sm); line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mw-message .bubble { transition: box-shadow var(--dur-fast) var(--ease-out); }
+.mw-message.is-revealed .bubble { box-shadow: 0 0 0 2px var(--accent-tint), 0 0 0 3px var(--accent); }

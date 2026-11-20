@@ -19,6 +19,8 @@
 .reading-num { flex: none; min-width: 1.4em; font: 600 var(--st-title) var(--font-sans); color: var(--accent-ink); font-variant-numeric: tabular-nums; }
 .reading-para { margin-top: 0; margin-bottom: 14px; font-size: 16px; line-height: 1.8; }
 html[data-justify="true"] .reading-para { text-align: justify; }
+.reading-text strong { font-weight: var(--w-semi); }
+.reading-text code { font-family: var(--font-mono); font-size: 0.86em; background: var(--fill-subtle); padding: 0.12em 0.4em; border-radius: var(--radius-sm); }
 /* The paper's own sentence under its paragraph: quieter than the body (smaller, muted, a thin rule), kept in its original language; the chip ends it */
 .reading-para:has(+ .reading-quote) { margin-bottom: 6px; }
 .reading-quote { margin-top: 0; margin-bottom: 16px; padding-left: 12px; border-left: 2px solid var(--border-strong); font-size: 14px; line-height: 1.65; font-style: italic; color: var(--text-soft); }

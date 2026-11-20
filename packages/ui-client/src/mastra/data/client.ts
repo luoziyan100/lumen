@@ -28,7 +28,7 @@ import type { SkillMeta, SkillLayer } from '../../../../mastra-service/src/skill
 import type { AgentCatalog } from '../../../../mastra-service/src/agents/catalog/types.ts'
 import type { BadCase, MarkCaseInput, UpdateCaseInput, DiagnosticTrace, TraceSummary, DiagnosticExport, RecordedInspection, EvaluationResult } from '../../../../mastra-service/src/diagnostics/types.ts'
 export type { BadCase, MarkCaseInput, UpdateCaseInput, DiagnosticTrace, DiagnosticSpan, TraceSummary, DiagnosticExport, RecordedInspection, EvaluationResult, Coverage } from '../../../../mastra-service/src/diagnostics/types.ts'
-export type { PublicSettings, SettingsPatch, PublicModelProfile } from '../../../../mastra-service/src/settings/types.ts'
+export type { PublicSettings, SettingsPatch, PublicModelProfile, Provider } from '../../../../mastra-service/src/settings/types.ts'
 export type SkillInfo = SkillMeta & { layer: SkillLayer }
 export interface Asset { name: string; type: 'file' | 'directory'; size?: number }
 /** work: the topic workspace (shared by its conversations); memory: this topic's memory; you: memory about the user. */

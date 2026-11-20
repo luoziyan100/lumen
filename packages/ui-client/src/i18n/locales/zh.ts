@@ -51,7 +51,7 @@ export const zh: Messages = {
       widgetIdle: '交互小实验', widgetRun: '打开', widgetExpand: '放大查看', widgetCollapse: '收起 Esc',
       ask: {
         label: '就这一句问 AI', placeholder: '问这一句', send: '发送', close: '关闭',
-        keep: '存为我的沉淀', kept: '已存为你的沉淀', keepFailed: '没能存下：', keepEmpty: '先写下你的话',
+        keep: '把我的话记成沉淀', kept: '已记成你的沉淀', keepFailed: '没能存下：',
         you: '你', thinking: 'AI 在想…',
       },
     },
@@ -178,7 +178,7 @@ export const zh: Messages = {
     busyHint: '研究进行中，只能换模型',
     noModelId: '未填模型 ID', noKey: ' · 未配置 Key', inUse: '使用中', enable: '启用', deleteProfile: name => `删除 ${name}`,
     editProfile: '编辑配置', newProfile: '新建模型配置', name: '名称', namePlaceholder: 'DeepSeek / Claude 官方 / GPT …', profileName: '配置名称',
-    modelProfile: '模型配置', provider: '接口协议', providers: { openai: 'OpenAI 兼容(DeepSeek / 代理等)', anthropic: 'Anthropic(官方 Claude API)' },
+    modelProfile: '模型配置', provider: '接口协议', providers: { openai: 'OpenAI 兼容(DeepSeek / 代理等)', anthropic: 'Anthropic(官方 Claude API)', google: 'Google Gemini(官方原生 API)' },
     keyKept: '已保存，留空保持原密钥', enterKey: '输入 API Key', vision: '图片理解', auto: '自动',
     modelId: '模型 ID', modelIdN: index => `模型 ID ${index}`, removeModelId: '移除此模型 ID', addModelId: '再加一个模型 ID',
     contextWindow: '上下文窗口（可选）', pricing: '模型价格（可选）',

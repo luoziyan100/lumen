@@ -1,6 +1,6 @@
 /**
- * [INPUT]: Mastra 消息、受控文件回调、统一文件类型/复制图标、共享长文本卷帘与消息投影、components/clipboard 的 copyText
- * [OUTPUT]: UserMessage、MessageCopy；旧附件、长正文折叠和复制反馈
+ * [INPUT]: Mastra 消息、受控文件回调、统一文件类型/复制图标、共享长文本卷帘与消息投影、components/clipboard 的 copyText、studio/reading-ask 的 parseAsk
+ * [OUTPUT]: UserMessage、MessageCopy；旧附件、解读划句提问（引文两行 + 用户的话，出处只在悬停提示里）、长正文折叠和复制反馈
  * [POS]: 纯会话呈现；图片只读内嵌数据，文件点击才进入现有阅读器
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -12,10 +12,13 @@ import type { FileTarget } from '../../../data/file-links.ts'
 import { userContent } from './content.ts'
 import { CollapsibleUserText } from '../../../../components/disclosure/UserText'
 import { copyText } from '../../../../components/clipboard.ts'
+import { parseAsk } from '../../../studio/reading-ask.ts'
 
 export function UserMessage({ message, onOpenFile }: { message: MastraDBMessage; onOpenFile: (target: FileTarget) => void }) {
   const { text, files, images } = userContent(message)
-  return <CollapsibleUserText text={text} leading={<>
+  const asked = parseAsk(text)
+  return <CollapsibleUserText text={asked ? asked.words : text} leading={<>
+    {asked && <blockquote className="msg-ask-quote" title={`${asked.item} · ${asked.section}`}>{asked.quote}</blockquote>}
     {files.length > 0 && <div className="msg-file-row">{files.map(file => <button type="button" className="msg-file-chip" key={`${file.target.scope}:${file.target.path}`} title={file.target.path} onClick={() => onOpenFile(file.target)}><FileTypeIcon name={file.name} size={ICON_SM} /><span className="file-chip-name">{file.name}</span></button>)}</div>}
     {images.length > 0 && <div className="mw-history-images">{images.map((image, index) => <InlineImage key={index} {...image} />)}</div>}
   </>} />

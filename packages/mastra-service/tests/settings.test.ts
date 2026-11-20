@@ -10,6 +10,9 @@ import { chmod, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openSettingsStore, SettingsError } from '../src/settings/store.ts'
+import { createConfiguredModels } from '../src/settings/models.ts'
+import { gatewayBaseUrl, PROVIDERS } from '../src/providers.ts'
+import { PROVIDER_IDS, type Provider } from '../src/settings/types.ts'
 
 const root = () => mkdtemp(join(tmpdir(), 'lumen-settings-'))
 const sampleKey = 'sk-fixture-credential-keep-private'
@@ -146,4 +149,48 @@ test('显式旧文件导入不修改源文件，损坏当前文件拒绝加载�
     })
     assert.equal(await readFile(join(dataRoot, 'settings.json'), 'utf8'), broken)
   } finally { await store.close(); await rm(dataRoot, { recursive: true, force: true }); await rm(sourceRoot, { recursive: true, force: true }) }
+})
+
+test('google is the native provider: default /v1beta, a pasted /openai/ path stripped, resolved as a Google Generative AI model', async () => {
+  const dataRoot = await root()
+  const store = await openSettingsStore({ dataRoot })
+  try {
+    await store.update({
+      upsertProfile: {
+        id: 'gemini', name: 'Google', provider: 'google',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+        apiKey: sampleKey, models: ['gemini-4-hydrogen'], activeModel: 'gemini-4-hydrogen',
+      },
+      activeProfileId: 'gemini',
+    })
+    const ms = store.modelSettings()!
+    assert.equal(ms.provider, 'google')
+    assert.equal(ms.baseURL, 'https://generativelanguage.googleapis.com/v1beta')
+
+    await store.update({ upsertProfile: { id: 'gemini', baseUrl: '' } })
+    assert.equal(store.modelSettings()?.baseURL, 'https://generativelanguage.googleapis.com/v1beta')
+
+    const registry = createConfiguredModels()
+    const routerId = registry.select(store.modelSettings()!)
+    const [, providerId, ...rest] = routerId.split('/')
+    const model = await registry.gateway.resolveLanguageModel({ providerId: providerId!, modelId: rest.join('/'), apiKey: sampleKey })
+    assert.equal(model.provider, 'google.generative-ai')
+    assert.equal(model.modelId, 'gemini-4-hydrogen')
+  } finally { await store.close(); await rm(dataRoot, { recursive: true, force: true }) }
+})
+
+test('Base URL per API format: empty takes the default, a pasted endpoint is stripped', () => {
+  const cases: Array<[Provider, string, string]> = [
+    ['openai', '', 'https://api.openai.com/v1'],
+    ['openai', 'https://api.deepseek.com', 'https://api.deepseek.com/v1'],
+    ['openai', 'https://proxy.example/v1/chat/completions/', 'https://proxy.example/v1'],
+    ['anthropic', '', 'https://api.anthropic.com/v1'],
+    ['anthropic', 'https://api.anthropic.com/v1/messages', 'https://api.anthropic.com/v1'],
+    ['google', '', 'https://generativelanguage.googleapis.com/v1beta'],
+    ['google', 'https://generativelanguage.googleapis.com', 'https://generativelanguage.googleapis.com/v1beta'],
+    ['google', 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', 'https://generativelanguage.googleapis.com/v1beta'],
+    ['google', 'https://proxy.example/gemini/', 'https://proxy.example/gemini'],
+  ]
+  for (const [provider, input, expected] of cases) assert.equal(gatewayBaseUrl(provider, input), expected, `${provider} ${input || '(empty)'}`)
+  assert.deepEqual(Object.keys(PROVIDERS).sort(), [...PROVIDER_IDS].sort())
 })

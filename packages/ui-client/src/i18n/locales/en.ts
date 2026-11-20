@@ -55,7 +55,7 @@ export const en = {
       widgetIdle: 'Interactive widget', widgetRun: 'Open', widgetExpand: 'Expand', widgetCollapse: 'Restore (Esc)',
       ask: {
         label: 'Ask the AI about this sentence', placeholder: 'Ask about this sentence', send: 'Send', close: 'Close',
-        keep: 'Keep as my takeaway', kept: 'Kept as your takeaway', keepFailed: "Couldn't keep it: ", keepEmpty: 'Write your words first',
+        keep: 'Save my words as a takeaway', kept: 'Saved as your takeaway', keepFailed: "Couldn't save it: ",
         you: 'You', thinking: 'The AI is thinking…',
       },
     },
@@ -184,7 +184,7 @@ export const en = {
     busyHint: 'Research running: only the model can be switched',
     noModelId: 'No model ID', noKey: ' · No key', inUse: 'In use', enable: 'Use', deleteProfile: (name: string) => `Delete ${name}`,
     editProfile: 'Edit profile', newProfile: 'New model profile', name: 'Name', namePlaceholder: 'DeepSeek / Claude / GPT …', profileName: 'Profile name',
-    modelProfile: 'Model profile', provider: 'API format', providers: { openai: 'OpenAI-compatible (DeepSeek, proxies…)', anthropic: 'Anthropic (Claude API)' },
+    modelProfile: 'Model profile', provider: 'API format', providers: { openai: 'OpenAI-compatible (DeepSeek, proxies…)', anthropic: 'Anthropic (Claude API)', google: 'Google Gemini (native API)' },
     keyKept: 'Saved. Leave blank to keep the current key.', enterKey: 'Enter API key', vision: 'Image input', auto: 'Auto',
     modelId: 'Model ID', modelIdN: (index: number) => `Model ID ${index}`, removeModelId: 'Remove this model ID', addModelId: 'Add another model ID',
     contextWindow: 'Context window (optional)', pricing: 'Model pricing (optional)',

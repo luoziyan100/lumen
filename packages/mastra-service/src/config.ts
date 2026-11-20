@@ -7,9 +7,11 @@
 import { readFile } from 'node:fs/promises'
 import { z } from 'zod'
 import type { ModelSettings } from './model.ts'
+import { gatewayBaseUrl } from './providers.ts'
+import { PROVIDER_IDS } from './settings/types.ts'
 
 const profileSchema = z.object({
-  provider: z.enum(['openai', 'anthropic']), apiKey: z.string().min(1),
+  provider: z.enum(PROVIDER_IDS), apiKey: z.string().min(1),
   baseUrl: z.string().url(), activeModel: z.string().min(1),
 })
 
@@ -21,7 +23,5 @@ export async function readModelProfile(path: string): Promise<ModelSettings> {
   const result = profileSchema.safeParse(selected)
   if (!result.success) throw new Error('Active model profile is incomplete')
   const profile = result.data
-  const url = new URL(profile.baseUrl)
-  url.pathname = url.pathname.replace(/\/(chat\/completions|messages)\/?$/, '').replace(/\/$/, '') || '/v1'
-  return { provider: profile.provider, model: profile.activeModel, apiKey: profile.apiKey, baseURL: url.toString().replace(/\/$/, '') }
+  return { provider: profile.provider, model: profile.activeModel, apiKey: profile.apiKey, baseURL: gatewayBaseUrl(profile.provider, profile.baseUrl) }
 }

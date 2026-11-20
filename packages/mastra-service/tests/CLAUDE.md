@@ -33,7 +33,7 @@ P0 预注册：工具结果必须进入下一轮模型请求；两个会话不�
 
 - `catalog.test.ts`：真实 catalog.sqlite 主题与 Mastra Memory 重开、主题归属（未知 404/归档 409）、元数据与分页；原生审批和挂起状态经 HTTP 快照恢复。
 
-- `settings.test.ts`：真实临时目录中的多模型档案、掩码密钥更新、显式旧设置导入、串行保存与磁盘失败保留。
+- `settings.test.ts`：真实临时目录中的多模型档案、掩码密钥更新、显式旧设置导入、串行保存与磁盘失败保留；Google 原生模型解析，每种协议的 Base URL 规整，协议名单与 providers.ts 表一一对应。
 - `approval-restore.test.ts`：待审批研究在服务重启后重新出现审批卡，经官方 tool-approval 路由批准后继续执行、写出文件并解除配置写闸。
 - `settings-runtime.test.ts`：空配置启动、实际模型热切换、重启后尚未打开的待答研究也阻止变更，停止后清空密钥不回退旧凭证。
 - `settings-http.test.ts`：公开设置响应脱敏、非法输入不落盘、保存前运行限制及保存后通知顺序。

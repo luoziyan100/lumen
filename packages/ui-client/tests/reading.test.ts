@@ -48,7 +48,8 @@ register('./helpers/tsx-loader.mjs', import.meta.url)
 register('data:text/javascript,' + encodeURIComponent(`export async function resolve(specifier, context, next) { if (specifier.endsWith('?url')) return { url: 'data:text/javascript,export default "test-worker-url"', shortCircuit: true }; return next(specifier, context) } export async function load(url, context, next) { const result = await next(url, context); if (url.endsWith('/WidgetFrame.tsx')) return { ...result, source: String(result.source).replaceAll('import.meta.env.BASE_URL', JSON.stringify('/')) }; return result }`), import.meta.url)
 const { createRoot } = await import('react-dom/client')
 const { StudioApp } = await import('../src/mastra/studio/StudioApp.tsx')
-const { askText, parseAsk, asksOf, footprintRanges, latestReadingWrite, readingSignal } = await import('../src/mastra/studio/reading-ask.ts')
+const { askText, parseAsk, asksOf, footprintRanges, latestReadingWrite, readingSignal, prose, readingAsks } = await import('../src/mastra/studio/reading-ask.ts')
+const { DEFAULT_SHAPE, SPRITE_KEY } = await import('../src/mastra/studio/sprite-place.ts')
 
 const token = 'ui-reading-token-at-least-24-characters'
 const headers = { Authorization: `Bearer ${token}` }
@@ -84,6 +85,19 @@ test('reading-ask: the question format reads back; replies attach to their quest
   const ask = message('m6', 'user', [{ type: 'text', text }])
   assert.equal(latestReadingWrite([msg, ask]), null)
   assert.deepEqual(latestReadingWrite([ask, msg]), { callId: 'c5', itemId: 'item-1' })
+})
+
+test('reading prose: **bold** and `code` are drawn without their markers; quotes, footprints and an old question that quoted the markers all use the shown text', () => {
+  const source = '递；**深度反馈控制（DFC）**源于运动控制，用 `u = Ke` 纠偏；a ** b 不是加粗，**未闭合'
+  const shown = prose(source)
+  assert.equal(shown.text, '递；深度反馈控制（DFC）源于运动控制，用 u = Ke 纠偏；a ** b 不是加粗，**未闭合')
+  assert.deepEqual(shown.marks.map(mark => [shown.text.slice(mark.start, mark.end), mark.kind]), [['深度反馈控制（DFC）', 'strong'], ['u = Ke', 'code']])
+  assert.deepEqual(prose('no marks here'), { text: 'no marks here', marks: [] })
+  const old = parseAsk(askText('深度反馈控制（DFC）**源于运动控制', '1. 核心结论', 'Paper', '这个是什么'))!
+  assert.equal(old.quote, '深度反馈控制（DFC）源于运动控制')
+  assert.deepEqual(footprintRanges(shown.text, [old.quote]).map(range => shown.text.slice(range.start, range.end)), ['深度反馈控制（DFC）源于运动控制'])
+  const reading = { itemTitle: 'Paper', sections: [{ paragraphs: [{ id: 'p1', text: source, source: { kind: 'inference' } }] }] } as never
+  assert.equal(readingAsks(reading, [{ ...old, messageId: 'm', identity: { topicId: 't', taskId: 'a' }, reply: '', createdAt: 0 }]).length, 1)
 })
 
 // One written format, two readers: the service keeps its own copy (it never imports UI code), so this test feeds the real askReading output to both
@@ -243,6 +257,7 @@ test('Reading view: write → live sections → chips → in-paragraph window �
     await select(texts[0]!.firstChild!, at, texts[0]!.firstChild!, at + quote.length)
     assert.ok($('.reading-ask'), '段内选择开窗')
     assert.equal($('.reading-ask-quote')!.textContent, quote)
+    assert.ok(![...$$('.reading-ask button')].some(node => node.textContent === S.reading.ask.keep), 'no keep button before a question')
     // jsdom has no layout, so only the rule is checked here: the window sits wholly below or wholly above the selected line (100–120px); real placement is in the browser assertions
     const top = parseFloat($('.reading-ask')!.style.top), height = $('.reading-ask')!.offsetHeight
     assert.ok(top >= 128 || top + height <= 92, `窗不能盖住选中的句子（top ${top}）`)
@@ -319,6 +334,34 @@ test('Reading view: write → live sections → chips → in-paragraph window �
     assert.equal($('.reading-ask'), null)
     await act(async () => $('.reading-footprint')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: ' ', bubbles: true })))
     await until(() => $$('.reading-ask-turn').length === 2, '空格也能打开足迹')
+    await act(async () => document.body.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true })))
+    assert.equal($('.reading-ask'), null, 'a press outside the window closes it')
+
+    await act(async () => root.unmount())
+    localStorage.setItem(SPRITE_KEY, JSON.stringify({ ...DEFAULT_SHAPE, open: true, docked: true }))
+    root = createRoot(element)
+    await act(async () => root.render(createElement(StudioApp, { connection })))
+    await until(() => $('.reading-footprint')?.textContent === quote, 'footprint after opening the conversation')
+    await act(async () => $('.reading-footprint')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+    await until(() => !!$('.sprite .mw-message.is-revealed .msg-ask-quote'), 'with the conversation open, the footprint scrolls the conversation to its question')
+    assert.equal($('.sprite .mw-message.is-revealed .msg-ask-quote')!.textContent, quote)
+    assert.ok($('.reading-ask'), 'the window still opens for a follow-up')
+    assert.equal($$('.reading-ask-turn').length, 0, 'with the conversation open, answers are not shown twice')
+    await act(async () => $<HTMLButtonElement>('.reading-ask .icon-btn')!.click())
+
+    const phrase = 'keeps the brain in states'
+    const walker = document.createTreeWalker($$('[data-paragraph]')[0]!, dom.window.NodeFilter.SHOW_TEXT)
+    let node: Node | null = null
+    while ((node = walker.nextNode()) && !node.textContent!.includes(phrase));
+    const from = node!.textContent!.indexOf(phrase)
+    await select(node!, from, node!, from + phrase.length)
+    assert.ok($('.reading-ask'), 'a new selection opens the window')
+    const asked = $$('.sprite .msg-ask-quote').length
+    await typeInto($<HTMLTextAreaElement>('.reading-ask textarea')!, '为什么能保持？')
+    await act(async () => $<HTMLTextAreaElement>('.reading-ask textarea')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true })))
+    await until(() => !$('.reading-ask'), 'with the conversation open, the window closes once the question is sent')
+    await until(() => $$('.sprite .msg-ask-quote').length === asked + 1 && $$('.sprite .msg-ask-quote').at(-1)!.textContent === phrase, 'the question lands in the open conversation')
+    await until(() => /KL 散度非负/.test($$('.sprite .mw-assistant').at(-1)?.textContent ?? ''), 'the answer streams into the open conversation')
   } finally {
     releaseSecond(); releaseHold()
     window.setInterval = original

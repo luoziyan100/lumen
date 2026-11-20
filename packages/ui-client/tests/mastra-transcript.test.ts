@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 真实 React 会话呈现组件、资料库附言消息形状与浏览器 DOM
- * [OUTPUT]: 附件边界、折叠、复制反馈与轮次导航的定向行为回归
+ * [OUTPUT]: 附件边界、折叠、复制反馈、轮次导航与解读划句提问气泡（引文 + 用户的话，出处只在 title）的定向行为回归
  * [POS]: 不调用模型或修改正式会话；验证原生消息的 UI 投影和实际点击
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -20,6 +20,7 @@ register('./helpers/tsx-loader.mjs', import.meta.url)
 const { createRoot } = await import('react-dom/client')
 const { UserMessage, MessageCopy } = await import('../src/mastra/views/conversation/transcript/Message.tsx')
 const { TurnRail } = await import('../src/mastra/views/conversation/transcript/TurnRail.tsx')
+const { askText } = await import('../src/mastra/studio/reading-ask.ts')
 
 function message(id: string, text: string, role: 'user' | 'assistant' = 'user'): MastraDBMessage {
   return { id, role, createdAt: new Date(), content: { format: 2, parts: [{ type: 'text', text }] } }
@@ -120,4 +121,20 @@ test('四轮出现导航，悬停显示对应摘要，点击将消息锚点交�
     await act(async () => buttons[1]!.dispatchEvent(new dom.window.MouseEvent('pointerout', { bubbles: true })))
     assert.equal(view.element.querySelector('.turn-rail-preview-desc'), null)
   } finally { await view.close(); scroller.current.remove() }
+})
+
+test('a reading question shows its quote and the person\'s words; the place line moves into the quote\'s tip; ** in an old quote is dropped', async () => {
+  const view = mounted()
+  try {
+    const text = askText('深度反馈控制（DFC）**源于运动控制', '1. 核心结论', 'A Control-Theoretic Approximation', '这个是什么')
+    await act(async () => view.root.render(createElement(UserMessage, { message: message('ask', text), onOpenFile: () => {} })))
+    const quote = view.element.querySelector('.msg-ask-quote')!
+    assert.equal(quote.textContent, '深度反馈控制（DFC）源于运动控制')
+    assert.equal(quote.getAttribute('title'), 'A Control-Theoretic Approximation · 1. 核心结论')
+    assert.equal(view.element.querySelector('.msg-fold-body')!.textContent, '这个是什么')
+    assert.doesNotMatch(view.element.textContent!, /解读《|^>/)
+    await act(async () => view.root.render(createElement(UserMessage, { message: message('plain', '> 只是引用\n普通的话'), onOpenFile: () => {} })))
+    assert.equal(view.element.querySelector('.msg-ask-quote'), null)
+    assert.equal(view.element.querySelector('.msg-fold-body')!.textContent, '> 只是引用\n普通的话')
+  } finally { await view.close() }
 })

@@ -1,15 +1,14 @@
 /**
- * [INPUT]: 已解析的模型配置、SDK 提供商和 Mastra Gateway 公共接口
+ * [INPUT]: 已解析的模型配置、providers.ts 的协议表（建模型、是否 OpenAI SSE）和 Mastra Gateway 公共接口
  * [OUTPUT]: createConfiguredModels：不可变配置注册、稳定模型 ID 选择与流前上游错误有界重试
  * [POS]: 设置到模型网络的边界；相同有效配置复用注册版本，仅在模型尚未输出正文或工具增量时重试
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
-import { createAnthropic } from '@ai-sdk/anthropic'
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
 import type { MastraModelGatewayInterface } from '@mastra/core/llm'
 import type { ModelSettings } from '../model.ts'
+import { languageModel, providerSpec } from '../providers.ts'
 import { SettingsError } from './schema.ts'
 
 const MAX_EARLY_RETRIES = 2
@@ -101,11 +100,8 @@ export function createConfiguredModels() {
     getApiKey: async routerId => fromRouterId(routerId).apiKey,
     resolveLanguageModel: ({ providerId, modelId }) => {
       const settings = configured(providerId, modelId)
-      const options = { baseURL: settings.baseURL, apiKey: settings.apiKey,
-        fetch: settings.provider === 'anthropic' ? settings.fetch : retryEarlyUpstreamError(settings.fetch ?? globalThis.fetch) }
-      return settings.provider === 'anthropic'
-        ? createAnthropic(options)(modelId)
-        : createOpenAICompatible({ ...options, name: providerId }).chatModel(modelId)
+      const fetch = providerSpec(settings.provider).openAiSse ? retryEarlyUpstreamError(settings.fetch ?? globalThis.fetch) : settings.fetch
+      return languageModel(settings.provider, { baseURL: settings.baseURL, apiKey: settings.apiKey, fetch }, modelId, providerId)
     },
     serializeForSpan: () => ({ id: 'lumen', name: 'Lumen configured models' }),
   }
