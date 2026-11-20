@@ -2,9 +2,9 @@
  * [INPUT]: a real HTTP service and application root, the Mastra Controller tool loop, the catalog.sqlite sediment tables, a controllable model network
  * [OUTPUT]: mechanism evidence for P1-1: entries created/edited/deleted only through user HTTP (edits keep revision rows); the R13 quote check accepts deletion-only
  *           results in Chinese and English and refuses changed/added/reordered characters, splices, foreign threads; settled shares the entry transaction
- *           (fills the sheet, releases on the last link, AI update/supersede refused, rev conflicts, superseded is no evidence); invites point only at current
- *           blocks of the run's target, latest replaces, nothing written; sediment_quote binds the newest matching user message; confirm counts kept vs restored (S14);
- *           R17 keeps entries and marks links deleted (the confirm body carries the takeaway count); topicState carries sediment within its cap; entries write while a
+ *           on old blocks (releases on the last link, rev conflicts, superseded is no evidence, every link marked retired); invites point at live elements of the run's
+ *           target or at nothing, latest replaces, nothing written; sediment_quote binds the newest matching user message and its elementIds follow the invite rule
+ *           (no evidence link from elements); confirm counts kept vs restored (S14); R17 keeps entries and marks links deleted (the confirm body carries the takeaway count); topicState carries sediment within its cap; entries write while a
  *           run is parked (S10); a run that never touches sediment leaves nothing behind
  * [POS]: P1-1's service-side mechanism acceptance; the controllable model proves mechanism only and never stands in for real-model acceptance
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -18,6 +18,7 @@ import { join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { createHttpService } from '../../src/server.ts'
 import { topicState } from '../../src/studio/board-tools.ts'
+import { layOut, legacyBlock } from './canvas-fixtures.ts'
 import { quotePlan } from '../../src/studio/sediment.ts'
 import { fixtureProvider, textReply, toolReply, type ProviderRequest, type Reply } from '../provider-fixture.ts'
 import { ensureTopic } from '../topic-fixture.ts'
@@ -51,12 +52,12 @@ async function environment(respond: Respond) {
   return { dataRoot, fixture, service, studio, request,
     open: (topic: string, task: string) => request(`/lumen/topics/${topic}/sessions`, { method: 'POST', body: JSON.stringify({ taskId: task }) }),
     send: (resourceId: string, message: string) => request(`/api/agent-controller/lumen/sessions/${encodeURIComponent(resourceId)}/messages`, { method: 'POST', body: JSON.stringify({ message }) }),
-    sediment: async (topic: string) => await (await request(`/lumen/topics/${topic}/sediment`)).json() as { items: { id: string; text: string; origin: string; quote: { original: string } | null; links: { blockId: string; title: string; deleted: boolean }[] }[]; offers: { id: string; text: string; original: string; fragments: { text: string }[] }[] },
+    sediment: async (topic: string) => await (await request(`/lumen/topics/${topic}/sediment`)).json() as { items: { id: string; text: string; origin: string; quote: { original: string } | null; links: { blockId: string; title: string; deleted: boolean; retired: boolean }[] }[]; offers: { id: string; text: string; original: string; fragments: { text: string }[] }[] },
     post: async (topic: string, body: unknown) => json(await request(`/lumen/topics/${topic}/sediment`, { method: 'POST', body: JSON.stringify(body) })),
     patch: async (topic: string, entryId: string, body: unknown) => json(await request(`/lumen/topics/${topic}/sediment/${entryId}`, { method: 'PATCH', body: JSON.stringify(body) })),
     drop: async (topic: string, entryId: string) => json(await request(`/lumen/topics/${topic}/sediment/${entryId}`, { method: 'DELETE' })),
     dismiss: async (topic: string, offerId: string) => json(await request(`/lumen/topics/${topic}/sediment/offers/${offerId}`, { method: 'DELETE' })),
-    invite: async (sheetId: string) => await (await request(`/lumen/sheets/${sheetId}/invite`)).json() as { invite: { question: string; blockIds: string[] } | null },
+    invite: async (sheetId: string) => await (await request(`/lumen/sheets/${sheetId}/invite`)).json() as { invite: { question: string; elementIds: string[] } | null },
     remove: async (topic: string, sheetId: string, confirm = false) => json(await request(`/lumen/topics/${topic}/sheets/${sheetId}${confirm ? '?confirm=true' : ''}`, { method: 'DELETE' })),
     async close() { await service.close(); await rm(dataRoot, { recursive: true, force: true }) },
   }
@@ -70,9 +71,10 @@ function rows(dataRoot: string, table: string, where = '', ...args: string[]) {
   } finally { db.close() }
 }
 
-const origin = { threadId: 'p:a', runId: 'r0' }
-const draw = (env: Awaited<ReturnType<typeof environment>>, title: string, sheetId?: string | null, topicId = 'p') =>
-  env.studio.board.draw(topicId, { kind: 'text', title, content: { markdown: title } }, origin, sheetId)
+/** An old block written straight into the kept blocks table: evidence links only ever point at these since the canvas (2026-11-19) */
+const draw = (env: Awaited<ReturnType<typeof environment>>, title: string, sheetId?: string | null, topicId = 'p', state?: 'current' | 'superseded') =>
+  ({ blockId: legacyBlock(env.studio.db, sheetId ?? env.studio.board.writableSheet(topicId).id, { title, state }) })
+const blockState = (env: Awaited<ReturnType<typeof environment>>, blockId: string) => String(env.studio.db.prepare('SELECT state FROM blocks WHERE id = ?').get(blockId)!.state)
 
 test('typed entries: create/list/edit (revision rows)/delete through HTTP; one plain line ≤280; nothing soft-deleted', { timeout: 30000 }, async () => {
   const env = await environment(() => textReply('好'))
@@ -146,54 +148,38 @@ test('R13 quote check (storage): delete-only passes in Chinese and English; chan
   } finally { await env.close() }
 })
 
-test('S3 evidence: linking settles in the same transaction, settled blocks still fill the sheet, the last link gone returns current; rev conflict and bad blocks refused; AI cannot change a settled block', { timeout: 30000 }, async () => {
+test('S3 evidence on old blocks: linking settles in the same transaction, the last link gone returns current; rev conflict and bad blocks refused; every link is marked retired', { timeout: 30000 }, async () => {
   const env = await environment(() => textReply('好'))
   try {
     ensureTopic(env.service, 'p', '反馈')
     const sheet = env.studio.board.sheets('p')[0]!
     const first = draw(env, '第一块', sheet.id).blockId
-    // ---- link with the rev the UI saw: the block settles, used keeps counting it ----
-    const linked = (await env.post('p', { text: '留这句', blocks: [{ id: first, rev: 1 }] })).body as { id: string }
-    assert.equal(env.studio.board.view(sheet.id).blocks[0]!.state, 'settled')
-    assert.equal(env.studio.board.sheet(sheet.id).used, 1)
-    // ---- fill the sheet: settled blocks do not free room (S3), only superseded does ----
-    for (let i = 0; i < 7; i++) draw(env, `第${i + 2}块`, sheet.id)
-    assert.equal(env.studio.board.sheet(sheet.id).used, 8)
-    let full: unknown
-    try { full = draw(env, '挤不进', sheet.id) } catch (error) { full = error }
-    assert.ok(full instanceof Error && (full as Error & { code?: string }).code === 'board.sheet_full')
-    assert.match(String(full.message), /sediment_invite/, 'the full-board refusal points at the invite tool (S5)')
-    const spare = env.studio.board.view(sheet.id).blocks.at(-1)!
-    env.studio.board.supersede('p', { blockId: spare.id }, origin, sheet.id)
-    assert.equal(env.studio.board.sheet(sheet.id).used, 7)
-    assert.ok(!(draw(env, '腾出来的位置', sheet.id) instanceof Error))
+    // ---- link with the rev the UI saw: the block settles ----
+    const linked = (await env.post('p', { text: '留这句', blocks: [{ id: first, rev: 1 }] })).body as { id: string; links: { retired: boolean }[] }
+    assert.equal(blockState(env, first), 'settled')
+    assert.deepEqual(linked.links.map(link => link.retired), [true], 'blocks retired with the canvas: the link is a title only')
     // ---- a second entry may lean on the same block; both must go before it returns to current ----
     const second = (await env.post('p', { text: '也靠它', blocks: [{ id: first, rev: 1 }] })).body as { id: string }
     await env.drop('p', linked.id)
-    assert.equal(env.studio.board.view(sheet.id).blocks[0]!.state, 'settled', 'one link left keeps it settled')
+    assert.equal(blockState(env, first), 'settled', 'one link left keeps it settled')
     await env.drop('p', second.id)
-    assert.equal(env.studio.board.view(sheet.id).blocks[0]!.state, 'current', 'the last link gone returns it to current')
+    assert.equal(blockState(env, first), 'current', 'the last link gone returns it to current')
     // ---- conflicts and bad targets keep the stable codes ----
     const stale = await env.post('p', { text: '对不上版本', blocks: [{ id: first, rev: 99 }] })
     assert.equal(stale.status, 409)
     assert.equal(stale.body.code, 'sediment.link_stale')
     ensureTopic(env.service, 'q', '别的')
     const otherTopic = draw(env, '别家的块', env.studio.board.sheets('q')[0]!.id, 'q').blockId
-    for (const blocks of [[{ id: 'no-such-block', rev: 1 }], [{ id: otherTopic, rev: 1 }], [{ id: spare.id, rev: 1 }]]) {
+    const spare = draw(env, '被取代的块', sheet.id, 'p', 'superseded').blockId
+    for (const blocks of [[{ id: 'no-such-block', rev: 1 }], [{ id: otherTopic, rev: 1 }], [{ id: spare, rev: 1 }]]) {
       const refused = await env.post('p', { text: '挂不上', blocks })
       assert.equal(refused.status, 400, JSON.stringify(refused.body))
       assert.equal(refused.body.code, 'sediment.link_invalid')
     }
-    // ---- the AI cannot update or supersede a settled block; the refusal says why (S3) ----
-    env.studio.sediment.create('p', { text: '证据句', origin: 'typed', blocks: [{ id: first, rev: 1 }] })
-    assert.throws(() => env.studio.board.update('p', { blockId: first, baseRev: 1, content: { markdown: '改' } }, origin, sheet.id),
-      (error: Error & { code?: string }) => /留作沉淀的证据/.test(error.message) && error.code === 'board.block_not_current')
-    assert.throws(() => env.studio.board.supersede('p', { blockId: first }, origin, sheet.id),
-      (error: Error & { code?: string }) => /留作沉淀的证据/.test(error.message) && error.code === 'board.block_already_replaced')
   } finally { await env.close() }
 })
 
-test('sediment_invite: points only at current blocks of the run target sheet (R16), latest replaces earlier, writes no entry', { timeout: 60000 }, async () => {
+test('sediment_invite: points only at live elements of the run target sheet (R16) or at nothing, latest replaces earlier, writes no entry', { timeout: 60000 }, async () => {
   let calls = 0
   const call = (name: string, args: unknown) => toolReply(name, args, `call-${++calls}`)
   const env = await environment(request => {
@@ -208,10 +194,10 @@ test('sediment_invite: points only at current blocks of the run target sheet (R1
       }
       return undefined
     }
-    if (text.includes('画一块')) return results ? textReply('画好了') : call('board_draw', { kind: 'text', title: '值得留的一块', content: { markdown: '对齐' } })
-    if (text.includes('邀请')) return results ? textReply('请用户写一句') : call('sediment_invite', { blockIds: [lastBlockId()], question: '注意力是什么，用你自己的话说？' })
-    if (text.includes('再邀')) return results ? textReply('换了个问法') : call('sediment_invite', { blockIds: [lastBlockId()], question: '换成：对齐在做什么？' })
-    if (text.includes('邀别家')) return results ? textReply('被拒了') : call('sediment_invite', { blockIds: [lastBlockId()], question: '错块' })
+    if (text.includes('画一块')) return results ? textReply('画好了') : call('board_draw', { title: '值得留的一块', elements: [{ type: 'text', x: 0, y: 0, text: '对齐' }] })
+    if (text.includes('邀请')) return results ? textReply('请用户写一句') : call('sediment_invite', { elementIds: [lastBlockId()], question: '注意力是什么，用你自己的话说？' })
+    if (text.includes('再邀')) return results ? textReply('换了个问法') : call('sediment_invite', { question: '换成：对齐在做什么？' })
+    if (text.includes('邀别家')) return results ? textReply('被拒了') : call('sediment_invite', { elementIds: [lastBlockId()], question: '错块' })
     return textReply('好')
   })
   try {
@@ -221,26 +207,30 @@ test('sediment_invite: points only at current blocks of the run target sheet (R1
     const session = await env.service.application.session('p', 'a')
     // ---- draw a block on the run target; the tool result hands the model its id ----
     assert.equal((await env.send('p:a', '画一块')).status, 200)
-    await until(() => env.studio.board.view(here.id).blocks.length === 1, 'draw did not land')
-    const block = env.studio.board.view(here.id).blocks[0]!
+    await until(() => env.studio.board.canvas.ops(here.id).length === 1, 'draw did not queue')
+    // the app lays the draw out, so the element is live on the sheet
+    const [op] = env.studio.board.canvas.ops(here.id)
+    env.studio.board.canvas.commit(here.id, op!.id, layOut(op!))
+    const block = { id: op!.ids[0]! }
     // ---- a block on another sheet cannot be invited: switch the selection, invite from the new run (R16) ----
     const other = env.studio.board.createSheet('p')
     assert.equal((await env.request(`/lumen/topics/p/selection`, { method: 'PUT', body: JSON.stringify({ sheetId: other.id }) })).status, 200)
     assert.equal((await env.send('p:a', '邀别家的块')).status, 200)
     await until(() => !session.displayState.get().isRunning && env.fixture.requests.length >= 4, 'refused invite run did not finish')
-    assert.match(JSON.stringify(env.fixture.requests.at(-1)!.messages.filter(message => message.role === 'tool')), /不在这一轮写入的白板/)
+    assert.match(JSON.stringify(env.fixture.requests.at(-1)!.messages.filter(message => message.role === 'tool')), /不在这一轮的白板上/)
     // ---- invite on the target: stored per sheet, nothing written as an entry ----
     assert.equal((await env.request(`/lumen/topics/p/selection`, { method: 'PUT', body: JSON.stringify({ sheetId: here.id }) })).status, 200)
     assert.equal((await env.send('p:a', '邀请')).status, 200)
     await until(async () => (await env.invite(here.id)).invite !== null, 'invite did not land')
     const invited = (await env.invite(here.id)).invite!
     assert.equal(invited.question, '注意力是什么，用你自己的话说？')
-    assert.deepEqual(invited.blockIds, [block.id])
+    assert.deepEqual(invited.elementIds, [block.id])
     assert.deepEqual((await env.sediment('p')).items, [], 'the invite writes no entry (R13)')
     assert.deepEqual((await env.sediment('p')).offers, [])
     // ---- inviting again replaces the earlier question ----
     assert.equal((await env.send('p:a', '再邀')).status, 200)
     await until(async () => (await env.invite(here.id)).invite?.question === '换成：对齐在做什么？', 'replace invite did not land')
+    assert.deepEqual((await env.invite(here.id)).invite!.elementIds, [], 'an invite may point at nothing')
     assert.equal(rows(env.dataRoot, 'sediment_invites'), 1, 'latest replaces, one row per sheet')
     assert.equal((await env.invite(other.id)).invite, null)
   } finally { await env.close() }
@@ -264,8 +254,7 @@ test('R17 with sediment: deleting the sheet keeps the entries, the confirm body 
     const list = await env.sediment('p')
     assert.equal(list.items.length, 2)
     const linked = list.items.find(item => item.text === '靠这块的判断')!
-    assert.deepEqual(linked.links.map(link => [link.blockId, link.title, link.deleted]), [[block, '证据块', true]])
-    assert.equal((await env.request(`/lumen/blocks/${block}`)).status, 404)
+    assert.deepEqual(linked.links.map(link => [link.blockId, link.title, link.deleted, link.retired]), [[block, '证据块', true, true]])
     // ---- a sheet without linked takeaways does not add the settled field ----
     draw(env, '另一块', first.id)
     const plain = await env.remove('p', first.id)
@@ -273,7 +262,7 @@ test('R17 with sediment: deleting the sheet keeps the entries, the confirm body 
   } finally { await env.close() }
 })
 
-test('S6 topicState: the entries ride along newest first with origin and evidence titles, settled blocks are marked, the cap still holds', { timeout: 30000 }, async () => {
+test('S6 topicState: the entries ride along newest first with origin and evidence titles, the cap still holds', { timeout: 30000 }, async () => {
   const env = await environment(() => textReply('好'))
   try {
     ensureTopic(env.service, 'p', '反馈')
@@ -281,15 +270,12 @@ test('S6 topicState: the entries ride along newest first with origin and evidenc
     const block = draw(env, '梯子块', sheet.id).blockId
     await env.post('p', { text: '第一条沉淀' })
     await env.post('p', { text: '第二条，带证据', blocks: [{ id: block, rev: 1 }] })
-    // ---- newest first, origin labelled, evidence titled, settled marked ----
+    // ---- newest first, origin labelled, evidence titled ----
     const state = topicState(env.studio, 'p')
     const lines = state.split('\n')
-    const sedimentAt = lines.findIndex(line => line.includes('用户的沉淀'))
-    const blockAt = lines.findIndex(line => line.includes('梯子块'))
-    assert.ok(sedimentAt >= 0 && blockAt > sedimentAt, state)
+    assert.ok(lines.some(line => line.includes('用户的沉淀')), state)
     assert.match(lines.find(line => line.startsWith('- 「第二条')) ?? '', /^- 「第二条，带证据」（自写 · 证据 「梯子块」）/)
     assert.match(state, /- 「第一条沉淀」（自写）/)
-    assert.match(state, /已沉淀（用户留作证据，不改它）/)
     // ---- the cap drops the oldest entries first, like the other sections ----
     const tight = topicState(env.studio, 'p', 120)
     assert.match(tight, /用户的沉淀/)
@@ -407,5 +393,38 @@ test('sediment_quote + S14 habits: binds the newest matching user message, refus
     assert.equal((await env.request(`/lumen/speech-habits/${encodeURIComponent('那个')}`, { method: 'DELETE' })).status, 204)
     habits = await habitsOf()
     assert.ok(!habits.items.some(item => item.fragment === '那个'), 'a habit line can be deleted')
+  } finally { await env.close() }
+})
+
+test('sediment_quote elementIds follow the invite rule: live elements of the run target or none; a missing one refuses and stores nothing; confirming links no element', { timeout: 60000 }, async () => {
+  let pointAt: string[] | undefined
+  const env = await environment(request => {
+    const { results } = said(request)
+    if (results) return textReply('递回了')
+    return toolReply('sediment_quote', { text: '注意力就是对齐', ...(pointAt ? { elementIds: pointAt } : {}) }, `call-${Date.now()}`)
+  })
+  try {
+    ensureTopic(env.service, 'p', '反馈')
+    const sheetId = env.studio.board.sheets('p')[0]!.id, canvas = env.studio.board.canvas
+    const op = canvas.queueDraw(sheetId, '一句', [{ type: 'text', id: 'gist', x: 0, y: 0, text: '对齐' }], { threadId: 'p:a', runId: 'r0' })
+    canvas.commit(sheetId, op.id, layOut(op))
+    assert.equal((await env.open('p', 'a')).status, 201)
+    const session = await env.service.application.session('p', 'a')
+    const send = async (message: string) => {
+      const before = env.fixture.requests.length
+      assert.equal((await env.send('p:a', message)).status, 200)
+      await until(() => env.fixture.requests.length >= before + 2 && !session.displayState.get().isRunning, 'run did not finish')
+    }
+    pointAt = ['nowhere']
+    await send('注意力就是对齐吧')
+    assert.match(JSON.stringify(env.fixture.requests.at(-1)!.messages.filter(message => message.role === 'tool')), /元素 nowhere 不在这一轮的白板上/)
+    assert.deepEqual((await env.sediment('p')).offers, [], 'a refused quote stores no offer')
+    pointAt = ['gist']
+    await send('注意力就是对齐嘛')
+    const [offer] = (await env.sediment('p')).offers as unknown as { id: string; elementIds: string[] }[]
+    assert.deepEqual(offer!.elementIds, ['gist'])
+    const kept = await env.post('p', { offerId: offer!.id })
+    assert.equal(kept.status, 201)
+    assert.deepEqual((kept.body as { links: unknown[] }).links, [], 'canvas elements never become evidence links')
   } finally { await env.close() }
 })

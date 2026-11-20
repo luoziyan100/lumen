@@ -48,7 +48,7 @@ function model(hold = gate()) {
     if (last.includes('等一下')) { entered.open(); await hold.promise; return textReply('等到了') }
     if (!last.includes('全做一遍')) return textReply('好')
     const steps = [
-      () => call('board_draw', { kind: 'text', title: '反馈', content: { markdown: '输出回头压住输入' } }),
+      () => call('board_draw', { title: '反馈', elements: [{ type: 'text', x: 0, y: 0, text: '输出回头压住输入' }] }),
       () => call('write_file', { path: 'notes.md', content: 'topic work file' }),
       () => call('write_memory', { scope: 'topic', name: 'fact.md', content: 'a topic fact' }),
       () => call('task_write', { tasks: [{ id: 'r', content: '读', status: 'pending', activeForm: '在读' }] }),
@@ -173,15 +173,18 @@ test('删对话：它的线程、消息、专家线程、trace、游标和诊断
     await seed(env, 'topic-one', item.id)
     // The specialist record is lost (a crash between delegation start and the record write): the `topicId:taskId-<uuid>` sweep still finds the thread
     await (await env.http.application.storage.getStore('threadState'))!.deleteState({ threadId: 'topic-one:a', type: SPECIALISTS_STATE })
-    const board = env.studio.board.view(env.studio.board.writableSheet('topic-one').id)
+    const sheetId = env.studio.board.writableSheet('topic-one').id
+    const canvasIds = () => [...env.studio.board.canvas.ops(sheetId).flatMap(op => op.ids), ...env.studio.board.canvas.liveElements(sheetId).map(row => row.element.id)]
+    const board = canvasIds()
+    assert.ok(board.length > 0, 'the conversation drew on the board')
     const otherBefore = await leftovers(root, 'topic-one:b')
 
     assert.equal((await env.json('/lumen/topics/topic-one/sessions/a', { method: 'DELETE' })).status, 204)
     // What the conversation produced belongs to the topic (R20): only these columns may still name it, as a stamp of where a product came from
-    const stamps = new Set(['blocks.thread_id', 'sheet_versions.thread_id', 'sheet_versions.snapshot', 'reading_sections.thread_id', 'sediment_offers.thread_id', 'sediment_entries.quote_thread_id'])
+    const stamps = new Set(['canvas_elements.thread_id', 'canvas_ops.thread_id', 'canvas_erasures.thread_id', 'canvas_snapshots.thread_id', 'canvas_snapshots.elements', 'blocks.thread_id', 'sheet_versions.thread_id', 'sheet_versions.snapshot', 'reading_sections.thread_id', 'sediment_offers.thread_id', 'sediment_entries.quote_thread_id'])
     assert.deepEqual(await leftovers(root, 'topic-one:a', (table, column) => stamps.has(`${table}.${column}`)), [])
     assert.deepEqual(await leftovers(root, 'topic-one:b'), otherBefore, '另一段对话被动了')
-    assert.deepEqual(env.studio.board.view(board.sheet.id).blocks.map(block => block.id), board.blocks.map(block => block.id))
+    assert.deepEqual(canvasIds(), board)
     assert.equal(env.studio.readings.list('topic-one').length, 1)
     assert.equal(env.studio.sediment.list('topic-one').items.length, 1)
     // The topic's files stay: the workspace is the topic's, shared by its conversations
@@ -280,7 +283,7 @@ test('删到一半中断：对象已经隐去并拒绝运行；重启后服务�
     reopened = await service(root, fixture)
     assert.deepEqual(reopened.studio.deletions.list(), [])
     assert.deepEqual(await leftovers(root, 'topic-one'), [])
-    assert.deepEqual(await leftovers(root, 'topic-two:b', (table, column) => ['blocks.thread_id', 'sheet_versions.thread_id', 'sheet_versions.snapshot', 'reading_sections.thread_id', 'sediment_offers.thread_id', 'sediment_entries.quote_thread_id'].includes(`${table}.${column}`)), [])
+    assert.deepEqual(await leftovers(root, 'topic-two:b', (table, column) => ['canvas_elements.thread_id', 'canvas_ops.thread_id', 'canvas_erasures.thread_id', 'canvas_snapshots.thread_id', 'canvas_snapshots.elements', 'blocks.thread_id', 'sheet_versions.thread_id', 'sheet_versions.snapshot', 'reading_sections.thread_id', 'sediment_offers.thread_id', 'sediment_entries.quote_thread_id'].includes(`${table}.${column}`)), [])
     assert.deepEqual(await leftovers(root, 'topic-two:a'), twoBefore)
   } finally { await reopened?.http.close(); await rm(root, { recursive: true, force: true }) }
 })

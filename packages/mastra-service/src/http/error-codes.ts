@@ -20,6 +20,7 @@ export const ERROR_CODES = [
   'board.selected_sheet_closed', 'board.sheet_full', 'board.block_not_current', 'board.block_stale', 'board.block_already_replaced',
   'board.replace_self', 'board.replacement_missing', 'board.title_invalid', 'board.source_material', 'board.source_thread', 'board.block_not_found',
   'board.block_other_sheet', 'board.invalid_content', 'board.invalid_sources',
+  'board.element_invalid', 'board.element_too_large', 'board.element_exists', 'board.element_missing', 'board.not_yours', 'board.user_text', 'board.op_done', 'board.file_missing',
   'sediment.text_invalid', 'sediment.entry_not_found', 'sediment.offer_not_found', 'sediment.quote_invalid', 'sediment.quote_source',
   'sediment.link_invalid', 'sediment.link_stale', 'sediment.invite_blocks',
   'reading.not_found', 'reading.section_not_found', 'reading.invalid', 'reading.block_invalid', 'reading.too_many_sections', 'reading.too_many_paragraphs', 'reading.section_full', 'reading.paragraph_too_long',

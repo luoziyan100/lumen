@@ -1,12 +1,13 @@
 /**
  * [INPUT]: the real StudioApp (topics/board/materials/sprite/reader) with React DOM, a real HTTP service and Mastra Controller, a deterministic model
- * [OUTPUT]: shell behaviour evidence for S4 (S5 rework included: a lone sheet shows one numbered tab, first panel rows share the header line, the ladder break sits between two rungs,
- *           no repeated "AI 画的", topic ＋ Enter creates/Esc cancels; rework two: no topic name in the center header, no used-count, materials as one descending list;
+ * [OUTPUT]: shell behaviour evidence for S4 (S5 rework included: a lone sheet shows one numbered tab, first panel rows share the header line,
+ *           topic ＋ Enter creates/Esc cancels; rework two: no topic name in the center header, no used-count, materials as one descending list;
  *           post-P0: ⌘B/⌘⌥B collapse with localStorage, full/Esc, no ws-tag; the sprite: dragging the window carries the anchor, the collapsed avatar sits at the anchor corner, dragging the avatar never opens):
- *           all four block kinds render after real board_draw calls (ladder/table/widget/source chips and AI inference), the board refreshes only on tool-completion signals (the ETag poll is intercepted),
- *           conversation shows only board cards that jump to their block, "新对话" disables while the topic runs (R1), material rows show title only (without a link) and open the original in split, the sprite collapses/docks/drags and persists;
+ *           real board_draw calls reach the canvas (queued ops while the run continues, the app's commit, the AI's elements), the board refreshes only on tool-completion signals (the ETag poll is intercepted),
+ *           conversation shows only board cards that hand their element to the canvas, "新对话" disables while the topic runs (R1), material rows show title only (without a link) and open the original in split, the sprite collapses/docks/drags and persists;
  *           chrome: all six views (Reading first and the default) with icon and aria-label, upload in the materials header with no add-link entry, instant filtering/no match/Esc clear, settings alone at bottom-left, the specialists pane toggling/reloading through the real service with writes refused while running
- * [POS]: component-level acceptance for S4; the controllable model proves mechanism only and never stands in for real-model acceptance; no WebKit coverage claimed
+ * [POS]: component-level acceptance for S4; the controllable model proves mechanism only and never stands in for real-model acceptance; no WebKit coverage claimed.
+ *        The canvas is the stand-in of helpers/canvas-stub.mjs and the service fixture plays the app's layout and commit
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import test, { after } from 'node:test'
@@ -22,6 +23,7 @@ import { serve } from '@hono/node-server'
 import { createHttpService } from '../../mastra-service/src/server.ts'
 import { fixtureProvider, textReply, toolReply, type ProviderRequest } from '../../mastra-service/tests/provider-fixture.ts'
 import { ensureTopic } from '../../mastra-service/tests/topic-fixture.ts'
+import { layOut } from '../../mastra-service/tests/studio/canvas-fixtures.ts'
 import { LumenApi } from '../src/mastra/data/client.ts'
 import { zh } from './helpers/zh.ts'
 const S = zh.studio
@@ -36,6 +38,7 @@ Object.defineProperty(window, 'matchMedia', { configurable: true, value: () => (
 Object.defineProperty(dom.window.HTMLElement.prototype, 'scrollTo', { configurable: true, value(this: HTMLElement, options: ScrollToOptions) { this.scrollTop = Number(options?.top ?? 0) } })
 after(() => dom.window.close())
 register('./helpers/tsx-loader.mjs', import.meta.url)
+register('./helpers/canvas-stub.mjs', import.meta.url)
 register('data:text/javascript,' + encodeURIComponent(`export async function resolve(specifier, context, next) { if (specifier.endsWith('?url')) return { url: 'data:text/javascript,export default "test-worker-url"', shortCircuit: true }; return next(specifier, context) } export async function load(url, context, next) { const result = await next(url, context); if (url.endsWith('/WidgetFrame.tsx')) return { ...result, source: String(result.source).replaceAll('import.meta.env.BASE_URL', JSON.stringify('/')) }; return result }`), import.meta.url)
 const { createRoot } = await import('react-dom/client')
 const { StudioApp } = await import('../src/mastra/studio/StudioApp.tsx')
@@ -57,7 +60,7 @@ const said = (request: ProviderRequest) => {
   return { text: JSON.stringify(request.messages[lastUser]), results: request.messages.slice(lastUser).filter(message => message.role === 'tool').length }
 }
 
-test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷新；运行中新对话禁用；卡片跳块；材料分屏；精灵收起/停靠/拖动', { timeout: 90000 }, async () => {
+test('白板外壳：真实 board_draw 画到画布上并靠工具信号刷新；运行中新对话禁用；卡片把元素交给画布；材料分屏；精灵收起/停靠/拖动', { timeout: 90000 }, async () => {
   const dataRoot = await mkdtemp(join(tmpdir(), 'lumen-studio-app-')), token = 'studio-app-token-at-least-24-characters'
   const hold = gate(), arrived = gate(), midway = gate(), resume = gate()
   let itemId = ''
@@ -65,16 +68,18 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     const tools = request.tools?.map(tool => tool.function.name) ?? []
     if (!tools.includes('board_draw')) return textReply('标题')
     const { text, results } = said(request)
-    if (!text.includes('画四块')) return textReply('好')
+    if (!text.includes('画三笔')) return textReply('好')
     if (results === 0) { arrived.open(); await hold.promise }
     if (results === 1) { midway.open(); await resume.promise }
+    // The app lays out and commits each draw once its tool signal reaches the board; the fixture plays that part
+    const studio = service.application.studio
+    for (const sheet of studio.board.sheets('feedback')) for (const pending of studio.board.canvas.ops(sheet.id)) studio.board.canvas.commit(sheet.id, pending.id, layOut(pending))
     const draws = [
-      { kind: 'text', title: '负反馈是什么', content: { markdown: '输出回头**压住**输入。' }, sources: [{ itemId, page: 2, quote: '浮球' }] },
-      { kind: 'ladder', title: '理解的梯子', content: { rungs: [{ level: 1, text: '浮球与阀门' }, { level: 2, text: '恒温器' }, { level: 3, text: '闭环传递函数' }], here: 2, foggedAbove: 2, breakAt: 2 } },
-      { kind: 'table', title: '三种回路', content: { columns: ['回路', '结果'], rows: [['水箱', '稳定'], ['恒温器', '']], guessCells: [[1, 1]] } },
-      { kind: 'widget', title: '水位小实验', content: { html: '<p id="tank">水位</p>' } },
+      { title: '浮球与阀门', elements: [{ type: 'rectangle', id: 'float', x: 0, y: 0, width: 160, height: 60, label: { text: '浮球' } }, { type: 'rectangle', id: 'valve', x: 320, y: 0, width: 160, height: 60, label: { text: '阀门' } }] },
+      { title: '回头压住', elements: [{ type: 'arrow', id: 'push', x: 0, y: 0, start: { id: 'float' }, end: { id: 'valve' } }] },
+      { title: '三种回路', elements: [{ type: 'text', id: 'loops', x: 0, y: 160, text: '水箱 · 恒温器 · 巡航' }] },
     ]
-    return results < draws.length ? toolReply('board_draw', draws[results], `draw-${results}`) : textReply('画好了四块')
+    return results < draws.length ? toolReply('board_draw', draws[results], `draw-${results}`) : textReply('画好了三笔')
   })
   const service = await createHttpService({ dataRoot, token, model: { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixture.fetch } })
   const sheetReads: number[] = []
@@ -93,7 +98,7 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
   const found = await service.application.studio.library.add({ name: '控制论导论.txt', bytes: Buffer.from('维纳：反馈是控制的核心。'), addedBy: 'ai' })
   service.application.studio.topics.reference('feedback', found.item.id)
 
-  // ---- The 5-second ETag fallback poll is intercepted: blocks can only appear through the board tool-completion signal ----
+  // ---- The 5-second ETag fallback poll is intercepted: the AI's strokes can only appear through the board tool-completion signal ----
   const original = window.setInterval
   window.setInterval = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => timeout === 5000 ? 0 : original.call(window, handler, timeout, ...args)) as typeof window.setInterval
   localStorage.clear()
@@ -117,7 +122,7 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     assert.equal($('.studio-center')!.getAttribute('aria-label'), '负反馈为什么能稳住系统')
     assert.equal(document.title, '负反馈为什么能稳住系统 — Lumen')
     assert.ok(!$('.studio-center .studio-head')!.textContent!.includes('负反馈'))
-    // ---- U2: no used-count on display (the cap and R11 stay server-side) ----
+    // ---- U2: no used-count on display (the canvas has no capacity since 2026-11-19, R11) ----
     assert.ok(!$('.studio-board')!.textContent!.includes('已用'))
     assert.ok($('.board-easel') && !$('.board-empty'), '空白板是画架，没有说明句')
     // ---- G7/U1: a lone sheet shows one numbered tab, never the topic's name; the center never shows the topic name ----
@@ -236,7 +241,7 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     await until(() => !!$('.sprite-floating textarea'), '精灵没有展开到输入框')
     const input = $<HTMLTextAreaElement>('.sprite textarea')!
     await act(async () => {
-      Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value')!.set!.call(input, '画四块')
+      Object.getOwnPropertyDescriptor(dom.window.HTMLTextAreaElement.prototype, 'value')!.set!.call(input, '画三笔')
       input.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
     })
     await act(async () => { $('.sprite form')!.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })) })
@@ -256,44 +261,27 @@ test('白板外壳：真实 board_draw 画出四种区块并靠工具信号刷�
     const readsBefore = sheetReads.length
     hold.open()
 
-    // ---- Run unfinished, first block done: the board refreshed on the tool signal (the run-end onActivity has not happened yet) ----
+    // ---- Run unfinished, first draw done: the board refreshed on the tool signal (the run-end onActivity has not happened yet) and the canvas has the op ----
+    const canvas = () => $('.board-canvas')!
     await midway.promise
-    await until(() => $$('.board-block').length === 1, '第一块写完后白板没有在运行中刷新')
+    await until(() => !!$('.board-canvas') && canvas().dataset.ops !== '', '第一笔写完后白板没有在运行中刷新（排队的一笔该出现在画布上）')
     assert.ok(sheetReads.length > readsBefore, '白板应在工具完成后重取')
     assert.ok($('.topic .topic-light-running'), '此时运行还没结束')
     resume.open()
 
-    // ---- Four blocks landed through the real tools ----
-    await until(() => $$('.board-block').length === 4, '四块没有出现在白板上', 30000)
-    assert.ok(!$('.studio-board')!.textContent!.includes('已用'), '写了四块也不显示已用块数')
-    const [text, ladder, table, widget] = ['text', 'ladder', 'table', 'widget'].map(kind => $(`.board-block[data-kind=${kind}]`)!)
-    assert.match(text!.querySelector('.block-text')!.innerHTML, /<strong>压住<\/strong>/)
-    assert.equal(text!.querySelector('.source-chip')!.textContent, '水箱笔记 · p.2')
-    assert.deepEqual([...ladder!.querySelectorAll('.rung')].map(rung => rung.getAttribute('data-level')), ['3', '2', '1'])
-    assert.ok(ladder!.querySelector('.rung[data-level="3"].rung-fog'), '高于雾线的梯级要遮住')
-    assert.equal(ladder!.querySelector('.rung[data-level="3"] .rung-text')!.textContent, S.board.fog)
-    assert.ok(ladder!.querySelector('.rung[data-level="2"] .rung-here-tag'))
-    // ---- The break is drawn between breakAt's rung and the one above (R3/B5), never glued inside a rung ----
-    const broken = ladder!.querySelector('.rung-break')!
-    assert.equal(broken.textContent, S.board.broken)
-    assert.equal(broken.previousElementSibling!.getAttribute('data-level'), '3')
-    assert.equal(broken.nextElementSibling!.getAttribute('data-level'), '2')
-    assert.equal(ladder!.querySelector('.rung .rung-break'), null)
-    // ---- B2: no repeated "AI 画的" on every block; authorship lives in aria-label ----
-    assert.ok($$('.board-block').every(block => !block.textContent!.includes(S.board.by) && block.getAttribute('aria-label')!.startsWith(S.board.by)))
-    assert.equal(ladder!.querySelector('.source-chip-inferred')!.textContent, S.board.inferred)
-    assert.equal(table!.querySelector('.guess-cell')!.textContent, S.board.guess)
-    assert.equal(table!.querySelectorAll('tbody tr').length, 2)
-    assert.ok(widget!.querySelector('.block-widget iframe'), '唯一的小部件应在运行名额内')
+    // ---- Three draws landed through the real tools, as the AI's elements ----
+    await until(() => ['float', 'valve', 'push', 'loops'].every(id => canvas().dataset.elements!.split(' ').includes(id)), '三笔没有落到画布上', 30000)
+    assert.equal(canvas().dataset.ops, '', '每一笔都落了')
+    assert.ok(!$('.studio-board')!.textContent!.includes('已用'), '画了也不显示已用数')
+    assert.equal($('.board-easel'), null, '有了笔画，画架退场')
+    const rows = new Map(service.application.studio.board.canvas.liveElements(service.application.studio.board.sheets('feedback')[0]!.id).map(row => [row.element.id, row]))
+    assert.deepEqual(['float', 'valve', 'push', 'loops'].map(id => rows.get(id)!.author), ['ai', 'ai', 'ai', 'ai'])
 
-    // ---- The conversation shows only board cards; clicking one jumps to its block; a source chip opens the original in split ----
-    await until(() => $$('.sprite .board-card').length === 4, '对话里没有四张白板卡片')
+    // ---- The conversation shows only board cards; clicking one hands its element to the canvas ----
+    await until(() => $$('.sprite .board-card').length === 3, '对话里没有三张白板卡片')
     assert.equal($$('.sprite .mw-process').filter(node => /board_draw/.test(node.textContent ?? '')).length, 0, 'R6：白板工具不进过程步骤')
     await act(async () => $$('.sprite .board-card button').find(node => /三种回路/.test(node.textContent!))!.click())
-    assert.ok(table!.classList.contains('is-focused'), '点卡要跳到那块')
-    await act(async () => (text!.querySelector('.source-chip') as HTMLButtonElement).click())
-    await until(() => /浮球把阀门顶上/.test($('.studio-reader')?.textContent ?? ''), '出处签没有打开原件')
-    await click('关闭阅读器')
+    await until(() => canvas().dataset.focus === 'loops', '点卡要把那一笔交给画布')
 
     // ---- Run done: "新对话" is back; the sprite collapses/docks/drags and persists ----
     await until(() => !button(S.sprite.newConversation)!.disabled, '运行结束后新对话应恢复')

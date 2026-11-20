@@ -1,7 +1,8 @@
 /**
  * [INPUT]: the official MastraClient, the native-injected local service discovery and the chosen skill file manifest
- * [OUTPUT]: LumenApi, Connection, the topic/session catalog (rename, archive and delete of topics and conversations, the archived listing — R18–R20), library and topic references, the read-only board view and the user's selected sheet (R16; silent on an older service
- *           without the route, other failures throw), the user's sheet delete and block lookup (R17; an older service answers unsupported/unknown as due), the sediment endpoints
+ * [OUTPUT]: LumenApi, Connection, the topic/session catalog (rename, archive and delete of topics and conversations, the archived listing — R18–R20), library and topic references, the sheet list and the user's selected sheet (R16; silent on an older service
+ *           without the route, other failures throw), the user's sheet delete and which sheet holds an element (R17; an older service answers unsupported/unknown as due), the canvas
+ *           (scene by ETag, the user's save of changed elements, the commit of an AI op the app laid out, restore/dismiss of AI erasures, viewport, glance, image files), the sediment endpoints
  *           (entries/offers/invites, R13: user HTTP only) and speech habits, the topic's readings and one reading by ETag (read-only), RequestError carrying status and JSON body (messages map through the code into the UI language, i18n I6),
  *           whole skill packages, diagnostics and issue evaluation, snapshots with specialist usage, and ETag file versions; identities are {topicId, taskId}, reads and writes of one
  *           conversation serialize, and a manual unread is never overwritten by a late automatic ack
@@ -16,9 +17,11 @@ export interface Connection { baseUrl: string; token: string; error?: string }
 export interface Identity { topicId: string; taskId: string }
 export type { SessionSummary as SessionInfo, ArchivedSession, Page } from '../../../../mastra-service/src/catalog/types.ts'
 import type { SessionSummary as SessionInfo, ArchivedSession, Page } from '../../../../mastra-service/src/catalog/types.ts'
-export type { Topic, LibraryItem, TopicMaterial, Sheet, SheetView, SedimentEntry, SedimentOffer, SedimentInvite, SpeechHabit, Reading, ReadingSection, ReadingParagraph, ReadingTextBlock, ReadingTableBlock, ReadingDiagramBlock, ReadingWidgetBlock, ReadingSummary } from '../../../../mastra-service/src/studio/types.ts'
-import type { Topic, LibraryItem, TopicMaterial, Sheet, SheetView, SedimentEntry, SedimentOffer, SedimentInvite, SpeechHabit, Reading, ReadingSummary } from '../../../../mastra-service/src/studio/types.ts'
+export type { Topic, LibraryItem, TopicMaterial, Sheet, SedimentEntry, SedimentOffer, SedimentInvite, SpeechHabit, CanvasScene, CanvasElement, CanvasOp, CanvasErasure, Viewport, Reading, ReadingSection, ReadingParagraph, ReadingTextBlock, ReadingTableBlock, ReadingDiagramBlock, ReadingWidgetBlock, ReadingSummary } from '../../../../mastra-service/src/studio/types.ts'
+import type { Topic, LibraryItem, TopicMaterial, Sheet, SedimentEntry, SedimentOffer, SedimentInvite, SpeechHabit, CanvasScene, CanvasElement, Viewport, Reading, ReadingSummary } from '../../../../mastra-service/src/studio/types.ts'
 /** writable: newest live sheet (old field). selected/target come from R16 services; optional so an older service still parses. */
+/** An image of the canvas as Excalidraw keeps it (BinaryFileData's stored fields). */
+export interface CanvasFile { id: string; mimeType: string; dataURL: string }
 export interface SheetList { items: Sheet[]; writable: string | null; selected?: string | null; target?: string | null }
 import type { PublicSettings, SettingsPatch } from '../../../../mastra-service/src/settings/types.ts'
 import type { SkillMeta, SkillLayer } from '../../../../mastra-service/src/skills/types.ts'
@@ -50,7 +53,7 @@ export class RequestError extends Error {
   get routeMissing() { return this.status === 405 || (this.status === 404 && typeof this.detail?.error !== 'string') }
 }
 
-/** What deleting a sheet came to (R17). confirm: it has blocks and the user must agree first; unsupported: the service predates the route. settled: takeaways that lose their evidence link (S3). */
+/** What deleting a sheet came to (R17). confirm: it has content (canvas elements, plus old blocks) and the user must agree first; unsupported: the service predates the route. settled: takeaways that lose their evidence link (S3). */
 export type SheetDeletion = { kind: 'deleted'; selected: string | null } | { kind: 'confirm'; blocks: number; settled: number } | { kind: 'unsupported' }
 
 export class LumenApi {
@@ -92,9 +95,8 @@ export class LumenApi {
     try { return await this.request<{ selected: string | null }>(`/lumen/topics/${encodeURIComponent(topicId)}/selection`, 'PUT', { sheetId }) }
     catch (error) { if (error instanceof RequestError && (error.status === 404 || error.status === 405)) return null; throw error }
   }
-  sheet(sheetId: string) { return this.request<SheetView>(`/lumen/sheets/${encodeURIComponent(sheetId)}`) }
   /** The user's ＋ opens a new sheet (the service records it as the selection); the AI never opens one itself. */
-  /** Only the user deletes a sheet (R17). Without `confirmed`, a sheet with blocks comes back as `confirm` with the count; other refusals throw. */
+  /** Only the user deletes a sheet (R17). Without `confirmed`, a sheet with content comes back as `confirm` with the count; other refusals throw. */
   async deleteSheet(topicId: string, sheetId: string, confirmed = false): Promise<SheetDeletion> {
     try {
       const result = await this.request<{ selected: string | null }>(`/lumen/topics/${encodeURIComponent(topicId)}/sheets/${encodeURIComponent(sheetId)}${confirmed ? '?confirm=true' : ''}`, 'DELETE')
@@ -107,9 +109,9 @@ export class LumenApi {
       throw error
     }
   }
-  /** Which sheet a block is on. deleted: its sheet is gone (R17); unknown: the service predates the route. */
-  async blockSheet(blockId: string): Promise<{ kind: 'found'; sheetId: string } | { kind: 'deleted' } | { kind: 'unknown' }> {
-    try { return { kind: 'found', sheetId: (await this.request<{ sheetId: string }>(`/lumen/blocks/${encodeURIComponent(blockId)}`)).sheetId } }
+  /** Which sheet holds a live canvas element (a conversation card's). deleted: erased, its sheet deleted (R17), or a retired block id; unknown: the service predates the route. */
+  async elementSheet(topicId: string, elementId: string): Promise<{ kind: 'found'; sheetId: string } | { kind: 'deleted' } | { kind: 'unknown' }> {
+    try { return { kind: 'found', sheetId: (await this.request<{ sheetId: string }>(`/lumen/topics/${encodeURIComponent(topicId)}/elements/${encodeURIComponent(elementId)}`)).sheetId } }
     catch (error) {
       if (error instanceof RequestError && error.routeMissing) return { kind: 'unknown' }
       if (error instanceof RequestError && error.status === 404) return { kind: 'deleted' }
@@ -147,16 +149,34 @@ export class LumenApi {
     const response = await fetch(`${this.connection.baseUrl}/lumen/speech-habits/${encodeURIComponent(fragment)}`, { method: 'DELETE', headers: this.headers() })
     if (!response.ok && response.status !== 404) throw new Error(serviceErrorText(await response.json().catch(() => null), t().data.requestFailed(response.status)))
   }
-  /** ETag sheet read: an unchanged sheet answers view=null without re-parsing. */
-  async sheetVersion(sheetId: string, etag?: string | null): Promise<{ view: SheetView | null; etag: string | null }> {
-    const response = await fetch(`${this.connection.baseUrl}/lumen/sheets/${encodeURIComponent(sheetId)}`, { headers: { ...this.headers(), ...(etag ? { 'If-None-Match': etag } : {}) } })
-    if (response.status === 304) return { view: null, etag: etag ?? null }
+  // ---- The co-drawn canvas (2026-11-19): the user's strokes go through these routes; the AI's arrive as ops the app lays out and commits ----
+  /** ETag canvas read: an unchanged sheet answers scene=null without re-parsing. */
+  async canvas(sheetId: string, etag?: string | null): Promise<{ scene: CanvasScene | null; etag: string | null }> {
+    const response = await fetch(`${this.connection.baseUrl}${this.sheetPath(sheetId)}/canvas`, { headers: { ...this.headers(), ...(etag ? { 'If-None-Match': etag } : {}) } })
+    if (response.status === 304) return { scene: null, etag: etag ?? null }
     if (!response.ok) {
       const detail = await response.json().catch(() => null)
-      throw new Error(serviceErrorText(detail, t().data.requestFailed(response.status)))
+      throw new RequestError(serviceErrorText(detail, t().data.requestFailed(response.status)), response.status, detail && typeof detail === 'object' ? detail : null)
     }
-    return { view: await response.json() as SheetView, etag: response.headers.get('ETag') }
+    return { scene: await response.json() as CanvasScene, etag: response.headers.get('ETag') }
   }
+  /** The user's changed elements (and images new to the service); kept: stored copies that beat what was sent, to apply as they are. */
+  saveCanvas(sheetId: string, elements: unknown[], files: CanvasFile[] = []) {
+    return this.request<{ saved: number; kept: CanvasElement[] }>(`${this.sheetPath(sheetId)}/canvas`, 'PUT', files.length ? { elements, files } : { elements })
+  }
+  /** What the app laid out for one AI op; the first commit consumes it (a second answers board.op_done). */
+  commitOp(sheetId: string, opId: string, elements: unknown[], files: CanvasFile[] = []) {
+    return this.request<{ committed: number }>(`${this.sheetPath(sheetId)}/ops/${encodeURIComponent(opId)}`, 'POST', files.length ? { elements, files } : { elements })
+  }
+  /** R5: bring back every stroke the AI erased on this sheet, or keep the erase and drop the notice. */
+  restoreErasures(sheetId: string) { return this.request<{ restored: number }>(`${this.sheetPath(sheetId)}/erasures/restore`, 'POST') }
+  dismissErasures(sheetId: string) { return this.request<void>(`${this.sheetPath(sheetId)}/erasures/dismiss`, 'POST') }
+  /** The scene rectangle the user looks at; one row per sheet, never a version. */
+  saveViewport(sheetId: string, viewport: Viewport) { return this.request<void>(`${this.sheetPath(sheetId)}/viewport`, 'PUT', viewport) }
+  /** Q6: the latest PNG of the sheet for the model's eyes, overwritten; it never becomes a message or an attachment. */
+  saveGlance(sheetId: string, sceneVersion: number, dataURL: string) { return this.request<void>(`${this.sheetPath(sheetId)}/glance`, 'PUT', { sceneVersion, dataURL }) }
+  canvasFile(sheetId: string, fileId: string) { return this.request<CanvasFile>(`${this.sheetPath(sheetId)}/files/${encodeURIComponent(fileId)}`) }
+  private sheetPath(sheetId: string) { return `/lumen/sheets/${encodeURIComponent(sheetId)}` }
   // ---- Readings (P1-2): read-only for the person; the AI writes them through reading_write. An older service without the routes reads as no readings ----
   async readings(topicId: string): Promise<ReadingSummary[]> {
     try { return (await this.request<{ items: ReadingSummary[] }>(`/lumen/topics/${encodeURIComponent(topicId)}/readings`)).items }

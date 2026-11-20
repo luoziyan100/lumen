@@ -11,9 +11,10 @@ import { turnItems } from '../transcript/content'
 import { t } from '../../../../i18n/index.ts'
 export interface Step { id: string; name: string; chip?: string; status: 'running' | 'completed' | 'failed' | 'stopped'; error?: string }
 /** 白板写入在对话里只留一张卡片（R6）：画了/改了/取代了哪一块，点它跳到那块。 */
-export interface BoardCard { kind: 'board'; id: string; action: 'draw' | 'update' | 'supersede'; title: string; blockId?: string; running: boolean; status: Step['status']; error?: string }
+/** blockId: the draw's first element (old blocks in history carry their block id; the board says when it is gone). supersede only appears in history before the canvas. */
+export interface BoardCard { kind: 'board'; id: string; action: 'draw' | 'update' | 'erase' | 'supersede'; title: string; blockId?: string; running: boolean; status: Step['status']; error?: string }
 export type Row = { kind: 'message'; id: string; message: MastraDBMessage } | { kind: 'thought'; id: string; text: string; running: boolean; startedAt: Date | null } | { kind: 'process'; id: string; steps: Step[]; running: boolean; startedAt: Date | null } | BoardCard
-const BOARD_ACTIONS: Record<string, BoardCard['action']> = { board_draw: 'draw', board_update: 'update', board_supersede: 'supersede' }
+const BOARD_ACTIONS: Record<string, BoardCard['action']> = { board_draw: 'draw', board_update: 'update', board_erase: 'erase', board_supersede: 'supersede' }
 function boardCard(id: string, name: string, args: Record<string, unknown>, result: Record<string, unknown>, status: Step['status'], error?: string): BoardCard {
   const title = typeof result.title === 'string' ? result.title : typeof args.title === 'string' ? args.title : ''
   const blockId = typeof result.blockId === 'string' ? result.blockId : typeof args.blockId === 'string' ? args.blockId : undefined

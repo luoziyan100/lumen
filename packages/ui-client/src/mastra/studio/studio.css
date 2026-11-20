@@ -1,7 +1,7 @@
 /**
  * [INPUT]: tokens.css / yan-design-system tokens and the appearance skin variables (data-material: glass/paper)
  * [OUTPUT]: the new shell's styles — the prototype v7 skeleton (canvas base, 8px margins and gaps, rounded panels, one 50px header line, one 14px left edge, a four-step type scale, 30px controls),
- *           pane collapse to width 0 (--dur-base transition, instant under reduced motion), view navigation (icon + text, icons alone when narrow), material search plus title/link rows, the board canvas and its blocks (text/ladder/table/widget; the takeaway entry on current blocks), the sediment row inside the board and the takeaways view (dashed frames, restorable strikethrough, evidence chips), the reader split (divider, two minimums) and full view, the materials pane, the conversation sprite (52px, five faces, cross-fades, halo and idle breathing, motion off under reduced motion), the speech-habits pane in settings (S14), and the placement of the objects (the box under the topic list, the cabinet in empty materials, the press alone and centred in the empty takeaways, each placeholder view's object alone and centred)
+ *           pane collapse to width 0 (--dur-base transition, instant under reduced motion), view navigation (icon + text, icons alone when narrow), material search plus title/link rows, the board stage (the Excalidraw canvas with three controls hidden, solid notices, the erase banner, the sheet strip under the canvas), the sediment row inside the board and the takeaways view (dashed frames, restorable strikethrough, evidence chips), the reader split (divider, two minimums) and full view, the materials pane, the conversation sprite (52px, five faces, cross-fades, halo and idle breathing, motion off under reduced motion), the speech-habits pane in settings (S14), and the placement of the objects (the box under the topic list, the cabinet in empty materials, the press alone and centred in the empty takeaways, each placeholder view's object alone and centred)
  * [POS]: existing tokens only; controls and document islands keep solid surfaces while glass/paper skins ride the appearance pipeline. Sizes reference only the four variables below (G4)
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -114,17 +114,12 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 .studio-seg button.on { background: var(--surface-elevated); color: var(--text); box-shadow: var(--shadow-1); }
 .studio-split .studio-seg button, .studio-seg.is-compact button { padding: 0 8px; }
 
-/* ---- The board ---- */
+/* ---- The board: the canvas fills the stage; the sheet strip is its own row under it, so Excalidraw's toolbar and menus never meet it ---- */
 .studio-board { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.board-viewport { position: relative; flex: 1; min-height: 0; overflow: hidden; cursor: grab; touch-action: none; background-color: var(--surface-base); background-image: radial-gradient(color-mix(in srgb, var(--text) 13%, transparent) 1px, transparent 1.2px); background-size: 22px 22px; }
-.board-viewport:active { cursor: grabbing; }
-.board-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-.board-frame { position: absolute; box-sizing: border-box; border: 1.5px dashed var(--border-strong); border-radius: var(--radius-lg); pointer-events: none; }
-.board-frame-label { position: absolute; top: -20px; right: 0; font-size: var(--st-note); color: var(--text-muted); white-space: nowrap; }
-/* The top-left overlay (G7/U2): sheet tabs · ＋ when there are several; no used-count on display */
-/* W1: one tab line each, 160px max with ellipsis and the full name in title; overflow scrolls sideways inside the overlay instead of wrapping (the overlay is always 30 high, and W2's canvas origin leaves room for it) */
-.board-sheets { position: absolute; left: var(--st-inset); top: 12px; z-index: 5; display: flex; align-items: center; gap: 6px; box-sizing: border-box; height: var(--st-control); max-width: calc(100% - 2 * var(--st-inset)); padding: 0; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-1); }
-.board-tabs { position: relative; display: flex; gap: 2px; min-width: 0; padding-left: 3px; overflow-x: auto; scrollbar-width: none; }
+.board-viewport { position: relative; flex: 1; min-height: 0; overflow: hidden; background-color: var(--surface-base); }
+/* W1: one tab line each with the full name in title; overflow scrolls sideways instead of wrapping */
+.board-sheets { flex: none; display: flex; align-items: center; gap: 6px; box-sizing: border-box; height: calc(var(--st-control) + 8px); padding: 0 var(--st-inset); background: var(--surface-elevated); border-top: 1px solid var(--border); }
+.board-tabs { position: relative; display: flex; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .board-tabs::-webkit-scrollbar { display: none; }
 .board-tabs button { position: relative; flex: none; display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 7px; border: 0; border-radius: 7px; background: none; color: var(--text-muted); font-size: var(--st-note); font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; }
 .board-tabs button.on { background: var(--surface-fill); color: var(--text); }
@@ -136,7 +131,6 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 .board-tab:hover .board-tab-more, .board-tab:focus-within .board-tab-more, .board-tab.is-on .board-tab-more { width: 16px; margin-right: 3px; opacity: 1; }
 .board-tabs .board-tab-more:hover, .board-tabs .board-tab-more[data-popup-open] { color: var(--text); }
 .board-tabs .board-tab-more:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.board-notice { top: 50px; }
 .board-tabs button.is-folded { color: var(--text-faint); }
 .board-tabs button.is-folded.on { color: var(--text-muted); }
 .board-tab-number { min-width: 1ch; text-align: center; }
@@ -144,62 +138,29 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 .board-tab-dot { position: absolute; top: 2px; right: 2px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); animation: studio-pulse 1s var(--ease-out) infinite; }
 @media (prefers-reduced-motion: reduce) { .board-tab-dot { animation: none; } }
 .board-sheets .icon-btn { width: 28px; height: 28px; }
-.board-empty { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); max-width: 360px; margin: 0; text-align: center; color: var(--text-muted); font-size: var(--st-note); pointer-events: none; }
-.board-hint { top: auto; bottom: 24px; transform: translateX(-50%); }
-/* The easel stands alone in the middle of the canvas (no line under or over it): 320 wide, scaled down only when the canvas is short, clear of the tab strip and the zoom bar */
-.iso-host.board-easel { position: absolute; left: 50%; top: 50%; height: min(380px, calc(100% - 150px)); aspect-ratio: 320 / 380; transform: translate(-50%, -50%); }
-.board-error { position: absolute; left: var(--st-inset); bottom: var(--st-inset); margin: 0; }
-.board-drawing { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; height: var(--st-control); box-sizing: border-box; padding: 0 12px; border-radius: 999px; background: var(--surface-elevated); border: 1px solid var(--border); box-shadow: var(--shadow-2); font-size: var(--st-note); color: var(--text-soft); }
+/* Notices over the canvas sit below Excalidraw's top toolbar and on solid surfaces: no stroke shows through */
+.board-empty { position: absolute; left: 50%; z-index: 5; margin: 0; padding: 4px 10px; border-radius: 999px; background: var(--surface-elevated); border: 1px solid var(--border); text-align: center; color: var(--text-muted); font-size: var(--st-note); pointer-events: none; }
+.board-hint { bottom: 64px; transform: translateX(-50%); }
+/* The easel stands alone in the middle of an empty sheet until the first stroke: 320 wide, scaled down only when the stage is short. Over a canvas strokes go through it */
+.iso-host.board-easel { position: absolute; z-index: 3; left: 50%; top: 50%; height: min(380px, calc(100% - 150px)); aspect-ratio: 320 / 380; transform: translate(-50%, -50%); }
+.iso-host.board-easel.is-on-canvas { pointer-events: none; }
+.board-error { position: absolute; z-index: 5; left: 50%; bottom: 64px; transform: translateX(-50%); max-width: calc(100% - 2 * var(--st-inset)); margin: 0; padding: 6px 10px; border-radius: 8px; background: var(--surface-elevated); border: 1px solid var(--border); }
+.board-drawing { position: absolute; z-index: 5; top: 64px; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px; height: var(--st-control); box-sizing: border-box; padding: 0 12px; border-radius: 999px; background: var(--surface-elevated); border: 1px solid var(--border); box-shadow: var(--shadow-2); font-size: var(--st-note); color: var(--text-soft); white-space: nowrap; }
+.board-notice { top: 102px; }
 .board-drawing-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: studio-pulse 1s var(--ease-out) infinite; }
-.board-zoom { position: absolute; right: var(--st-inset); bottom: var(--st-inset); z-index: 5; display: inline-flex; align-items: center; gap: 2px; background: var(--surface-elevated); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-1); }
-.board-zoom-value { min-width: 40px; text-align: center; font-size: var(--st-note); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+/* R5: the AI's erase of the user's strokes, with one-click restore; above the bottom-left zoom and undo controls */
+.board-erased { position: absolute; z-index: 5; left: 50%; bottom: 64px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; max-width: calc(100% - 2 * var(--st-inset)); box-sizing: border-box; padding: 6px 8px 6px 14px; border-radius: 10px; background: var(--surface-elevated); border: 1px solid var(--border-strong); box-shadow: var(--shadow-2); font-size: var(--st-note); color: var(--text); }
+.board-erased-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-erased-act { flex: none; height: 24px; padding: 0 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-fill); color: var(--text); font-size: var(--st-note); cursor: pointer; }
+.board-erased-act:first-of-type { border-color: var(--accent); color: var(--accent-ink); }
+.board-erased-act:hover { border-color: var(--accent-hover); }
 
-/* ---- Blocks (B2: the title is the block's strongest type; B3: no horizontal scrolling inside a block) ---- */
-.board-block { position: absolute; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; background: var(--surface-elevated); border: 1px solid var(--border-strong); border-radius: var(--radius-lg); box-shadow: var(--shadow-1); cursor: auto; color: var(--text); overflow: hidden; transition: box-shadow var(--dur-fast) var(--ease-out), opacity var(--dur-fast) var(--ease-out); }
-.board-block.is-superseded { opacity: .5; filter: grayscale(.6); }
-.board-block.is-focused { box-shadow: 0 0 0 2px var(--accent), var(--shadow-2); }
-.board-block.is-drawing { box-shadow: 0 0 0 1.5px var(--accent-hover), var(--shadow-1); }
-.block-head { display: flex; align-items: center; gap: 8px; font-size: var(--st-label); color: var(--text-muted); }
+/* Shared by the Reading view's chips and headings */
 .block-title { margin: 0; font: 600 var(--st-title)/1.4 var(--font-sans); color: var(--text); }
-.block-text { min-width: 0; font-size: var(--st-body); line-height: 1.65; overflow-wrap: anywhere; }
-.block-text .md-body { font: inherit; font-family: var(--font-sans); line-height: inherit; }
-.block-text .md-body :is(h1, h2, h3, h4, h5, h6) { font-size: var(--st-body); font-weight: 600; margin: .9em 0 .3em; }
-.block-text .md-body p { margin: .45em 0; }
-.block-text .md-body :is(ul, ol) { margin: .45em 0; padding-left: 1.3em; }
-.block-text .md-body pre { white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; font-size: var(--st-note); }
-.block-text .md-body table { display: table; width: 100%; table-layout: fixed; overflow: visible; font-size: var(--st-note); }
-.block-text .md-body :is(th, td) { padding: 4px 6px; overflow-wrap: anywhere; }
-.block-text .md-body .katex-display { overflow: hidden; }
-.block-text .md-body .katex-display > .katex { white-space: normal; }
-.board-block .mermaid-block { margin: .6em 0; padding: 30px 8px 8px; }
-.board-block .mermaid-scroll { overflow: hidden; }
-.board-block .mermaid-svg { width: 100%; min-width: 0; }
-.board-block .mermaid-svg > svg { flex: 0 1 auto; max-width: 100% !important; height: auto !important; }
-.block-sources { display: flex; flex-wrap: wrap; gap: 4px; }
 .source-chip { max-width: 100%; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid var(--border); background: var(--fill-subtle); color: var(--text-soft); border-radius: 999px; padding: 1px 8px; font-size: var(--st-label); }
 button.source-chip { cursor: pointer; }
 button.source-chip:hover { color: var(--accent-ink); border-color: var(--accent-hover); }
 .source-chip-inferred { border-style: dashed; color: var(--text-muted); background: none; }
-
-/* Ladder: high to low; the break sits between two rungs (B5, prototype .break) */
-.ladder { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.rung { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-elevated); font-size: var(--st-body); }
-.rung-here { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-tint); }
-.rung-here-tag { margin-left: auto; flex: none; font-size: var(--st-label); color: var(--accent-ink); }
-.rung-fog { justify-content: center; color: var(--text-muted); font-size: var(--st-note); background: repeating-linear-gradient(135deg, var(--surface-recessed) 0 6px, var(--surface-fill) 6px 12px); }
-.rung-break { text-align: center; font-size: var(--st-label); letter-spacing: .1em; color: var(--danger); margin: -1px 0; }
-
-.block-table-wrap { min-width: 0; }
-.block-table { border-collapse: collapse; width: 100%; table-layout: fixed; font-size: var(--st-note); }
-.block-table th, .block-table td { border-bottom: 1px solid var(--border); padding: 5px 6px; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
-.block-table th { color: var(--text-muted); font-weight: var(--w-medium); font-size: var(--st-label); }
-.guess-cell { color: var(--danger); font-style: italic; }
-
-/* Widgets: height follows content (WidgetFrame reports it), leaving no estimated-height gap (R2) */
-.block-widget { min-width: 0; border-radius: 10px; overflow: hidden; }
-.block-widget .widget-frame { margin: 0; }
-.block-widget .widget-frame-title { display: none; }
-.block-widget-idle { min-height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border: 1px dashed var(--border-strong); color: var(--text-muted); font-size: var(--st-note); }
 
 /* ---- Reader: the center's right pane, its header on the board header's line (D1); the zoom bar centers at the bottom and never covers the text (G8) ---- */
 .studio-reader { border-left: 1px solid var(--border); background: var(--surface-elevated); }
@@ -331,14 +292,12 @@ button.sediment-chip:hover { color: var(--accent-ink); border-color: var(--accen
 .sediment-offer-actions { display: flex; gap: 10px; align-items: center; margin-top: 6px; }
 .sediment-offer-dismiss { color: var(--text-soft); }
 .sediment-original-toggle { background: none; border: none; padding: 0; font-size: var(--st-label); color: var(--text-soft); cursor: pointer; text-decoration: underline dotted; }
-/* The sediment row inside the board (S9b/c): below the canvas, above the sheet strip */
+/* The sediment row inside the board (S9c): below the canvas, above the sheet strip */
 .board-sediment-row { flex: none; padding: 10px 16px 12px; display: flex; flex-direction: column; gap: 8px; max-width: 760px; margin: 0 auto; width: 100%; }
 .board-sediment-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; font-size: var(--st-label); color: var(--text-soft); }
-.board-sediment-full { color: var(--text); font-weight: 600; }
 .board-sediment-invite { color: var(--accent-ink); }
 .board-sediment-skip { background: none; border: none; padding: 0; align-self: flex-end; font-size: var(--st-label); color: var(--text-soft); cursor: pointer; text-decoration: underline dotted; }
 .board-sediment-skip:hover { color: var(--accent-ink); }
-.block-takeaway { border-style: dashed; cursor: pointer; }
 /* Speech habits in settings (S14) */
 .habits-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .habits-row { display: flex; align-items: center; gap: 12px; padding: 6px 8px; border-radius: 8px; }
@@ -362,3 +321,9 @@ button.sediment-chip:hover { color: var(--accent-ink); border-color: var(--accen
 /* --- Do not draw the in-app figure before the native fade completes; hiding never pauses the session --- */
 .sprite-orb[data-visible='false'] { visibility: hidden; }
 .sprite-orb[data-visible='false'] .sprite-visual * { animation-play-state: paused !important; }
+/* The co-drawn canvas: Excalidraw paints its own solid canvas and island surfaces; its layer UI stays under the board's notices.
+   No prop removes the library (toolbar button + sidebar trigger), Help, or the sticky-note tool (no Chinese strings) in this snapshot, so exactly those
+   three controls are hidden here, scoped to the board canvas */
+.board-canvas { position: absolute; inset: 0; overflow: hidden; }
+.board-canvas .excalidraw { --zIndex-layerUI: 4; }
+.board-canvas .excalidraw :is(.default-sidebar-trigger, .help-icon, [data-testid="toolbar-stickynote"]) { display: none !important; }

@@ -1,6 +1,6 @@
 /**
  * [INPUT]: Mastra Controller/Memory/Workspace, the studio stores (topics/library), reading-question's userWords (a reading question's quote is not the user's), user roles/skill roots, the native step guard and the isolated diagnostics evaluation
- * [OUTPUT]: createApplication: isolated storage, the main agent's tools (board, sediment and reading tools on one trusted writer), the session/background activity projection, the global specialist group, parent/child budgets and specialist continuation, diagnostics and the drained close; the board's per-run target (R16) takes the selection at run start, survives suspension and shutdown, and releases when the run truly ends; a specialist's board_view looks and never captures
+ * [OUTPUT]: createApplication: isolated storage, the main agent's tools (board, sediment and reading tools on one trusted writer), the session/background activity projection, the global specialist group, parent/child budgets and specialist continuation, diagnostics and the drained close; the board's per-run target (R16) takes the selection at run start, survives suspension and shutdown, and releases when the run truly ends; a specialist's board_view looks and never captures; with vision the target sheet's latest glance rides each provider request and board_look waits for a fresh one
  * [POS]: the application composition root; one native execution chain with topicId:taskId identities. Conversations of a topic share one topic workspace (cached per topic, destroyed once at close), and materials are reached only through the reference list
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -31,6 +31,7 @@ import { createMemoryTools, readMemoryIndex } from './workspace/memory.ts'
 import { openStudio } from './studio/studio.ts'
 import { createMaterialAccess, createMaterialTools } from './studio/tools.ts'
 import { createBoardTools, topicState, type BoardWriter } from './studio/board-tools.ts'
+import { createGlanceProcessor, createLookTools, type GlanceTarget } from './studio/glance.ts'
 import { createSedimentTools, plainText } from './studio/sediment-tools.ts'
 import { userWords } from './studio/reading-question.ts'
 import { createReadingTools } from './studio/reading-tools.ts'
@@ -121,6 +122,12 @@ export async function createApplication(options: ApplicationOptions) {
     const resourceId = ownerOf(context)
     return { topicId: resourceId.split(':')[0]!, sheetId: studio.board.peekTarget(resourceId)?.id ?? null }
   })
+  // -------- Q6: the model sees the target sheet through the app's latest glance, one image per request, only when it has vision; it never captures a target --------
+  const glanceTarget: GlanceTarget = context => {
+    const owner = context?.requestContext?.get<'controller', AgentControllerRequestContext>('controller')
+    return owner?.resourceId && bound.has(owner.resourceId) ? studio.board.peekTarget(owner.resourceId)?.id ?? null : null
+  }
+  const glanceProcessor = createGlanceProcessor(studio, glanceTarget), lookTools = createLookTools(studio, glanceTarget)
   // -------- Sediment tools share the board's trusted writer (the run's target, R16); user messages are read from memory only (newest first), main agent only (the specialist list leaves them out, S4); a reading question counts only its words --------
   const sedimentTools = createSedimentTools(studio, boardWriter, async threadId => {
     const chronologic: { id: string; text: string }[] = []
@@ -227,9 +234,12 @@ export async function createApplication(options: ApplicationOptions) {
         topic && `这个主题的记忆索引（scope=topic，按需读取，不视为外部证据）：\n${topic}`].filter(Boolean).join('\n\n')
     },
     memory,
-    tools: ({ requestContext }) => modelTools(settingsFor(requestContext), { ...researchTools, ...skillTools, ...memoryTools, ...materialTools, ...boardTools, ...sedimentTools, ...readingTools, ...executionTools, ...ingestionTools, ...historyTools }),
+    tools: ({ requestContext }) => {
+      const settings = settingsFor(requestContext)
+      return modelTools(settings, { ...researchTools, ...skillTools, ...memoryTools, ...materialTools, ...boardTools, ...(settings?.vision !== 'off' ? lookTools : {}), ...sedimentTools, ...readingTools, ...executionTools, ...ingestionTools, ...historyTools })
+    },
     agents: async () => (await specialists.get()).agents,
-    inputProcessors: ({ requestContext }) => [budget.inputProcessor, ...createInputProcessors(settingsFor(requestContext), imageProcessor), familyBudget.inputProcessor],
+    inputProcessors: ({ requestContext }) => [budget.inputProcessor, ...createInputProcessors(settingsFor(requestContext), imageProcessor, glanceProcessor), familyBudget.inputProcessor],
     outputProcessors: [familyBudget.outputProcessor, createEmptyActionProcessor()], maxProcessorRetries: 1,
     defaultOptions: { delegation: specialists.delegation },
     backgroundTasks: specialists.backgroundTasks,

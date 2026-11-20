@@ -2,7 +2,7 @@
  * [INPUT]: Real HTTP service and application root, Mastra Controller tool loop, catalog.sqlite boards, deterministic model over HTTP
  * [OUTPUT]: Evidence for R16 and the revised R11: selection route round trip and fallback; a run writes only to the sheet selected when it
  *           started (even with a newer sheet, and when the user switches mid-run); the target survives an approval wait and a service restart;
- *           a background expert's read after the parent run ended captures nothing; a folded target rejects writes and leaves no block; no selection keeps the newest live sheet; the full-board text; R7 versions only the target
+ *           a background expert's read after the parent run ended captures nothing; a folded target rejects writes and leaves no draw; no selection keeps the newest live sheet; no capacity (R11 revised); other sheets' elements refused; R7 snapshots only the target
  * [POS]: board-target mechanism acceptance; the controllable model proves the mechanism and does not stand in for real model research
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -55,12 +55,14 @@ async function environment(respond: Respond, existing?: string) {
     sheets: async (topic: string) => await (await request(`/lumen/topics/${topic}/sheets`)).json() as { items: { id: string; title: string }[]; writable: string | null; selected: string | null; target: string | null },
     select: (topic: string, sheetId: string) => request(`/lumen/topics/${topic}/selection`, { method: 'PUT', body: JSON.stringify({ sheetId }) }),
     plus: async (topic: string) => (await (await request(`/lumen/topics/${topic}/sheets`, { method: 'POST', body: '{}' })).json() as { id: string }).id,
-    blocks: (sheetId: string) => studio.board.view(sheetId).blocks.map(block => block.title),
+    /** What the AI drew on a sheet: its queued draws by card title (nothing lays them out in these tests) */
+    blocks: (sheetId: string) => studio.board.canvas.ops(sheetId).map(op => op.title),
+    versions: (sheetId: string) => studio.board.canvas.snapshots(sheetId),
     async close(keep = false) { await service.close(); if (!keep) await rm(dataRoot, { recursive: true, force: true }) },
   }
 }
 
-const draw = (title: string, id: string) => toolReply('board_draw', { kind: 'text', title, content: { markdown: title } }, id)
+const draw = (title: string, id: string) => toolReply('board_draw', { title, elements: [{ type: 'text', x: 0, y: 0, text: title }] }, id)
 
 test('R16 selection: route round trip, ＋ selects the new sheet, foreign or unknown sheets are refused, a missing selection falls back to the newest live sheet', { timeout: 30000 }, async () => {
   const env = await environment(() => textReply('好'))
@@ -121,15 +123,15 @@ test('R16 run target: sheet 2 selected while sheet 3 is newer; switching to shee
     resume.open()
     assert.equal((await sent).status, 200)
     const session = await env.service.application.session('p', 'a')
-    await until(() => !session.displayState.get().isRunning && env.studio.board.versions(second).length === 1, 'run did not finish with a version on sheet 2')
+    await until(() => !session.displayState.get().isRunning && env.versions(second).length === 1, 'run did not finish with a version on sheet 2')
     assert.deepEqual(env.blocks(second), ['第一块', '第二块'])
     for (const other of [first, third, fourth]) assert.deepEqual(env.blocks(other), [], 'no block outside the target')
     // ---- every request of the run described sheet 2, and board_view returned sheet 2 ----
-    assert.ok(prompts.length >= 3 && prompts.every(prompt => prompt.includes('进行中的白板「白板 2」')), prompts.map(prompt => prompt.slice(prompt.indexOf('现状'), prompt.indexOf('现状') + 120)).join('\n---\n'))
+    assert.ok(prompts.length >= 3 && prompts.every(prompt => prompt.includes('这一轮的白板「白板 2」')), prompts.map(prompt => prompt.slice(prompt.indexOf('现状'), prompt.indexOf('现状') + 120)).join('\n---\n'))
     assert.ok(toolText(env.fixture.requests.at(-1)!).includes(second), 'board_view returned the target sheet')
     // ---- R7: only the target gets a version ----
-    for (const other of [first, third, fourth]) assert.equal(env.studio.board.versions(other).length, 0)
-    assert.deepEqual(env.studio.board.versions(second)[0]!.snapshot.blocks.map(block => block.title), ['第一块', '第二块'])
+    for (const other of [first, third, fourth]) assert.equal(env.versions(other).length, 0)
+    assert.deepEqual(env.versions(second)[0]!.ops.map(op => op.title), ['第一块', '第二块'])
     assert.equal((await env.sheets('p')).target, null, 'no target once the run is over')
     // ---- the next run takes the selection at its own send time ----
     assert.equal((await env.send('p:a', '再画')).status, 200)
@@ -211,8 +213,8 @@ test('R16 across a wait and a restart: a run parked on an approval keeps its tar
     assert.deepEqual(after.blocks(first), ['批准前', '批准后'])
     assert.deepEqual(after.blocks(second), [])
     // Shutdown already versions a parked run (existing R7 path, unchanged here); the resumed run adds its own, still only on the target
-    await until(() => after!.studio.board.versions(first).at(-1)?.snapshot.blocks.length === 2, 'resumed run did not version the target')
-    assert.equal(after.studio.board.versions(second).length, 0)
+    await until(() => after!.versions(first).at(-1)?.ops.length === 2, 'resumed run did not version the target')
+    assert.equal(after.versions(second).length, 0)
     await until(async () => (await after!.sheets('p')).target === null, 'target not released after the run')
   } finally { if (after) await after.close(); else await env.close() }
 })
@@ -248,7 +250,7 @@ test('R16 across a suspension: a run waiting on ask_user keeps its target throug
     assert.deepEqual(after.blocks(first), ['提问前', '回答后'])
     assert.deepEqual(after.blocks(second), [])
     await until(async () => (await after!.sheets('p')).target === null && !resumed.displayState.get().isRunning, 'target not released after the run')
-    assert.equal(after.studio.board.versions(second).length, 0)
+    assert.equal(after.versions(second).length, 0)
   } finally { if (after) await after.close(); else await env.close() }
 })
 
@@ -257,7 +259,7 @@ test('R16 folded target: writes are rejected with a message the model relays, no
     const { text, results } = said(request)
     if (text.includes('画在收起的')) {
       if (results === 0) return draw('不该出现', 'call-1')
-      if (results === 1) return toolReply('board_update', { blockId: 'b0000000000', baseRev: 1, title: '也不该' }, 'call-2')
+      if (results === 1) return toolReply('board_update', { title: '也不该', elements: [{ id: 'a0000000', x: 1 }] }, 'call-2')
       return textReply('这张已经收起了')
     }
     return textReply('好')
@@ -279,14 +281,13 @@ test('R16 folded target: writes are rejected with a message the model relays, no
   } finally { await env.close() }
 })
 
-test('No selection keeps the newest live sheet; the full-board rejection follows the revised R11; blocks on other sheets cannot be edited from this run', { timeout: 60000 }, async () => {
-  let blockOnOther = ''
+test('No selection keeps the newest live sheet; the canvas has no capacity (R11 revised 2026-11-19); elements on other sheets cannot be changed or erased from this run', { timeout: 60000 }, async () => {
   const env = await environment(request => {
     const { text, results } = said(request)
-    if (text.includes('画满')) return results === 0 ? draw('第九块', 'call-1') : textReply('满了')
+    if (text.includes('接着画')) return results === 0 ? draw('第一百零一笔', 'call-1') : textReply('画上了')
     if (text.includes('改旁边')) {
-      if (results === 0) return toolReply('board_update', { blockId: blockOnOther, baseRev: 1, title: '改了' }, 'call-2')
-      if (results === 1) return toolReply('board_supersede', { blockId: blockOnOther }, 'call-3')
+      if (results === 0) return toolReply('board_update', { title: '改了', elements: [{ id: 'aside', x: 5 }] }, 'call-2')
+      if (results === 1) return toolReply('board_erase', { ids: ['aside'], reason: '试试' }, 'call-3')
       return textReply('改不了')
     }
     return textReply('好')
@@ -296,29 +297,25 @@ test('No selection keeps the newest live sheet; the full-board rejection follows
     const first = (await env.sheets('p')).items[0]!.id, second = await env.plus('p')
     env.studio.db.prepare('DELETE FROM sheet_selection WHERE topic_id = ?').run('p')
     assert.equal((await env.sheets('p')).selected, second, 'a client that never selected: newest live sheet')
-    const origin = { threadId: 'p:x', runId: 'r0' }
-    for (let i = 0; i < 8; i++) env.studio.board.draw('p', { kind: 'text', title: `第${i}块`, content: { markdown: '满' } }, origin, second)
-    blockOnOther = env.studio.board.draw('p', { kind: 'text', title: '旁边', content: { markdown: '在第一张' } }, origin, first).blockId
+    const canvas = env.studio.board.canvas
+    canvas.save(second, Array.from({ length: 100 }, (_, i) => ({ id: `u${i}`, type: 'freedraw', version: 1, x: i, y: 0, width: 10, height: 10 })))
+    const op = canvas.queueDraw(first, '旁边', [{ type: 'rectangle', id: 'aside', x: 0, y: 0 }], { threadId: 'p:x', runId: 'r0' })
+    canvas.commit(first, op.id, [{ id: 'aside', type: 'rectangle', version: 1, x: 0, y: 0, width: 10, height: 10 }])
     assert.equal((await env.open('p', 'a')).status, 201)
-    assert.equal((await env.send('p:a', '画满了再画')).status, 200)
+    assert.equal((await env.send('p:a', '接着画')).status, 200)
     const session = await env.service.application.session('p', 'a')
     await until(() => !session.displayState.get().isRunning && env.fixture.requests.length >= 2, 'run did not finish')
-    const full = toolText(env.fixture.requests.at(-1)!)
-    assert.match(full, /这张白板满了（8\/8）/)
-    // S5: the refusal now names sediment_invite (stop, point, ask) and still forbids squeezing, switching and self-opening
-    assert.match(full, /用 sediment_invite 指出这张里值得留下的几块，问用户一句，请用户用自己的话沉淀/)
-    assert.match(full, /不要往外挤，也不要换到别的白板/)
-    assert.doesNotMatch(full, /换题/)
-    assert.equal(env.studio.board.view(second).blocks.length, 8)
+    assert.deepEqual(env.blocks(second), ['第一百零一笔'], '100 elements on the sheet, the AI still draws: no capacity')
+    assert.doesNotMatch(toolText(env.fixture.requests.at(-1)!), /满了/)
     assert.equal(env.studio.board.sheets('p').length, 2, 'the AI never opens a sheet')
 
     const before = env.fixture.requests.length
-    assert.equal((await env.send('p:a', '改旁边那张上的块')).status, 200)
+    assert.equal((await env.send('p:a', '改旁边那张上的元素')).status, 200)
     await until(() => !session.displayState.get().isRunning && env.fixture.requests.length >= before + 3, 'run did not finish')
     const refused = toolText(env.fixture.requests.at(-1)!)
-    assert.equal((refused.match(/不在这一轮写入的白板「白板 2」上/g) ?? []).length, 2, refused)
-    const untouched = env.studio.board.view(first).blocks[0]!
-    assert.deepEqual([untouched.title, untouched.state, untouched.rev], ['旁边', 'current', 1])
+    assert.equal((refused.match(/这张白板上没有 aside/g) ?? []).length, 2, refused)
+    const untouched = canvas.liveElements(first).find(row => row.element.id === 'aside')!
+    assert.deepEqual([untouched.element.x, untouched.element.version], [0, 1])
   } finally { await env.close() }
 })
 
@@ -328,8 +325,8 @@ test('topicState: a run target overrides the newest live sheet; without a target
     ensureTopic(env.service, 'p', '反馈')
     const first = (await env.sheets('p')).items[0]!.id
     await env.plus('p')
-    assert.match(topicState(env.studio, 'p'), /进行中的白板「白板 2」/)
-    assert.match(topicState(env.studio, 'p', undefined, env.studio.board.sheet(first)), /进行中的白板「反馈」/)
+    assert.match(topicState(env.studio, 'p'), /这一轮的白板「白板 2」/)
+    assert.match(topicState(env.studio, 'p', undefined, env.studio.board.sheet(first)), /这一轮的白板「反馈」/)
     assert.match(topicState(env.studio, 'p', undefined, null), /这个主题现在没有进行中的白板/)
   } finally { await env.close() }
 })

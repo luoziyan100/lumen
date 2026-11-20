@@ -1,6 +1,6 @@
 /**
  * [INPUT]: the full application Controller and the model HTTP fixture
- * [OUTPUT]: the main agent's actual system prompt carries the full drawing contract (closed nodes first/branching/subgraph-end/sequence/scale/semantic classes, no colors) and the board-scratch-paper beliefs plus the board and sediment tools (P1-1: stop when full, delete tics only, settled stays untouched), the reading belief (short answers about one sentence, no board unless asked, no quizzing, quotes are not the user's words) and reading_write titles without ordinals; the persona always says 「用户」
+ * [OUTPUT]: the main agent's actual system prompt carries the full drawing contract (closed nodes first/branching/subgraph-end/sequence/scale/semantic classes, no colors) and the board-scratch-paper beliefs plus the board and sediment tools (2026-11-19 co-drawn canvas: the AI judges what to draw, erasing the user's strokes is explained and restorable, the retired block rules are gone; delete tics only), the reading belief (short answers about one sentence, no board unless asked, no quizzing, quotes are not the user's words) and reading_write titles without ordinals; the persona always says 「用户」
  * [POS]: a mirror regression of the drawing rules and the UI host's color decisions (ui-client mermaidTheme); the rules only persuade — rendering still has its own guardrails
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -28,8 +28,8 @@ test('主 Agent 实际请求的 system 提示包含完整画图规则', { timeou
     }
     // ---- The board as the pair's scratch paper: both the belief layer and the tool layer must reach the model ----
     // ---- Sediment (P1-1, the S7 approved draft): beliefs and tools arrive together ----
-    for (const belief of ['白板：你们俩的草稿纸', '先画，再说', '一块只讲一件事', '断在哪一级', '先收进资料库', 'board_draw', 'board_supersede', 'to_library: true',
-      '沉淀是用户自己的话，字只能是用户的', '用 sediment_invite 指出这张里值得留下的几块', '除了口癖一个不动', '宁可少删，让用户自己划', 'sediment_invite({ blockIds, question })', 'sediment_quote({ text, blockIds? })', '已沉淀（settled）的块是用户留作证据的']) {
+    for (const belief of ['白板：你们俩的草稿纸', '先画，再说', '画什么、画多大、画在哪，由你判断', '断在哪一级', '先收进资料库', 'board_draw', 'board_erase', 'to_library: true',
+      '沉淀是用户自己的话，字只能是用户的', '问出一个锚点问题', '除了口癖一个不动', '宁可少删，让用户自己划', 'sediment_invite({ question, elementIds? })', 'sediment_quote({ text, elementIds? })', '用户的字是用户的，原样留着']) {
       assert.ok(system.includes(belief), belief)
     }
     // ---- Readings (living reading: prose + 2D explorable widget + inline reading_insert): beliefs and tools arrive together ----
@@ -43,4 +43,12 @@ test('主 Agent 实际请求的 system 提示包含完整画图规则', { timeou
 test('人格对用户一律称「用户」，不替用户假定性别（负责人决定 2026-11-12）', () => {
   assert.doesNotMatch(RESEARCH_PERSONA, /(?<!其)[他她]/)
   assert.match(RESEARCH_PERSONA, /# 你和用户/)
+})
+
+test('白板段按共画的草稿纸写：AI 判断画什么、擦了要说明，旧区块规则不再出现（2026-11-19）', () => {
+  for (const belief of ['你们俩都在上面画', '用户正看着的那块地方，就是你们此刻的桌面', '要在回复里说清擦了什么、为什么', '用户一键就能恢复',
+    'board_view：这一轮白板的结构', 'board_draw({ title, elements })', 'ElementSkeleton', 'board_update({ title, elements })', 'board_erase({ ids, reason })', 'board_look']) {
+    assert.ok(RESEARCH_PERSONA.includes(belief), belief)
+  }
+  for (const retired of ['board_supersede', '一块只讲一件事', '白板满了', '容量', 'baseRev', 'blockIds']) assert.ok(!RESEARCH_PERSONA.includes(retired), retired)
 })

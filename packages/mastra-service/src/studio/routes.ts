@@ -1,7 +1,7 @@
 /**
  * [INPUT]: Hono, zod, the studio stores (sediment included), the research network, the native running/waiting projection and the idle guard archiving waits on
- * [OUTPUT]: studioRoutes: topics; readings (the topic's list and one material's reading, ETag-tagged, read-only); sheets (ETag-tagged; the list carries the user's selection and the running turn's target; storing the selection; the ＋ sheet becomes the selection; the user deletes one, R17; which sheet a block is on); sediment entries create/list/edit/delete with offer confirm/dismiss (R13: user HTTP only) and per-sheet invites; the library upload/link routes (arXiv links fetch the PDF), originals and their on-disk location (for the native "open in system" check); topic references
- * [POS]: the product routes behind auth; there is no block-write route — blocks are written only through board tools (R4), and no reading-write route — readings only through reading_write; sheet deletion lives only here, the AI has no such tool (R17); so does sediment entry text (S2)
+ * [OUTPUT]: studioRoutes: topics; readings (the topic's list and one material's reading, ETag-tagged, read-only); sheets (ETag-tagged; the list carries the user's selection and the running turn's target; storing the selection; the ＋ sheet becomes the selection; the user deletes one, R17); the canvas (the scene by ETag, the user's save, the app's commit of an AI op, restore/dismiss of AI erasures, the viewport, image files, the latest glance, which sheet holds an element); sediment entries create/list/edit/delete with offer confirm/dismiss (R13: user HTTP only) and per-sheet invites; the library upload/link routes (arXiv links fetch the PDF), originals and their on-disk location (for the native "open in system" check); topic references
+ * [POS]: the product routes behind auth; the user draws through the canvas routes, the AI only through board tools (R4) — an op commit only carries what the app laid out for that op, and the store re-checks the AI's rules; and no reading-write route — readings only through reading_write; sheet deletion lives only here, the AI has no such tool (R17); so does sediment entry text (S2)
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { createHash } from 'node:crypto'
@@ -25,6 +25,13 @@ const sedimentCreate = z.union([
 ])
 const sedimentEdit = z.object({ text: z.string().max(600) }).strict()
 const selection = z.object({ sheetId: z.string().min(1).max(128) }).strict()
+// Canvas bodies: elements are checked one by one in the store (id, type, version, size); files are data URLs
+const canvasFile = z.object({ id: z.string().min(1).max(128), mimeType: z.string().max(64), dataURL: z.string() }).passthrough()
+  .transform(file => ({ id: file.id, mimeType: file.mimeType, dataURL: file.dataURL }))
+const canvasSave = z.object({ elements: z.array(z.unknown()), files: z.array(canvasFile).optional() }).strict()
+const viewport = z.object({ x: z.number().finite(), y: z.number().finite(), width: z.number().finite().positive(), height: z.number().finite().positive() }).strict()
+const glance = z.object({ sceneVersion: z.number().int().min(0), dataURL: z.string().startsWith('data:image/png;base64,').max(3 * 1024 * 1024) }).strict()
+const sheetParam = (c: Context) => z.string().min(1).max(128).parse(c.req.param('sheetId'))
 const link = z.object({ url: z.string().url(), topicId: id.optional() }).strict()
 const reference = z.object({ itemId: z.string().min(1).max(128) }).strict()
 const archived = z.enum(['true', 'false', 'all']).default('false').transform(value => value === 'all' ? value : value === 'true')
@@ -104,8 +111,45 @@ export function studioRoutes(options: { studio: Studio; http: ResearchHttp; acti
     const busy = new Set([...states ?? []].filter(([, state]) => state.running || state.waiting).map(([threadId]) => threadId))
     return c.json(board.deleteSheet(topicId, sheetId, { confirmed: c.req.query('confirm') === 'true', busy, since }))
   })
-  app.get('/sheets/:sheetId', c => tagged(c, board.view(z.string().min(1).max(128).parse(c.req.param('sheetId')))))
-  app.get('/blocks/:blockId', c => c.json(board.blockSheet(z.string().min(1).max(128).parse(c.req.param('blockId')))))
+
+  // ---- The co-drawn canvas (2026-11-19). The user draws through these routes; the AI only through board tools, whose draws the app lays out and commits here ----
+  app.get('/sheets/:sheetId/canvas', c => tagged(c, board.canvas.scene(board.sheet(sheetParam(c)))))
+  app.put('/sheets/:sheetId/canvas', async c => {
+    const sheet = board.sheet(sheetParam(c))
+    if (sheet.state !== 'live') throw new StudioError('这张白板已经收起，只读', 409, 'board.sheet_closed')
+    const body = canvasSave.parse(await c.req.json())
+    return c.json(board.canvas.save(sheet.id, body.elements, body.files))
+  })
+  app.post('/sheets/:sheetId/ops/:opId', async c => {
+    const sheet = board.sheet(sheetParam(c)), body = canvasSave.parse(await c.req.json())
+    return c.json(board.canvas.commit(sheet.id, z.string().min(1).max(64).parse(c.req.param('opId')), body.elements, body.files))
+  })
+  app.post('/sheets/:sheetId/erasures/restore', c => c.json(board.canvas.restore(board.sheet(sheetParam(c)).id)))
+  app.post('/sheets/:sheetId/erasures/dismiss', c => { board.canvas.dismiss(board.sheet(sheetParam(c)).id); return c.body(null, 204) })
+  app.put('/sheets/:sheetId/viewport', async c => {
+    const sheet = board.sheet(sheetParam(c))
+    board.canvas.setViewport(sheet.id, viewport.parse(await c.req.json()))
+    return c.body(null, 204)
+  })
+  // ---- Q6: the app's latest PNG of the sheet, overwritten; the model sees it only through the glance processor ----
+  app.put('/sheets/:sheetId/glance', async c => {
+    const sheet = board.sheet(sheetParam(c)), body = glance.parse(await c.req.json())
+    board.canvas.setGlance(sheet.id, body.sceneVersion, Buffer.from(body.dataURL.slice('data:image/png;base64,'.length), 'base64'))
+    return c.body(null, 204)
+  })
+  // ---- A conversation card's element: its sheet within the topic, or 404 when it is gone (erased, its sheet deleted, a retired block id, another topic's) ----
+  app.get('/topics/:topicId/elements/:elementId', c => {
+    const topicId = id.parse(c.req.param('topicId'))
+    topics.get(topicId)
+    const sheetId = board.canvas.locate(topicId, z.string().min(1).max(128).parse(c.req.param('elementId')))
+    if (!sheetId) throw new StudioError('白板上没有这个元素了', 404, 'board.element_missing')
+    return c.json({ sheetId })
+  })
+  app.get('/sheets/:sheetId/files/:fileId', c => {
+    const file = board.canvas.file(board.sheet(sheetParam(c)).id, z.string().min(1).max(128).parse(c.req.param('fileId')))
+    c.header('Cache-Control', 'private, max-age=31536000, immutable')
+    return c.json(file)
+  })
 
   // ---- Sediment (R13): entries only through user HTTP here; the AI can only hand an offer back, and confirming uses this same create route ----
   app.get('/topics/:topicId/sediment', c => {

@@ -1,5 +1,5 @@
 /**
- * [INPUT]: 当前模型上下文/视觉配置与已有原生图像请求处理器
+ * [INPUT]: 当前模型上下文/视觉配置与已有原生图像、白板画面（glance）请求处理器
  * [OUTPUT]: createInputProcessors / modelTools：输入裁剪策略与视觉工具可见性
  * [POS]: 只使用 Mastra TokenLimiter 裁剪当次输入；不截断输出，不维护第二套记忆或摘要
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -30,11 +30,12 @@ class ControllerTokenLimiter extends TokenLimiterProcessor {
   }
 }
 
-export function createInputProcessors(settings?: ContextSettings, imageProcessor?: InputProcessor): InputProcessor[] {
+export function createInputProcessors(settings?: ContextSettings, imageProcessor?: InputProcessor, glanceProcessor?: InputProcessor): InputProcessor[] {
   const configured = settings?.contextWindow
   const window = typeof configured === 'number' && Number.isFinite(configured) && configured > 0 ? configured : 128_000
   const processors: InputProcessor[] = [new ControllerTokenLimiter({ limit: Math.max(1, Math.floor(window * 0.8)), trimMode: 'contiguous' })]
   if (settings?.vision !== 'off' && imageProcessor) processors.push(imageProcessor)
+  if (settings?.vision !== 'off' && glanceProcessor) processors.push(glanceProcessor)
   return processors
 }
 

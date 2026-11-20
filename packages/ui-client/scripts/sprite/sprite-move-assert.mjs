@@ -5,6 +5,7 @@
  * [POS]: inherits the previous task's browser contract, adjusting only the horizontal/vertical geometry for the 60×92 box; opens the Board view first (Reading is the default since P1-2)
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  * lumen-board-delete: the board tab selector is `.board-tabs .board-tab > button:first-child` (each tab also has an R17 「⋯」 menu button).
+ * lumen-board-excalidraw: the first sheet is ready when its canvas is (blocks retired 2026-11-19); the conditions are unchanged.
  */
 // lumen-sprite-move browser assertions: real Chromium opens the dev page (5183, isolated data root), once at 1440×900 and once at 1280×800.
 // M1–M12: drag-and-drop to 9 positions (≤1px error, no opening, cursor, unchanged after reload, over the side panes/header/board) → open at each (fully in the viewport, on the figure's side) and close (back in place);
@@ -220,13 +221,13 @@ async function frameSequence(page, dir, file, trigger) {
   return count
 }
 
-/** Pick the topic, open the Board view and its first sheet (with blocks), wait for the figure or the docked column */
+/** Pick the topic, open the Board view and its first sheet (with strokes; the canvas since 2026-11-19), wait for the figure or the docked column */
 async function readyOn(page, { orb = true } = {}) {
   await page.waitForSelector('.studio-topics .topic')
   if (!(await page.locator('.board-tabs .board-tab > button:first-child').count())) await page.locator('.studio-topics .topic', { hasText: topicTitle }).click()
   // Reading is the default view since P1-2: open the Board view first
   await page.locator(`.studio-views [role=tab][aria-label="${M.studio.views.board}"]`).click()
-  await page.waitForSelector('.board-tabs .board-tab > button:first-child'); await page.locator('.board-tabs .board-tab > button:first-child').first().click(); await page.waitForSelector('.board-block')
+  await page.waitForSelector('.board-tabs .board-tab > button:first-child'); await page.locator('.board-tabs .board-tab > button:first-child').first().click(); await page.waitForSelector('.board-canvas .excalidraw__canvas.interactive')
   await page.waitForSelector(orb ? '.sprite-orb' : '.sprite-docked'); await page.waitForTimeout(1500)
 }
 

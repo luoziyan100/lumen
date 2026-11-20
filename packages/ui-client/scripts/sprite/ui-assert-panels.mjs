@@ -14,6 +14,12 @@
 // so it now measures only the number span (`.board-tab-number`); the ≤160px width and non-empty title (full name) conditions are unchanged.
 // lumen-board-delete rewrites the tab selector: each tab is a .board-tab wrapper with the tab button and its R17 「⋯」 menu button, so W1 and
 // openBoard take `.board-tabs .board-tab > button:first-child` instead of `.board-tabs button`; the conditions are unchanged.
+// lumen-board-excalidraw (2026-11-19) retires the block board: the sheet holds an Excalidraw canvas. B1 (100%, no block cut at the left), B3 (no
+// horizontal scroll inside blocks), B4 (the frame label) and W2 (the strip over block titles) measured blocks and leave with them; ui-assert-board.mts
+// now checks the canvas's controls against the strip and the panes. G8′'s zoom bar is Excalidraw's `.zoom-actions`. G4 skips `.board-canvas`: the
+// editor's own type, like the objects' drawn labels. R-c's "camera unchanged" pans the canvas, then compares the scene point at the
+// canvas's top-left (the viewport the app saves) before full and after Esc, instead of the retired `.board-world` transform and zoom-out button (the narrow split
+// board shows Excalidraw's compact toolbar, which has no zoom buttons; its width changes with the split, so pictures cannot be compared).
 // Usage: node ui-assert-panels.mjs <evidence-dir> [topicTitle]
 import { chromium } from '/tmp/lumen-s0-pw/node_modules/playwright-core/index.mjs'
 // lumen-i18n: LOCALE=en|zh (default zh, the language these checks were first written in) seeds the UI language before the page loads, and every
@@ -49,24 +55,13 @@ async function measure(page) {
         for (const t of targets) edges.push({ who: `${pane.className.split(' ')[1] ?? pane.className} ${t.className.split(' ')[0]} 「${t.textContent.trim().slice(0, 12)}」`, offset: Math.round((textLeft(t) - base) * 10) / 10 })
       }
     }
-    const overflow = []
-    for (const block of document.querySelectorAll('.board-block')) for (const el of [block, ...block.querySelectorAll('*')]) {
-      if (el.closest('.katex-mathml')) continue
-      if (el.scrollWidth > el.clientWidth + 1 && el.clientWidth > 0 && getComputedStyle(el).overflowX !== 'visible') overflow.push(`${block.getAttribute('aria-label')?.slice(0, 20)} › ${el.tagName.toLowerCase()}.${String(el.className).split(' ')[0]} ${el.scrollWidth}>${el.clientWidth}`)
-    }
     const viewport = document.querySelector('.board-viewport')
-    const vleft = viewport ? r(viewport).left : 0
-    const clipped = [...document.querySelectorAll('.board-block')].filter(b => r(b).left < vleft - 0.5).map(b => b.getAttribute('aria-label'))
-    const offRight = viewport ? [...document.querySelectorAll('.board-block')].filter(b => r(b).right > r(viewport).right + 0.5).map(b => b.getAttribute('aria-label')) : []
     const orb = document.querySelector('.sprite-orb'), right = document.querySelector('.studio-materials')
     const hit = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top)
     const orbHitsRight = orb && right ? hit(r(orb), r(right)) : false
     const orbInBoard = orb && viewport ? (() => { const a = r(orb), b = r(viewport); return a.left >= b.left && a.right <= b.right && a.top >= b.top && a.bottom <= b.bottom })() : false
-    const zoom = document.querySelector('.board-zoom'), orbOverZoom = orb && zoom ? hit(r(orb), r(zoom)) : false
-    const fonts = new Set([...document.querySelectorAll('.studio *')].filter(el => r(el).width > 0 && [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) && !el.closest('.md-body, .studio-reader .mw-reader, .sprite, .mermaid-svg, .katex, .ws-tag, .iso-host')).map(el => getComputedStyle(el).fontSize))
-    const label = document.querySelector('.board-frame-label'), sheets = document.querySelector('.board-sheets')
-    const labelClipped = label && viewport ? r(label).right > r(viewport).right + 0.5 || r(label).left < r(viewport).left : false
-    const labelHitsSheets = label && sheets ? hit(r(label), r(sheets)) : false
+    const zoom = document.querySelector('.board-canvas .zoom-actions'), orbOverZoom = orb && zoom ? hit(r(orb), r(zoom)) : false
+    const fonts = new Set([...document.querySelectorAll('.studio *')].filter(el => r(el).width > 0 && [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()) && !el.closest('.md-body, .studio-reader .mw-reader, .sprite, .mermaid-svg, .katex, .ws-tag, .iso-host, .board-canvas')).map(el => getComputedStyle(el).fontSize))
     const seg = document.querySelector('.studio-center .studio-seg'), segPane = seg?.closest('.studio-pane')
     const segOffset = seg && segPane ? Math.round(Math.abs((r(seg).left + r(seg).right) / 2 - (r(segPane).left + r(segPane).right) / 2) * 10) / 10 : null
     const centerHead = document.querySelector('.studio-center .studio-head')?.textContent ?? ''
@@ -75,7 +70,7 @@ async function measure(page) {
     const matGroups = mats ? mats.querySelectorAll('.studio-label, .materials-group, h4').length : 0
     const matCounts = mats ? [...mats.querySelectorAll('*')].filter(el => el.children.length === 0 && /^\s*\d+\s*$/.test(el.textContent)).length : 0
     const segWrapped = seg ? [...seg.querySelectorAll('button')].filter(b => { const range = document.createRange(); range.selectNodeContents(b.querySelector(':scope > span') ?? b); return new Set([...range.getClientRects()].map(x => Math.round(x.top))).size > 1 || b.scrollWidth > b.clientWidth + 1 }).map(b => b.textContent) : []
-    return { segWrapped, segOffset, centerHead, boardText, matGroups, matCounts, labelClipped, labelHitsSheets, heads, edges, overflow, clipped, offRight, orb: !!orb, orbSize: orb ? r(orb).width : null, orbHeight: orb ? r(orb).height : null, orbHitsRight, orbInBoard, orbOverZoom, blocks: document.querySelectorAll('.board-block').length, scale: document.querySelector('.board-zoom-value')?.textContent, fonts: [...fonts].sort() }
+    return { segWrapped, segOffset, centerHead, boardText, matGroups, matCounts, heads, edges, orb: !!orb, orbSize: orb ? r(orb).width : null, orbHeight: orb ? r(orb).height : null, orbHitsRight, orbInBoard, orbOverZoom, canvas: !!document.querySelector('.board-canvas .excalidraw__canvas.interactive'), fonts: [...fonts].sort() }
   })
 }
 
@@ -94,13 +89,9 @@ function assertLayout(tag, m, { board = true } = {}) {
   check(`${tag} G4 字号只有四级`, m.fonts.every(f => ['14px', '13.5px', '11px', '12px'].includes(f)), m.fonts.join(' '))
   check(`${tag} P9 全身精灵保持60×92px`, m.orbSize === 60 && m.orbHeight === 92, String(m.orbSize))
   if (board) {
-    check(`${tag} B1 默认 100%`, m.scale === '100%', m.scale)
-    check(`${tag} B1 没有区块被视口左缘切掉（${m.blocks} 块）`, m.blocks > 0 && !m.clipped.length, m.clipped.join('; '))
-    check(`${tag} B3 区块里没有横向滚动`, !m.overflow.length, m.overflow.join('; '))
+    check(`${tag} 白板是画布（取代 B1/B3/B4 的区块）`, m.canvas, '')
     // G8 (rewritten for M1): the figure may sit anywhere in the window; only its default position must stay off the right pane and the zoom bar
     check(`${tag} G8′ 默认位置不压右栏、不压缩放条`, m.orb && !m.orbHitsRight && !m.orbOverZoom, `orb=${m.orb} hitsRight=${m.orbHitsRight} overZoom=${m.orbOverZoom} inBoard=${m.orbInBoard}`)
-    check(`${tag} B4 边框标签不出视口、不压张标签浮层`, !m.labelClipped && !m.labelHitsSheets, `clipped=${m.labelClipped} hits=${m.labelHitsSheets}`)
-    results.push(`INFO ${tag} 视口右侧以外的区块（可平移看到）：${m.offRight.length}`)
   }
 }
 
@@ -116,7 +107,6 @@ async function geometry(page) {
     const sheets = document.querySelector('.board-sheets')
     const hit = (a, b) => !(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top)
     const viewport = document.querySelector('.board-viewport')
-    const titlesUnder = sheets && viewport ? [...document.querySelectorAll('.block-title')].filter(t => { const a = r(t); return a.bottom > r(viewport).top && a.top < r(viewport).bottom && hit(a, r(sheets)) }).map(t => t.textContent.slice(0, 16)) : []
     const tabLines = tabs.map(b => { const range = document.createRange(); range.selectNodeContents(b.querySelector('.board-tab-number') ?? b); return { text: b.textContent, lines: new Set([...range.getClientRects()].filter(x => x.width > 0).map(x => Math.round(x.top))).size, w: Math.round(r(b).width), title: b.title, full: b.title.length > 0 } })
     const scroll = document.querySelector('.studio-reader .pdf-scroll')
     const reader = document.querySelector('.studio-reader')
@@ -129,13 +119,12 @@ async function geometry(page) {
       center: box(document.querySelector('.studio-center')), board: box(document.querySelector('.studio-board-pane')), reader: box(reader),
       boardShown: !!document.querySelector('.studio-board-pane') && getComputedStyle(document.querySelector('.studio-board-pane')).display !== 'none',
       boardMounted: !!document.querySelector('.studio-board'),
-      camera: document.querySelector('.board-world')?.style.transform ?? null,
       reopenLeft: !!reopen('left'), reopenRight: !!reopen('right'), focusLeft: focusable(reopen('left')), focusRight: focusable(reopen('right')),
       reopenLeftAttrs: reopen('left') ? { expanded: reopen('left').getAttribute('aria-expanded'), title: reopen('left').title, label: reopen('left').getAttribute('aria-label') } : null,
       reopenRightAttrs: reopen('right') ? { expanded: reopen('right').getAttribute('aria-expanded'), title: reopen('right').title, label: reopen('right').getAttribute('aria-label') } : null,
       seg: !!document.querySelector('.studio-center .studio-seg') && visible(document.querySelector('.studio-center .studio-seg')),
       wsTags: document.querySelectorAll('.ws-tag').length,
-      tabs: tabLines, sheetsH: sheets ? Math.round(r(sheets).height) : null, titlesUnder,
+      tabs: tabLines, sheetsH: sheets ? Math.round(r(sheets).height) : null,
       pdf: scroll ? (() => {
         const page = r(scroll.querySelector('.pdf-page')), s = r(scroll), style = getComputedStyle(scroll)
         const inner = scroll.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
@@ -152,11 +141,20 @@ function assertCommon(tag, g) {
   check(`${tag} I1 页面上没有 .ws-tag`, g.wsTags === 0, `${g.wsTags}`)
   if (g.boardShown && g.tabs.length) {
     check(`${tag} W1 张标签单行、≤160px、title 全名（${g.tabs.length} 张）`, g.tabs.every(t => t.lines === 1 && t.w <= 160 && t.full), JSON.stringify(g.tabs))
-    check(`${tag} W1/W2 浮层单行高 30`, g.sheetsH === 30, `${g.sheetsH}`)
-    check(`${tag} W2 浮层不压区块标题`, !g.titlesUnder.length, g.titlesUnder.join('; '))
+    // The strip left the canvas for a bar under it (2026-11-19): one control row plus 8px, no longer a 30px overlay
+    check(`${tag} W1/W2 白板条单行（控件 30 + 8 = 38）`, g.sheetsH === 38, `${g.sheetsH}`)
   }
 }
 const near = (a, b, d = 1) => Math.abs(a - b) <= d
+
+/** The canvas's camera as the app last saved it (the viewport's scene x,y; saved 600ms after a scroll), read through the page's own connection */
+const camera = page => page.evaluate(async title => {
+  const { baseUrl, token } = window.__LUMEN_MASTRA__, get = path => fetch(`${baseUrl}${path}`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
+  const topic = (await get('/lumen/topics')).items.find(item => item.title === title)
+  const { selected } = await get(`/lumen/topics/${encodeURIComponent(topic.id)}/sheets`)
+  const viewport = (await get(`/lumen/sheets/${encodeURIComponent(selected)}/canvas`)).viewport
+  return viewport ? `${Math.round(viewport.x)},${Math.round(viewport.y)}` : null
+}, topicTitle)
 
 async function pdfReady(page) { await page.waitForSelector('.studio-reader .pdf-page', { timeout: 15000 }); await page.waitForTimeout(1500) }
 
@@ -170,7 +168,7 @@ for (const [w, h] of sizes) {
   await page.goto(`http://localhost:${port}/`)
   await page.waitForSelector('.studio-topics .topic')
   // This topic has three sheets and the newest is empty: open the Board view (Reading is the default since P1-2), switch to the first sheet (with blocks), then measure
-  const openBoard = async () => { await page.locator(`.studio-views [role=tab][aria-label="${M.studio.views.board}"]`).click(); await page.waitForSelector('.board-tabs .board-tab > button:first-child'); await page.locator('.board-tabs .board-tab > button:first-child').first().click(); await page.waitForSelector('.board-block'); await page.waitForTimeout(2500) }
+  const openBoard = async () => { await page.locator(`.studio-views [role=tab][aria-label="${M.studio.views.board}"]`).click(); await page.waitForSelector('.board-tabs .board-tab > button:first-child'); await page.locator('.board-tabs .board-tab > button:first-child').first().click(); await page.waitForSelector('.board-canvas .excalidraw__canvas.interactive'); await page.waitForTimeout(2500) }
   await page.locator('.studio-topics .topic', { hasText: topicTitle }).click()
   await openBoard()
   const shot = name => page.screenshot({ path: `${out}/${w}-${name}.png` })
@@ -260,8 +258,11 @@ for (const [w, h] of sizes) {
   check(`${tag} R-e 「适配宽度」回到适配`, g.pdf.fitting === true && g.pdf.sw <= g.pdf.cw + 1 && g.pdf.zoom !== zoomed.zoom, JSON.stringify(g.pdf))
 
   // ---- Full: the board hides but keeps its mount and camera; the centre header is only the reader's; Esc returns to split ----
-  await page.locator(`.board-zoom button[aria-label="${M.studio.board.zoomOut}"]`).click(); await page.waitForTimeout(300)
-  const cameraBefore = (await geometry(page)).camera
+  // Pan the canvas off its default first (the split board is narrow, so Excalidraw shows its compact toolbar without zoom buttons), then remember the picture
+  const canvasBox = await page.locator('.board-canvas .excalidraw__canvas.interactive').boundingBox()
+  await page.mouse.move(canvasBox.x + canvasBox.width / 2, canvasBox.y + canvasBox.height / 2); await page.mouse.wheel(40, 90); await page.waitForTimeout(400)
+  await page.waitForTimeout(900)
+  const cameraBefore = await camera(page)
   await page.locator(`.studio-reader button[aria-label="${M.studio.reader.full}"]`).click(); await page.waitForTimeout(900)
   m = await measure(page); g = await geometry(page)
   assertLayout(`${tag} 铺满`, m, { board: false }); assertCommon(`${tag} 铺满`, g)
@@ -281,7 +282,9 @@ for (const [w, h] of sizes) {
   await shot('full-immersive')
   await page.keyboard.press('Escape'); await page.waitForTimeout(900)
   g = await geometry(page)
-  check(`${tag} R-c Esc 回到分屏，白板相机不变`, g.boardShown && !!g.reader && g.camera === cameraBefore, `camera ${cameraBefore} → ${g.camera}`)
+  await page.waitForTimeout(900)
+  const cameraAfter = await camera(page)
+  check(`${tag} R-c Esc 回到分屏，白板相机不变（画布左上角的场景坐标不变）`, g.boardShown && !!g.reader && !!cameraBefore && cameraAfter === cameraBefore, `camera ${cameraBefore} → ${cameraAfter}`)
   await page.keyboard.press('Meta+b'); await page.keyboard.press('Meta+Alt+b'); await settle(page)
   await page.locator(`.studio-reader button[aria-label="${M.studio.reader.close}"]`).click()
 

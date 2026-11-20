@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 真实 createHttpService、本机 HTTP、LibSQL/SQLite 与 library/ 文件；研究网络在 fetch 边界替换为本地夹具
- * [OUTPUT]: studio HTTP 证明：认证、主题与状态灯字段、白板 ETag/304 与全部收起时 writable=null、上传与链接入库去重、原件读取（nosniff + CSP sandbox）、引用增删与可读错误
+ * [OUTPUT]: studio HTTP 证明：认证、主题与状态灯字段、白板画布 ETag/304、用户保存、按元素找白板（删掉的与旧块 id 为 404）与全部收起时 writable=null、上传与链接入库去重、原件读取（nosniff + CSP sandbox）、引用增删与可读错误
  * [POS]: S1 的 HTTP 验收；不经模型，白板没有对人的写接口（R4）
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -53,18 +53,29 @@ test('studio HTTP：主题、白板 ETag、资料库上传/链接去重、原件
     assert.match((await missing.json() as { error: string }).error, /没有这个主题/)
 
     // ---- 白板：列表、＋ 新开、ETag 与 304 ----
-    const sheets = await (await json(`/topics/${topic.id}/sheets`)).json() as { items: Array<{ id: string; used: number; capacity: number }>; writable: string }
+    const sheets = await (await json(`/topics/${topic.id}/sheets`)).json() as { items: Array<{ id: string; used: number }>; writable: string }
     assert.equal(sheets.items.length, 1)
     assert.equal(sheets.writable, sheets.items[0]!.id)
-    const first = await fetch(`${base}/sheets/${sheets.writable}`, { headers: auth })
+    const first = await fetch(`${base}/sheets/${sheets.writable}/canvas`, { headers: auth })
     const etag = first.headers.get('ETag')!
     assert.ok(etag)
-    assert.deepEqual((await first.json() as { blocks: unknown[] }).blocks, [])
-    assert.equal((await fetch(`${base}/sheets/${sheets.writable}`, { headers: { ...auth, 'If-None-Match': etag } })).status, 304)
-    service.studio.board.draw(topic.id, { kind: 'text', title: '先画一块', content: { markdown: '价值 = 能力 × 互补性变革' } }, { threadId: null, runId: 'run-http' })
-    const changed = await fetch(`${base}/sheets/${sheets.writable}`, { headers: { ...auth, 'If-None-Match': etag } })
+    assert.deepEqual((await first.json() as { elements: unknown[] }).elements, [])
+    assert.equal((await fetch(`${base}/sheets/${sheets.writable}/canvas`, { headers: { ...auth, 'If-None-Match': etag } })).status, 304)
+    const drawn = await json(`/sheets/${sheets.writable}/canvas`, 'PUT', { elements: [{ id: 'u1', type: 'text', version: 1, text: '价值 = 能力 × 互补性变革' }] })
+    assert.deepEqual(await drawn.json(), { saved: 1, kept: [] })
+    const changed = await fetch(`${base}/sheets/${sheets.writable}/canvas`, { headers: { ...auth, 'If-None-Match': etag } })
     assert.equal(changed.status, 200, '白板变了，ETag 失效')
-    assert.equal((await changed.json() as { blocks: unknown[] }).blocks.length, 1)
+    assert.equal((await changed.json() as { elements: unknown[] }).elements.length, 1)
+    // ---- 对话卡片找元素所在的白板；擦掉的、旧块 id 都是 404 ----
+    assert.deepEqual(await (await json(`/topics/${topic.id}/elements/u1`)).json(), { sheetId: sheets.writable })
+    const unlocated = await json(`/topics/${topic.id}/elements/b-old-block`)
+    assert.deepEqual([unlocated.status, (await unlocated.json() as { code: string }).code], [404, 'board.element_missing'])
+    await json(`/sheets/${sheets.writable}/canvas`, 'PUT', { elements: [{ id: 'u1', type: 'text', version: 2, text: '价值 = 能力 × 互补性变革', isDeleted: true }] })
+    assert.equal((await json(`/topics/${topic.id}/elements/u1`)).status, 404, '删掉的元素不再能定位')
+    await json(`/sheets/${sheets.writable}/canvas`, 'PUT', { elements: [{ id: 'u1', type: 'text', version: 3, text: '价值 = 能力 × 互补性变革', isDeleted: false }] })
+    // Element ids are random within one canvas, not a global key: another topic never finds this one
+    const other = await (await json('/topics', 'POST', { title: '别的主题' })).json() as { id: string }
+    assert.equal((await json(`/topics/${other.id}/elements/u1`)).status, 404, '跨主题查询一律 404')
     const added = await json(`/topics/${topic.id}/sheets`, 'POST', { title: '电和 AI' })
     assert.equal(added.status, 201)
     assert.equal((await (await json(`/topics/${topic.id}/sheets`)).json() as { writable: string }).writable, (await added.json() as { id: string }).id)

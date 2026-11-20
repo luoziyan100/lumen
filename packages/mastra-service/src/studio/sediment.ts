@@ -1,10 +1,11 @@
 /**
  * [INPUT]: studio/db transactions, current blocks/sheets state (settled is derived from links), sediment DTOs from types
  * [OUTPUT]: SedimentStore: entry create/list/edit (an edit appends a revision row)/remove (the last link gone returns the block to current), offers add/list/consume (confirm takes the
- *           final text and re-checks delete-only)/dismiss, per-sheet invites (latest replaces), and the speech-habits table (S14: kept/restored counted only on confirm, listable and deletable);
+ *           final text and re-checks delete-only)/dismiss, per-sheet invites (latest replaces; they point at canvas elements, possibly none), and the speech-habits table (S14: kept/restored counted only on confirm, listable and deletable);
  *           quotePlan — R13's delete-only subsequence planner (pure, no tic list, returns the deleted fragments)
  * [POS]: the only sediment store. Entry text is written only through user HTTP (R13); AI tools only leave invites and offers; links and settled share one transaction (S3),
- *        and links carry no foreign key on purpose: after a sheet delete they keep their stored titles for display while entries and text stay (R17)
+ *        and links carry no foreign key on purpose: after a sheet delete they keep their stored titles for display while entries and text stay (R17).
+ *        Blocks retired with the co-drawn canvas (2026-11-19): every link is marked retired, so the app shows its title only and never jumps
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { randomUUID } from 'node:crypto'
@@ -91,13 +92,13 @@ function offer(row: Row): SedimentOffer {
   return {
     id: String(row.id), topicId: String(row.topic_id), threadId: String(row.thread_id), messageId: String(row.message_id),
     text: String(row.text), original: String(row.original), fragments: JSON.parse(String(row.fragments ?? '[]')) as SedimentFragment[],
-    blockIds: JSON.parse(String(row.block_ids)) as string[], createdAt: String(row.created_at),
+    elementIds: JSON.parse(String(row.block_ids)) as string[], createdAt: String(row.created_at),
   }
 }
 
 function invite(row: Row): SedimentInvite {
   return {
-    sheetId: String(row.sheet_id), blockIds: JSON.parse(String(row.block_ids)) as string[], question: String(row.question),
+    sheetId: String(row.sheet_id), elementIds: JSON.parse(String(row.block_ids)) as string[], question: String(row.question),
     threadId: row.thread_id === null ? null : String(row.thread_id), runId: row.run_id === null ? null : String(row.run_id), createdAt: String(row.created_at),
   }
 }
@@ -156,7 +157,8 @@ export class SedimentStore {
     for (const row of this.db.prepare(`SELECT l.* FROM sediment_links l JOIN sediment_entries e ON e.id = l.entry_id
       WHERE e.topic_id = ? ORDER BY l.created_at, l.entry_id`).all(topicId) as Row[]) {
       const live = this.db.prepare('SELECT 1 FROM blocks WHERE id = ?').get(String(row.block_id))
-      const link: SedimentLink = { blockId: String(row.block_id), title: String(row.block_title), sheetId: String(row.sheet_id), deleted: !live }
+      // Every link points at an old block; blocks retired with the canvas (2026-11-19), so the link is its stored title only
+      const link: SedimentLink = { blockId: String(row.block_id), title: String(row.block_title), sheetId: String(row.sheet_id), deleted: !live, retired: true }
       const list = links.get(String(row.entry_id)) ?? []
       list.push(link); links.set(String(row.entry_id), list)
     }
@@ -171,7 +173,7 @@ export class SedimentStore {
     if (!row) throw new StudioError('没有这条沉淀', 404, 'sediment.entry_not_found')
     const links = (this.db.prepare('SELECT * FROM sediment_links WHERE entry_id = ? ORDER BY created_at').all(entryId) as Row[]).map(linkRow => ({
       blockId: String(linkRow.block_id), title: String(linkRow.block_title), sheetId: String(linkRow.sheet_id),
-      deleted: !this.db.prepare('SELECT 1 FROM blocks WHERE id = ?').get(String(linkRow.block_id)),
+      deleted: !this.db.prepare('SELECT 1 FROM blocks WHERE id = ?').get(String(linkRow.block_id)), retired: true,
     }))
     return entry(row, links)
   }
@@ -203,10 +205,10 @@ export class SedimentStore {
   // Offers (S4): the AI hands the user's words back; only a confirm (HTTP quoted create)
   // lands them, a dismiss deletes them
   // -------------------------------------------------------------------------
-  offerAdd(topicId: string, input: { threadId: string; messageId: string; text: string; original: string; fragments: SedimentFragment[]; blockIds?: string[] }): SedimentOffer {
+  offerAdd(topicId: string, input: { threadId: string; messageId: string; text: string; original: string; fragments: SedimentFragment[]; elementIds?: string[] }): SedimentOffer {
     const id = randomUUID(), now = new Date().toISOString()
     this.db.prepare('INSERT INTO sediment_offers (id, topic_id, thread_id, message_id, text, original, fragments, block_ids, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, topicId, input.threadId, input.messageId, entryText(input.text), input.original, JSON.stringify(input.fragments), JSON.stringify(input.blockIds ?? []), now)
+      .run(id, topicId, input.threadId, input.messageId, entryText(input.text), input.original, JSON.stringify(input.fragments), JSON.stringify(input.elementIds ?? []), now)
     return offer(this.db.prepare('SELECT * FROM sediment_offers WHERE id = ?').get(id) as Row)
   }
 
@@ -221,8 +223,8 @@ export class SedimentStore {
       const row = this.db.prepare('SELECT * FROM sediment_offers WHERE id = ? AND topic_id = ?').get(offerId, topicId)
       if (!row) throw new StudioError('这条原话提议不在了（可能已确认或已丢弃）', 404, 'sediment.offer_not_found')
       const pending = offer(row)
-      // offer-borne blocks carry no rev the UI saw (NaN): block state alone decides; extra blocks go through the rev check
-      const extra = blocks ?? pending.blockIds.map(id => ({ id, rev: Number.NaN }))
+      // The offer's ids are canvas elements (or, on offers before 2026-11-19, old block ids): neither becomes an evidence link; only blocks the UI sends do
+      const extra = blocks ?? []
       const input: CreateEntryInput = { text: text ?? pending.text, origin: 'quoted',
         quote: { threadId: pending.threadId, messageId: pending.messageId, original: pending.original }, blocks: extra }
       const finalText = entryText(input.text)
@@ -287,12 +289,13 @@ export class SedimentStore {
   // -------------------------------------------------------------------------
   // Per-sheet invites (S4): the latest replaces the earlier one; they die with the sheet (cascade).
   // -------------------------------------------------------------------------
-  invite(sheetId: string, input: { blockIds: string[]; question: string; threadId: string | null; runId: string | null }): SedimentInvite {
+  /** elementIds: canvas elements the question points at (checked by the tool), possibly none; stored in the legacy block_ids column */
+  invite(sheetId: string, input: { elementIds: string[]; question: string; threadId: string | null; runId: string | null }): SedimentInvite {
     const now = new Date().toISOString()
     this.db.prepare(`INSERT INTO sediment_invites (sheet_id, block_ids, question, thread_id, run_id, created_at) VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT (sheet_id) DO UPDATE SET block_ids = excluded.block_ids, question = excluded.question, thread_id = excluded.thread_id,
         run_id = excluded.run_id, created_at = excluded.created_at`)
-      .run(sheetId, JSON.stringify(input.blockIds), input.question, input.threadId, input.runId, now)
+      .run(sheetId, JSON.stringify(input.elementIds), input.question, input.threadId, input.runId, now)
     return this.inviteOf(sheetId)!
   }
 

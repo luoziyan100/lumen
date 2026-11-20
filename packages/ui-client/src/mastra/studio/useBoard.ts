@@ -1,11 +1,11 @@
 /**
- * [INPUT]: LumenApi's sheet list (with the selection and the run's target), storing the selection, the ETag sheet read, the external refresh signal (a board tool finished in the conversation), the running state
- * [OUTPUT]: useBoard: the topic's sheets, the selected sheet's view, the live sheet's id, the run's target, the selection (stored on the service, R16; an older service without the route switches locally only, other store failures land in error until the next stored pick), ＋ (the new sheet becomes the selection), deleting one (R17: content asks first — the 409 carries the block count and how many takeaways lean on it — and a deleted selection follows the service's neighbour; an older service reports unsupported as due), whether a block still exists, refresh and errors
- * [POS]: board refresh builds no second event protocol: the tool-completion signal triggers a refetch, with a 5-second ETag fallback while running (plan §6); the selection is stored only through Lumen's own HTTP while messages still go the native way
+ * [INPUT]: LumenApi's sheet list (with the selection and the run's target), storing the selection, the ETag canvas read, erasure restore/dismiss, the element lookup, the external refresh signal (a board tool finished in the conversation), the running state
+ * [OUTPUT]: useBoard: the topic's sheets, the selected sheet's canvas scene, the live sheet's id, the run's target, the selection (stored on the service, R16; an older service without the route switches locally only, other store failures land in error until the next stored pick), ＋ (the new sheet becomes the selection), deleting one (R17: content asks first — the 409 carries the element count and how many takeaways lean on old blocks — and a deleted selection follows the service's neighbour; an older service reports unsupported as due), restoring or keeping the AI's erase (R5), which sheet holds an element, refresh and errors
+ * [POS]: board refresh builds no second event protocol: the tool-completion signal triggers a refetch, with a 5-second ETag fallback while running (plan §6); the user's strokes save from BoardCanvas, not here; the selection is stored only through Lumen's own HTTP while messages still go the native way
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { LumenApi, Sheet, SheetDeletion, SheetList, SheetView } from '../data/client.ts'
+import type { CanvasScene, LumenApi, Sheet, SheetDeletion, SheetList } from '../data/client.ts'
 import { t } from '../../i18n/index.ts'
 
 export interface BoardState {
@@ -14,14 +14,20 @@ export interface BoardState {
   selected: string | null
   /** The sheet the run in progress writes to (R16); null when no run holds one. */
   target: string | null
-  view: SheetView | null
+  /** The selected sheet's canvas: elements with tombstones, ops the AI queued, open erasures, the stored viewport */
+  scene: CanvasScene | null
   error: string
+  /** Shown beside the canvas: a save or a commit the service refused */
+  report: (message: string) => void
   select: (sheetId: string) => void
   createSheet: () => Promise<void>
-  /** R17: delete a sheet. Without `confirmed`, a sheet with blocks answers `confirm` (with the count, and how many takeaways lose their evidence link) and nothing is deleted; null: it failed (see error). */
+  /** R17: delete a sheet. Without `confirmed`, a sheet with content answers `confirm` (with the count, and how many takeaways lose their evidence link) and nothing is deleted; null: it failed (see error). */
   remove: (sheetId: string, confirmed?: boolean) => Promise<SheetDeletion | null>
-  /** Whether a block still exists (a conversation card may point into a deleted sheet); unknown when the service cannot tell. */
-  locate: (blockId: string) => Promise<'found' | 'deleted' | 'unknown'>
+  /** R5: bring back the strokes the AI erased on the selected sheet, or keep the erase and drop the notice. */
+  restore: () => Promise<void>
+  dismiss: () => Promise<void>
+  /** Which sheet holds a conversation card's element; deleted when it is gone (erased, its sheet deleted, a retired block), unknown when the service cannot tell. */
+  locate: (elementId: string) => Promise<{ kind: 'found'; sheetId: string } | { kind: 'deleted' } | { kind: 'unknown' }>
   refresh: () => void
 }
 
@@ -35,7 +41,7 @@ export function initialSelection(result: SheetList, previous: string | null, pin
 
 export function useBoard(api: LumenApi, topicId: string | null, signal: string, live: boolean): BoardState {
   const [sheets, setSheets] = useState<Sheet[]>([]), [writable, setWritable] = useState<string | null>(null), [target, setTarget] = useState<string | null>(null)
-  const [selected, setSelected] = useState<string | null>(null), [view, setView] = useState<SheetView | null>(null)
+  const [selected, setSelected] = useState<string | null>(null), [scene, setScene] = useState<CanvasScene | null>(null)
   const [error, setError] = useState(''), [tick, setTick] = useState(0)
   // A failed user action (storing a pick, deleting a sheet), kept apart from the read error, which every successful board read clears:
   // it stays until a later action succeeds
@@ -45,7 +51,7 @@ export function useBoard(api: LumenApi, topicId: string | null, signal: string, 
   const refresh = useCallback(() => setTick(value => value + 1), [])
 
   // ---- Topic switch: clear everything and rest on the service's stored selection ----
-  useEffect(() => { setSheets([]); setWritable(null); setTarget(null); setSelected(null); setView(null); setError(''); setActionError(''); etag.current = null; pinned.current = false; pick.current++ }, [api, topicId])
+  useEffect(() => { setSheets([]); setWritable(null); setTarget(null); setSelected(null); setScene(null); setError(''); setActionError(''); etag.current = null; pinned.current = false; pick.current++ }, [api, topicId])
 
   // ---- The list: refetch on signal and refresh; while running poll every 5s — the run's target settles only after the run starts ----
   useEffect(() => {
@@ -63,17 +69,17 @@ export function useBoard(api: LumenApi, topicId: string | null, signal: string, 
   }, [api, topicId, signal, tick, live])
 
   useEffect(() => {
-    if (!selected) { setView(null); return }
+    if (!selected) { setScene(null); return }
     let active = true, pending = false
     const read = async () => {
       if (pending) return
       pending = true
       try {
         const previous = etag.current?.sheet === selected ? etag.current.etag : null
-        const result = await api.sheetVersion(selected, previous)
+        const result = await api.canvas(selected, previous)
         if (!active) return
         etag.current = { sheet: selected, etag: result.etag }
-        if (result.view) setView(result.view)
+        if (result.scene) setScene(result.scene)
         setError('')
       } catch (error) { if (active) setError(error instanceof Error ? error.message : String(error)) }
       finally { pending = false }
@@ -84,7 +90,8 @@ export function useBoard(api: LumenApi, topicId: string | null, signal: string, 
   }, [api, selected, signal, tick, live])
 
   return {
-    sheets, writable, selected, target, view: view?.sheet.id === selected ? view : null, error: actionError || error, refresh,
+    sheets, writable, selected, target, scene: scene?.sheet.id === selected ? scene : null, error: actionError || error, refresh,
+    report: setActionError,
     select(sheetId) {
       pinned.current = true; setSelected(sheetId)
       if (!topicId) return
@@ -118,8 +125,17 @@ export function useBoard(api: LumenApi, topicId: string | null, signal: string, 
         return null
       }
     },
-    async locate(blockId) {
-      try { return (await api.blockSheet(blockId)).kind } catch { return 'unknown' }
+    async restore() {
+      if (!selected) return
+      try { await api.restoreErasures(selected); setActionError(''); refresh() } catch (error) { setActionError(error instanceof Error ? error.message : String(error)) }
+    },
+    async dismiss() {
+      if (!selected) return
+      try { await api.dismissErasures(selected); refresh() } catch (error) { setActionError(error instanceof Error ? error.message : String(error)) }
+    },
+    async locate(elementId) {
+      if (!topicId) return { kind: 'unknown' }
+      try { return await api.elementSheet(topicId, elementId) } catch { return { kind: 'unknown' } }
     },
   }
 }

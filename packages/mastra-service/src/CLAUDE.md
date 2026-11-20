@@ -3,7 +3,7 @@
 
 新应用实现目录；旧运行时不参与生产依赖。
 
-- `application.ts`：组合 AgentController、Memory、studio 存储与按主题共享的 Workspace（关闭时每主题只销毁一次）；白板工具接主 Agent（专家只给 board_view）; the reading tools (reading_view/reading_write/reading_insert) go to the main agent only, built on the same material access and the board's trusted writer，主题现状经指令注入，运行结束（非挂起，含停止/出错）给改过的白板写版本；R1 一主题一运行由 `admitRun`（同步段预留 + 实时运行/等待投影）裁决，新开对话用 `assertTopicIdle`；`admitRun` 内 `assertOpen` 拒绝归档（409）与正在删除（404）的对象；`whileIdle` 占住主题准入槽做空闲检查（归档/删除用），`release` 删除前清掉进程内会话、工作区与 Memory 挂载；资料库工具只经受信会话推出的主题引用；全局一组专家按角色能力与独立调用目录隔离，关闭先排空父子输出和诊断评估；诊断仅取得当前模型快照，不继承研究工具或工作区；原生threadState恢复清单展示，持久挂起阻止模型切换。
+- `application.ts`：组合 AgentController、Memory、studio 存储与按主题共享的 Workspace（关闭时每主题只销毁一次）；白板工具接主 Agent（专家只给 board_view）; the reading tools (reading_view/reading_write/reading_insert) go to the main agent only, built on the same material access and the board's trusted writer，主题现状经指令注入，运行结束（非挂起，含停止/出错）给改过的白板写一个画布快照；模型能看图时挂上 glance 请求处理器与 board_look（每次请求至多一张白板画面）；R1 一主题一运行由 `admitRun`（同步段预留 + 实时运行/等待投影）裁决，新开对话用 `assertTopicIdle`；`admitRun` 内 `assertOpen` 拒绝归档（409）与正在删除（404）的对象；`whileIdle` 占住主题准入槽做空闲检查（归档/删除用），`release` 删除前清掉进程内会话、工作区与 Memory 挂载；资料库工具只经受信会话推出的主题引用；全局一组专家按角色能力与独立调用目录隔离，关闭先排空父子输出和诊断评估；诊断仅取得当前模型快照，不继承研究工具或工作区；原生threadState恢复清单展示，持久挂起阻止模型切换。
 - `model.ts`：本地档案到 SDK Gateway 的配置边界，模型网络通过 SDK 执行。
 - `permissions.ts`：主 Agent 工具权限类别唯一真源与 Controller 内建工具单独放行名单；未登记工具落入 other，不被默认放行。reading_view is read and reading_write/reading_insert are edit, like the board tools.
 
@@ -22,7 +22,7 @@
 
 - `catalog/`：主题下会话的原生 Mastra thread 目录（主题本身在 studio/），提供标题、置顶、归档、分页和独立已读消息游标；消息与运行状态仍由框架持有。
 
-- `studio/`：新形态领域（主题、全局资料库与主题引用、白板/区块/版本）的存储与 HTTP，以及只认主题引用的 list_materials/read_material；白板只经它写入，容量、rev 与出处边界在单事务里裁决。
+- `studio/`：新形态领域（主题、全局资料库与主题引用、共画画布、旧区块只读）的存储与 HTTP，以及只认主题引用的 list_materials/read_material；白板只经它写入，合并、作者与出处边界在单事务里裁决。
 
 - `settings/`：独立数据根中的模型档案与研究偏好，公开脱敏视图、服务内部网关配置和显式一次性导入。
 

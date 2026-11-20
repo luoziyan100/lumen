@@ -1,11 +1,13 @@
 /**
  * [INPUT]: Real Board component and useBoard hook (React DOM + jsdom); a real HTTP service with Mastra Controller for the selection round trip
  * [OUTPUT]: R16 UI evidence: which tab opens (initialSelection); tabs are a board glyph plus a number with the full title in title/aria-label (one sheet too, V8);
- *           V0: the easel on a live sheet with no blocks, gone when the AI draws on that sheet or a block lands, never on a folded sheet;
+ *           the strip is its own row under the canvas; each selected sheet gets its own canvas (read-only when folded); a canvas that cannot open leaves one line;
+ *           V0: the easel on a live sheet with no stroke, gone when the AI draws on that sheet, a stroke lands or an op waits, never on a folded sheet;
  *           folded tabs dimmed; the drawing dot sits on the run target while another sheet is shown; a folded selection says the AI won't write there;
  *           the selection persists through a reload, ＋ selects the new sheet, an older service without the route (404/405) still switches tabs locally,
  *           any other failure to store the pick reaches board.error and survives board reads until a later pick is stored
- * [POS]: Component wiring and the real service round trip; real layout (no wrap, horizontal scroll with 12 sheets) is checked in the browser assertions
+ * [POS]: Component wiring and the real service round trip; the canvas is the stand-in of helpers/canvas-stub.mjs (jsdom cannot paint); real layout (no wrap,
+ *        horizontal scroll with 12 sheets, no overlap with Excalidraw's toolbar) is checked in the browser assertions
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import test, { after } from 'node:test'
@@ -21,7 +23,7 @@ import { serve } from '@hono/node-server'
 import { createHttpService } from '../../mastra-service/src/server.ts'
 import { fixtureProvider, textReply } from '../../mastra-service/tests/provider-fixture.ts'
 import { ensureTopic } from '../../mastra-service/tests/topic-fixture.ts'
-import { LumenApi, type Sheet, type SheetList } from '../src/mastra/data/client.ts'
+import { LumenApi, type CanvasElement, type CanvasScene, type Sheet, type SheetList } from '../src/mastra/data/client.ts'
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/', pretendToBeVisual: true })
 for (const name of ['window', 'document', 'HTMLElement', 'Element', 'Node', 'DocumentFragment', 'MutationObserver', 'getComputedStyle', 'navigator']) {
@@ -30,6 +32,7 @@ for (const name of ['window', 'document', 'HTMLElement', 'Element', 'Node', 'Doc
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true, ResizeObserver: class { observe() {} unobserve() {} disconnect() {} } })
 after(() => dom.window.close())
 register('./helpers/tsx-loader.mjs', import.meta.url)
+register('./helpers/canvas-stub.mjs', import.meta.url)
 const { createRoot } = await import('react-dom/client')
 const { Board } = await import('../src/mastra/studio/Board.tsx')
 const { useBoard, initialSelection } = await import('../src/mastra/studio/useBoard.ts')
@@ -45,7 +48,10 @@ async function until(check: () => boolean | Promise<boolean>, message: string, m
 }
 
 const sheet = (id: string, title: string, ord: number, state: Sheet['state'] = 'live'): Sheet =>
-  ({ id, topicId: 't', title, state, capacity: 8, used: 0, ord, createdAt: '', updatedAt: '' })
+  ({ id, topicId: 't', title, state, used: 0, ord, createdAt: '', updatedAt: '' })
+const scene = (of: Sheet, elements: CanvasElement[] = [], ops: CanvasScene['ops'] = []): CanvasScene => ({ sheet: of, elements, ops, erasures: [], viewport: null, changed: false })
+const api = new LumenApi({ baseUrl: 'http://127.0.0.1:9', token: 'unused-in-component-tests-000000' })
+const actions = { error: '', refresh() {}, select() {}, async createSheet() {}, report() {}, async remove() { return null }, async restore() {}, async dismiss() {}, async locate() { return { kind: 'unknown' as const } } }
 
 const sedimentStub = { items: [], offers: [], unsupported: false, error: '', revConflict: false, refresh() {}, async create() { return true }, async confirm() { return true }, async dismiss() {}, async edit() { return true }, async remove() { return true } }
 
@@ -64,9 +70,9 @@ test('Board tabs: glyph + number, full title in title/aria-label, folded dimmed,
   const element = document.createElement('div'); document.body.append(element)
   const root = createRoot(element)
   const sheets = [sheet('a', '自注意力为什么能取代循环', 1), sheet('b', '白板 2', 2, 'folded'), sheet('c', '白板 3', 3)]
-  const state = (patch: Partial<BoardState>): BoardState => ({ sheets, writable: 'c', selected: 'c', target: null, error: '', refresh() {}, select() {}, async createSheet() {},
-    view: { sheet: sheets.find(item => item.id === (patch.selected ?? 'c'))!, blocks: [] }, ...patch })
-  const render = (board: BoardState, drawing: string | null) => act(async () => root.render(createElement(Board, { board, materials: [], drawing, focus: null, onOpenSource() {}, sediment: sedimentStub, invite: null })))
+  const state = (patch: Partial<BoardState>): BoardState => ({ sheets, writable: 'c', selected: 'c', target: null, ...actions,
+    scene: scene(sheets.find(item => item.id === (patch.selected ?? 'c'))!), ...patch })
+  const render = (board: BoardState, drawing: string | null) => act(async () => root.render(createElement(Board, { api, board, drawing, focus: null, sediment: sedimentStub, invite: null })))
   const tabs = () => [...element.querySelectorAll<HTMLButtonElement>('.board-tabs .board-tab > button:first-child')]
   try {
     await render(state({ target: 'a' }), 'new')
@@ -88,41 +94,74 @@ test('Board tabs: glyph + number, full title in title/aria-label, folded dimmed,
     await render(state({ selected: 'b' }), null)
     assert.equal(tabs()[1]!.className, 'on is-folded')
     assert.equal(element.querySelector('.board-hint')!.textContent, S.board.foldedHint)
+    await until(() => element.querySelector<HTMLElement>('.board-canvas')?.dataset.readonly === 'true', 'a folded sheet is not read-only')
+    assert.equal(element.querySelector<HTMLElement>('.board-canvas')!.dataset.sheet, 'b')
     await render(state({ selected: 'c' }), null)
     assert.equal(element.querySelector('.board-hint'), null, 'a live selection shows no hint')
+    await until(() => element.querySelector<HTMLElement>('.board-canvas')?.dataset.sheet === 'c', 'the selected sheet has no canvas')
+    assert.equal(element.querySelector<HTMLElement>('.board-canvas')!.dataset.readonly, 'false')
+    // ---- the strip is the board's last row, under the canvas, never an overlay on it ----
+    assert.equal(element.querySelector('.studio-board')!.lastElementChild!.matches('nav.board-sheets'), true)
+    assert.equal(element.querySelector('.board-viewport nav'), null)
     // ---- one sheet: the same strip with one tab (glyph + 1), so one and many look alike ----
-    await render(state({ sheets: [sheets[0]!], selected: 'a', view: { sheet: sheets[0]!, blocks: [] } }), null)
+    await render(state({ sheets: [sheets[0]!], selected: 'a', scene: scene(sheets[0]!) }), null)
     assert.equal(tabs().length, 1)
     assert.deepEqual([tabs()[0]!.textContent, !!tabs()[0]!.querySelector('svg'), tabs()[0]!.className], ['1', true, 'on'])
     // ---- twelve sheets: twelve tabs in one strip ----
     const many = Array.from({ length: 12 }, (_, index) => sheet(`s${index}`, `白板 ${index + 1}`, index + 1))
-    await render(state({ sheets: many, selected: 's11', view: { sheet: many[11]!, blocks: [] } }), null)
+    await render(state({ sheets: many, selected: 's11', scene: scene(many[11]!) }), null)
     assert.deepEqual(tabs().map(tab => tab.textContent), many.map((_, index) => String(index + 1)))
   } finally { await act(async () => root.unmount()); element.remove() }
 })
 
-test('V0: the easel stands on a live sheet with no blocks and leaves when the AI starts drawing there or a block lands', async () => {
+test('V0: the easel stands on a live sheet with no stroke and leaves when the AI starts drawing there, a stroke lands or an op waits', async () => {
   const element = document.createElement('div'); document.body.append(element)
   const root = createRoot(element)
   const blank = sheet('a', '白板 1', 1), other = sheet('b', '白板 2', 2)
-  const block = { id: 'b1', sheetId: 'a', kind: 'text' as const, title: '第1块', content: { markdown: 'x' }, x: 0, y: 0, w: 400, h: 100, state: 'current' as const, supersededBy: null, rev: 1, sources: [], threadId: null, runId: null, createdAt: '', updatedAt: '' }
-  const state = (patch: Partial<BoardState>): BoardState => ({ sheets: [blank, other], writable: 'a', selected: 'a', target: null, error: '', refresh() {}, select() {}, async createSheet() {},
-    view: { sheet: blank, blocks: [] }, ...patch })
-  const render = (board: BoardState, drawing: string | null) => act(async () => root.render(createElement(Board, { board, materials: [], drawing, focus: null, onOpenSource() {}, sediment: sedimentStub, invite: null })))
+  const stroke = { id: 's1', type: 'freedraw', version: 1, isDeleted: false } as CanvasElement
+  const pending = { id: 'op1', kind: 'draw' as const, title: '一笔', skeletons: [], patches: [], ids: ['a1'], threadId: null, runId: null, createdAt: '' }
+  const state = (patch: Partial<BoardState>): BoardState => ({ sheets: [blank, other], writable: 'a', selected: 'a', target: null, ...actions, scene: scene(blank), ...patch })
+  const render = (board: BoardState, drawing: string | null) => act(async () => root.render(createElement(Board, { api, board, drawing, focus: null, sediment: sedimentStub, invite: null })))
   const easel = () => !!element.querySelector('.board-easel')
   try {
     await render(state({}), null)
+    await until(() => !!element.querySelector('.board-canvas'), 'no canvas')
     assert.ok(easel(), 'a blank live sheet shows the easel')
     assert.equal(element.querySelector('.board-empty'), null, 'no line of explanation beside it')
     await render(state({ target: 'a' }), 'new')
     assert.ok(!easel(), 'the AI drawing on this sheet removes it')
     await render(state({ target: 'b' }), 'new')
     assert.ok(easel(), 'drawing on another sheet leaves it')
-    await render(state({ view: { sheet: blank, blocks: [block] } }), null)
-    assert.ok(!easel(), 'a block removes it')
-    await render(state({ sheets: [{ ...blank, state: 'folded' }, other], view: { sheet: { ...blank, state: 'folded' }, blocks: [] } }), null)
+    await render(state({ scene: scene(blank, [{ ...stroke, isDeleted: true }]) }), null)
+    assert.ok(easel(), 'an erased stroke leaves the sheet blank')
+    await render(state({ scene: scene(blank, [stroke]) }), null)
+    await until(() => !easel(), 'a stroke did not remove it')
+    await render(state({ scene: scene(blank, [], [pending]) }), null)
+    await until(() => !easel(), 'an op waiting to land did not remove it')
+    await render(state({ sheets: [{ ...blank, state: 'folded' }, other], scene: scene({ ...blank, state: 'folded' }) }), null)
     assert.ok(!easel(), 'a folded sheet keeps its hint, not the easel')
   } finally { await act(async () => root.unmount()); element.remove() }
+})
+
+test('a canvas that cannot open leaves one line in its place; the strip stays and another sheet gets a fresh try', async () => {
+  const element = document.createElement('div'); document.body.append(element)
+  const root = createRoot(element)
+  const sheets = [sheet('a', '白板 1', 1), sheet('b', '白板 2', 2)]
+  const state = (selected: string): BoardState => ({ sheets, writable: 'a', selected, target: null, ...actions, scene: scene(sheets.find(item => item.id === selected)!) })
+  const render = (board: BoardState) => act(async () => root.render(createElement(Board, { api, board, drawing: null, focus: null, sediment: sedimentStub, invite: null })))
+  const errors = console.error
+  try {
+    console.error = () => {}
+    ;(globalThis as { __canvasStubFails?: string }).__canvasStubFails = 'chunk missing'
+    await render(state('a'))
+    await until(() => !!element.querySelector('.board-error'), 'no line in the canvas place')
+    assert.equal(element.querySelector('.board-error')!.textContent, S.board.canvasFailed('chunk missing'))
+    assert.equal(element.querySelectorAll('.board-tabs .board-tab').length, 2, 'the strip stays')
+    delete (globalThis as { __canvasStubFails?: string }).__canvasStubFails
+    await render(state('b'))
+    await until(() => element.querySelector<HTMLElement>('.board-canvas')?.dataset.sheet === 'b', 'another sheet did not get a fresh canvas')
+    assert.equal(element.querySelector('.board-error'), null)
+  } finally { console.error = errors; delete (globalThis as { __canvasStubFails?: string }).__canvasStubFails; await act(async () => root.unmount()); element.remove() }
 })
 
 test('useBoard against the real service: the selection persists through a reload, ＋ selects the new sheet; an older service without the route (404/405) still switches locally; other failures reach board.error', { timeout: 60000 }, async () => {
@@ -175,7 +214,7 @@ test('useBoard against the real service: the selection persists through a reload
     await act(async () => { await delay(100) })
     assert.equal(board.selected, second)
     assert.equal(board.error, '', 'a missing selection route must not break the board')
-    assert.ok(board.view === null || board.view.sheet.id === second)
+    assert.ok(board.scene === null || board.scene.sheet.id === second)
     // ---- current service, route answers 405: also treated as a missing route ----
     legacy = false; failure = 405
     await act(async () => board.select(third))
@@ -188,7 +227,7 @@ test('useBoard against the real service: the selection persists through a reload
     assert.equal(board.error, `${S.board.selectFailed}写入失败`)
     assert.equal(board.selected, fourth, 'the tab still shows what the user picked')
     await act(async () => board.refresh())
-    await until(() => board.view?.sheet.id === fourth, 'board read did not complete')
+    await until(() => board.scene?.sheet.id === fourth, 'board read did not complete')
     assert.equal(board.error, `${S.board.selectFailed}写入失败`, 'a successful read keeps the selection error')
     // ---- the next stored pick clears it ----
     failure = null

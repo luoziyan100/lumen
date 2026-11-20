@@ -1,154 +1,114 @@
 /**
- * [INPUT]: useBoard's sheets and views, topic materials, the sprite's drawing/focus signals, layout.ts's width-based flow
- * [OUTPUT]: Board: the canvas — the top-left overlay (sheet tabs, one or many alike: board glyph + number, full title in title/aria-label, folded dimmed, a dot on the run's target while the AI draws, horizontal scroll instead of wrapping; each sheet carries a 「⋯」 menu (hover/focus, always on the selected one) to delete it, blocks ask first, the run's target is protected; ＋ opens and selects; no used-count on display — the cap and R11 stay server-side, and a full sheet's frame label says so honestly),
- *           the canvas starts below the overlay (BOARD.TOP ≥ overlay top 12 + height 30 + 12, so first-screen block titles never sit under it), DOM + CSS transform pan/zoom (100% by default, shrink to see it all),
- *           1–3 display columns by viewport width, a frame hugging the content, the easel alone in the canvas's middle when there is no sheet, or on a live sheet with no blocks until the AI draws there (decoration; a click on it opens it and never pans), the AI-drawing notice, widget concurrency slots, the bottom-right zoom bar, and the sediment row under the canvas (S9)
- * [POS]: the center Board view; read-only for the user since P0 (no circling, pinning or editing). Whichever sheet you watch is where the next message writes (R16); a folded one says the AI will not write there. A card pointing into a deleted sheet only says so and never jumps elsewhere (R17). Columns and positions reflow in the display layer only; server coordinates stay
+ * [INPUT]: useBoard's sheets, scene and erase actions; the lazily loaded BoardCanvas; the sprite's drawing/focus signals; the selected sheet's sediment invite; Kumo Button/Dialog/DropdownMenu
+ * [OUTPUT]: Board: the board view — the canvas of the selected sheet (one BoardCanvas per sheet), the easel alone in the middle when there is no sheet or a live sheet
+ *           has no stroke yet (decoration: on a canvas strokes go through it, with no sheet it opens on a click like the other objects; it leaves at the first stroke or when the AI starts drawing there), the folded-sheet words,
+ *           one line in the canvas's place when it fails to load or render (CanvasBoundary; the strip and the app stay), the AI-drawing notice, the 「AI 擦了 N 笔」 banner with restore and keep (R5), the gone-element notice for a card whose element left (R17), the sediment row
+ *           for the AI's invite question (S9c, skippable), and the sheet strip under them (board glyph + number, full title in title/aria-label, folded dimmed,
+ *           a dot on the run's target while the AI draws, horizontal scroll instead of wrapping; each tab's 「⋯」 deletes it, content asks first in a dialog,
+ *           the run's target is protected; ＋ opens and selects)
+ * [POS]: the center Board view; user and AI draw on the same canvas (R2). Whichever sheet you watch is where the next message writes (R16); a folded one
+ *        says the AI will not write there. The strip sits below the canvas, not over it, so Excalidraw's own toolbar and menus never meet it at any width.
+ *        Overlays here use solid surfaces: nothing on the canvas shows through. Excalidraw's asset path is set before its chunk loads; it is the fonts' only source, as the build strips the esm.sh fallback (vite.config.ts)
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from 'react'
+import { Component, Suspense, lazy, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
 import { Dialog } from '@cloudflare/kumo/components/dialog'
 import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
-import { BoardViewIcon, MinusIcon, MoreIcon, PlusIcon, ExpandIcon, SettledViewIcon } from '../../components/icons'
+import { BoardViewIcon, MoreIcon, PlusIcon } from '../../components/icons'
 import { useT } from '../../i18n/index.ts'
-import type { Sheet, SedimentInvite, TopicMaterial } from '../data/client.ts'
-import { BlockCard } from './Block'
+import type { LumenApi, Sheet, SedimentInvite } from '../data/client.ts'
 import { IsoObject } from './objects/IsoObject'
 import { easelSvg } from './objects/easel.ts'
-import { BOARD, flowLayout } from './layout'
-import { OfferRow, TakeawayComposer } from './Takeaways'
+import { TakeawayComposer } from './Takeaways'
 import type { BoardState } from './useBoard'
 import type { SedimentState } from './useSediment'
 
+const BoardCanvas = lazy(() => {
+  Object.assign(window, { EXCALIDRAW_ASSET_PATH: new URL('excalidraw/', document.baseURI).href })
+  return import('./BoardCanvas')
+})
+
+/** A canvas that fails to load or render (a missing chunk, an editor crash) leaves one line in its place; the strip, tabs and the rest of the app stay */
+class CanvasBoundary extends Component<{ sheetId: string; fallback: (error: unknown) => ReactNode; children: ReactNode }, { error: unknown; sheetId: string }> {
+  state = { error: null as unknown, sheetId: this.props.sheetId }
+  static getDerivedStateFromError(error: unknown) { return { error } }
+  static getDerivedStateFromProps(props: { sheetId: string }, state: { error: unknown; sheetId: string }) {
+    // Another sheet gets a fresh try
+    return props.sheetId === state.sheetId ? null : { error: null, sheetId: props.sheetId }
+  }
+  render() { return this.state.error ? this.props.fallback(this.state.error) : this.props.children }
+}
+
 // The easel carries no data, so its markup is built once
 const EASEL = easelSvg()
-
-const MAX_WIDGETS = 2
-const HOME = { x: BOARD.INSET + BOARD.PAD, y: BOARD.TOP + BOARD.PAD, scale: 1 }
 const NOTICE_MS = 4000
 
 /** A sheet's 「⋯」 menu with its one item (R17). The run's target cannot be deleted; the reason sits in the item's title. */
 function SheetMenu({ name, busy, className, onRemove }: { name: string; busy: boolean; className: string; onRemove: () => void }) {
-  const { studio: S, common: { labelled } } = useT()
+  const { studio: S } = useT()
   return <DropdownMenu>
     <DropdownMenu.Trigger render={<button type="button" className={className} aria-label={S.board.more(name)} title={S.board.more(name)} />}><MoreIcon size={16} /></DropdownMenu.Trigger>
-    <DropdownMenu.Content align="start" sideOffset={6} className="glass-card">
+    <DropdownMenu.Content align="start" side="top" sideOffset={6} className="glass-card">
       <DropdownMenu.Item disabled={busy} title={busy ? S.board.removeBusy : undefined} onClick={onRemove}>{S.board.remove}</DropdownMenu.Item>
     </DropdownMenu.Content>
   </DropdownMenu>
 }
 
-export function Board({ board, materials, drawing, focus, onOpenSource, sediment, invite }: {
+export function Board({ api, board, drawing, focus, sediment, invite }: {
+  api: LumenApi
   board: BoardState
-  materials: TopicMaterial[]
   drawing: string | null
-  focus: { blockId: string; nonce: number } | null
-  onOpenSource: (itemId: string, page?: number) => void
+  /** A conversation card's element (its draw's first id) */
+  focus: { elementId: string; nonce: number } | null
   sediment: SedimentState
-  /** the selected sheet's sediment invite (S4/S9c): its question and blocks ride above the full-board row */
+  /** the selected sheet's sediment invite (S4/S9c): its question opens the row under the canvas */
   invite: SedimentInvite | null
 }) {
   const { studio: S, common: { labelled } } = useT()
-  const viewport = useRef<HTMLDivElement>(null), world = useRef<HTMLDivElement>(null), strip = useRef<HTMLSpanElement>(null)
-  const [camera, setCamera] = useState(HOME)
-  const [width, setWidth] = useState(0)
-  const [heights, setHeights] = useState<Record<string, number>>({})
-  const [widgets, setWidgets] = useState<string[]>([])
-  const [focused, setFocused] = useState<string | null>(null)
-  // ---- R17: a sheet with blocks waits here for the user's confirmation; a card whose sheet was deleted shows a short notice ----
-  const [pending, setPending] = useState<{ sheet: Sheet; number: number; blocks: number; settled: number } | null>(null)
+  const strip = useRef<HTMLSpanElement>(null)
+  // ---- R17: a sheet with content waits here for the user's confirmation; a card whose element left shows a short notice ----
+  const [pending, setPending] = useState<{ sheet: Sheet; number: number; count: number; settled: number } | null>(null)
   const [removing, setRemoving] = useState(false), [notice, setNotice] = useState(false)
-  // ---- S9b: a block-level "write a takeaway from this block" opens the row with that block pre-linked ----
-  const [fromBlock, setFromBlock] = useState<string | null>(null)
-  // ---- S9c: "Skip" hides the full-board row for this sheet until the sheet changes (updatedAt moves) ----
-  const [skipped, setSkipped] = useState<{ sheetId: string; updatedAt: string } | null>(null)
-  const drag = useRef<{ x: number; y: number; cx: number; cy: number } | null>(null)
-  const view = board.view, blocks = view?.blocks ?? []
-  const byId = useMemo(() => new Map(materials.map(item => [item.id, item])), [materials])
-  const titles = useMemo(() => new Map(blocks.map(block => [block.id, block.title])), [blocks])
-  const layout = useMemo(() => flowLayout(blocks, heights, width), [blocks, heights, width])
-  const positioned = blocks.map(block => ({ ...block, ...(layout.placed.get(block.id) ?? {}) }))
-  // A sheet with no blocks gets the easel too (a new topic's first sheet), until the AI starts drawing on it
-  const blankSheet = !!view && !blocks.length && view.sheet.state === 'live' && !(drawing && board.target === view.sheet.id)
+  const [here, setHere] = useState<{ elementId: string; nonce: number } | null>(null)
+  // ---- S9c: "Skip" hides the invite row until the AI asks again (a newer invite) ----
+  const [skipped, setSkipped] = useState<string | null>(null)
+  // ---- the canvas reports a blank sheet as the user draws; before it does, the scene says ----
+  const [blank, setBlank] = useState<{ sheetId: string; blank: boolean } | null>(null)
+  const scene = board.scene
+  const erased = scene?.erasures ?? []
 
-  // ---- The viewport width picks the column count; switching sheets returns to the top-left at 100%. A full reader hides the board (width 0) and keeps the layout ----
-  useLayoutEffect(() => {
-    const node = viewport.current
-    if (!node) return
-    const measure = () => { if (node.clientWidth) setWidth(node.clientWidth) }
-    measure()
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
-    observer?.observe(node)
-    return () => observer?.disconnect()
-  }, [])
-  useEffect(() => { setCamera(HOME) }, [view?.sheet.id])
   // ---- the selected tab stays in sight when the strip scrolls (narrow board, many sheets): it is where the next message writes ----
   useLayoutEffect(() => {
     const row = strip.current, on = row?.querySelector<HTMLElement>('.board-tab.is-on')
     if (!row || !on) return
     if (on.offsetLeft < row.scrollLeft) row.scrollLeft = on.offsetLeft
     else if (on.offsetLeft + on.offsetWidth > row.scrollLeft + row.clientWidth) row.scrollLeft = on.offsetLeft + on.offsetWidth - row.clientWidth
-  }, [board.selected, board.sheets.length, width])
+  }, [board.selected, board.sheets.length])
 
-  // ---- Widget slots: the first two run by default; opening one evicts the oldest ----
-  useEffect(() => {
-    const ids = blocks.filter(block => block.kind === 'widget' && block.state === 'current').map(block => block.id)
-    setWidgets(previous => { const kept = previous.filter(id => ids.includes(id)); return kept.length ? kept : ids.slice(0, MAX_WIDGETS) })
-  }, [view?.sheet.id, blocks.length])
-  const activate = useCallback((id: string) => setWidgets(previous => [...previous.filter(item => item !== id), id].slice(-MAX_WIDGETS)), [])
-
-  // ---- Height measurement: block content (Markdown, widgets) renders before its height is true; a changed column width changes it again ----
-  useLayoutEffect(() => {
-    const root = world.current
-    if (!root) return
-    const measure = () => {
-      const next: Record<string, number> = {}
-      for (const node of root.querySelectorAll<HTMLElement>('[data-block]')) next[node.dataset.block!] = node.offsetHeight
-      setHeights(previous => Object.keys(next).length === Object.keys(previous).length && Object.entries(next).every(([id, h]) => previous[id] === h) ? previous : next)
-    }
-    measure()
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
-    for (const node of root.querySelectorAll<HTMLElement>('[data-block]')) observer?.observe(node)
-    return () => observer?.disconnect()
-  }, [blocks, widgets, layout.width])
-
-  /** Fit to view: shrink the whole sheet into the viewport (shrink only, never grow, floor 30%). */
-  const fit = useCallback(() => {
-    const box = viewport.current?.getBoundingClientRect()
-    if (!box || !layout.height) { setCamera(HOME); return }
-    const outerW = layout.span + 2 * BOARD.PAD, outerH = layout.height + 2 * BOARD.PAD
-    const scale = Math.max(0.3, Math.min(1, (box.width - 2 * BOARD.INSET) / outerW, (box.height - BOARD.TOP - BOARD.INSET) / outerH))
-    setCamera({ x: BOARD.INSET + BOARD.PAD * scale, y: BOARD.TOP + BOARD.PAD * scale, scale })
-  }, [layout.span, layout.height])
-
-  // ---- Jump to a block: center it in the viewport and highlight it briefly ----
-  useEffect(() => {
-    if (!focus) return
-    const target = positioned.find(block => block.id === focus.blockId), box = viewport.current?.getBoundingClientRect()
-    if (!target || !box) return
-    setCamera(camera => ({ ...camera, x: Math.min(HOME.x, box.width / 2 - (target.x + target.w / 2) * camera.scale), y: Math.min(HOME.y, box.height / 3 - target.y * camera.scale) }))
-    setFocused(target.id)
-    const timer = window.setTimeout(() => setFocused(null), 2400)
-    return () => clearTimeout(timer)
-  }, [focus?.nonce, view?.sheet.id])
-  // ---- a card may point into a sheet the user deleted: ask the service once per click; it never jumps elsewhere ----
+  // ---- A card: find the element's sheet, select it and let the canvas bring the element into view; a gone element only says so ----
   useEffect(() => {
     if (!focus) return
     let active = true, timer: number | undefined
     setNotice(false)
-    void board.locate(focus.blockId).then(kind => {
-      if (!active || kind !== 'deleted') return
+    void board.locate(focus.elementId).then(result => {
+      if (!active) return
+      if (result.kind === 'found') {
+        if (result.sheetId !== board.selected) board.select(result.sheetId)
+        setHere(focus)
+        return
+      }
+      if (result.kind !== 'deleted') return
       setNotice(true)
       timer = window.setTimeout(() => setNotice(false), NOTICE_MS)
     })
     return () => { active = false; if (timer !== undefined) clearTimeout(timer) }
   }, [focus?.nonce])
 
-  /** Empty sheets go at once; one with blocks comes back with the count and waits for the dialog. */
+  /** Empty sheets go at once; one with content comes back with the count and waits for the dialog. */
   async function remove(sheet: Sheet, number: number) {
     const result = await board.remove(sheet.id)
-    if (result?.kind === 'confirm') setPending({ sheet, number, blocks: result.blocks, settled: result.settled })
+    if (result?.kind === 'confirm') setPending({ sheet, number, count: result.blocks, settled: result.settled })
   }
   async function confirmRemove() {
     if (!pending) return
@@ -156,79 +116,39 @@ export function Board({ board, materials, drawing, focus, onOpenSource, sediment
     try { await board.remove(pending.sheet.id, true) } finally { setRemoving(false); setPending(null) }
   }
 
-  // ---- S9c: the full-board row — the selected sheet is full, the user hasn't skipped this version of it ----
-  const sheetFull = !!view && view.sheet.used >= view.sheet.capacity && !sediment.unsupported
-  const skipCovers = skipped && view && skipped.sheetId === view.sheet.id && skipped.updatedAt === view.sheet.updatedAt
-  const invited = useMemo(() => invite ? blocks.filter(block => invite.blockIds.includes(block.id) && block.state === 'current') : [], [invite, blocks])
-  const showFullRow = sheetFull && !skipCovers && fromBlock === null
-  const showBlockRow = fromBlock !== null
-  // the pre-linked evidence carries the rev the UI saw: a run that changed the block since gets a 409 and the typed line stays (S10)
-  const preLinked = useMemo(() => {
-    const ids = showFullRow ? invited.map(block => block.id) : fromBlock ? [fromBlock] : []
-    return ids.map(id => blocks.find(block => block.id === id)).filter((block): block is NonNullable<typeof block> => !!block).map(block => ({ id: block.id, rev: block.rev, title: block.title }))
-  }, [showFullRow, showBlockRow, invited, fromBlock, blocks])
-  useEffect(() => { if (sediment.revConflict) board.refresh() }, [sediment.revConflict])
-
-  function zoomAt(factor: number, clientX?: number, clientY?: number) {
-    const box = viewport.current?.getBoundingClientRect()
-    setCamera(camera => {
-      const scale = Math.max(0.3, Math.min(2.5, camera.scale * factor))
-      const px = clientX !== undefined && box ? clientX - box.left : (box?.width ?? 0) / 2, py = clientY !== undefined && box ? clientY - box.top : (box?.height ?? 0) / 2
-      return { scale, x: px - (px - camera.x) * scale / camera.scale, y: py - (py - camera.y) * scale / camera.scale }
-    })
-  }
-  function onWheel(event: ReactWheelEvent) {
-    if (event.ctrlKey || event.metaKey) zoomAt(event.deltaY < 0 ? 1.1 : 1 / 1.1, event.clientX, event.clientY)
-    else setCamera(camera => ({ ...camera, x: camera.x - event.deltaX, y: camera.y - event.deltaY }))
-  }
-  function onPointerDown(event: ReactPointerEvent) {
-    if ((event.target as Element).closest('[data-block], button, a, iframe, input, .iso-host')) return
-    drag.current = { x: event.clientX, y: event.clientY, cx: camera.x, cy: camera.y }
-    ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
-  }
-  function onPointerMove(event: ReactPointerEvent) {
-    const start = drag.current
-    if (start) setCamera(camera => ({ ...camera, x: start.cx + event.clientX - start.x, y: start.cy + event.clientY - start.y }))
-  }
+  const showInvite = !!invite && !!scene && invite.sheetId === scene.sheet.id && skipped !== invite.createdAt && !sediment.unsupported
+  const noSheet = !scene && !board.sheets.length && !board.error
+  const blankSheet = !!scene && scene.sheet.state === 'live' && !(drawing && board.target === scene.sheet.id) && !scene.ops.length
+    && (blank?.sheetId === scene.sheet.id ? blank.blank : scene.elements.every(element => element.isDeleted))
 
   return <section className="studio-board" aria-label={S.views.board}>
-    <div className="board-viewport" ref={viewport} onWheel={onWheel} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={() => { drag.current = null }} onPointerCancel={() => { drag.current = null }}>
-      <div className="board-world" ref={world} style={{ transform: `translate(${camera.x}px, ${camera.y}px) scale(${camera.scale})` }}>
-        {view && blocks.length > 0 && <div className="board-frame" style={{ width: layout.span + BOARD.PAD * 2, height: layout.height + BOARD.PAD * 2, left: -BOARD.PAD, top: -BOARD.PAD }}>
-          <span className="board-frame-label">{view.sheet.used >= view.sheet.capacity ? S.board.frameFull : S.board.frameNote}</span>
-        </div>}
-        {positioned.map(block => <BlockCard key={block.id} block={block} materials={byId} supersededTitle={block.supersededBy ? titles.get(block.supersededBy) : undefined}
-          widgetActive={widgets.includes(block.id)} onActivateWidget={activate} onOpenSource={onOpenSource} focused={focused === block.id} drawing={drawing === block.id}
-          onTakeaway={block.state === 'current' && !sediment.unsupported ? () => setFromBlock(block.id) : undefined} />)}
-      </div>
-      {((!view && !board.sheets.length && !board.error) || blankSheet) && <IsoObject markup={EASEL} className="board-easel" />}
-      {view && view.sheet.state !== 'live' && <p className="board-empty board-hint">{S.board.foldedHint}</p>}
+    <div className="board-viewport">
+      {scene && <CanvasBoundary sheetId={scene.sheet.id} fallback={error => <p className="mw-error board-error" role="alert">{S.board.canvasFailed(error instanceof Error ? error.message : String(error))}</p>}>
+        <Suspense fallback={null}>
+          <BoardCanvas key={scene.sheet.id} api={api} scene={scene} readOnly={scene.sheet.state !== 'live'} focus={here}
+            onSettled={board.refresh} onError={board.report} onBlank={value => setBlank({ sheetId: scene.sheet.id, blank: value })} />
+        </Suspense>
+      </CanvasBoundary>}
+      {(noSheet || blankSheet) && <IsoObject markup={EASEL} className={blankSheet ? 'board-easel is-on-canvas' : 'board-easel'} />}
+      {scene && scene.sheet.state !== 'live' && <p className="board-empty board-hint">{S.board.foldedHint}</p>}
       {drawing && <div className="board-drawing" role="status"><span className="board-drawing-dot" />{drawing === 'new' ? S.board.drawing : S.board.updating}</div>}
-      {notice && <div className="board-drawing board-notice" role="status">{S.board.blockGone}</div>}
-    <div className="board-zoom">
-      <button type="button" className="icon-btn" aria-label={S.board.zoomOut} onClick={() => zoomAt(1 / 1.15)}><MinusIcon /></button>
-      <span className="board-zoom-value">{Math.round(camera.scale * 100)}%</span>
-      <button type="button" className="icon-btn" aria-label={S.board.zoomIn} onClick={() => zoomAt(1.15)}><PlusIcon /></button>
-      <button type="button" className="icon-btn" aria-label={S.board.fit} title={S.board.fit} onClick={fit}><ExpandIcon /></button>
-    </div>
+      {notice && <div className="board-drawing board-notice" role="status">{S.board.elementGone}</div>}
+      {erased.length > 0 && <div className="board-erased" role="status">
+        <span className="board-erased-text">{S.board.erased(erased.reduce((n, item) => n + item.elementIds.length, 0), erased.map(item => item.reason))}</span>
+        <button type="button" className="board-erased-act" onClick={() => void board.restore()}>{S.board.restoreErased}</button>
+        <button type="button" className="board-erased-act" onClick={() => void board.dismiss()}>{S.board.keepErased}</button>
+      </div>}
       {board.error && <p className="mw-error board-error" role="alert">{board.error}</p>}
     </div>
-      {/* S9b/c: the from-block entry and the full-board one-line input (the invite question and invited blocks pre-linked, skippable); offers sit above the input (S9) */}
-      {(showFullRow || showBlockRow) && <div className="board-sediment-row" data-testid="board-sediment-row">
-        {sediment.offers.slice(0, 1).map(offer => <OfferRow key={offer.id} offer={offer}
-          onKeep={async text => await sediment.confirm(offer.id, text)} onDismiss={() => void sediment.dismiss(offer.id)} />)}
-        {showFullRow && <div className="board-sediment-head">
-          <span className="board-sediment-full">{S.board.frameFull}</span>
-          {invite && <span className="board-sediment-invite">{labelled(S.sediment.inviteBy, invite.question)}</span>}
-          {preLinked.length > 0 && <span className="board-sediment-links">{preLinked.map(block => block.title).join(' · ')}</span>}
-        </div>}
-        {showBlockRow && <div className="board-sediment-head"><span className="board-sediment-links">{preLinked.map(block => block.title).join(' · ')}</span></div>}
-        <TakeawayComposer autoFocus placeholder={S.sediment.placeholder}
-          onSubmit={async text => { const kept = await sediment.create({ text, blocks: preLinked.map(block => ({ id: block.id, rev: block.rev })) }); if (kept) setFromBlock(null); return kept }}
-          onCancel={() => setFromBlock(null)} />
-        {showFullRow && <button type="button" className="board-sediment-skip" onClick={() => view && setSkipped({ sheetId: view.sheet.id, updatedAt: view.sheet.updatedAt })}>{S.sediment.skip}</button>}
-        {sediment.error && <p className="mw-error" role="alert">{sediment.revConflict ? S.sediment.linkStale : sediment.error}</p>}
-      </div>}
+    {/* S9c: the AI's invite question opens a one-line input; offers live in the Takeaways view */}
+    {showInvite && <div className="board-sediment-row" data-testid="board-sediment-row">
+      <div className="board-sediment-head"><span className="board-sediment-invite">{labelled(S.sediment.inviteBy, invite!.question)}</span></div>
+      <TakeawayComposer autoFocus placeholder={S.sediment.placeholder}
+        onSubmit={async text => { const kept = await sediment.create({ text }); if (kept) setSkipped(invite!.createdAt); return kept }}
+        onCancel={() => setSkipped(invite!.createdAt)} />
+      <button type="button" className="board-sediment-skip" onClick={() => setSkipped(invite!.createdAt)}>{S.sediment.skip}</button>
+      {sediment.error && <p className="mw-error" role="alert">{sediment.error}</p>}
+    </div>}
     <nav className="board-sheets" aria-label={S.board.tabs}>
       {board.sheets.length > 0 && <span className="board-tabs" ref={strip}>{board.sheets.map((sheet, index) => {
         const name = sheet.state !== 'live' ? `${sheet.title} · ${S.board.folded}` : sheet.title
@@ -245,7 +165,7 @@ export function Board({ board, materials, drawing, focus, onOpenSource, sediment
     {pending && <Dialog.Root open onOpenChange={open => { if (!open && !removing) setPending(null) }}>
       <Dialog className="ext-link-modal board-remove-modal p-0" aria-label={S.board.removeTitle(pending.number, pending.sheet.title)}>
         <h2 className="ext-link-title">{S.board.removeTitle(pending.number, pending.sheet.title)}</h2>
-        <p className="ext-link-hint">{S.board.removeBody(pending.blocks)}</p>
+        <p className="ext-link-hint">{S.board.removeBody(pending.count)}</p>
         {pending.settled > 0 && <p className="ext-link-hint">{S.board.removeSettled(pending.settled)}</p>}
         <div className="ext-link-actions">
           <Button variant="secondary" disabled={removing} onClick={() => setPending(null)}>{S.board.removeCancel}</Button>

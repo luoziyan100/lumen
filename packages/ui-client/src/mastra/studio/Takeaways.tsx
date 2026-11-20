@@ -1,6 +1,6 @@
 /**
- * [INPUT]: useSediment's entries and offers, i18n, the trusted jump callback (evidence chip → the block on its board), the flower press and IsoObject
- * [OUTPUT]: Takeaways: the S8 view — entries newest first (dashed frame + Unverified, the quoted marker expands the original, evidence chips jump or report the deleted board),
+ * [INPUT]: useSediment's entries and offers, i18n, the trusted jump callback (evidence chip → its board; links to retired blocks show their title only), the flower press and IsoObject
+ * [OUTPUT]: Takeaways: the S8 view — entries newest first (dashed frame + Unverified, the quoted marker expands the original, evidence chips jump, report the deleted board, or — pointing at an old block retired with the canvas — show the title only),
  *           inline edit, delete asks once; with no entry and no offer, the flower press alone, centred (no text, no 「写一条沉淀」; an entry brings the button back); OfferRow renders an offer (deleted fragments struck in the original, click restores / re-deletes, Keep/Dismiss,
  *           the original expandable); TakeawayComposer is the one input (Enter keeps, Esc cancels)
  * [POS]: the center Takeaways view; the text passes only through the user's hand (R13), and the final wording before an offer's confirm is assembled here for the service's re-check (S9)
@@ -109,6 +109,8 @@ function EntryCard({ entry, index, onJump, onEdit, onRemove }: {
     {entry.links.length > 0 && <div className="sediment-evidence">
       {entry.links.map(link => link.deleted
         ? <span key={link.blockId} className="sediment-chip is-gone" title={S.evidenceGone}>{SettledViewIcon && <SettledViewIcon />}{link.title} · {S.evidenceGone}</span>
+        // A link to an old block (retired with the canvas, 2026-11-19) keeps its title and goes nowhere
+        : link.retired ? <span key={link.blockId} className="sediment-chip is-retired"><SettledViewIcon />{link.title}</span>
         : <button type="button" key={link.blockId} className="sediment-chip" title={S.jump(link.title)} onClick={() => onJump(link.blockId, link.sheetId)}>
             <SettledViewIcon />{link.title}
           </button>)}
@@ -134,7 +136,7 @@ export function Takeaways({ sediment, onJump }: {
   const S = useT().studio.sediment, viewLabel = useT().studio.views.settled
   const [composing, setComposing] = useState(false)
   if (sediment.unsupported) return <div className="sediment-view" role="status"><p className="sediment-empty">{S.unsupported}</p></div>
-  // An empty view is the press alone, centred: no text and no 「写一条沉淀」 (a takeaway starts from a board block, the full row or the reading window).
+  // An empty view is the press alone, centred: no text and no 「写一条沉淀」 (a takeaway starts from the board's invite row or the reading window).
   // An entry or an offer brings the list and its button back
   if (sediment.items.length === 0 && sediment.offers.length === 0) return <section className="sediment-view sediment-empty-view" aria-label={viewLabel}>
     <IsoObject markup={PRESS} className="sediment-press" />

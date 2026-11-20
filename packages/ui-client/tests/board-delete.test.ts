@@ -1,10 +1,11 @@
 /**
  * [INPUT]: Real Board component and useBoard hook (React DOM + jsdom, Kumo menu and dialog); a real HTTP service with Mastra Controller
  * [OUTPUT]: R17 UI evidence: every tab has a keyboard-reachable 「⋯」 menu (a lone sheet keeps its tab and menu); an empty sheet deletes
- *           without a dialog; a sheet with blocks asks in a dialog naming number, title and block count; the run's target has the item disabled
- *           with the reason; deleting the selected sheet switches to the neighbour; an older service says deletion is unsupported; a card into
- *           a deleted sheet shows 「这块所在的白板已删除」 and nothing else moves
- * [POS]: Component wiring and the real service round trip; real layout and skins are checked in the browser assertions
+ *           without a dialog; a sheet with strokes asks in a dialog naming number, title and stroke count; the run's target has the item disabled
+ *           with the reason; deleting the selected sheet switches to the neighbour; an older service says deletion is unsupported; a card whose
+ *           element left (its sheet deleted) shows 「这一笔已经不在白板上了」 and nothing else moves; a card to an element on another sheet selects
+ *           that sheet and hands the element to its canvas
+ * [POS]: Component wiring and the real service round trip; the canvas is the stand-in of helpers/canvas-stub.mjs; real layout and skins are checked in the browser assertions
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import test, { after } from 'node:test'
@@ -20,6 +21,7 @@ import { serve } from '@hono/node-server'
 import { createHttpService } from '../../mastra-service/src/server.ts'
 import { fixtureProvider, textReply } from '../../mastra-service/tests/provider-fixture.ts'
 import { ensureTopic } from '../../mastra-service/tests/topic-fixture.ts'
+import { element as stroke } from '../../mastra-service/tests/studio/canvas-fixtures.ts'
 import { LumenApi, type Sheet } from '../src/mastra/data/client.ts'
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/', pretendToBeVisual: true })
@@ -29,6 +31,7 @@ for (const name of ['window', 'document', 'HTMLElement', 'Element', 'Node', 'Doc
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true, ResizeObserver: class { observe() {} unobserve() {} disconnect() {} } })
 after(() => dom.window.close())
 register('./helpers/tsx-loader.mjs', import.meta.url)
+register('./helpers/canvas-stub.mjs', import.meta.url)
 const { createRoot } = await import('react-dom/client')
 const { Board } = await import('../src/mastra/studio/Board.tsx')
 const { useBoard } = await import('../src/mastra/studio/useBoard.ts')
@@ -76,11 +79,11 @@ async function service(respondTo?: (path: string, method: string) => Response | 
 function mount(api: LumenApi, topicId: string) {
   const element = document.createElement('div'); document.body.append(element)
   const root = createRoot(element)
-  let board!: BoardState, focus: { blockId: string; nonce: number } | null = null
-  function Harness() { board = useBoard(api, topicId, '', false); return createElement(Board, { board, materials: [], drawing: null, focus, onOpenSource() {}, sediment: sedimentStub, invite: null, sediment: sedimentStub, invite: null }) }
+  let board!: BoardState, focus: { elementId: string; nonce: number } | null = null
+  function Harness() { board = useBoard(api, topicId, '', false); return createElement(Board, { api, board, drawing: null, focus, sediment: sedimentStub, invite: null }) }
   const render = () => act(async () => root.render(createElement(Harness)))
   return { element, get board() { return board }, render,
-    async card(blockId: string) { focus = { blockId, nonce: Date.now() }; await render() },
+    async card(elementId: string) { focus = { elementId, nonce: Date.now() }; await render() },
     async unmount() { await act(async () => root.unmount()); element.remove() } }
 }
 
@@ -92,7 +95,7 @@ test('R17 Board against the real service: keyboard-reachable 「⋯」 on every 
   try {
     ensureTopic(env.http, 'p', '反馈')
     const first = env.studio.board.sheets('p')[0]!.id, empty = env.studio.board.createSheet('p').id, full = env.studio.board.createSheet('p').id
-    for (const title of ['一', '二']) env.studio.board.draw('p', { kind: 'text', title, content: { markdown: title } }, { threadId: 'p:a', runId: null }, full)
+    env.studio.board.canvas.save(full, [stroke('u1', 'freedraw'), stroke('u2', 'text', { text: '二' })])
     await view.render()
     await until(() => tabs().length === 3 && view.board.selected === full, 'board did not load')
     // ---- every tab has its own menu button, focusable from the keyboard, named after the sheet ----
@@ -105,9 +108,9 @@ test('R17 Board against the real service: keyboard-reachable 「⋯」 on every 
     await until(() => tabs().length === 2, 'empty sheet was not deleted')
     assert.equal(dialog(), null, 'no confirmation for an empty sheet')
     assert.deepEqual(env.studio.board.sheets('p').map(sheet => sheet.id), [first, full])
-    // ---- sheet with blocks: a dialog with number, title and count; cancel keeps it ----
+    // ---- sheet with strokes: a dialog with number, title and count; cancel keeps it ----
     await openMenu(menuButton(1)); await choose()
-    await until(() => !!dialog(), 'no confirmation dialog for a sheet with blocks')
+    await until(() => !!dialog(), 'no confirmation dialog for a sheet with strokes')
     assert.equal(dialog()!.querySelector('h2')!.textContent, S.board.removeTitle(2, '白板 3'))
     assert.equal(dialog()!.querySelector('p')!.textContent, S.board.removeBody(2))
     const button = (label: string) => [...dialog()!.querySelectorAll('button')].find(node => node.textContent === label)!
@@ -137,12 +140,13 @@ test('R17 Board against the real service: keyboard-reachable 「⋯」 on every 
 test('R17 run target: its menu item is disabled with the reason in title; other tabs stay enabled', async () => {
   const element = document.createElement('div'); document.body.append(element)
   const root = createRoot(element)
-  const sheet = (id: string, title: string, ord: number): Sheet => ({ id, topicId: 't', title, state: 'live', capacity: 8, used: 0, ord, createdAt: '', updatedAt: '' })
+  const sheet = (id: string, title: string, ord: number): Sheet => ({ id, topicId: 't', title, state: 'live', used: 0, ord, createdAt: '', updatedAt: '' })
   const sheets = [sheet('a', '主题', 1), sheet('b', '白板 2', 2)]
-  const board: BoardState = { sheets, writable: 'b', selected: 'b', target: 'a', error: '', view: { sheet: sheets[1]!, blocks: [] }, refresh() {}, select() {},
-    async createSheet() {}, async remove() { throw new Error('a disabled item must not delete') }, async locate() { return 'found' as const } }
+  const board: BoardState = { sheets, writable: 'b', selected: 'b', target: 'a', error: '', scene: { sheet: sheets[1]!, elements: [], ops: [], erasures: [], viewport: null, changed: false }, refresh() {}, select() {},
+    async createSheet() {}, report() {}, async remove() { throw new Error('a disabled item must not delete') }, async restore() {}, async dismiss() {}, async locate() { return { kind: 'unknown' as const } } }
+  const api = new LumenApi({ baseUrl: 'http://127.0.0.1:9', token: 'unused-in-component-tests-000000' })
   try {
-    await act(async () => root.render(createElement(Board, { board, materials: [], drawing: 'new', focus: null, onOpenSource() {}, sediment: sedimentStub, invite: null, sediment: sedimentStub, invite: null })))
+    await act(async () => root.render(createElement(Board, { api, board, drawing: 'new', focus: null, sediment: sedimentStub, invite: null })))
     assert.ok(tabs()[0]!.querySelector('.board-tab-dot'), 'the dot marks the target')
     await openMenu(menuButton(0))
     assert.ok(item()!.hasAttribute('data-disabled') || item()!.getAttribute('aria-disabled') === 'true', 'disabled on the target')
@@ -156,41 +160,49 @@ test('R17 run target: its menu item is disabled with the reason in title; other 
   } finally { await act(async () => root.unmount()); element.remove() }
 })
 
-test('R17 cards and older services: a card into a deleted sheet shows the notice and moves nothing; an older service says deletion is unsupported and the board keeps working', { timeout: 60000 }, async () => {
+test('R17 cards and older services: a card whose element left shows the notice and moves nothing; a card to another sheet selects it; an older service says deletion is unsupported and the board keeps working', { timeout: 60000 }, async () => {
   let legacy = false
-  // An older service: no delete route and no block lookup, answered the way Hono answers a route it does not have (plain-text 404)
-  const env = await service((path, method) => legacy && (method === 'DELETE' || path.startsWith('/lumen/blocks/')) ? new Response('404 Not Found', { status: 404 }) : null)
+  // An older service: no delete route and no element lookup, answered the way Hono answers a route it does not have (plain-text 404)
+  const env = await service((path, method) => legacy && (method === 'DELETE' || /\/lumen\/topics\/[^/]+\/elements\//.test(path)) ? new Response('404 Not Found', { status: 404 }) : null)
   const view = mount(env.api, 'p')
   try {
     ensureTopic(env.http, 'p', '反馈')
-    const first = env.studio.board.sheets('p')[0]!.id, second = env.studio.board.createSheet('p').id
-    const kept = env.studio.board.draw('p', { kind: 'text', title: '留着', content: { markdown: '留着' } }, { threadId: 'p:a', runId: null }, first).blockId
-    const doomed = env.studio.board.draw('p', { kind: 'text', title: '要删', content: { markdown: '要删' } }, { threadId: 'p:a', runId: null }, second).blockId
+    const first = env.studio.board.sheets('p')[0]!.id, second = env.studio.board.createSheet('p').id, third = env.studio.board.createSheet('p').id
+    env.studio.board.canvas.save(first, [stroke('kept')])
+    env.studio.board.canvas.save(second, [stroke('doomed')])
+    env.studio.board.canvas.save(third, [stroke('elsewhere')])
     env.studio.board.deleteSheet('p', second, { confirmed: true, busy: new Set(), since: new Date().toISOString() })
+    env.studio.board.select('p', first)
     await view.render()
-    await until(() => view.board.sheets.length === 1 && !!view.board.view, 'board did not load')
+    await until(() => view.board.sheets.length === 2 && view.board.scene?.sheet.id === first, 'board did not load')
     const notice = () => document.querySelector('.board-notice')
     // ---- card into the deleted sheet: the notice, no error, the board stays where it was ----
-    await view.card(doomed)
+    await view.card('doomed')
     await until(() => !!notice(), 'no notice for a card into a deleted sheet')
-    assert.equal(notice()!.textContent, S.board.blockGone)
+    assert.equal(notice()!.textContent, S.board.elementGone)
     assert.equal(notice()!.getAttribute('role'), 'status')
     assert.deepEqual([view.board.selected, view.board.error], [first, ''])
-    assert.equal(document.querySelector('.board-block.is-focused, [data-block].focused'), null, 'no jump to another block')
-    // ---- card to a block that exists: no notice ----
-    await view.card(kept)
-    await act(async () => { await delay(200) })
+    assert.equal(document.querySelector<HTMLElement>('.board-canvas')!.dataset.focus, '', 'no jump to another element')
+    // ---- a card to an element on this sheet: no notice, the canvas gets it ----
+    await view.card('kept')
+    await until(() => document.querySelector<HTMLElement>('.board-canvas')?.dataset.focus === 'kept', 'the canvas did not get the element')
     assert.equal(notice(), null)
+    // ---- a card to an element on another sheet: that sheet opens with the element ----
+    await view.card('elsewhere')
+    await until(() => view.board.selected === third && document.querySelector<HTMLElement>('.board-canvas')?.dataset.sheet === third, 'the card did not open its sheet')
+    await until(() => document.querySelector<HTMLElement>('.board-canvas')?.dataset.focus === 'elsewhere', 'the other sheet\'s canvas did not get the element')
+    await act(async () => view.board.select(first))
+    await until(() => view.board.scene?.sheet.id === first, 'did not return to the first sheet')
     // ---- older service: deleting says it is unsupported; card lookups give no false notice ----
     legacy = true
     await openMenu(menuButton(0)); await choose()
     await until(() => view.board.error === S.board.removeUnsupported, 'no unsupported message')
     assert.equal(document.querySelector('.board-error')!.textContent, S.board.removeUnsupported)
-    assert.equal(view.board.sheets.length, 1, 'nothing deleted locally either')
+    assert.equal(view.board.sheets.length, 2, 'nothing deleted locally either')
     assert.equal(dialog(), null)
-    await view.card(doomed)
+    await view.card('doomed')
     await act(async () => { await delay(200) })
     assert.equal(notice(), null, 'an older service cannot tell, so no notice')
-    assert.ok(view.board.view, 'the board keeps showing its sheet')
+    assert.ok(view.board.scene, 'the board keeps showing its sheet')
   } finally { await view.unmount(); await env.close() }
 })

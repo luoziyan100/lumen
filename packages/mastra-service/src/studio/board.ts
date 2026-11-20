@@ -1,63 +1,45 @@
 /**
- * [INPUT]: studio/db connections and transactions, the content/source contracts of studio/content, the topic reference list
- * [OUTPUT]: BoardStore: sheet create/list/delete (R17: user only; guard, confirmation and neighbour re-selection in one transaction, the confirmation carrying the affected takeaway count), which sheet a block is on, the user's selection, the per-run fixed target (R16), block draw/update/supersede (settled blocks refuse both: the user keeps them as evidence), capacity counting current+settled, per-run/per-conversation change collection and version snapshots; insertSheet
- * [POS]: the board's only write path (R4); the topic comes from the caller's trusted identity, and the write target (R16), capacity (R11), rev concurrency and source boundary (R15) are all decided inside one transaction
+ * [INPUT]: studio/db connections and transactions, the canvas store (studio/canvas)
+ * [OUTPUT]: BoardStore: sheet create/list/delete (R17: user only; guard, confirmation and neighbour re-selection in one transaction, the confirmation carrying the
+ *           content count — live canvas elements plus old blocks — and the affected takeaway count), the user's selection, the per-run fixed target (R16) and its
+ *           live check (writeTarget), the per-conversation R7 candidates and snapshots, and `canvas`, each sheet's co-drawn canvas; insertSheet
+ * [POS]: owner of sheets and where a run writes; the topic comes from the caller's trusted identity. What is on a sheet lives in CanvasStore; the old block
+ *        writers retired with the canvas (2026-11-19) and the blocks/sheet_versions tables stay, unwritten, for old data and takeaway titles
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
-import { randomBytes, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import type { DatabaseSync, SQLOutputValue } from 'node:sqlite'
-import { blockTitle, parseContent, parseSources } from './content.ts'
+import { CanvasStore } from './canvas.ts'
 import { transaction } from './db.ts'
 import { StudioError } from './errors.ts'
-import type { Block, BlockKind, BlockSource, Sheet, SheetVersion, SheetView, WriteOrigin } from './types.ts'
+import type { Sheet, WriteOrigin } from './types.ts'
 
 type Row = Record<string, SQLOutputValue>
-export const DEFAULT_CAPACITY = 8
-
-// ---------------------------------------------------------------------------
-// Auto layout: a three-column waterfall, the AI never touches coordinates; `near` only picks the column. Heights are estimates; the front end re-renders with measured heights
-// ---------------------------------------------------------------------------
-const COLUMN_WIDTH = 400, GAP = 32, COLUMNS = 3
-
-function estimateHeight(kind: BlockKind, content: unknown): number {
-  if (kind === 'text') return Math.min(640, 72 + Math.ceil((content as { markdown: string }).markdown.length / 26) * 22)
-  if (kind === 'ladder') return 64 + (content as { rungs: unknown[] }).rungs.length * 44
-  if (kind === 'table') return 64 + ((content as { rows: unknown[] }).rows.length + 1) * 34
-  return 320
-}
 
 function sheet(row: Row): Sheet {
   return { id: String(row.id), topicId: String(row.topic_id), title: String(row.title), state: row.state as Sheet['state'],
-    capacity: Number(row.capacity), used: Number(row.used ?? 0), ord: Number(row.ord), createdAt: String(row.created_at), updatedAt: String(row.updated_at) }
+    used: Number(row.used ?? 0), ord: Number(row.ord), createdAt: String(row.created_at), updatedAt: String(row.updated_at) }
 }
 
-function block(row: Row): Block {
-  return { id: String(row.id), sheetId: String(row.sheet_id), kind: row.kind as BlockKind, title: String(row.title), content: JSON.parse(String(row.content)),
-    x: Number(row.x), y: Number(row.y), w: Number(row.w), h: Number(row.h), state: row.state as Block['state'],
-    supersededBy: row.superseded_by === null ? null : String(row.superseded_by), rev: Number(row.rev), sources: JSON.parse(String(row.sources)) as BlockSource[],
-    threadId: row.thread_id === null ? null : String(row.thread_id), runId: row.run_id === null ? null : String(row.run_id),
-    createdAt: String(row.created_at), updatedAt: String(row.updated_at) }
-}
-
-/** Since P1 `used` counts current+settled (S3: blocks kept as evidence still fill the sheet; only superseded ones free room). */
-const SHEET_COLUMNS = `s.*, (SELECT COUNT(*) FROM blocks b WHERE b.sheet_id = s.id AND b.state IN ('current','settled')) AS used`
+/** `used` counts the live canvas elements (a tombstone always carries deleted_by); the sheet has no capacity since 2026-11-19 (R11), the column stays for old rows. */
+const SHEET_COLUMNS = `s.*, (SELECT COUNT(*) FROM canvas_elements c WHERE c.sheet_id = s.id AND c.deleted_by IS NULL) AS used`
 
 /** Open a new live sheet with the next ord; the first sheet of a new topic and the user's ＋ share this path. */
 export function insertSheet(db: DatabaseSync, topicId: string, title: string, now: string): string {
   const id = randomUUID()
   const ord = Number(db.prepare('SELECT COALESCE(MAX(ord), 0) + 1 AS ord FROM sheets WHERE topic_id = ?').get(topicId)!.ord)
-  db.prepare(`INSERT INTO sheets (id, topic_id, title, state, capacity, ord, created_at, updated_at) VALUES (?, ?, ?, 'live', ?, ?, ?, ?)`)
-    .run(id, topicId, title, DEFAULT_CAPACITY, ord, now, now)
+  // capacity keeps its column default: the canvas has none (R11), the column stays for old rows
+  db.prepare(`INSERT INTO sheets (id, topic_id, title, state, ord, created_at, updated_at) VALUES (?, ?, ?, 'live', ?, ?, ?)`)
+    .run(id, topicId, title, ord, now, now)
   return id
 }
 
-export interface DrawInput { kind: BlockKind; title: string; content: unknown; sources?: unknown; near?: string }
-export interface UpdateInput { blockId: string; title?: string; content?: unknown; sources?: unknown; baseRev: number }
-
 export class BoardStore {
   private readonly db: DatabaseSync
+  /** The co-drawn canvas of each sheet (2026-11-19); sheets, selection and run targets stay here */
+  readonly canvas: CanvasStore
 
-  constructor(db: DatabaseSync) { this.db = db }
+  constructor(db: DatabaseSync) { this.db = db; this.canvas = new CanvasStore(db) }
 
   sheets(topicId: string): Sheet[] {
     return this.db.prepare(`SELECT ${SHEET_COLUMNS} FROM sheets s WHERE s.topic_id = ? ORDER BY s.ord`).all(topicId).map(sheet)
@@ -100,7 +82,8 @@ export class BoardStore {
       const held = this.db.prepare('SELECT thread_id, created_at FROM run_targets WHERE sheet_id = ?').all(sheetId)
         .some(row => guard.busy.has(String(row.thread_id)) || String(row.created_at) >= guard.since)
       if (held) throw new StudioError(`白板「${target.title}」正被 AI 这一轮写着，不能删；等这一轮结束或把它停下再删。`, 409, 'board.sheet_in_use', { title: target.title }, { reason: 'target' })
-      const blocks = Number(this.db.prepare('SELECT COUNT(*) AS n FROM blocks WHERE sheet_id = ?').get(sheetId)!.n)
+      // Content = live canvas elements plus any old blocks the sheet still carries; the detail keeps its old `blocks` name for clients
+      const blocks = this.canvas.count(sheetId) + Number(this.db.prepare('SELECT COUNT(*) AS n FROM blocks WHERE sheet_id = ?').get(sheetId)!.n)
       if (blocks && !guard.confirmed) {
         // S3: when settled blocks go with the sheet, the takeaways linked to them lose this evidence link (entries and text stay)
         const settled = Number(this.db.prepare(`SELECT COUNT(DISTINCT l.entry_id) AS n FROM sediment_links l
@@ -114,6 +97,7 @@ export class BoardStore {
       // Explicit deletes (the cascades would do the same): nothing soft-deleted, and a failure at any step rolls back all of them.
       // sediment_links deliberately carries no FK to blocks: the links keep their stored titles and the entries stay (S3/R17)
       for (const table of ['blocks', 'sheet_versions', 'run_targets', 'sheet_selection', 'sediment_invites']) this.db.prepare(`DELETE FROM ${table} WHERE sheet_id = ?`).run(sheetId)
+      this.canvas.deleteSheet(sheetId)
       this.db.prepare('DELETE FROM sheets WHERE id = ?').run(sheetId)
       const now = new Date().toISOString()
       if (selected && neighbour) this.storeSelection(topicId, String(neighbour.id), now)
@@ -122,17 +106,7 @@ export class BoardStore {
     })
   }
 
-  /** Where a block lives, for conversation cards (R17: a card whose sheet was deleted says so). */
-  blockSheet(blockId: string): { blockId: string; sheetId: string; topicId: string } {
-    const row = this.db.prepare('SELECT b.sheet_id, s.topic_id FROM blocks b JOIN sheets s ON s.id = b.sheet_id WHERE b.id = ?').get(blockId)
-    if (!row) throw new StudioError('这块所在的白板已删除', 404, 'board.block_sheet_deleted', undefined, { reason: 'deleted' })
-    return { blockId, sheetId: String(row.sheet_id), topicId: String(row.topic_id) }
-  }
 
-  view(sheetId: string): SheetView {
-    const target = this.sheet(sheetId)
-    return { sheet: target, blocks: this.db.prepare('SELECT * FROM blocks WHERE sheet_id = ? ORDER BY rowid').all(sheetId).map(block) }
-  }
 
   /** The newest live sheet: the target for clients that never sent a selection (B3), and the old `writable` field. */
   writableSheet(topicId: string): Sheet {
@@ -200,7 +174,7 @@ export class BoardStore {
   }
 
   /** sheetId undefined: today's newest live sheet. null: the run has no sheet. Otherwise the run's target, which must be live. */
-  private target(topicId: string, sheetId: string | null | undefined): Sheet {
+  writeTarget(topicId: string, sheetId: string | null | undefined): Sheet {
     if (sheetId === undefined) return this.writableSheet(topicId)
     if (sheetId === null) throw new StudioError('这个主题现在没有进行中的白板；请用户点 ＋ 新开一张', 409, 'board.no_live_sheet')
     const target = this.sheet(sheetId)
@@ -210,144 +184,36 @@ export class BoardStore {
     return target
   }
 
-  draw(topicId: string, input: DrawInput, origin: WriteOrigin, sheetId?: string | null): { blockId: string; rev: number; sheetId: string; used: number; capacity: number } {
-    const content = parseContent(input.kind, input.content)
-    const title = this.title(input.title)
-    const sources = this.sources(topicId, input.sources)
-    return transaction(this.db, () => {
-      const target = this.target(topicId, sheetId)
-      if (target.used >= target.capacity) throw new StudioError(
-        `这张白板满了（${target.used}/${target.capacity}）。不要往外挤，也不要换到别的白板：用 sediment_invite 指出这张里值得留下的几块，问用户一句，请用户用自己的话沉淀；已沉淀的块仍占格子，被取代的可以用 board_supersede 标灰腾位。要接着画，请用户点 ＋ 开一张新的再发消息，开哪张由用户选。`, 409, 'board.sheet_full', { used: target.used, capacity: target.capacity })
-      const place = this.place(target.id, input.kind, content, input.near)
-      const id = `b${randomBytes(5).toString('hex')}`, now = new Date().toISOString()
-      this.db.prepare(`INSERT INTO blocks (id, sheet_id, kind, title, content, x, y, w, h, state, superseded_by, rev, sources, thread_id, run_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'current', NULL, 1, ?, ?, ?, ?, ?)`)
-        .run(id, target.id, input.kind, title, JSON.stringify(content), place.x, place.y, place.w, place.h, JSON.stringify(sources), origin.threadId, origin.runId, now, now)
-      this.touchSheet(target, now)
-      return { blockId: id, rev: 1, sheetId: target.id, used: target.used + 1, capacity: target.capacity }
-    })
-  }
 
-  update(topicId: string, input: UpdateInput, origin: WriteOrigin, sheetId?: string | null): { blockId: string; rev: number } {
-    const title = input.title === undefined ? undefined : this.title(input.title)
-    const sources = input.sources === undefined ? undefined : this.sources(topicId, input.sources)
-    return transaction(this.db, () => {
-      const current = this.ownedBlock(topicId, input.blockId, sheetId)
-      if (current.block.state === 'settled') throw new StudioError(
-        `「${current.block.title}」已被用户留作沉淀的证据，不能改；要更新理解就画一块新的，让旧的留在原地`, 409, 'board.block_not_current', { title: current.block.title, state: current.block.state })
-      if (current.block.state !== 'current') throw new StudioError(`「${current.block.title}」已经不是当前区块（${current.block.state}），不能再改；需要的话画一块新的`, 409, 'board.block_not_current', { title: current.block.title, state: current.block.state })
-      if (input.baseRev !== current.block.rev) throw new StudioError(
-        `「${current.block.title}」已经被改过：现在是第 ${current.block.rev} 版，你基于第 ${input.baseRev} 版。先用 board_view 看最新内容再改。`, 409, 'board.block_stale', { title: current.block.title, rev: current.block.rev, baseRev: input.baseRev })
-      const content = input.content === undefined ? current.block.content : parseContent(current.block.kind, input.content)
-      const now = new Date().toISOString(), rev = current.block.rev + 1
-      this.db.prepare(`UPDATE blocks SET title = ?, content = ?, sources = ?, rev = ?, thread_id = ?, run_id = ?, updated_at = ? WHERE id = ?`)
-        .run(title ?? current.block.title, JSON.stringify(content), JSON.stringify(sources ?? current.block.sources), rev, origin.threadId, origin.runId, now, current.block.id)
-      this.touchSheet(current.sheet, now)
-      return { blockId: current.block.id, rev }
-    })
-  }
 
-  supersede(topicId: string, input: { blockId: string; by?: string }, origin: WriteOrigin, sheetId?: string | null): { blockId: string; rev: number } {
-    return transaction(this.db, () => {
-      const current = this.ownedBlock(topicId, input.blockId, sheetId)
-      if (current.block.state === 'settled') throw new StudioError(
-        `「${current.block.title}」已被用户留作沉淀的证据，留在原地就好；它不占新的理解`, 409, 'board.block_already_replaced', { title: current.block.title, state: current.block.state })
-      if (current.block.state !== 'current') throw new StudioError(`「${current.block.title}」已经是 ${current.block.state}，不用再取代`, 409, 'board.block_already_replaced', { title: current.block.title, state: current.block.state })
-      if (input.by !== undefined) {
-        if (input.by === input.blockId) throw new StudioError('一块不能取代它自己', 400, 'board.replace_self')
-        const replacement = this.db.prepare(`SELECT state FROM blocks WHERE id = ? AND sheet_id = ?`).get(input.by, current.sheet.id)
-        if (!replacement || replacement.state !== 'current') throw new StudioError(`取代它的区块 ${input.by} 不在这张白板的当前区块里`, 400, 'board.replacement_missing', { by: input.by })
-      }
-      const now = new Date().toISOString(), rev = current.block.rev + 1
-      this.db.prepare(`UPDATE blocks SET state = 'superseded', superseded_by = ?, rev = ?, thread_id = ?, run_id = ?, updated_at = ? WHERE id = ?`)
-        .run(input.by ?? null, rev, origin.threadId, origin.runId, now, current.block.id)
-      this.touchSheet(current.sheet, now)
-      return { blockId: current.block.id, rev }
-    })
-  }
 
-  /** The sheets this run wrote to (R7: only changed ones get a version). */
-  changedSheets(runId: string): string[] {
-    return this.db.prepare('SELECT DISTINCT sheet_id FROM blocks WHERE run_id = ? ORDER BY sheet_id').all(runId).map(row => String(row.sheet_id))
-  }
 
-  /** Sheets this conversation changed since its last version; a resumed suspension gets a new runId, so we collect by conversation, not runId — it survives restarts. */
+  /**
+   * R7 candidates at the end of a run: the sheets this conversation drew, changed or erased on since its last snapshot, plus the run's target
+   * (the user may have drawn there during the run). A resumed suspension gets a new runId, so this collects by conversation — it survives restarts.
+   */
   pendingSheets(threadId: string): string[] {
-    return this.db.prepare(`SELECT DISTINCT sheet_id FROM blocks WHERE thread_id = ?
-      AND updated_at > COALESCE((SELECT MAX(created_at) FROM sheet_versions WHERE thread_id = ?), '') ORDER BY sheet_id`).all(threadId, threadId).map(row => String(row.sheet_id))
+    const target = this.storedTarget(threadId)
+    return [...new Set([...this.canvas.changedBy(threadId), ...(target ? [target.id] : [])])].sort()
   }
 
-  writeVersion(sheetId: string, origin: WriteOrigin): SheetVersion {
-    return transaction(this.db, () => {
-      const snapshot = this.view(sheetId)
-      const version = Number(this.db.prepare('SELECT COALESCE(MAX(version), 0) + 1 AS v FROM sheet_versions WHERE sheet_id = ?').get(sheetId)!.v)
-      const now = new Date().toISOString()
-      this.db.prepare('INSERT INTO sheet_versions VALUES (?, ?, ?, ?, ?, ?)').run(sheetId, version, origin.threadId, origin.runId, JSON.stringify(snapshot), now)
-      return { sheetId, version, threadId: origin.threadId, runId: origin.runId, snapshot, createdAt: now }
-    })
+  /** R7: one scene snapshot when the scene differs from the last one; null when it does not (user autosaves alone never make a version). */
+  writeVersion(sheetId: string, origin: WriteOrigin): { version: number; createdAt: string } | null {
+    return this.canvas.snapshot(sheetId, origin)
   }
 
-  versions(sheetId: string): SheetVersion[] {
-    return this.db.prepare('SELECT * FROM sheet_versions WHERE sheet_id = ? ORDER BY version').all(sheetId).map(row => ({
-      sheetId: String(row.sheet_id), version: Number(row.version), threadId: row.thread_id === null ? null : String(row.thread_id),
-      runId: row.run_id === null ? null : String(row.run_id), snapshot: JSON.parse(String(row.snapshot)) as SheetView, createdAt: String(row.created_at) }))
-  }
+
 
   // -------------------------------------------------------------------------
   // Internals: ownership, the source boundary and layout
   // -------------------------------------------------------------------------
-  private title(value: string) {
-    const result = blockTitle.safeParse(value)
-    if (!result.success) throw new StudioError('区块标题要有，且不超过 80 字', 400, 'board.title_invalid')
-    return result.data
-  }
 
-  /** R15: sources may only point at materials this topic references or conversations of this topic. */
-  private sources(topicId: string, value: unknown): BlockSource[] {
-    const sources = parseSources(value)
-    const referenced = this.db.prepare('SELECT 1 FROM topic_materials WHERE topic_id = ? AND item_id = ?')
-    for (const source of sources) {
-      if ('itemId' in source && !referenced.get(topicId, source.itemId))
-        throw new StudioError(`出处里的材料 ${source.itemId} 不在这个主题的引用清单里；先用 list_materials 看能引用哪些材料`, 400, 'board.source_material', { itemId: source.itemId })
-      if ('threadId' in source && !source.threadId.startsWith(`${topicId}:`))
-        throw new StudioError(`出处里的对话 ${source.threadId} 不属于这个主题`, 400, 'board.source_thread', { threadId: source.threadId })
-    }
-    return sources
-  }
 
-  /** With a run target (sheetId defined), only blocks on that sheet can change (R16). */
-  private ownedBlock(topicId: string, blockId: string, sheetId?: string | null) {
-    const fixed = sheetId === undefined ? undefined : this.target(topicId, sheetId)
-    const row = this.db.prepare(`SELECT b.* FROM blocks b JOIN sheets s ON s.id = b.sheet_id WHERE b.id = ? AND s.topic_id = ?`).get(blockId, topicId)
-    if (!row) throw new StudioError(`这个主题的白板上没有区块 ${blockId}；用 board_view 看现有区块`, 404, 'board.block_not_found', { blockId })
-    const owned = block(row), target = this.sheet(owned.sheetId)
-    if (fixed && fixed.id !== target.id) throw new StudioError(
-      `区块 ${blockId} 在白板「${target.title}」上，不在这一轮写入的白板「${fixed.title}」上；这一轮只能改「${fixed.title}」上的区块。`, 409, 'board.block_other_sheet', { blockId, sheet: target.title, target: fixed.title })
-    if (target.state !== 'live') throw new StudioError('这张白板已经收起，只读', 409, 'board.sheet_closed')
-    return { block: owned, sheet: target }
-  }
 
-  private place(sheetId: string, kind: BlockKind, content: unknown, near?: string) {
-    const rows = this.db.prepare('SELECT id, x, y, h FROM blocks WHERE sheet_id = ?').all(sheetId)
-    const bottoms = Array.from({ length: COLUMNS }, () => 0)
-    const columnOf = (x: number) => Math.max(0, Math.min(COLUMNS - 1, Math.round(x / (COLUMN_WIDTH + GAP))))
-    for (const row of rows) {
-      const column = columnOf(Number(row.x))
-      bottoms[column] = Math.max(bottoms[column]!, Number(row.y) + Number(row.h) + GAP)
-    }
-    const anchor = near ? rows.find(row => row.id === near) : undefined
-    const column = anchor ? columnOf(Number(anchor.x)) : bottoms.indexOf(Math.min(...bottoms))
-    return { x: column * (COLUMN_WIDTH + GAP), y: bottoms[column]!, w: COLUMN_WIDTH, h: estimateHeight(kind, content) }
-  }
 
   private storeSelection(topicId: string, sheetId: string, now: string) {
     this.db.prepare(`INSERT INTO sheet_selection (topic_id, sheet_id, updated_at) VALUES (?, ?, ?)
       ON CONFLICT (topic_id) DO UPDATE SET sheet_id = excluded.sheet_id, updated_at = excluded.updated_at`).run(topicId, sheetId, now)
-  }
-
-  private touchSheet(target: Sheet, now: string) {
-    this.db.prepare('UPDATE sheets SET updated_at = ? WHERE id = ?').run(now, target.id)
-    this.touchTopic(target.topicId, now)
   }
 
   private touchTopic(topicId: string, now: string) {

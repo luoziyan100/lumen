@@ -2,10 +2,10 @@
  * [INPUT]: ./nav-tips.ts for the V6 measurement; a self-contained isolated fixture service (real Controller + controllable model: writes one reading section, holding it until the script releases it) and the vite
  *          dev page on PORT (default 5191, refused when already taken); data root LUMEN_ASSERT_ROOT (default /tmp/lumen-obj-data, /tmp/lumen-* only, wiped at start); seeded topics: one with a material, takeaways and no sheet, one empty, one already read and drawn on
  * [OUTPUT]: browser evidence for the objects in the product (1440x900 and 1280x800, light and dark, zh and en): each object shows only in its empty state (typewriter: no
- *           reading, alone and centred; cabinet: no material, alone and centred; box: room under the topic list; easel: no sheet, or a live sheet with no blocks (V0), alone and centred on the canvas;
+ *           reading, alone and centred; cabinet: no material, alone and centred; box: room under the topic list; easel: no sheet, or a live sheet with no stroke (V0), alone and centred on the canvas;
  *           press: no takeaway, alone and centred, gone with one (and 「写一条沉淀」 back) (V1); cork board, lamp and type case alone and centred (V2–V4), named 「还没开放」 for screen readers only;
  *           every empty view holds only its object: 280–320 wide, centre within 8px of the view's, no visible text outside the drawing, no button;
- *           the real controls next to them pass elementFromPoint (the Materials row's 写解读, upload, 写一条沉淀 once a takeaway exists, every view tab, ＋ new sheet, the lone tab and its 「⋯」, zoom, Settings, every topic);
+ *           the real controls next to them pass elementFromPoint (the Materials row's 写解读, upload, 写一条沉淀 once a takeaway exists, every view tab, ＋ new sheet, the lone tab and its 「⋯」, the canvas's zoom (Excalidraw's own since the canvas), Settings, every topic);
  *           the lamp's pool overlaps no text and no control; objects are aria-hidden, untabbable and never take focus; the box's card carries the topic's newest takeaway and
  *           a click on it changes nothing else; stillness (two captures 1 s apart identical) at rest, hovered and opened; reduced motion leaves no transition over 100ms;
  *           the typewriter types (with no state line) while a reading requested from the row has no section and stops at the first one (zh 1440 light); one sheet shows one tab (glyph + 1) whose 「⋯」 still
@@ -27,6 +27,7 @@ import { acquireServiceLock } from '../../../mastra-service/src/deployment/lock.
 import { publishDiscovery } from '../../../mastra-service/src/deployment/discovery.ts'
 import { fixtureProvider, textReply, toolReply } from '../../../mastra-service/tests/provider-fixture.ts'
 import { ensureTopic } from '../../../mastra-service/tests/topic-fixture.ts'
+import { element } from '../../../mastra-service/tests/studio/canvas-fixtures.ts'
 
 const out = process.argv[2]
 if (!out) throw new Error('evidence dir required')
@@ -116,7 +117,7 @@ studio.topics.reference('done', done.id)
 studio.sediment.create('done', { text: '只有这一句。', origin: 'typed' })
 studio.readings.write('done', done.id, { title: '读过了', paragraphs: [{ text: '这一节已经写好。', source: { kind: 'inference' } }] }, { threadId: null, runId: null })
 const sheet = studio.board.createSheet('done')
-studio.board.draw('done', { kind: 'text', title: '一张白板', content: { markdown: '已经画过。' } }, { threadId: 'done:a', runId: null }, sheet.id)
+studio.board.canvas.save(sheet.id, [element('drawn', 'rectangle', { x: 80, y: 80, width: 200, height: 100 })])
 const live = await add('live-notes.md', '# Live\n\nTo be read now.')
 studio.topics.reference('live', live.id)
 // A topic opens with its first sheet; the no-sheet state (the easel's) comes from deleting it (R17), as a person would
@@ -170,13 +171,15 @@ const poolClear = page => page.evaluate(() => {
   }).map(node => node.className || node.tagName)
   return over.length ? over.join(',') : 'ok'
 })
-/** The easel alone on the canvas (no line beside it): centred across the canvas, inside it, clear of the zoom bar and the tab strip, about 320 wide */
+/** The easel alone on the canvas (no line beside it): centred across the canvas, inside it, clear of the editor's controls and the tab strip, about 320 wide */
 const easelAlone = page => page.evaluate(() => {
   const e = document.querySelector('.board-easel')!.getBoundingClientRect(), v = document.querySelector('.board-viewport')!.getBoundingClientRect()
-  const z = document.querySelector('.board-zoom')!.getBoundingClientRect(), s = document.querySelector('.board-sheets')!.getBoundingClientRect()
+  const s = document.querySelector('.board-sheets')!.getBoundingClientRect()
   const apart = (a: DOMRect, b: DOMRect) => a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top
+  // Since the canvas (2026-11-19) the zoom bar is Excalidraw's: every visible editor control counts
+  const controls = [...document.querySelectorAll('.board-canvas .excalidraw button, .board-canvas .excalidraw label.ToolIcon')].map(el => el.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0)
   const result = { width: Math.round(e.width), centred: Math.abs((e.left + e.right) / 2 - (v.left + v.right) / 2) < 2, inside: e.top >= v.top && e.bottom <= v.bottom && e.left >= v.left && e.right <= v.right,
-    zoom: apart(e, z), sheets: apart(e, s), noLine: !document.querySelector('.board-empty') }
+    zoom: controls.every(r => apart(e, r)), sheets: apart(e, s), noLine: !document.querySelector('.board-empty') }
   return { ...result, ok: result.centred && result.inside && result.zoom && result.sheets && result.noLine && result.width <= 320 && result.width >= 200 }
 })
 const PLACEHOLDERS = [['map', 'iso-cork', 'cork'], ['ideas', 'iso-lamp', 'lamp'], ['all', 'iso-case', 'case']]
@@ -307,7 +310,7 @@ try {
     check(`${tag} 有解读：没有打字机`, !(await page.$('.reading-typewriter')) && !(await page.$('.reading-start')))
     check(`${tag} 有素材：没有卡片柜（读过）`, !(await page.$('.materials-cabinet')))
     await view(page, S, 'board')
-    await page.waitForSelector('[data-block]')
+    await page.waitForSelector('.board-canvas .excalidraw__canvas.interactive'); await sleep(800)
     check(`${tag} 有白板：没有画架`, !(await page.$('.board-easel')))
     await view(page, S, 'settled'); await page.waitForSelector('.sediment-entry')
     check(`${tag} 一条沉淀：没有压花板，「写一条沉淀」回来`, !(await page.$('.sediment-press')) && (await page.$$('.sediment-entry')).length === 1 && await page.textContent('.sediment-keep') === S.sediment.keep)
@@ -322,12 +325,14 @@ try {
     check(`${tag} 空白板（V0）：画架独自居中、不碰缩放条和白板标签、没有说明句`, blank.ok, JSON.stringify(blank))
     const lone = await page.evaluate(() => [...document.querySelectorAll('.board-tabs .board-tab > button:first-child')].map(tab => [tab.textContent, !!tab.querySelector('svg')]))
     check(`${tag} 一张白板（V8）：标签条显示一个标签（图标 + 1）`, JSON.stringify(lone) === '[["1",true]]', JSON.stringify(lone))
-    for (const [selector, name] of [['.board-tabs .board-tab > button:first-child', '白板标签'], ['.board-tab.is-on .board-tab-more', '「⋯」'], ['.board-sheet-new', '＋'], ['.board-zoom button:first-child', '缩小'], ['.board-zoom button:last-child', '适配']])
+    for (const [selector, name] of [['.board-tabs .board-tab > button:first-child', '白板标签'], ['.board-tab.is-on .board-tab-more', '「⋯」'], ['.board-sheet-new', '＋'], ['.board-canvas .zoom-out-button', '缩小'], ['.board-canvas .reset-zoom-button', '重置缩放']])
       check(`${tag} 空白板：${name}可点`, await hits(page, selector))
-    const zoom = await page.textContent('.board-zoom-value')
-    await page.click('.board-zoom button:nth-child(3)')
-    check(`${tag} 空白板：放大照常`, (await page.textContent('.board-zoom-value')) !== zoom)
-    await page.click('.board-zoom button:first-child')
+    // The easel shows before the editor has finished mounting: zoom once the canvas takes input
+    await page.waitForSelector('.board-canvas .excalidraw__canvas.interactive'); await sleep(600)
+    const zoom = await page.textContent('.board-canvas .reset-zoom-button')
+    await page.click('.board-canvas .zoom-in-button'); await sleep(300)
+    check(`${tag} 空白板：放大照常`, (await page.textContent('.board-canvas .reset-zoom-button')) !== zoom)
+    await page.click('.board-canvas .reset-zoom-button')
     await page.screenshot({ path: `${out}/${tag.replaceAll(' ', '-')}-blank-sheet.png` })
     await view(page, S, 'reading')
 

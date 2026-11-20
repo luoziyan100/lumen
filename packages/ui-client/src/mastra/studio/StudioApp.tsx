@@ -63,7 +63,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const { sessions, edit: editSessions } = useSessions(api, topic?.id ?? null, revision)
   const [view, setView] = useState<View>('reading')
   const [signal, setSignal] = useState<BoardSignal>({ drawing: null, done: '' })
-  const [focus, setFocus] = useState<{ blockId: string; nonce: number } | null>(null)
+  const [focus, setFocus] = useState<{ elementId: string; nonce: number } | null>(null)
   const [reading, setReading] = useState<{ target: FileTarget; title?: string } | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false), [docked, setDocked] = useState(false), [figure, setFigure] = useState<SpriteBox | null>(null)
   const [full, setFull] = useState(false), [center, setCenter] = useState<HTMLElement | null>(null)
@@ -72,7 +72,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const board = useBoard(api, topic?.id ?? null, `${signal.done}|${revision}`, live)
   const materials = useMaterials(api, topic?.id ?? null, `${signal.done}|${revision}`)
   // Deleted evidence links depend on board state: refetch whenever the board view changes version (a write, a sheet delete, another selection)
-  const sediment = useSediment(api, topic?.id ?? null, `${signal.done}|${revision}|${board.view?.sheet.id ?? ''}|${board.view?.sheet.updatedAt ?? ''}`)
+  const sediment = useSediment(api, topic?.id ?? null, `${signal.done}|${revision}|${board.scene?.sheet.id ?? ''}|${board.scene?.sheet.updatedAt ?? ''}`)
   // ---- The one conversation subscription: the sprite renders its full view; the shell selects only the values it shows, so a streamed token re-renders the sprite, not the workbench ----
   const feed = useSessionFeed(api, identity)
   const written = useFeedSelect(feed, view => readingSignal(view.messages))
@@ -107,7 +107,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
   // Selected per frame like the shell's other conversation values; it reads the request text from a ref, which only changes together with a send (a new view follows)
   const replied = useFeedSelect(feed, view => !!requestText.current && answered(view.messages, requestText.current))
   useEffect(() => { if (requested && !running && replied) setRequested(null) }, [requested, running, replied])
-  // ---- S9c: the selected sheet's invite (the question and pre-linked blocks above the full-board row) ----
+  // ---- S9c: the selected sheet's invite (its question opens the row under the canvas) ----
   const [invite, setInvite] = useState<SedimentInvite | null>(null)
   useEffect(() => {
     if (!board.selected || sediment.unsupported) { setInvite(null); return }
@@ -162,7 +162,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
   }, [panes.left, panes.right])
 
   const onBoard = useCallback((next: BoardSignal) => setSignal(previous => previous.drawing === next.drawing && previous.done === next.done ? previous : next), [])
-  const onFocusBlock = useCallback((blockId: string) => { setView('board'); setFocus({ blockId, nonce: Date.now() }) }, [])
+  const onFocusBlock = useCallback((elementId: string) => { setView('board'); setFocus({ elementId, nonce: Date.now() }) }, [])
   // ---- Opening from a material or a source chip always enters split view ----
   const openMaterial = (item: TopicMaterial, page?: number) => { setFull(false); setReading({ target: { scope: 'library', path: item.id, ...(page ? { page } : {}) }, title: item.title }) }
   const openSource = (itemId: string, page?: number) => {
@@ -229,8 +229,8 @@ export function StudioApp({ connection }: { connection: Connection }) {
             : view === 'reading' ? <ReadingView state={readings} requested={!!requested && requested === readings.itemId} asks={asks} busyFor={busyFor}
               startItem={startItem}
               onSend={askReading} onWidgetSend={text => say(null, text)} onKeep={keepWords} onOpenSource={openSource} sprite={figure} />
-            : view === 'board' ? <Board board={board} materials={materials.items} drawing={signal.drawing} focus={focus} onOpenSource={openSource} sediment={sediment} invite={invite} />
-            : view === 'settled' ? <Takeaways sediment={sediment} onJump={(blockId, sheetId) => { setView('board'); board.select(sheetId); setFocus({ blockId, nonce: Date.now() }) }} />
+            : view === 'board' ? <Board api={api} board={board} drawing={signal.drawing} focus={focus} sediment={sediment} invite={invite} />
+            : view === 'settled' ? <Takeaways sediment={sediment} onJump={(elementId, sheetId) => { setView('board'); board.select(sheetId); setFocus({ elementId, nonce: Date.now() }) }} />
             // A view not open yet is its object alone, centred; 「还没开放」 is the container's name for screen readers, never visible text
             : <div className="studio-later" role="img" aria-label={S.notOpen}>
               {LATER_OBJECTS[view] && <IsoObject markup={LATER_OBJECTS[view]} className="studio-later-object" />}

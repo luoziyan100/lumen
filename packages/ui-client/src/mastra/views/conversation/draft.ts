@@ -1,6 +1,7 @@
 /**
  * [INPUT]: 固定项目/会话身份、受控当前稿路径、文件上传API、延迟会话准备与原生SessionFeed.send
- * [OUTPUT]: conversationDraft；可外部订阅的草稿、提交进度与失败材料；点击发送即冻结材料与当前稿附言，准备会话期间新增输入不进入已确认快照
+ * [OUTPUT]: conversationDraft；可外部订阅的草稿、提交进度与失败材料；点击发送即冻结材料与当前稿附言，准备会话期间新增输入不进入已确认快照；
+ *           beforeSend：发出前等一等的准备（白板画布在此送最新画面给模型，Q6），最多等 SEND_WAIT_MS，失败不拦发送
  * [POS]: 输入内容独立于组件挂载；提交快照送往原会话，运行生命周期仍由 Mastra 拥有
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -11,6 +12,15 @@ import type { SessionFeed } from '../../data/feed.ts'
 import { writableDocument } from '../../data/file-links.ts'
 
 type SendTarget = Pick<SessionFeed, 'send' | 'identity'>
+
+/** Work to finish before a message goes out. The board canvas registers its glance here; the image never joins the message (Q6). */
+export const beforeSend = new Set<() => Promise<void>>()
+const SEND_WAIT_MS = 1500
+function prepared(): Promise<void> {
+  if (!beforeSend.size) return Promise.resolve()
+  const all = Promise.allSettled([...beforeSend].map(hook => hook())).then(() => {})
+  return Promise.race([all, new Promise<void>(resolve => setTimeout(resolve, SEND_WAIT_MS))])
+}
 
 interface FailedSubmission { id: number; content: string; files: File[]; error: string }
 interface DraftState { draft: string; files: File[]; uploading: boolean; pending: number; failed: FailedSubmission[] }
@@ -86,7 +96,7 @@ class ConversationDraft {
     finally { this.staging = false; this.publish({ uploading: false }) }
     const content = materials(prompt, uploaded)
     this.publish({ pending: this.state.pending + 1 })
-    try { await feed.send(content); return true }
+    try { await prepared(); await feed.send(content); return true }
     catch (error) { this.fail(id, content, [], error); return false }
     finally { this.publish({ pending: this.state.pending - 1 }) }
   }

@@ -1,15 +1,19 @@
 /**
- * [INPUT]: the studio stores (board/sediment/topic references/run targets), content's block contract and one-line summary, the trusted session identity, the current main run id and the run-target resolution
- * [OUTPUT]: createBoardTools: board_view/board_draw/board_update/board_supersede, all against the run's target (R16); topicState: the per-request topic state (the run's target, the user's takeaways, existing readings, materials, speech habits, capped)
- * [POS]: the AI's only path onto the board (R4). Topic and sheet always derive from the session identity — the parameters carry neither; every write records its conversation and run, versions are written by the application when the run ends
- * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
+ * [INPUT]: the studio stores (board with its canvas, sediment, topic references, run targets), the canvas contract of content.ts, the trusted session identity,
+ *          the current main run id and the run-target resolution
+ * [OUTPUT]: createBoardTools: board_view (the target sheet's structure: element type, text, arrow ends, author, the user's viewport; never an image) /
+ *           board_draw (ElementSkeleton fragments, queued for the app to lay out) / board_update (the AI's own elements) / board_erase (R5), all against the run's
+ *           target (R16); canvasView; topicState: the per-request topic state (the run's target canvas, the user's takeaways, existing readings, materials, speech habits, capped)
+ * [POS]: the AI's only path onto the board (R4). Topic and sheet always derive from the session identity — the parameters carry neither; every write records its
+ *        conversation and run, snapshots are written by the application when the run ends. A draw returns before the app lays it out: the card and board_view say so
+ * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { createTool, type ToolExecutionContext } from '@mastra/core/tools'
 import { z } from 'zod'
-import { blockKinds, LIMITS, summarize } from './content.ts'
+import { CANVAS_LIMITS, elementId, eraseReason, parseCanvas, patchSchema, skeletonSchema } from './content.ts'
 import { StudioError } from './errors.ts'
 import type { Studio } from './studio.ts'
-import type { Block, BlockSource, Sheet, WriteOrigin } from './types.ts'
+import type { Author, CanvasElement, Sheet, WriteOrigin } from './types.ts'
 
 type Context = { requestContext?: ToolExecutionContext['requestContext'] } | undefined
 /** The trusted writer: topic, conversation (= resourceId), the current main run and this run's target (R16; null = no sheet to write); only an opened main session resolves. */
@@ -17,78 +21,105 @@ export type BoardWriter = (context: Context) => Promise<{ topicId: string; sheet
 /** Read side (main run and specialists): the topic and the run's target sheet. */
 export type BoardReader = (context: Context) => { topicId: string; sheetId: string | null }
 
-// ---------------------------------------------------------------------------
-// What the model sees: per-kind shape hints; the real validation lives in the store (the same zod contract) and errors go back to the model verbatim
-// ---------------------------------------------------------------------------
-const kind = z.enum(blockKinds as [string, ...string[]])
-const content = z.object({}).passthrough().describe([
-  'text: { markdown }（一件事的说明，≤8KB）',
-  'ladder: { rungs: [{ level, text }], here, breakAt?, foggedAbove? }（理解的梯子：level 从低到高，here 是用户现在站的那级，breakAt 是断掉的那级）',
-  'table: { columns: [..], rows: [[..]], guessCells?: [[row, col]] }（每行格数等于列数；guessCells 标出还是猜测的格子）',
-  'widget: { html }（可交互的小部件，≤64KB，自带样式与脚本）',
-].join('；'))
-const sources = z.array(z.object({
-  itemId: z.string().optional().describe('本主题引用的材料 id（list_materials 里的）'),
-  page: z.number().int().min(1).optional(),
-  quote: z.string().optional().describe(`原文短引，≤${LIMITS.quote} 字`),
-  threadId: z.string().optional().describe('出自本主题的哪段对话'),
-})).max(LIMITS.sources).describe('出处：材料写 { itemId, page?, quote? }，对话写 { threadId }')
+const VIEW_ELEMENTS = 300
+const round = (value: unknown) => Math.round(Number(value) || 0)
 
-/** Strip empty fields off model-given sources; the store decides under R15. */
-function cleanSources(value: z.infer<typeof sources> | undefined): unknown {
-  return value?.map(source => Object.fromEntries(Object.entries(source).filter(([, field]) => field !== undefined)))
+/** One element as the model reads it: what it is, who drew it, where, its words and its arrow ends; a shape's label is folded into the shape. */
+function line(element: CanvasElement, author: Author, labels: Map<string, CanvasElement>) {
+  const label = (element.boundElements ?? []).map(bound => labels.get(bound.id)).find(Boolean)
+  const binding = (value: unknown) => (value as { elementId?: string } | null)?.elementId
+  return Object.fromEntries(Object.entries({
+    id: element.id, type: element.type, by: author === 'ai' ? 'ai' : 'user', x: round(element.x), y: round(element.y), w: round(element.width), h: round(element.height),
+    text: element.type === 'text' ? element.text : undefined, label: label?.text, labelId: label?.id,
+    from: binding(element.startBinding), to: binding(element.endBinding), frame: element.frameId ?? undefined, name: element.type === 'frame' ? element.name : undefined,
+  }).filter(([, value]) => value !== undefined && value !== null))
 }
 
-function line(block: Pick<Block, 'id' | 'kind' | 'title' | 'content' | 'state' | 'rev' | 'sources'>) {
-  return { id: block.id, kind: block.kind, title: block.title, summary: summarize(block.kind, block.content), state: block.state, rev: block.rev, sources: block.sources }
+/** The target sheet as structure: live elements (those in the user's viewport first, capped), pending draws and open erasures. */
+export function canvasView(studio: Studio, sheet: Sheet) {
+  const canvas = studio.board.canvas, viewport = canvas.viewport(sheet.id)
+  const live = canvas.liveElements(sheet.id)
+  const labels = new Map(live.filter(row => row.element.containerId).map(row => [row.element.id, row.element]))
+  const inside = (element: CanvasElement) => !viewport || (Number(element.x) < viewport.x + viewport.width && Number(element.x) + Number(element.width) > viewport.x
+    && Number(element.y) < viewport.y + viewport.height && Number(element.y) + Number(element.height) > viewport.y)
+  const shown = live.filter(row => !labels.has(row.element.id))
+  const ordered = [...shown.filter(row => inside(row.element)), ...shown.filter(row => !inside(row.element))]
+  return {
+    sheet: { id: sheet.id, title: sheet.title, state: sheet.state },
+    viewport: viewport && { x: round(viewport.x), y: round(viewport.y), w: round(viewport.width), h: round(viewport.height) },
+    elements: ordered.slice(0, VIEW_ELEMENTS).map(row => line(row.element, row.author, labels)),
+    ...(ordered.length > VIEW_ELEMENTS ? { omitted: ordered.length - VIEW_ELEMENTS } : {}),
+    pending: canvas.ops(sheet.id).map(op => ({ title: op.title, kind: op.kind, ids: op.ids })),
+    erased: canvas.erasures(sheet.id).map(erasure => ({ ids: erasure.elementIds, reason: erasure.reason })),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// What the model sees: the shapes are checked again inside the store; refusals go back verbatim
+// ---------------------------------------------------------------------------
+const title = z.string().trim().min(1).max(CANVAS_LIMITS.title).describe('这一笔画的是什么，几个字；对话里的卡片显示它')
+const skeletons = z.array(z.object({}).passthrough()).min(1).max(CANVAS_LIMITS.draw).describe([
+  'Excalidraw ElementSkeleton：每个元素 { type, x, y, ... }，坐标是画布坐标。',
+  'type：rectangle / ellipse / diamond（可带 label: { text }，宽高随字自动定）、text（{ text, fontSize? }）、arrow / line（width/height 或 points；arrow 可用 start: { id }、end: { id } 连到元素上）、',
+  'freedraw（points）、image（fileId，白板上已有的图片）、frame（children: 元素 id 数组，name?）。',
+  '可选 id（字母数字 _-，用来在同一批里连箭头；不给就由系统分配）与样式 strokeColor/backgroundColor/fillStyle/strokeWidth/strokeStyle/roughness/opacity/angle。',
+].join(''))
+
+async function target(studio: Studio, writer: BoardWriter, context: Context) {
+  const { topicId, sheetId, ...origin } = await writer(context)
+  return { sheet: studio.board.writeTarget(topicId, sheetId), origin }
 }
 
 export function createBoardTools(studio: Studio, writer: BoardWriter, reader: BoardReader) {
-  const view = createTool({ id: 'board_view', description: '看这个主题进行中的白板：标题、用了几格、每块的 id/类型/标题/一句摘要/状态/版本号/出处。给 blockId 时返回那一块的完整内容（改之前先看）。',
-    inputSchema: z.object({ blockId: z.string().max(64).optional() }),
-    execute: async ({ blockId }, context) => {
-      const { sheetId } = reader(context)
+  const view = createTool({ id: 'board_view',
+    description: '看这一轮的白板（用户选中的那张）：每个元素的 id、类型、作者（ai/user）、位置大小、文字或标签、箭头连着谁，以及用户当前看的区域 viewport。只给结构，不给图。',
+    inputSchema: z.object({}),
+    execute: async (_input, context) => {
+      const { topicId, sheetId } = reader(context)
       if (sheetId === null) throw new StudioError('这个主题现在没有进行中的白板；请用户点 ＋ 新开一张', 409, 'board.no_live_sheet')
-      const current = studio.board.view(sheetId)
-      const sheet = { id: current.sheet.id, title: current.sheet.title, used: current.sheet.used, capacity: current.sheet.capacity }
-      if (blockId) {
-        const target = current.blocks.find(block => block.id === blockId)
-        if (!target) return { sheet, error: `进行中的白板上没有区块 ${blockId}` }
-        return { sheet, block: { ...line(target), content: target.content } }
-      }
-      return { sheet, blocks: current.blocks.map(line) }
+      const sheet = studio.board.sheet(sheetId)
+      if (sheet.topicId !== topicId) throw new StudioError('没有这张白板', 404, 'board.sheet_not_found')
+      return canvasView(studio, sheet)
     },
   })
   return {
     board_view: view,
-    board_draw: createTool({ id: 'board_draw', description: '在这个主题进行中的白板上画一块。一块只讲一件事；版面由系统排，near 填一个已有区块 id 时落在它那一列。白板满了会被拒绝——那时先和用户沉淀，不要硬挤。',
-      inputSchema: z.object({ kind, title: z.string().max(LIMITS.title), content, sources: sources.optional(), near: z.string().max(64).optional() }),
+    board_draw: createTool({ id: 'board_draw',
+      description: '在这一轮的白板上画。默认画在用户当前看的区域（board_view 的 viewport）里、相关内容旁边，别压住已有的元素。桌面会用真实字体排好再落到白板上。',
+      inputSchema: z.object({ title, elements: skeletons }),
       execute: async (input, context) => {
-        const { topicId, sheetId, ...origin } = await writer(context)
-        const result = studio.board.draw(topicId, { kind: input.kind as Block['kind'], title: input.title, content: input.content, sources: cleanSources(input.sources) as BlockSource[] | undefined, near: input.near }, origin, sheetId)
-        return { blockId: result.blockId, rev: result.rev, title: input.title, used: result.used, capacity: result.capacity }
+        const { sheet, origin } = await target(studio, writer, context)
+        const parsed = input.elements.map((element, index) => parseCanvas(skeletonSchema, element, `第 ${index + 1} 个元素`))
+        const op = studio.board.canvas.queueDraw(sheet.id, input.title, parsed, origin)
+        // `blockId` is the conversation card's jump target (the first element); the card contract predates the canvas
+        return { title: input.title, ids: op.ids, blockId: op.ids[0], note: '已交给桌面落笔；用户打开这张白板就能看到' }
       },
     }),
-    board_update: createTool({ id: 'board_update', description: '改白板上一块的标题、内容或出处。baseRev 填你看到的版本号（board_view 里的 rev）；别人改过会被拒绝，先重新看再改。内容要按这块原来的类型给完整内容，不是补丁。',
-      inputSchema: z.object({ blockId: z.string().max(64), baseRev: z.number().int().min(1), title: z.string().max(LIMITS.title).optional(), content: content.optional(), sources: sources.optional() }),
+    board_update: createTool({ id: 'board_update',
+      description: '改你自己画的元素：位置、大小、文字、样式、points。只能改 by 为 ai 的元素；用户画的不改。改形状里的字，就改 board_view 里它的 labelId。',
+      inputSchema: z.object({ title, elements: z.array(z.object({}).passthrough()).min(1).max(CANVAS_LIMITS.draw).describe('每项 { id, 要改的字段… }') }),
       execute: async (input, context) => {
-        const { topicId, sheetId, ...origin } = await writer(context)
-        const result = studio.board.update(topicId, { blockId: input.blockId, baseRev: input.baseRev, title: input.title, content: input.content, sources: cleanSources(input.sources) as BlockSource[] | undefined }, origin, sheetId)
-        return { blockId: result.blockId, rev: result.rev }
+        const { sheet, origin } = await target(studio, writer, context)
+        const patches = input.elements.map((element, index) => parseCanvas(patchSchema, element, `第 ${index + 1} 项修改`))
+        const op = studio.board.canvas.queueUpdate(sheet.id, input.title, patches, origin)
+        return { title: input.title, ids: op.ids, blockId: op.ids[0] }
       },
     }),
-    board_supersede: createTool({ id: 'board_supersede', description: '把一块标成「已被取代」：它留在白板上变灰，不删，也不再占容量。by 填取代它的新区块 id（可选）。理解变了就这样留下来路，而不是抹掉。已被用户留作沉淀证据（settled）的块不能动。',
-      inputSchema: z.object({ blockId: z.string().max(64), by: z.string().max(64).optional() }),
-      execute: async (input, context) => {
-        const { topicId, sheetId, ...origin } = await writer(context)
-        return studio.board.supersede(topicId, input, origin, sheetId)
+    board_erase: createTool({ id: 'board_erase',
+      description: '擦掉白板上的元素。你自己画的直接删；用户画的线条和形状，只在你判断是误触或画废时才擦，会进回收记录，用户一键就能恢复；用户写的字一律擦不了。擦了用户的笔画，就在回复里说清擦了什么、为什么。',
+      inputSchema: z.object({ ids: z.array(elementId).min(1).max(CANVAS_LIMITS.save), reason: eraseReason.describe('为什么擦，一句话；用户在恢复按钮旁看得到') }),
+      execute: async ({ ids, reason }, context) => {
+        const { sheet, origin } = await target(studio, writer, context)
+        const result = studio.board.canvas.erase(sheet.id, ids, reason, origin)
+        return { removed: result.removed, recycled: result.recycled,
+          ...(result.recycled.length ? { note: `擦了用户的 ${result.recycled.length} 笔，已进回收记录，用户可一键恢复；在回复里说清擦了什么、为什么` } : {}) }
       },
     }),
   }
 }
 
 // ---------------------------------------------------------------------------
-// Topic state: the run's target sheet, one line per block, referenced materials; a hard estimated-token cap truncates, newest first
+// Topic state: the run's target canvas (counts, viewport, one line per element with words), referenced materials; a hard estimated-token cap truncates, newest first
 // ---------------------------------------------------------------------------
 export const TOPIC_STATE_TOKENS = 1500
 
@@ -103,19 +134,18 @@ export function estimateTokens(text: string): number {
 export function topicState(studio: Studio, topicId: string, limit = TOPIC_STATE_TOKENS, target?: Sheet | null): string {
   let topic
   try { topic = studio.topics.get(topicId) } catch { return '' }
-  let sheet
-  try { sheet = target === undefined ? studio.board.view(studio.board.writableSheet(topicId).id) : target && studio.board.view(target.id) } catch { sheet = null }
+  let sheet: Sheet | null
+  try { sheet = target === undefined ? studio.board.writableSheet(topicId) : target } catch { sheet = null }
   const materials = studio.topics.materials(topicId)
+  const view = sheet && canvasView(studio, sheet)
+  const authors = view ? view.elements.filter(element => element.by === 'ai').length : 0
   const head = [`主题「${topic.title}」的现状（每次请求自动附上，只是概览；要看全用 board_view，要读材料用 read_material）：`,
-    !sheet ? '这个主题现在没有进行中的白板。'
-      : sheet.sheet.state === 'live' ? `进行中的白板「${sheet.sheet.title}」：${sheet.sheet.used}/${sheet.sheet.capacity} 格`
-      : `用户这一轮选中的白板「${sheet.sheet.title}」已经收起，只读：这一轮不写白板，在对话里说明。`]
-  // ---- Blocks newest first; non-current ones stay listed with their replacer and whether the user keeps them as evidence ----
-  const blocks = (sheet?.blocks ?? []).slice().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map(block => {
-    const cited = block.sources.map(source => 'itemId' in source ? `${source.itemId}${source.page ? `#p${source.page}` : ''}` : '对话').join(',')
-    const state = block.state === 'current' ? '当前' : block.state === 'settled' ? '已沉淀（用户留作证据，不改它）' : `已取代${block.supersededBy ? `→${block.supersededBy}` : ''}`
-    return `- ${block.id} · ${block.kind} · ${block.title} · ${summarize(block.kind, block.content)} · ${state}${cited ? ` · 出处 ${cited}` : ''}`
-  })
+    !sheet || !view ? '这个主题现在没有进行中的白板。'
+      : sheet.state === 'live' ? `这一轮的白板「${sheet.title}」：${view.elements.length + (view.omitted ?? 0)} 个元素（你画的 ${authors}，用户画的 ${view.elements.length - authors}${view.omitted ? '，另有未列出的' : ''}）${view.viewport ? `；用户正看着 x ${view.viewport.x}, y ${view.viewport.y}, ${view.viewport.w}×${view.viewport.h} 这块` : ''}${view.pending.length ? `；${view.pending.length} 笔还在等桌面落笔` : ''}${view.erased.length ? `；你擦掉的用户笔画还有 ${view.erased.reduce((n, erasure) => n + erasure.ids.length, 0)} 笔没被恢复` : ''}`
+      : `用户这一轮选中的白板「${sheet.title}」已经收起，只读：这一轮不写白板，在对话里说明。`]
+  // ---- Elements that carry words, those in the user's viewport first: one line each, the rest is board_view's ----
+  const worded = (view?.elements ?? []).filter(element => element.text || element.label).map(element =>
+    `- ${element.id} · ${element.type} · ${element.by === 'ai' ? '你画的' : '用户画的'} · 「${String(element.text ?? element.label).replace(/\s+/g, ' ').slice(0, 60)}」`)
   // ---- The user's takeaways (S6): newest first, text verbatim, evidence as block titles; challenge them after writing, never edit the user's words ----
   const sediment = studio.sediment.list(topicId).items.map(item =>
     `- 「${item.text}」（${item.origin === 'quoted' ? '原话引用' : '自写'}${item.links.length ? ` · 证据 ${item.links.map(link => link.deleted ? `「${link.title}」白板已删` : `「${link.title}」`).join('、')}` : ''}）`)
@@ -136,7 +166,7 @@ export function topicState(studio: Studio, topicId: string, limit = TOPIC_STATE_
   }
   fit('用户的沉淀（新的在前；只能用户自己写，你挑刺，不代写）', sediment)
   fit('已有解读（用 reading_view 看各节与段落 id，可用 reading_insert 原地补图或小实验）', readings)
-  fit('白板上的区块（新的在前）', blocks)
+  fit('白板上带字的元素（用户正看着的在前）', worded)
   fit('本主题引用的材料', items)
   // ---- S14 speech habits: one compact global section (~120 tokens) inside the same cap ----
   const habits = studio.sediment.habitsText(120)

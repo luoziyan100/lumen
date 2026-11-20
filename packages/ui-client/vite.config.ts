@@ -1,6 +1,6 @@
 /**
  * [INPUT]: Vite、React、正式或显式 Mastra 数据目录
- * [OUTPUT]: 开发服务和桌面网页构建配置
+ * [OUTPUT]: 开发服务和桌面网页构建配置；Excalidraw 字体自托管在同源 excalidraw/fonts/，构建时删掉它的 esm.sh 字体回退源（#12609，写法变了构建失败）；Excalidraw 预先进依赖优化，开发时第一次打开白板不再整页重载
  * [POS]: 浏览器开发入口；只注入私有 Mastra 发现身份，失败显示可重试错误，无旧 WS 回退
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig, searchForWorkspaceRoot, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { lstatSync, openSync, fstatSync, readSync, closeSync, constants } from 'node:fs'
+import { lstatSync, openSync, fstatSync, readSync, closeSync, constants, cpSync, createReadStream, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import * as path from 'node:path'
 import { widgetReceiverPlugin } from './scripts/vite-widget-receiver'
@@ -65,12 +65,56 @@ function injectCsp(): Plugin {
   }
 }
 
+// Excalidraw 默认从 esm.sh 取字体；把包内字体放到同源 excalidraw/fonts/，开发时直接读包目录，构建时拷进产物
+const excalidrawFonts = fileURLToPath(new URL('../prod/fonts', import.meta.resolve('@excalidraw/excalidraw')))
+function serveExcalidrawFonts(): Plugin {
+  let outDir = ''
+  return {
+    name: 'excalidraw-fonts',
+    configResolved(config) { outDir = path.resolve(config.root, config.build.outDir) },
+    configureServer(server) {
+      server.middlewares.use('/excalidraw/fonts/', (request, response, next) => {
+        const file = path.join(excalidrawFonts, decodeURIComponent((request.url ?? '').split('?')[0]))
+        if (!file.startsWith(excalidrawFonts + path.sep) || !file.endsWith('.woff2')) return next()
+        try { statSync(file) } catch { return next() }
+        response.setHeader('Content-Type', 'font/woff2')
+        createReadStream(file).pipe(response)
+      })
+    },
+    closeBundle() { cpSync(excalidrawFonts, path.join(outDir, 'excalidraw', 'fonts'), { recursive: true }) },
+  }
+}
+
+// Excalidraw 给每个字体都在自托管地址之后追加 esm.sh 回退源；CSP 拒绝它，每次挂载控制台约 460 条报错（excalidraw/excalidraw#12609）。
+// 构建时只删这一处追加；写死这一种写法，匹配不到就让构建失败，上游改了能发现。上游修好（出开关）后删掉这个插件。
+// 开发服务走依赖预构建，不经过这里：开发时控制台仍有这些报错。
+const ESM_FALLBACK = /return (\w+)\.push\(new URL\(\w+,\w+\.ASSETS_FALLBACK_URL\)\),\1\}/g
+function stripExcalidrawEsmFallback(): Plugin {
+  let stripped = 0
+  return {
+    name: 'excalidraw-strip-esm-fallback',
+    apply: 'build',
+    transform(code, id) {
+      if (!/[\\/]@excalidraw[\\/]excalidraw[\\/]dist[\\/]prod[\\/]/.test(id) || !code.includes('ASSETS_FALLBACK_URL')) return null
+      const found = code.match(ESM_FALLBACK)?.length ?? 0
+      if (found !== 1) this.error(`Excalidraw 的 esm.sh 字体回退写法变了（匹配到 ${found} 处，应为 1）：查 excalidraw/excalidraw#12609，再改或删这个插件`)
+      stripped++
+      return { code: code.replace(ESM_FALLBACK, 'return $1}'), map: null }
+    },
+    generateBundle() {
+      if (stripped !== 1) this.error(`没有找到 Excalidraw 的 esm.sh 字体回退（处理了 ${stripped} 个模块，应为 1）：查 excalidraw/excalidraw#12609，再改或删这个插件`)
+    },
+  }
+}
+
 // Tauri 期望固定 dev 端口
 // 设计系统以 file: 依赖链接在仓库外；开发服务器需显式允许读取其真实目录。
 const designSystemRoot = fileURLToPath(new URL('.', import.meta.resolve('yan-design-system/tokens.css'))).replace(/\/css\/$/, '')
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), injectMastraConnection(), injectCsp(), widgetReceiverPlugin()],
+  plugins: [react(), tailwindcss(), injectMastraConnection(), injectCsp(), widgetReceiverPlugin(), serveExcalidrawFonts(), stripExcalidrawEsmFallback()],
   clearScreen: false,
   server: { port: 5180, strictPort: true, fs: { allow: [searchForWorkspaceRoot(process.cwd()), designSystemRoot] } },
+  // 白板按需加载 Excalidraw；不预先列入，开发服务会在第一次打开白板时发现新依赖、重新优化并整页重载
+  optimizeDeps: { include: ['@excalidraw/excalidraw'] },
 })

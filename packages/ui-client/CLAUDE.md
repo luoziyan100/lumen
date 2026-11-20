@@ -31,7 +31,7 @@ tests/                      # 原生 HTTP/SSE 客户端与保留渲染算法回�
 - `components/` 保留与运行时无关的阅读能力；HTML 走隔离 widget iframe，Markdown 外链走统一确认出口。
 - `components/icons.tsx` 是业务图标唯一入口，几何与动效来自 `yan-design-system`(icons/glyphs.ts、icons/motion.css)：自绘纯线条、currentColor、悬停做物件动作(doc/ui-design.md §3.1)，16/18/20三档覆盖行内、按钮和主导航；管理三点与折叠箭头分工，文件类别用轮廓表达，禁止字符和 CSS 尺寸例外。
 - `main.tsx` / `vite.config.ts` / `src-tauri/src/mastra.rs` 负责发现服务。冷启动失败展示错误并进行有界退避发现；工作台已经打开后，短暂探测失败保留当前连接，不卸载界面。成功换端口/令牌时替换连接并补取历史，不启动另一个运行时。
-- `package.json` 声明浏览器与桌面命令；`tsconfig.json` 检查现役源码；`vite.config.ts` 提供本机开发发现；`index.html` 是网页宿主。
+- `package.json` 声明浏览器与桌面命令；`tsconfig.json` 检查现役源码；`vite.config.ts` 提供本机开发发现，自托管 Excalidraw 字体，构建时删掉它的 esm.sh 回退源（#12609）；`index.html` 是网页宿主。
 - 服务发现：浏览器开发（vite）与桌面 `mastra.rs` 都默认 `~/.lumen-studio`，桌面只唤醒 `com.lumen.studio`，不连旧形态 `~/.lumen-mastra`；桌面应用为 `Lumen.app`（bundle id `com.lumen.studio`；S5 时叫 Lumen Studio.app，2026-11-12 合入 main 后改回 Lumen）；参数或 `LUMEN_MASTRA_HOME` 保留隔离预览；旧入口和 WS 回退已删除。
 - 通用语义变量(表面、墨色、强调、材质、字体、字阶、间距、圆角、阴影、动效)来自 `yan-design-system`(`~/Workspace/Projects/yan-design-system`，`file:` 依赖)，main.tsx 依次引入 fonts/tokens/base 与图标动效；本包 `tokens.css` 只放皮肤背景槽、炫光/aurora 装饰与布局尺寸；`theme-celadon.css` 让 Kumo 实色控件同源换肤并对齐内置 Select 图标，`kumo.css` 加载控件，`styles.css` 消费语义变量定义布局与图标对齐，不重缩放图标。
 - `styles.css` 只保留现役布局、卷帘、消息、输入卡、阅读器和 Mermaid/widget 样式，新外壳样式在 `mastra/studio/studio.css`；退役侧栏、附件抽屉、Todo/来源/诊断/HUD 规则已清除。

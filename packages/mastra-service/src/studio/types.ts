@@ -1,6 +1,7 @@
 /**
  * [INPUT]: no runtime dependencies; the objects and states of the product model in doc/studio/model.md
- * [OUTPUT]: topic, library (with authors/year/arXiv id/title source), reference, sheet, block, source and version, sediment entry/link/offer/invite DTOs,
+ * [OUTPUT]: topic, library (with authors/year/arXiv id/title source), reference, sheet, block, source and version, the canvas (element, pending AI op, erasure, viewport, scene, snapshot, author),
+ *           sediment entry/link/offer/invite DTOs,
  *           the reading of a material (sections, mixed prose/table/diagram/widget blocks and their paper/inference sources) and its list summary,
  *           plus the BlockKind/BlockState/SedimentOrigin/ReadingBlockKind literals
  * [POS]: the pure type boundary shared by the service and the desktop; carries no database or framework objects
@@ -52,7 +53,7 @@ export interface Sheet {
   topicId: string
   title: string
   state: SheetState
-  capacity: number
+  /** Live canvas elements on the sheet; there is no capacity since 2026-11-19 (R11) */
   used: number
   ord: number
   createdAt: string
@@ -100,6 +101,59 @@ export interface SheetVersion {
 export interface WriteOrigin { threadId: string | null; runId: string | null }
 
 // -------------------------------------------------------------------------
+// 2026-11-19 co-drawn canvas: Excalidraw elements, each owned by its author (R2); the AI's writes wait as ops until the app measures them
+// -------------------------------------------------------------------------
+export type Author = 'you' | 'ai'
+
+/** An Excalidraw element as stored: the service reads these fields and keeps every other field verbatim. */
+export interface CanvasElement {
+  id: string
+  type: string
+  version: number
+  versionNonce?: number
+  isDeleted?: boolean
+  updated?: number
+  text?: string
+  containerId?: string | null
+  frameId?: string | null
+  boundElements?: { id: string; type: string }[] | null
+  customData?: Record<string, unknown>
+  [field: string]: unknown
+}
+
+/** An AI write the app has not laid out yet: skeletons to convert, or patches to the AI's own elements; `ids` are the elements it creates or changes. */
+export interface CanvasOp {
+  id: string
+  kind: 'draw' | 'update'
+  title: string
+  skeletons: unknown[]
+  patches: unknown[]
+  ids: string[]
+  threadId: string | null
+  runId: string | null
+  createdAt: string
+}
+
+/** R5: the user's strokes the AI soft-deleted in one call, with its reason; open until the user restores or dismisses it. */
+export interface CanvasErasure { id: string; elementIds: string[]; reason: string; threadId: string | null; createdAt: string }
+
+/** The scene rectangle the user looks at (scene coordinates). */
+export interface Viewport { x: number; y: number; width: number; height: number }
+
+/** One sheet's canvas for the app: tombstones included (they settle reconciles), pending AI ops, open erasures, the stored viewport, and whether it changed since the last snapshot. */
+export interface CanvasScene {
+  sheet: Sheet
+  elements: CanvasElement[]
+  ops: CanvasOp[]
+  erasures: CanvasErasure[]
+  viewport: Viewport | null
+  changed: boolean
+}
+
+/** R7: the scene as one run left it. */
+export interface CanvasSnapshot { sheetId: string; version: number; threadId: string | null; runId: string | null; createdAt: string }
+
+// -------------------------------------------------------------------------
 // P1 sediment (R13): entries hold only the user's own words; P1 has a single state, the column leaves room for P2's evidence stamps
 // -------------------------------------------------------------------------
 export type SedimentOrigin = 'typed' | 'quoted'
@@ -130,6 +184,8 @@ export interface SedimentLink {
   sheetId: string
   /** The block died with its sheet: display only, no jump */
   deleted: boolean
+  /** Old blocks retired with the canvas (2026-11-19): the link shows its title only, no jump */
+  retired: boolean
 }
 
 /** An offer of the user's own words handed back by the AI (S4): a confirm turns it into an entry, a dismiss deletes it; the fragments drive the confirm-time strikethrough. */
@@ -141,14 +197,16 @@ export interface SedimentOffer {
   text: string
   original: string
   fragments: SedimentFragment[]
-  blockIds: string[]
+  /** Canvas elements the AI pointed at, possibly none; offers before 2026-11-19 hold old block ids, which match nothing */
+  elementIds: string[]
   createdAt: string
 }
 
 /** A sheet's sediment invite (S4): the latest replaces the earlier one; it dies with the sheet. */
 export interface SedimentInvite {
   sheetId: string
-  blockIds: string[]
+  /** Canvas elements the question points at, possibly none; invites written before 2026-11-19 hold old block ids, which match nothing */
+  elementIds: string[]
   question: string
   threadId: string | null
   runId: string | null

@@ -1,11 +1,11 @@
 /**
  * [INPUT]: Real HTTP service and application root, Mastra Controller tool loop, catalog.sqlite boards, deterministic model over HTTP
- * [OUTPUT]: Evidence for R17: empty sheets delete at once; a sheet with blocks needs ?confirm=true (409 carries the count) and then loses its
- *           blocks, versions, selection and target rows in one transaction (an injected failure leaves everything); foreign/missing → 404;
+ * [OUTPUT]: Evidence for R17: empty sheets delete at once; a sheet with content needs ?confirm=true (409 carries the count) and then loses its
+ *           canvas, snapshots, selection and target rows in one transaction (an injected failure leaves everything); foreign/missing → 404;
  *           the target of a running run and of a run waiting on an approval (also after a restart, before the session reopens) is refused,
  *           allowed once the run ends; a stale target row and a target captured during the activity read; selection moves next/previous/none;
  *           the last sheet goes and ＋ still works; the next run after deleting the selected sheet writes to the new selection (R16);
- *           cards learn a block's sheet is gone; the model's tool list has no delete
+ *           the canvas (queued draws, elements, snapshots) goes with the sheet; the model's tool list has no delete
  * [POS]: board-delete mechanism acceptance; the controllable model proves the mechanism and does not stand in for real model research
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -66,8 +66,9 @@ async function environment(respond: Respond, existing?: string) {
     select: (topic: string, sheetId: string) => request(`/lumen/topics/${topic}/selection`, { method: 'PUT', body: JSON.stringify({ sheetId }) }),
     plus: async (topic: string) => (await (await request(`/lumen/topics/${topic}/sheets`, { method: 'POST', body: '{}' })).json() as { id: string; title: string }),
     remove: async (topic: string, sheetId: string, confirm = false) => json(await request(`/lumen/topics/${topic}/sheets/${sheetId}${confirm ? '?confirm=true' : ''}`, { method: 'DELETE' })),
-    block: async (blockId: string) => json(await request(`/lumen/blocks/${blockId}`)),
-    blocks: (sheetId: string) => studio.board.view(sheetId).blocks.map(block => block.title),
+    /** What the AI drew on a sheet: its queued draws by card title (nothing lays them out in these tests) */
+    blocks: (sheetId: string) => studio.board.canvas.ops(sheetId).map(op => op.title),
+    versions: (sheetId: string) => studio.board.canvas.snapshots(sheetId),
     async close(keep = false) { await service.close(); if (!keep) await rm(dataRoot, { recursive: true, force: true }) },
   }
 }
@@ -77,15 +78,16 @@ function rows(dataRoot: string, sheetId: string) {
   const db = new DatabaseSync(join(dataRoot, 'catalog.sqlite'), { readOnly: true })
   try {
     const count = (sql: string) => Number(db.prepare(sql).get(sheetId)!.n)
-    return { sheets: count('SELECT COUNT(*) AS n FROM sheets WHERE id = ?'), blocks: count('SELECT COUNT(*) AS n FROM blocks WHERE sheet_id = ?'),
-      versions: count('SELECT COUNT(*) AS n FROM sheet_versions WHERE sheet_id = ?'), selection: count('SELECT COUNT(*) AS n FROM sheet_selection WHERE sheet_id = ?'),
+    // drawn: the canvas content (queued AI draws and elements); versions: R7 scene snapshots
+    return { sheets: count('SELECT COUNT(*) AS n FROM sheets WHERE id = ?'), drawn: count('SELECT (SELECT COUNT(*) FROM canvas_ops WHERE sheet_id = ?1) + (SELECT COUNT(*) FROM canvas_elements WHERE sheet_id = ?1) AS n'),
+      versions: count('SELECT COUNT(*) AS n FROM canvas_snapshots WHERE sheet_id = ?'), selection: count('SELECT COUNT(*) AS n FROM sheet_selection WHERE sheet_id = ?'),
       targets: count('SELECT COUNT(*) AS n FROM run_targets WHERE sheet_id = ?') }
   } finally { db.close() }
 }
 
-const draw = (title: string, id: string) => toolReply('board_draw', { kind: 'text', title, content: { markdown: title } }, id)
+const draw = (title: string, id: string) => toolReply('board_draw', { title, elements: [{ type: 'text', x: 0, y: 0, text: title }] }, id)
 
-test('R17 delete: empty at once; content needs confirmation with the count; one transaction (an injected failure deletes nothing); foreign or missing 404; cards learn the sheet is gone', { timeout: 60000 }, async () => {
+test('R17 delete: empty at once; content needs confirmation with the count; one transaction (an injected failure deletes nothing); foreign or missing 404', { timeout: 60000 }, async () => {
   const env = await environment(request => {
     const { text, results } = said(request)
     if (text.includes('画两块')) return results === 0 ? draw('第一块', 'c1') : results === 1 ? draw('第二块', 'c2') : textReply('画好了')
@@ -97,18 +99,16 @@ test('R17 delete: empty at once; content needs confirmation with the count; one 
     // ---- the run draws two blocks on the selected sheet and leaves a version (R7) ----
     assert.equal((await env.open('p', 'a')).status, 201)
     assert.equal((await env.send('p:a', '画两块')).status, 200)
-    await until(() => env.studio.board.versions(full).length === 1 && env.studio.board.runTargets('p').length === 0, 'run did not finish with a version')
-    const blockId = env.studio.board.view(full).blocks[0]!.id
-    assert.deepEqual(await env.block(blockId), { status: 200, body: { blockId, sheetId: full, topicId: 'p' } })
+    await until(() => env.versions(full).length === 1 && env.studio.board.runTargets('p').length === 0, 'run did not finish with a version')
     // ---- empty: deleted directly; it was not the selection, so the selection stays ----
     assert.deepEqual(await env.remove('p', empty), { status: 200, body: { deleted: empty, selected: full } })
-    assert.deepEqual(rows(env.dataRoot, empty), { sheets: 0, blocks: 0, versions: 0, selection: 0, targets: 0 })
+    assert.deepEqual(rows(env.dataRoot, empty), { sheets: 0, drawn: 0, versions: 0, selection: 0, targets: 0 })
     // ---- content without confirmation: 409 with the count, nothing deleted ----
     const refused = await env.remove('p', full)
     assert.equal(refused.status, 409)
     assert.deepEqual([refused.body.reason, refused.body.blocks], ['confirm', 2])
     assert.match(String(refused.body.error), /2 块内容.*不能恢复/)
-    assert.deepEqual(rows(env.dataRoot, full), { sheets: 1, blocks: 2, versions: 1, selection: 1, targets: 0 })
+    assert.deepEqual(rows(env.dataRoot, full), { sheets: 1, drawn: 2, versions: 1, selection: 1, targets: 0 })
     // ---- other topic and missing sheet ----
     assert.equal((await env.remove('q', full, true)).status, 404, 'a sheet of another topic')
     assert.equal((await env.remove('p', 'no-such-sheet', true)).status, 404)
@@ -118,14 +118,12 @@ test('R17 delete: empty at once; content needs confirmation with the count; one 
     writer.exec(`CREATE TRIGGER inject_failure BEFORE DELETE ON sheets BEGIN SELECT RAISE(ABORT, 'injected failure'); END`)
     const failed = await env.request(`/lumen/topics/p/sheets/${full}?confirm=true`, { method: 'DELETE' })
     assert.equal(failed.status, 500)
-    assert.deepEqual(rows(env.dataRoot, full), { sheets: 1, blocks: 2, versions: 1, selection: 1, targets: 0 }, 'blocks, versions and selection all survive the failure')
+    assert.deepEqual(rows(env.dataRoot, full), { sheets: 1, drawn: 2, versions: 1, selection: 1, targets: 0 }, 'blocks, versions and selection all survive the failure')
     writer.exec('DROP TRIGGER inject_failure'); writer.close()
     // ---- with confirmation: sheet, blocks, versions and selection go; the selection moves to the neighbour (only the previous one remains) ----
     assert.deepEqual(await env.remove('p', full, true), { status: 200, body: { deleted: full, selected: first } })
-    assert.deepEqual(rows(env.dataRoot, full), { sheets: 0, blocks: 0, versions: 0, selection: 0, targets: 0 })
+    assert.deepEqual(rows(env.dataRoot, full), { sheets: 0, drawn: 0, versions: 0, selection: 0, targets: 0 })
     assert.equal((await env.sheets('p')).selected, first)
-    // ---- the card's block: its sheet is gone ----
-    assert.deepEqual(await env.block(blockId), { status: 404, body: { reason: 'deleted', error: '这块所在的白板已删除', code: 'board.block_sheet_deleted' } })
   } finally { await env.close() }
 })
 
@@ -196,7 +194,7 @@ test('R17 running target: refused while the run draws on it, allowed after it en
     assert.deepEqual(env.blocks(first), ['下一轮'])
     // ---- no board tool deletes: the model sees the same four board tools as before ----
     const board = [...new Set(tools.flat())].filter(name => name.startsWith('board_')).sort()
-    assert.deepEqual(board, ['board_draw', 'board_supersede', 'board_update', 'board_view'])
+    assert.deepEqual(board, ['board_draw', 'board_erase', 'board_look', 'board_update', 'board_view'])
     assert.ok(!tools.flat().some(name => /delete|remove/i.test(name) && /sheet|board/i.test(name)), 'no tool deletes a board')
   } finally { resume.open(); await env.close() }
 })

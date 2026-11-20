@@ -1,7 +1,7 @@
 /**
- * [INPUT]: a self-contained isolated fixture service (real Controller + controllable model: fill, invite, quote back) and the vite dev page on 5190; the panels regression fixture (three sheets + a PDF)
+ * [INPUT]: a self-contained isolated fixture service (real Controller + controllable model: draw skeletons, invite, quote back) and the vite dev page on 5190; the panels regression fixture (three sheets + a PDF)
  * [OUTPUT]: browser evidence for P1-1 (1440x900 and 1280x800, clear and dark, zh and en): the full-board row and its invite, keeping one, the offer strikethrough and keep,
- *           the chip jump, the deleted link after a sheet delete, the takeaways view, speech habits in settings; ui-assert-panels.mjs then re-runs as a child (the R16/R17 assertions live there)
+ *           an old block's chip (title only, no jump, since the canvas of 2026-11-19; each pass seeds one old block and its takeaway), the deleted link after a sheet delete, the takeaways view, speech habits in settings; ui-assert-panels.mjs then re-runs as a child (the R16/R17 assertions live there)
  * [POS]: an acceptance script that swaps the model network only and touches no product protocol; screenshots land in the evidence directory, never in the repo
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -15,6 +15,7 @@ import { acquireServiceLock } from '../../../mastra-service/src/deployment/lock.
 import { publishDiscovery, removeDiscovery } from '../../../mastra-service/src/deployment/discovery.ts'
 import { fixtureProvider, textReply, toolReply } from '../../../mastra-service/tests/provider-fixture.ts'
 import { titledPdf } from '../../../mastra-service/tests/studio/library-fixtures.ts'
+import { element, legacyBlock } from '../../../mastra-service/tests/studio/canvas-fixtures.ts'
 import { ensureTopic } from '../../../mastra-service/tests/topic-fixture.ts'
 
 const out = process.argv[2]
@@ -50,18 +51,13 @@ const model = (() => {
     const index = request.messages.map(message => message.role).lastIndexOf('user')
     return JSON.stringify(request.messages[index])
   }
-  const blockIds = request => {
-    const ids = []
-    for (const message of [...request.messages].reverse()) if (message.role === 'tool') {
-      try { const parsed = JSON.parse(String(message.content)); if (parsed.blockId) ids.push(parsed.blockId) } catch { /* refusal text */ }
-    }
-    return ids
-  }
   return fixtureProvider(request => {
     const text = lastUser(request)
     const results = request.messages.slice(request.messages.map(m => m.role).lastIndexOf('user')).filter(m => m.role === 'tool').length
-    if (text.includes('画满')) return results < 8 ? call('board_draw', { kind: 'text', title: `第${results + 1}块`, content: { markdown: `关于对齐的第 ${results + 1} 点。` } }) : textReply('画满了，值得留的我指给你')
-    if (text.includes('邀请')) return results ? textReply('等你写一句') : call('sediment_invite', { blockIds: blockIds(request).slice(0, 2), question: '对齐是在做什么，用你自己的话说？' })
+    // Since the canvas (2026-11-19) a draw is an ElementSkeleton fragment; the app lays it out when the board opens
+    if (text.includes('画满')) return results < 3 ? call('board_draw', { title: `第${results + 1}笔`, elements: [{ type: 'rectangle', x: results * 240, y: 0, width: 200, height: 80, label: { text: `对齐的第 ${results + 1} 点` } }] }) : textReply('画好了，值得留的我指给你')
+    // The invite points at no element: the draws above are still waiting for the app to lay them out
+    if (text.includes('邀请')) return results ? textReply('等你写一句') : call('sediment_invite', { question: '对齐是在做什么，用你自己的话说？' })
     if (text.includes('递回')) return results ? textReply('给你递回去了') : call('sediment_quote', { text: '注意力就是把查询和键对齐' })
     return textReply('好')
   })
@@ -111,6 +107,12 @@ const run = async (topic, message) => {
   }
   console.log('run done:', message, 'requests:', model.requests.length, 'last tools:', JSON.stringify((model.requests.at(-1)?.messages ?? []).filter(m => m.role === 'tool').map(m => String(m.content).slice(0, 80))).slice(0, 300))
 }
+// Old data (before the canvas): a takeaway linked to an old block on attn's first sheet; its chip shows the title only, and deleting that sheet still counts it (R17).
+// Each pass deletes the first sheet, so each pass seeds its own
+const seedLegacy = () => {
+  const legacy = legacyBlock(studio.db, studio.board.sheets('attn')[0]!.id, { title: '旧白板上的一块' })
+  studio.sediment.create('attn', { text: '旧白板时留下的一句', origin: 'typed', blocks: [{ id: legacy, rev: 1 }] })
+}
 await run('attn', '我觉得那个注意力就是把查询和键对齐')
 await run('attn', '画满')
 await run('attn', '邀请')
@@ -118,8 +120,7 @@ await run('attn', '递回')
 await run('attn', '递回')
 // The panels scenario: three sheets, the first with two blocks (text + ladder), and a PDF referenced into the topic
 const svSheets = studio.board.sheets('sv')
-studio.board.draw('sv', { kind: 'text', title: '对齐的一步', content: { markdown: '查询和键做点积，得到权重。' } }, { threadId: 'sv:a', runId: null }, svSheets[0]!.id)
-studio.board.draw('sv', { kind: 'ladder', title: '理解的梯子', content: { rungs: [{ level: 1, text: '点积' }, { level: 2, text: '权重' }, { level: 3, text: '加权求和' }], here: 2, breakAt: 3 } }, { threadId: 'sv:a', runId: null }, svSheets[0]!.id)
+studio.board.canvas.save(svSheets[0]!.id, [element('step', 'rectangle', { x: 40, y: 40, width: 220, height: 90 }), element('ladder', 'diamond', { x: 320, y: 40, width: 160, height: 120 })])
 studio.board.createSheet('sv')
 studio.board.createSheet('sv')
 // The panels assertion finds the material by arXiv id: the title comes from the PDF info
@@ -154,6 +155,7 @@ try {
   // ==== Sediment cases: main language x both viewports; clear skin by default, one dark pass and one English pass ====
   for (const [w, h] of sizes) {
     // Before each pass refill the currently selected sheet and prepare an invite and two offers (the previous pass deleted a sheet and consumed offers)
+    seedLegacy()
     await run('attn', '画满')
     await run('attn', '邀请')
     await run('attn', '递回')
@@ -182,8 +184,8 @@ try {
     }
     // ---- The full-board row: invite question + pre-linked blocks + one-line input + skip ----
     const rowText = await page.textContent('.board-sediment-row')
-    check(`${w} 写满行：问题与输入都在`, rowText.includes('对齐是在做什么') && !!(await page.$('.sediment-input')), '')
-    check(`${w} 写满行可见可点（elementFromPoint）`, await visibleAt(page, '.board-sediment-row') && await visibleAt(page, '.sediment-input') && await visibleAt(page, '.board-sediment-skip'), '')
+    check(`${w} 邀请行：问题与输入都在`, rowText.includes('对齐是在做什么') && !!(await page.$('.sediment-input')), '')
+    check(`${w} 邀请行可见可点（elementFromPoint）`, await visibleAt(page, '.board-sediment-row') && await visibleAt(page, '.sediment-input') && await visibleAt(page, '.board-sediment-skip'), '')
     check(`${w} 邀请问题可见`, await visibleAt(page, '.board-sediment-invite'), '')
     await shot('full-row')
     // ---- Keep one (the full-board entry, with the two invited blocks pre-linked) ----
@@ -212,11 +214,14 @@ try {
     await page.waitForTimeout(800)
     check(`${w} 留下后成为原话条目`, (await page.$$('.sediment-entry')).length >= 2 && !!(await page.$('.sediment-origin')), '')
     await shot('after-offer-keep')
-    // ---- The chip jump: back to the block on its board ----
-    await page.locator('.sediment-chip').first().click()
-    await page.waitForSelector('.studio-board')
-    check(`${w} chip 跳回白板`, !!(await page.$('.board-block')), '')
-    await shot('chip-jump')
+    // ---- An old block's chip (before the canvas): its title only; a click goes nowhere and breaks nothing ----
+    const retired = page.locator('.sediment-chip.is-retired').first()
+    check(`${w} 旧白板的链接只显示标题`, (await retired.count()) === 1 && (await retired.textContent())!.includes('旧白板上的一块') && (await retired.evaluate(node => node.tagName)) === 'SPAN', '')
+    await retired.click()
+    await page.waitForTimeout(400)
+    check(`${w} 点旧链接不跳转、不报错、不空白`, !!(await page.$('.sediment-entry')) && !(await page.$('.studio-board')) && !(await page.$('.mw-error')), '')
+    await shot('chip-retired')
+    await openBoardView(page)
     // ---- Delete the sheet: the dialog carries the takeaway count; entries stay, links report the deletion ----
     await page.locator('.board-sheet-new').click()
     await page.waitForTimeout(600)
@@ -248,7 +253,9 @@ try {
   // ==== The other skin at each size: shoot the full row and the takeaways page (both sizes × both skins) ====
   for (const [w, h] of sizes) {
     const other = w === 1440
+    // The row comes with an invite: the full-board row retired with the canvas (2026-11-19)
     await run('attn', '画满')
+    await run('attn', '邀请')
     await run('attn', '递回')
     const context = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2 })
     const page = await context.newPage()
@@ -259,7 +266,7 @@ try {
     await page.locator('.studio-topics .topic', { hasText: '注意力为什么能对齐' }).click()
     await openBoardView(page)
     await page.waitForSelector('.board-sediment-row')
-    check(`${w} ${other ? 'dark' : 'light'} 写满行可见`, await visibleAt(page, '.sediment-input') && await visibleAt(page, '.board-sediment-skip'), '')
+    check(`${w} ${other ? 'dark' : 'light'} 邀请行可见`, await visibleAt(page, '.sediment-input') && await visibleAt(page, '.board-sediment-skip'), '')
     await page.screenshot({ path: `${out}/${w}-${other ? 'dark' : 'light'}-full-row.png` })
     await page.fill('.sediment-input', '对齐让相关的词互相靠近')
     await page.press('.sediment-input', 'Enter')
@@ -279,6 +286,7 @@ try {
   if (LOCALE !== 'en') {
     // Re-seed before the English pass too: refill the selected sheet and prepare offers
     await run('attn', '画满')
+    await run('attn', '邀请')
     await run('attn', '递回')
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 })
     const page = await context.newPage()
@@ -289,7 +297,7 @@ try {
     await page.locator('.studio-views [role=tab]', { hasText: 'Board' }).click()
     await page.waitForSelector('.board-sediment-row')
     const row = await page.textContent('.board-sediment-row')
-    check('en 写满行', row.includes('This board is full') || row.length > 0, row.slice(0, 60))
+    check('en 邀请行', row.includes("The AI's question"), row.slice(0, 60))
     await page.screenshot({ path: `${out}/1440-en-full-row.png` })
     await page.locator('.studio-views [role=tab]', { hasText: 'Takeaways' }).click()
     await page.waitForSelector('.sediment-entry')
