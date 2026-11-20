@@ -50,7 +50,7 @@ export const zh: Messages = {
       page: (page: number) => `原文 p.${page}`, paper: '原文', inference: 'AI 推断',
       openSource: '在旁边打开原文',
       footprint: '你问过这一句，点开看问答',
-      widgetIdle: '交互小实验', widgetRun: '打开',
+      widgetIdle: '交互小实验', widgetRun: '打开', widgetExpand: '放大查看', widgetCollapse: '收起 Esc',
       ask: {
         label: '就这一句问 AI', placeholder: '问这一句', send: '发送', close: '关闭',
         keep: '存为我的沉淀', kept: '已存为你的沉淀', keepFailed: '没能存下：', keepEmpty: '先写下你的话',

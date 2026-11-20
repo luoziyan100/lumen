@@ -1,6 +1,6 @@
 /**
  * [INPUT]: components/Markdown for replies, components/MermaidBlock for inline diagrams, components/widget/WidgetFrame for inline interactive widgets, objects/ (IsoObject, typewriterSvg/paperLines), useReading's state, the topic's questions (useTopicAsks), the pure helpers of reading-ask.ts, i18n `studio.reading`, the host's send/widget-send/keep/open-source callbacks
- * [OUTPUT]: ReadingView: the centre 「解读 / Reading」 view — one centred serif column (≤700px) with numbered sections mixing prose paragraphs, tables, Mermaid diagrams and sandboxed interactive HTML widgets (up to 3 live by default, bidirectional via WidgetFrame's onSendMessage); a paper block is followed by its quote in the paper's own words, ending in the source chip
+ * [OUTPUT]: ReadingView: the centre 「解读 / Reading」 view — a centred 960px column whose prose, headings, quotes, tables and diagrams stay within 700px while interactive HTML widgets (`WidgetFrame`, up to 3 active by default, bidirectional via onSendMessage) use the full 960px column width and can expand in place via `position: fixed` (same mounted WidgetFrame/iframe so interactive state survives expand/collapse, same-height placeholder, solid light stage, closes AskWindow first so one Esc handles it); a paper block is followed by its quote in the paper's own words, ending in the source chip
  *           (「原文 p.N」 opens split reading at that page), an inference block ends in a dashed chip; the quote line opens no window; the person's footprints (thin underlines on sentences asked about, inline spans with role="button" that wrap like text and open on click/Enter/Space);
  *           selecting text inside one prose paragraph opens AskWindow under the selection
  *           and kept clear of the sprite's figure (padding on the side it sits);
@@ -12,7 +12,7 @@
  */
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
-import { CloseIcon, SendIcon } from '../../components/icons'
+import { CloseIcon, CollapseIcon, ExpandIcon, SendIcon } from '../../components/icons'
 import { Markdown } from '../../components/Markdown'
 import { MermaidBlock } from '../../components/MermaidBlock'
 import { WidgetFrame } from '../../components/widget/WidgetFrame'
@@ -174,14 +174,18 @@ function ReadingStart({ item, requested, error }: { item: TopicMaterial | null; 
   </div>
 }
 
-function VisualBlock({ block, widgetActive, onActivate, onOpenSource, onWidgetSend }: {
+function VisualBlock({ block, widgetActive, expanded, slotHeight, onActivate, onToggleExpand, onOpenSource, onWidgetSend }: {
   block: Exclude<ReadingParagraph, ReadingTextBlock>
   widgetActive: boolean
+  expanded: boolean
+  slotHeight: number
   onActivate: (id: string) => void
+  onToggleExpand: (id: string, slot: HTMLElement | null) => void
   onOpenSource: (page?: number) => void
   onWidgetSend: (text: string) => void
 }) {
   const S = useT().studio.reading
+  const slotRef = useRef<HTMLDivElement>(null)
   const chip = <SourceChip paragraph={block} onOpen={onOpenSource} />
   const body = block.kind === 'table'
     ? <div className="reading-table-wrap"><table className="reading-table">
@@ -191,7 +195,22 @@ function VisualBlock({ block, widgetActive, onActivate, onOpenSource, onWidgetSe
     : block.kind === 'diagram'
       ? <div className="reading-diagram"><MermaidBlock chart={block.mermaid} /></div>
       : widgetActive
-        ? <div className="reading-widget"><WidgetFrame widgetCode={block.html} title={block.title} isStreaming={false} light onSendMessage={onWidgetSend} /></div>
+        // Promote the exact same mounted WidgetFrame in place (never reparent/remount), keeping iframe state and load count = 1
+        ? <div ref={slotRef} className="reading-widget-slot" style={expanded && slotHeight > 0 ? { minHeight: slotHeight } : undefined}>
+          <div className={`reading-widget${expanded ? ' is-expanded' : ''}`} role={expanded ? 'dialog' : undefined} aria-modal={expanded || undefined} aria-label={expanded ? (block.title || S.widgetIdle) : undefined}>
+            <div className="reading-widget-bar">
+              <span className="reading-widget-name">{block.title || S.widgetIdle}</span>
+              <button type="button" className="icon-btn reading-widget-toggle"
+                aria-label={expanded ? S.widgetCollapse : S.widgetExpand}
+                title={expanded ? S.widgetCollapse : S.widgetExpand}
+                onClick={() => onToggleExpand(block.id, slotRef.current)}>
+                {expanded ? <CollapseIcon /> : <ExpandIcon />}
+              </button>
+            </div>
+            <WidgetFrame widgetCode={block.html} isStreaming={false} light fillHeight={expanded} onSendMessage={onWidgetSend} />
+          </div>
+          {expanded && <div className="reading-widget-backdrop" aria-hidden onClick={() => onToggleExpand(block.id, slotRef.current)} />}
+        </div>
         : <div className="reading-widget-idle"><span>{block.title || S.widgetIdle}</span><Button variant="secondary" size="sm" onClick={() => onActivate(block.id)}>{S.widgetRun}</Button></div>
   return <figure className={`reading-block reading-block-${block.kind}`} data-block-id={block.id}>
     {block.kind !== 'widget' && block.title && <h3 className="reading-block-title">{block.title}</h3>}
@@ -238,10 +257,42 @@ export function ReadingView({ state, requested, startItem, asks, busyFor, onSend
   }, [scroller, sprite?.left, sprite?.top, sprite?.right, sprite?.bottom])
   const [target, setTarget] = useState<AskTarget | null>(null)
   const [extraWidgets, setExtraWidgets] = useState<string[]>([])
+  const [expanded, setExpanded] = useState<{ id: string; height: number } | null>(null)
+  const savedScroll = useRef<number | null>(null)
   const [widgetError, setWidgetError] = useState('')
   const close = useCallback(() => setTarget(null), [])
   const reading = state.reading
-  useEffect(() => { setTarget(null); setExtraWidgets([]); setWidgetError('') }, [state.itemId])
+  useEffect(() => { setTarget(null); setExtraWidgets([]); setExpanded(null); savedScroll.current = null; setWidgetError('') }, [state.itemId])
+  const restoreScroll = useCallback(() => {
+    const top = savedScroll.current
+    savedScroll.current = null
+    if (top === null || !scroller) return
+    requestAnimationFrame(() => { scroller.scrollTop = top })
+  }, [scroller])
+  const collapseWidget = useCallback(() => {
+    setExpanded(null)
+    restoreScroll()
+  }, [restoreScroll])
+  const toggleExpand = useCallback((id: string, slot: HTMLElement | null) => {
+    if (expanded?.id === id) {
+      collapseWidget()
+      return
+    }
+    // Close AskWindow before opening the expanded stage so only one Esc handler is ever live
+    setTarget(null)
+    if (scroller) savedScroll.current = scroller.scrollTop
+    setExpanded({ id, height: Math.ceil(slot?.getBoundingClientRect().height ?? 0) })
+  }, [expanded?.id, scroller, collapseWidget])
+  useEffect(() => {
+    if (!expanded) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      event.preventDefault()
+      collapseWidget()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [expanded, collapseWidget])
   const mine = reading ? readingAsks(reading, asks) : []
   const activeWidgets = useMemo(() => {
     if (!reading) return new Set<string>()
@@ -297,8 +348,11 @@ export function ReadingView({ state, requested, startItem, asks, busyFor, onSend
         <h2><span className="reading-num">{section.ord}</span>{section.title}</h2>
         {section.paragraphs.map(paragraph => {
           if (!('text' in paragraph)) {
+            const isExpanded = expanded?.id === paragraph.id
             return <VisualBlock key={paragraph.id} block={paragraph} widgetActive={activeWidgets.has(paragraph.id)}
-              onActivate={activateWidget} onOpenSource={page => onOpenSource(reading.itemId, page)} onWidgetSend={sendWidget} />
+              expanded={isExpanded} slotHeight={isExpanded ? expanded.height : 0}
+              onActivate={activateWidget} onToggleExpand={toggleExpand}
+              onOpenSource={page => onOpenSource(reading.itemId, page)} onWidgetSend={sendWidget} />
           }
           const chip = <SourceChip paragraph={paragraph} onOpen={page => onOpenSource(reading.itemId, page)} />
           const text = <ParagraphText paragraph={paragraph} quotes={mine.filter(ask => squash(paragraph.text).includes(ask.quote)).map(ask => ask.quote)} onFootprint={onFootprint} />

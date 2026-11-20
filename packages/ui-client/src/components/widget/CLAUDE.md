@@ -8,7 +8,7 @@
 
 - `sanitize.ts` — 流式剥脚本 / 终态轻清理 / CDN 白名单 / 未闭合 script 截断
 - `hoistScripts.ts` — finalize 前把内联 script 登记成 `lumenwidget://` src(WK/Tauri 父 CSP hash 拦动态 textContent/eval)
-- `receiver.ts` — receiver HTML 模板(CSP + postMessage + 高度/链接桥);`__widgetSendMessage` 只在岛内最近一次可信 pointerdown/keydown 后 `SEND_WINDOW_MS`(5s)内放行，加载时、定时器和伪造事件发出的一律丢弃;`THEME.fillHeight` 切岛内滚动;走查仪表 `WIDGET_DIAG`;finalize 吃 CDN + lumenwidget src，按内容与世代幂等，拒绝旧异步脚本回写
+- `receiver.ts` — receiver HTML 模板(CSP + postMessage + 高度/链接桥);`__widgetSendMessage` 只在岛内最近一次可信 pointerdown/keydown 后 `SEND_WINDOW_MS`(5s)内放行，加载时、定时器和伪造事件发出的一律丢弃;`THEME.fillHeight` 切岛内滚动，退出 `fillHeight` 时重置 `_lastH` 并主动重报自然高度;走查仪表 `WIDGET_DIAG`;finalize 吃 CDN + lumenwidget src，按内容与世代幂等，拒绝旧异步脚本回写
 - `themeVars.ts` — `collectThemeVars` / `hostChromeIsDark`;暗壳注固定浅档文档色，浅壳镜像深墨与不透明 `surface-*`，内容岛不继承玻璃透明度；receiver 钉 `color-scheme: only light`(防系统暗色自适应抹掉 inline 颜色)
 - `../../scripts/vite-widget-receiver.ts` — Vite 插件产出 `/widget-receiver.html`(dev 中间件 + build asset)
 - `parseShowWidget.ts` — 围栏分段解析与 partial JSON 提取

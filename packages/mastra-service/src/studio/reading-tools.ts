@@ -1,7 +1,7 @@
 /**
  * [INPUT]: the reading store and its shared block/section/insert schemas and quote rule, material access (R15 open, the PDF page cache, plain text), the board's trusted writer (topic, conversation, run)
  * [OUTPUT]: createReadingTools: reading_view (the reading of one referenced material: section ids, titles and blocks with ids), reading_write (append, or replace a section by id;
- *           supports mixed prose/table/diagram/widget blocks), and reading_insert (add one block into an existing section after a given block or at the end, for inline visual follow-ups)
+ *           supports mixed prose/table/diagram/widget blocks, with a one-sentence 2D explorable diagram visual grammar hint on widget), and reading_insert (add one block into an existing section after a given block or at the end, for inline visual follow-ups)
  * [POS]: the AI's only way to write a reading. The program checks only what would break a promise — the material is this topic's (R15), every paper quote occurs on the cited page
  *        of exactly the text read_material returns, and the caps; what medium (text vs table/diagram/widget) and how deep is the model's call. Main agent only; refusals name the item to fix
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -55,7 +55,7 @@ const BLOCK_HINT = [
   'text（默认，可省 kind）：{ text, source }（≤600 字）',
   'table：{ kind: "table", title?, columns: [...], rows: [[...]], caption?, source }',
   'diagram：{ kind: "diagram", title?, mermaid, caption?, source }（Mermaid 流程图/关系图，≤8KB）',
-  'widget：{ kind: "widget", title?, html, caption?, source }（自包含原生 HTML+Canvas/SVG+JS 交互小实验，≤64KB；浅底清晰配色，无需外网；可调 window.__widgetSendMessage("一句话") 把用户猜测或参数发回对话）',
+  'widget：{ kind: "widget", title?, html, caption?, source }（2D 活结构图/交互小实验，原生 HTML+SVG/Canvas+JS，≤64KB，零外网依赖：纸面浅底、贴合学科的 2D 矢量图、底部 3–5 步推演条、1–2 个反事实开关或滑块与同步读数，关键断点可选轻柔「先猜一下/直接看」，无红字/分数/判词；可调 window.__widgetSendMessage("一句话") 在用户点击后把猜测或参数发回对话）',
 ].join('；')
 
 export function createReadingTools(studio: Studio, access: Access, topicOf: TopicResolver, writer: BoardWriter) {

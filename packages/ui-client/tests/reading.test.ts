@@ -7,7 +7,8 @@
  *           shared subscription; Esc closes; the footprint reopens the exchange; a follow-up continues the same conversation and its Markdown reply renders as strong/li/blockquote (G3); keep stores only typed words; another
  *           conversation's run gets the service's readable 409 and nothing is sent; footprints survive a reload and are inline role="button" spans opened by Enter/Space (G4);
  *           the service's readingQuestion reads the real askReading output exactly as parseAsk does, and userWords drops the quote (G1 binding); userWords gives nothing for the
- *           program-written messages (write request, widget message, diagram fix) and drops the upload list (R13)
+ *           program-written messages (write request, widget message, diagram fix) and drops the upload list (R13);
+ *           living-reading explorable: in-place widget expand closes AskWindow first, keeps the exact iframe DOM node and 3-slot auto-run quota, routes expanded WIDGET_SEND with R13 marker + live reading_insert + 8255d27 auto-focus, Esc collapses in place, and receiver re-reports natural height on leaving fillHeight
  * [POS]: P1-2's UI mechanism acceptance; the controllable model proves mechanism only and never stands in for real-model acceptance; layout and WebKit are covered by the
  *        browser assertions (scripts/sprite/ui-assert-reading.mts), not here
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -391,9 +392,23 @@ test('Living reading UI: renders mixed table/diagram/widget blocks, refreshes on
     sectionId = initial.sections[0].id
     firstParaId = initial.sections[0].paragraphs[0].id
 
-    // ---- Widget __widgetSendMessage posts into the topic's conversation, AI responds via reading_insert, and the new block lands live ----
+    // ---- In-place widget expand/collapse: closes open AskWindow first (single Esc owner), keeps same iframe DOM node, toggles fillHeight, Esc closes, and expanded WIDGET_SEND carries R13 mark ----
     const iframe = $<HTMLIFrameElement>('.reading-block-widget iframe')!
     await until(() => !$$('.topic .topic-light-running').length, '解读首轮没有结束')
+    const paraNode = $('[data-paragraph]')!
+    const range = document.createRange(); range.setStart(paraNode.firstChild!, 0); range.setEnd(paraNode.firstChild!, 11)
+    const selection = window.getSelection()!; selection.removeAllRanges(); selection.addRange(range)
+    await act(async () => { $('.reading-column')!.dispatchEvent(new dom.window.MouseEvent('mouseup', { bubbles: true })) })
+    assert.ok($('.reading-ask'), '展开小部件前已打开段内追问小窗')
+    const toggleBtn = $<HTMLButtonElement>('.reading-widget-toggle')!
+    assert.ok(toggleBtn, 'widget 顶部应有放大按钮')
+    await act(async () => toggleBtn.click())
+    assert.equal($('.reading-ask'), null, '放大 widget 前先关闭 AskWindow，避免 Esc 冲突')
+    assert.ok($('.reading-widget.is-expanded'), '点放大后原地进入展开态')
+    assert.ok($('.reading-widget.is-expanded .widget-frame-fill'), '展开态切到 fillHeight')
+    assert.equal($<HTMLIFrameElement>('.reading-block-widget iframe'), iframe, '放大不重挂 iframe，保持同一 DOM 节点')
+
+    // ---- Widget __widgetSendMessage in expanded state posts with R13 marker, AI responds via reading_insert, and the new block lands live ----
     await act(async () => {
       window.dispatchEvent(new dom.window.MessageEvent('message', {
         data: { type: 'lumen-widget:sendMessage', text: '我猜温度升高会更散' },
@@ -408,8 +423,102 @@ test('Living reading UI: renders mixed table/diagram/widget blocks, refreshes on
       const id = encodeURIComponent(`paper:${session.taskId}`)
       const response = await fetch(`${connection.baseUrl}/api/agent-controller/lumen/sessions/${id}/threads/${id}/messages`, { headers })
       const messages = (await response.json()).messages as MastraDBMessage[]
-      return messages.some(message => messageRole(message) === 'assistant' && messageText(message).includes('补了对照表'))
-    }, '小部件发出的消息没有进入对话并得到 AI 回复')
+      const hasMarked = messages.some(message => messageRole(message) === 'user' && messageText(message).startsWith('— 小实验') && messageText(message).includes('我猜温度升高会更散'))
+      const hasReply = messages.some(message => messageRole(message) === 'assistant' && messageText(message).includes('补了对照表'))
+      return hasMarked && hasReply
+    }, '放大态小部件发出的消息没有带 R13 标记进入对话并得到 AI 回复')
+
+    // ---- Esc collapses expanded widget in place without remounting the iframe ----
+    await act(async () => window.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
+    assert.equal($('.reading-widget.is-expanded'), null, 'Esc 收起放大态')
+    assert.equal($('.reading-widget .widget-frame-fill'), null, '收起后退出 fillHeight')
+    assert.equal($<HTMLIFrameElement>('.reading-block-widget iframe'), iframe, '收起后仍是同一 iframe DOM 节点')
+  } finally {
+    await act(async () => root.unmount())
+    element.remove()
+    server.close()
+    await service.close()
+    await rm(dataRoot, { recursive: true, force: true })
+  }
+})
+
+test('receiver 退出 fillHeight 时重置 _lastH 并重新上报自然高度', async () => {
+  const { buildReceiverSrcdoc, WIDGET_FINALIZE, WIDGET_RESIZE, WIDGET_THEME } = await import('../src/components/widget/receiver.ts')
+  const srcdoc = buildReceiverSrcdoc('', false)
+  const resizes: number[] = []
+  const rdom = new JSDOM(srcdoc, {
+    runScripts: 'dangerously',
+    pretendToBeVisual: true,
+    beforeParse(win) {
+      win.ResizeObserver = class { observe() {} disconnect() {} } as unknown as typeof win.ResizeObserver
+    },
+  })
+  try {
+    const root = rdom.window.document.getElementById('__root')!
+    root.getBoundingClientRect = () => ({ height: 240, width: 600, top: 0, left: 0, right: 600, bottom: 240, x: 0, y: 0, toJSON() {} })
+    rdom.window.addEventListener('message', (e: MessageEvent) => {
+      if (e.data?.type === WIDGET_RESIZE) resizes.push(e.data.height)
+    })
+    rdom.window.postMessage({ type: WIDGET_FINALIZE, html: '<div>hello</div>', generation: 1 }, '*')
+    await delay(120)
+    const countBefore = resizes.length
+    assert.ok(countBefore >= 1 && resizes.at(-1) === 240, `首次终态应报自然高度 240，实际 ${JSON.stringify(resizes)}`)
+    // Enter fillHeight (expanded) then leave fillHeight (collapsed): height is still 240, so only resetting _lastH forces a fresh report
+    rdom.window.postMessage({ type: WIDGET_THEME, fillHeight: true }, '*')
+    await delay(120)
+    rdom.window.postMessage({ type: WIDGET_THEME, fillHeight: false }, '*')
+    await delay(180)
+    assert.ok(resizes.length > countBefore && resizes.at(-1) === 240, `退出 fillHeight 后应强制重报自然高度，实际 ${JSON.stringify(resizes)}`)
+  } finally {
+    rdom.window.close()
+  }
+})
+
+test('解读内放大 widget 不多占前 3 个自动运行名额，且 widget 发消息触发 reading_insert 本轮自动跟焦（8255d27）', async () => {
+  const dataRoot = await mkdtemp(join(tmpdir(), 'lumen-reading-slots-'))
+  const service = await createHttpService({ dataRoot, token, model: { baseURL: 'https://fixture.invalid/v1', apiKey: 'fixture', model: 'test', fetch: fixtureProvider(async () => textReply('ok')).fetch } })
+  const server = serve({ fetch: service.app.fetch, hostname: '127.0.0.1', port: 0 })
+  await new Promise<void>(resolve => { if (server.listening) resolve(); else server.once('listening', () => resolve()) })
+  const address = server.address() as { port: number }
+  const connection = { baseUrl: `http://127.0.0.1:${address.port}`, token }
+  const element = document.createElement('div')
+  document.body.appendChild(element)
+  const root = createRoot(element)
+  const $ = <T extends HTMLElement = HTMLElement>(selector: string) => element.querySelector<T>(selector)
+  const $$ = <T extends HTMLElement = HTMLElement>(selector: string) => [...element.querySelectorAll<T>(selector)]
+  try {
+    ensureTopic(service, 'paper', '槽位验证')
+    const form = new FormData()
+    form.set('file', new File([new Uint8Array(pagedPdf([PAGE_1]))], 'cortex.pdf'))
+    form.set('topicId', 'paper')
+    const uploaded = await service.app.request('/lumen/library', { method: 'POST', headers, body: form })
+    const itemId = (await uploaded.json()).item.id as string
+    // Seed 4 widgets directly through the store: first 3 active, 4th idle
+    service.application.studio.readings.write('paper', itemId, {
+      title: '四个活结构图',
+      paragraphs: [1, 2, 3, 4].map(n => ({
+        kind: 'widget' as const,
+        title: `图 ${n}`,
+        html: `<div>w${n}</div>`,
+        source: { kind: 'inference' as const },
+      })),
+    }, { threadId: null, runId: null })
+    localStorage.setItem('lumen.studio.topic', 'paper')
+    await act(async () => root.render(createElement(StudioApp, { connection })))
+    await until(() => $$('.reading-block-widget').length === 4, '四个 widget 块没有渲染')
+    assert.equal($$('.reading-block-widget iframe').length, 3, '默认前 3 个自动运行')
+    assert.equal($$('.reading-widget-idle').length, 1, '第 4 个保持占位待点')
+    // Expand the first widget: still 3 active iframes and 1 idle placeholder
+    await act(async () => $<HTMLButtonElement>('.reading-widget-toggle')!.click())
+    assert.ok($('.reading-widget.is-expanded'), '第一个 widget 进入放大态')
+    assert.equal($$('.reading-block-widget iframe').length, 3, '放大不新增挂载、不多占自动运行名额')
+    assert.equal($$('.reading-widget-idle').length, 1, '第 4 个占位状态不受放大影响')
+    // Pure check for 8255d27: a widgetSend user message followed by completed reading_insert focuses that item
+    const insertFocus = latestReadingWrite([
+      { id: 'u1', role: 'user', createdAt: new Date(1), content: { format: 2, parts: [{ type: 'text', text: MODEL_TEXT.widgetSend('增益调到 8') }] } } as MastraDBMessage,
+      { id: 'a1', role: 'assistant', createdAt: new Date(2), content: { format: 2, parts: [{ type: 'tool-invocation', toolInvocation: { state: 'result', toolCallId: 'c-ins', toolName: 'reading_insert', args: { itemId, sectionId: 's1', block: { text: 'ok' } }, result: { ok: true } } }] } } as MastraDBMessage,
+    ])
+    assert.deepEqual(insertFocus, { callId: 'c-ins', itemId }, 'widget 发消息触发本轮 reading_insert 时自动跟焦（8255d27）')
   } finally {
     await act(async () => root.unmount())
     element.remove()

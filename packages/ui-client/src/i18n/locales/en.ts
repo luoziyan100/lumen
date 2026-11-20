@@ -54,7 +54,7 @@ export const en = {
       page: (page: number) => `Paper p.${page}`, paper: 'Paper', inference: "AI's inference",
       openSource: 'Open the paper alongside',
       footprint: 'You asked about this sentence. Open the exchange',
-      widgetIdle: 'Interactive widget', widgetRun: 'Open',
+      widgetIdle: 'Interactive widget', widgetRun: 'Open', widgetExpand: 'Expand', widgetCollapse: 'Restore (Esc)',
       ask: {
         label: 'Ask the AI about this sentence', placeholder: 'Ask about this sentence', send: 'Send', close: 'Close',
         keep: 'Keep as my takeaway', kept: 'Kept as your takeaway', keepFailed: "Couldn't keep it: ", keepEmpty: 'Write your words first',

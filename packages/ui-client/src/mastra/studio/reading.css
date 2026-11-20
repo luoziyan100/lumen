@@ -1,25 +1,27 @@
 /**
  * [INPUT]: tokens.css / yan-design-system tokens, studio.css's type scale and .source-chip, the appearance pipeline's --font-serif (the reading font setting)
- * [OUTPUT]: the Reading view's styles: the in-view scroller, one centred serif column (max 700px), numbered section titles, inline visual blocks (table, diagram, widget and idle widget slot), the paper quote under each sourced block, source chips, footprint underlines (inline, wrapping like text),
+ * [OUTPUT]: the Reading view's styles: the in-view scroller, one centred 960px column whose prose/headings/quotes/tables/diagrams stay within 700px while interactive widgets use the full column width and expand in place (`position: fixed`, solid light surface, `.studio-center:has(.reading-widget.is-expanded)` raised to z-index 50 above glass side panes and floating sprite, same-height slot placeholder); numbered section titles, the paper quote under each sourced block, source chips, footprint underlines (inline, wrapping like text),
  *           the selection window (solid surface, quote clamped to two lines, Markdown replies at window size scrolling inside its max height, growing input) and the material row's reading action;
-           the empty view's start block (the 300px typewriter alone, centred)
- * [POS]: Reading.tsx's own sheet next to studio.css; existing tokens only, no new colours. The window is a control and keeps a solid surface under glass/paper skins
+ *           the empty view's start block (the 300px typewriter alone, centred)
+ * [POS]: Reading.tsx's own sheet next to studio.css; existing tokens only (solid light island for expanded widgets matches .widget-iframe). The window is a control and keeps a solid surface under glass/paper skins
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 
 /* ---- The view scrolls inside the stage, so the panes and the header stay put however long the reading is ---- */
-.reading-scroll { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; background: var(--surface-base); }
-.reading-column { position: relative; box-sizing: border-box; max-width: 700px; margin: 0 auto; padding: 36px 28px 96px; font-family: var(--font-serif); color: var(--text); }
+.reading-scroll { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; background: var(--surface-base); }
+/* Wide column (960px) lets interactive 2D explorable widgets breathe; prose, quotes, headings, tables and diagrams stay at the 700px reading measure */
+.reading-column { position: relative; box-sizing: border-box; max-width: 960px; margin: 0 auto; padding: 36px 28px 96px; font-family: var(--font-serif); color: var(--text); }
+.reading-head, .reading-column > .mw-error, .reading-section > h2, .reading-para, .reading-quote, .reading-more, .reading-block-table, .reading-block-diagram { max-width: 700px; margin-inline: auto; }
 .reading-head { margin-bottom: 28px; }
 .reading-title { margin: 0; font-size: 24px; line-height: 1.3; font-weight: 600; }
 .reading-section { margin-top: 28px; }
-.reading-section h2 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; font-size: 18px; line-height: 1.4; font-weight: 600; }
+.reading-section h2 { display: flex; align-items: baseline; gap: 10px; margin-top: 0; margin-bottom: 10px; font-size: 18px; line-height: 1.4; font-weight: 600; }
 .reading-num { flex: none; min-width: 1.4em; font: 600 var(--st-title) var(--font-sans); color: var(--accent-ink); font-variant-numeric: tabular-nums; }
-.reading-para { margin: 0 0 14px; font-size: 16px; line-height: 1.8; }
+.reading-para { margin-top: 0; margin-bottom: 14px; font-size: 16px; line-height: 1.8; }
 html[data-justify="true"] .reading-para { text-align: justify; }
 /* The paper's own sentence under its paragraph: quieter than the body (smaller, muted, a thin rule), kept in its original language; the chip ends it */
 .reading-para:has(+ .reading-quote) { margin-bottom: 6px; }
-.reading-quote { margin: 0 0 16px; padding-left: 12px; border-left: 2px solid var(--border-strong); font-size: 14px; line-height: 1.65; font-style: italic; color: var(--text-soft); }
+.reading-quote { margin-top: 0; margin-bottom: 16px; padding-left: 12px; border-left: 2px solid var(--border-strong); font-size: 14px; line-height: 1.65; font-style: italic; color: var(--text-soft); }
 .reading-quote .reading-chip { font-style: normal; }
 .reading-chip { display: inline-block; vertical-align: 2px; max-width: 14em; font-family: var(--font-sans); line-height: 1.5; }
 .reading-more { font: var(--st-note) var(--font-sans); color: var(--text-muted); }
@@ -70,6 +72,7 @@ html[data-justify="true"] .reading-para { text-align: justify; }
 
 /* ---- Inline visual blocks (table, Mermaid diagram, sandboxed interactive widget) inside a reading section ---- */
 .reading-block { margin: 18px 0 22px; font-family: var(--font-sans); }
+.reading-block-table, .reading-block-diagram { margin: 18px auto 22px; }
 .reading-block-title { margin: 0 0 8px; font-size: var(--st-title); font-weight: 600; color: var(--text); line-height: 1.4; }
 .reading-table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-card); }
 .reading-table { width: 100%; border-collapse: collapse; font-size: var(--st-body); line-height: 1.55; }
@@ -77,11 +80,26 @@ html[data-justify="true"] .reading-para { text-align: justify; }
 .reading-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text-soft); vertical-align: top; }
 .reading-table tbody tr:last-child td { border-bottom: 0; }
 .reading-diagram { padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-card); overflow: hidden; }
+.reading-widget-slot { width: 100%; }
 .reading-widget { border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; background: var(--surface-card); }
+.reading-widget-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--border); background: var(--surface-fill); }
+.reading-widget-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--st-note); font-weight: 500; color: var(--text-soft); }
+.reading-widget-toggle { flex: none; }
 .reading-widget .widget-frame { margin: 0; border: 0; border-radius: 0; }
+/* Expanded in place via position:fixed: same mounted WidgetFrame/iframe stays alive; solid light surface matches the light widget island even under dark/glass chrome.
+   Raise .studio-center above later glass panels (.studio-materials) and floating sprite (.sprite-orb, z-index 30) so WebKit/Chromium paint the expanded stage on top. */
+.studio-center:has(.reading-widget.is-expanded) { z-index: 50; }
+.reading-widget.is-expanded { position: fixed; inset: 24px; z-index: 50; display: flex; flex-direction: column; border-color: #d4cfc4; border-radius: var(--radius-lg); background: #ffffff; color: #1f1d1a; color-scheme: only light; box-shadow: var(--shadow-2); }
+.reading-widget.is-expanded .widget-frame { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.reading-widget.is-expanded .widget-frame-body { flex: 1; min-height: 0; }
+.reading-widget.is-expanded .reading-widget-bar { background: #f6f4ef; border-bottom-color: #e2ddd3; }
+.reading-widget.is-expanded .reading-widget-name { color: #3a3630; }
+.reading-widget.is-expanded .reading-widget-toggle { color: #3a3630; }
+.reading-widget.is-expanded .reading-widget-toggle:hover { background: rgba(31, 29, 26, 0.08); }
+.reading-widget-backdrop { position: fixed; inset: 0; z-index: 49; background: rgba(16, 18, 22, 0.42); }
 .reading-widget-idle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-card); font-size: var(--st-body); color: var(--text-soft); }
 .reading-block-caption { margin: 8px 0 0; font-size: var(--st-note); line-height: 1.6; color: var(--text-muted); }
-.reading-block-quote { margin-top: 8px; margin-bottom: 0; font-family: var(--font-serif); }
+.reading-block-quote { margin-top: 8px; margin-bottom: 0; font-family: var(--font-serif); max-width: none; }
 .reading-block-foot { margin-top: 8px; }
 
 /* ---- The material row's reading action: a quiet text button, always visible ---- */

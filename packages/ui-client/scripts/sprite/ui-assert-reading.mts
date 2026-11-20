@@ -1,16 +1,17 @@
 /**
- * [INPUT]: a self-contained isolated fixture service (real Controller + controllable model: writes a reading of the notes, answers questions in two sentences) and the vite dev
- *          page on PORT (default 5190, refused when already taken); data root LUMEN_ASSERT_ROOT (default /tmp/lumen-p1-reading-data, /tmp/lumen-* only, wiped at start); a seeded nine-section reading of a multi-page PDF written through the reading store
- * [OUTPUT]: browser evidence for P1-2 (1440x900 and 1280x800, light and dark, zh and en): Reading first and selected; the centred serif column within 700px; source chips; each paper paragraph's quote line under it (visible, in the column, smaller than the body, contrast ≥ 4.5:1);
+ * [INPUT]: a self-contained isolated fixture service (real Controller + controllable model: writes a reading of the notes, answers questions in two sentences, replies to widget messages) and the vite dev
+ *          page on PORT (default 5190, refused when already taken); data root LUMEN_ASSERT_ROOT (default /tmp/lumen-p1-reading-data, /tmp/lumen-* only, wiped at start); a seeded nine-section reading of a multi-page PDF with an interactive 2D widget in section 2 written through the reading store
+ * [OUTPUT]: browser evidence (Chromium 8 passes + `--webkit` 2 passes: 1440x900 light zh, 1280x800 dark en): Reading first and selected; prose centred within 700px inside a 960px column while widgets expand wider when room allows with zero overflowX; source chips; each paper paragraph's quote line under it (visible, in the column, smaller than the body, contrast ≥ 4.5:1);
  *           a nine-section reading scrolls inside the view while panes and headers stay put; a real mouse selection inside one paragraph opens the window, whose centre,
  *           input and send button pass elementFromPoint and which never covers the selected sentence (below, or above near the bottom); the reply arrives in the window;
  *           no text line in view runs under the sprite's figure (top and bottom of the reading);
- *           a footprint on a sentence that starts mid-line leaves the paragraph's line count unchanged and its first line box on the line of the text before it (G4); footprints from earlier page loads are rebuilt; the header holds the title only; the empty state is the typewriter alone; the live write from the Materials row (zh 1440 light)
+ *           a footprint on a sentence that starts mid-line leaves the paragraph's line count unchanged and its first line box on the line of the text before it (G4); footprints from earlier page loads are rebuilt; the header holds the title only; the empty state is the typewriter alone;
+ *           in-place widget expand/collapse (position:fixed solid light stage above side panes/sprite, state preserved, single iframe load, button + Esc restore height & scrollTop, 8b13fde user-activation gate + R13 marker in expanded state, split-reader convergence); the live write from the Materials row (zh 1440 light)
  * [POS]: an acceptance script that swaps the model network only and touches no product protocol; screenshots land in the evidence directory, never in the repo
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
-// Usage: node --experimental-strip-types ui-assert-reading.mts <evidence-dir> [--hold]  (--hold keeps the seeded service up for a manual or desktop look)
-import { chromium } from '/tmp/lumen-s0-pw/node_modules/playwright-core/index.mjs'
+// Usage: node --experimental-strip-types ui-assert-reading.mts <evidence-dir> [--hold] [--webkit] (--hold keeps the seeded service up for a manual or desktop look)
+import { chromium, webkit } from '/tmp/lumen-s0-pw/node_modules/playwright-core/index.mjs'
 import { mkdir, rm } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import { assertPortFree, assertRoot } from './assert-env.ts'
@@ -24,8 +25,8 @@ import { ensureTopic } from '../../../mastra-service/tests/topic-fixture.ts'
 const out = process.argv[2]
 if (!out) throw new Error('evidence dir required')
 const catalogs = { zh: (await import('../../src/i18n/locales/zh.ts')).zh, en: (await import('../../src/i18n/locales/en.ts')).en }
-const seedLocale = locale => localStorage.setItem('lumen:locale.v1', JSON.stringify({ version: 1, locale }))
-const seedDark = () => localStorage.setItem('lumen:appearance.v2', JSON.stringify({ version: 1, mode: 'dark', skinId: 'yan-clear', overlay: 0, blurPx: 0, latinFont: 'source-serif', cjkFont: 'wenkai', justify: false }))
+const seedLocale = locale => { if (window === window.top) localStorage.setItem('lumen:locale.v1', JSON.stringify({ version: 1, locale })) }
+const seedDark = () => { if (window === window.top) localStorage.setItem('lumen:appearance.v2', JSON.stringify({ version: 1, mode: 'dark', skinId: 'yan-clear', overlay: 0, blurPx: 0, latinFont: 'source-serif', cjkFont: 'wenkai', justify: false })) }
 const exe = process.env.HOME + '/Library/Caches/ms-playwright/chromium-1228/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
 const port = process.env.PORT ?? '5190'
 const root = assertRoot('/tmp/lumen-p1-reading-data')
@@ -66,6 +67,7 @@ const model = (() => {
       return textReply('写好了，两节。')
     }
     if (text.includes('— 解读《')) return textReply(ANSWER)
+    if (text.includes('— 小实验')) return textReply('收到小实验参数。')
     return textReply('好')
   })
 })()
@@ -95,13 +97,36 @@ const pdf = await studio.library.add({ name: 'free-energy.pdf', bytes: pagedPdf(
 studio.topics.reference('fe', pdf.item.id)
 const notes = await studio.library.add({ name: 'notes.md', bytes: new TextEncoder().encode('# Notes\n\nThe brain minimises free energy over time.'), addedBy: 'you' })
 studio.topics.reference('fe', notes.item.id)
+const WIDGET_HTML = `<div style="padding:14px 16px;font-family:system-ui,sans-serif;color:#1f1d1a;background:#fcfbf8">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px">
+    <strong style="font-size:14px">预测误差增益调节</strong>
+    <span id="val" style="font-family:monospace;font-size:13px">3</span>
+  </div>
+  <svg viewBox="0 0 600 120" style="width:100%;height:auto;display:block;border:1px solid #dfd8cb;border-radius:8px;background:#fff;margin-bottom:10px">
+    <rect x="24" y="34" width="120" height="52" rx="8" fill="#f1ede4" stroke="#256f6c" stroke-width="2"/>
+    <text x="84" y="64" text-anchor="middle" font-size="13" fill="#256f6c">上层预测</text>
+    <line x1="144" y1="60" x2="236" y2="60" stroke="#256f6c" stroke-width="2"/>
+    <rect x="236" y="34" width="128" height="52" rx="8" fill="#f1ede4" stroke="#c87a28" stroke-width="2"/>
+    <text x="300" y="64" text-anchor="middle" font-size="13" fill="#c87a28">误差比较器</text>
+    <line x1="364" y1="60" x2="456" y2="60" stroke="#2f5b8f" stroke-width="2"/>
+    <rect x="456" y="34" width="120" height="52" rx="8" fill="#f1ede4" stroke="#2f5b8f" stroke-width="2"/>
+    <text x="516" y="64" text-anchor="middle" font-size="13" fill="#2f5b8f">表征更新</text>
+  </svg>
+  <div style="display:flex;align-items:center;gap:12px">
+    <input id="gain" type="range" min="1" max="10" value="3" style="flex:1" oninput="document.getElementById('val').textContent=this.value"/>
+    <button id="send-guess" type="button" style="padding:6px 12px;border:1px solid #256f6c;border-radius:6px;background:#256f6c;color:#fff;cursor:pointer" onclick="window.__widgetSendMessage('增益调到 ' + document.getElementById('gain').value)">发给 Lumen</button>
+  </div>
+</div>`
+
 const TITLES = ['为什么值得读', '核心主张', '自由能与惊讶', '预测编码', '层级结构', '证据：重复抑制', '与强化学习的关系', '这篇论文没说明的', '我的判断']
 for (const [i, title] of TITLES.entries()) {
-  studio.readings.write('fe', pdf.item.id, { title, paragraphs: [
+  const paragraphs = [
     { text: `第 ${i + 1} 节的第一段。自由能是惊讶的上界，所以把它压低，就等于让大脑停在它预期的状态里；这一节从原文第 ${i + 1} 页出发，把这个主张拆成能检验的几步。`, source: { kind: 'paper', page: i + 1, quote: LINE(i + 1) } },
     { text: `第 ${i + 1} 节的第二段是我的推断：如果这个框架成立，那么同一个机制应该在感知和行动里都看得到，而不只是在视觉皮层。这一点原文没有直接证明。`, source: { kind: 'inference' } },
     { text: `第 ${i + 1} 节的第三段把前两段连起来：原文用的是“${pages[i]![0]}”这句话来立论，我们读到这里应当能说清楚，它到底在主张什么、又没有主张什么。`, source: { kind: 'paper', page: i + 1, quote: pages[i]![0]! } },
-  ] }, { threadId: null, runId: null })
+  ]
+  if (i === 1) paragraphs.splice(1, 0, { kind: 'widget', title: '2D 活结构图：预测误差增益', html: WIDGET_HTML, caption: '拖动滑块看表征更新，点放大展开', source: { kind: 'inference' } })
+  studio.readings.write('fe', pdf.item.id, { title, paragraphs }, { threadId: null, runId: null })
 }
 
 // ---- The vite dev page (the discovery file points at the isolated service) ----
@@ -120,7 +145,10 @@ if (process.argv.includes('--hold')) {
   console.log('HOLD fixture ready at', root, '; vite on', port)
   await new Promise(() => {})
 }
-const browser = await chromium.launch({ executablePath: exe })
+const useWebkit = process.argv.includes('--webkit')
+const browser = useWebkit
+  ? await webkit.launch()
+  : await chromium.launch({ executablePath: exe })
 /** Drag-select characters [from, to) of a paragraph's text with the real mouse; returns the selected sentence's box */
 async function dragSelect(page, paragraph, from, to) {
   const box = await page.evaluate(([index, start, end]) => {
@@ -186,10 +214,14 @@ const textLines = (page, paragraph, from, to) => page.evaluate(([index, start, e
 const rect = (page, selector) => page.evaluate(target => { const r = document.querySelector(target)?.getBoundingClientRect(); return r ? { left: r.left, right: r.right, top: r.top, bottom: r.bottom } : null }, selector)
 
 try {
+  const matrix = useWebkit
+    ? [['zh', 1440, 900, false], ['en', 1280, 800, true]]
+    : [['zh', 1440, 900, false], ['zh', 1440, 900, true], ['zh', 1280, 800, false], ['zh', 1280, 800, true],
+       ['en', 1440, 900, false], ['en', 1440, 900, true], ['en', 1280, 800, false], ['en', 1280, 800, true]]
   let pass = 0
-  for (const locale of ['zh', 'en']) for (const [w, h] of [[1440, 900], [1280, 800]]) for (const dark of [false, true]) {
-    const M = catalogs[locale], S = M.studio, tag = `${locale} ${w} ${dark ? 'dark' : 'light'}`
-    const name = n => `${out}/${locale}-${w}-${dark ? 'dark' : 'light'}-${n}.png`
+  for (const [locale, w, h, dark] of matrix) {
+    const M = catalogs[locale], S = M.studio, tag = `${useWebkit ? 'webkit ' : ''}${locale} ${w} ${dark ? 'dark' : 'light'}`
+    const name = n => `${out}/${useWebkit ? 'webkit-' : ''}${locale}-${w}-${dark ? 'dark' : 'light'}-${n}.png`
     const context = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2 })
     const page = await context.newPage()
     const errors = []; page.on('pageerror', error => errors.push(error.message))
@@ -213,17 +245,25 @@ try {
     await page.locator('.material').filter({ hasText: /free energy principle|free-energy/i }).locator('.material-reading').click()
     await page.waitForFunction(() => document.querySelectorAll('.reading-section').length === 9)
 
-    // ---- Column: centred, at most 700px, serif reading font; numbered sections; chips ----
+    // ---- Column: prose stays ≤700px centred; column ≤960px lets widgets expand wider when room allows; zero horizontal overflow ----
     const column = await page.evaluate(() => {
       // Centred within the content box: the view pads the side where the sprite sits
       const scroller = document.querySelector('.reading-scroll'), style = getComputedStyle(scroller), box = scroller.getBoundingClientRect()
       const col = document.querySelector('.reading-column').getBoundingClientRect()
+      const paraBox = document.querySelector('.reading-para').getBoundingClientRect()
+      const widgetBox = document.querySelector('.reading-block-widget')?.getBoundingClientRect()
       const stage = { left: box.left + parseFloat(style.paddingLeft), right: box.left + scroller.clientWidth - parseFloat(style.paddingRight), width: scroller.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) }
       const para = getComputedStyle(document.querySelector('.reading-para')).fontFamily, ui = getComputedStyle(document.querySelector('.reading-num')).fontFamily
-      return { width: col.width, centred: Math.abs((col.left - stage.left) - (stage.right - col.right)) <= 16 || col.width >= stage.width - 1, para, ui,
+      return { width: col.width, paraWidth: paraBox.width, widgetWidth: widgetBox?.width ?? 0, stageWidth: stage.width,
+        overflowX: scroller.scrollWidth > scroller.clientWidth + 1,
+        centred: Math.abs((paraBox.left - stage.left) - (stage.right - paraBox.right)) <= 16 || paraBox.width >= stage.width - 57,
+        colCentred: Math.abs((col.left - stage.left) - (stage.right - col.right)) <= 16 || col.width >= stage.width - 1,
+        para, ui,
         nums: [...document.querySelectorAll('.reading-num')].map(node => node.textContent).join(','), chips: [...document.querySelectorAll('.reading-section')][0].querySelectorAll('.reading-chip').length }
     })
-    check(`${tag} 一栏居中、不超过 700px`, column.width <= 700 && column.centred, `${Math.round(column.width)}px`)
+    check(`${tag} 文字栏居中且不超过 700px`, column.paraWidth <= 700 && column.centred, `para=${Math.round(column.paraWidth)}px col=${Math.round(column.width)}px`)
+    check(`${tag} 栏宽不超过 960px 且无横向溢出`, column.width <= 960 && column.colCentred && !column.overflowX, `col=${Math.round(column.width)}px stage=${Math.round(column.stageWidth)}px overflowX=${column.overflowX}`)
+    check(`${tag} widget 随栏宽舒展（视口充裕时大于文字栏）`, column.widgetWidth > 0 && (column.stageWidth > 760 ? column.widgetWidth > column.paraWidth : column.widgetWidth <= column.stageWidth + 1), `widget=${Math.round(column.widgetWidth)}px para=${Math.round(column.paraWidth)}px`)
     check(`${tag} 正文用阅读字体（不同于界面字体）`, column.para !== column.ui, column.para.slice(0, 60))
     check(`${tag} 页头只有标题`, await page.evaluate(() => { const head = document.querySelector('.reading-head'); return head.children.length === 1 && head.firstElementChild.classList.contains('reading-title') }))
     check(`${tag} 节标题编号`, column.nums === '1,2,3,4,5,6,7,8,9', column.nums)
@@ -316,6 +356,135 @@ try {
     check(`${tag} 足迹第一行与前文同一行`, first.top === marked.beforeTop && Math.abs(first.left - marked.beforeRight) < 2 && marked.spanTop === plain.spanTop,
       `footprint @${first.top}/${Math.round(first.left)} before @${marked.beforeTop}/${Math.round(marked.beforeRight)}`)
     await page.screenshot({ path: name('footprint') })
+
+    // ---- E1/E2/E3: explorable widget wide layout, in-place expand (state preserved, single load, solid light surface, 8b13fde gate), Esc restore & split-view convergence ----
+    if ((locale === 'zh' && w === 1440 && !dark) || (locale === 'en' && w === 1280 && dark)) {
+      await page.locator('.reading-block-widget').scrollIntoViewIfNeeded()
+      await page.waitForTimeout(400)
+      let frame = null
+      for (let attempt = 0; attempt < 60; attempt++) {
+        const candidate = page.frames().find(item => item.url().includes('widget-receiver.html'))
+        if (candidate && await candidate.locator('#gain').count().catch(() => 0) > 0) { frame = candidate; break }
+        await page.waitForTimeout(150)
+      }
+      if (!frame) throw new Error('widget receiver frame with #gain did not appear')
+      await frame.locator('#gain').waitFor({ state: 'visible', timeout: 10000 })
+      // Count any reload on the iframe from here on (must stay 0 across expand + collapse => total load = 1)
+      await page.evaluate(() => {
+        const iframe = document.querySelector('.reading-block-widget iframe')
+        window.__widgetReloads = 0
+        iframe.addEventListener('load', () => { window.__widgetReloads++ })
+      })
+      // Mutate control inside the widget before expanding
+      await frame.locator('#gain').fill('8')
+      await frame.locator('#gain').dispatchEvent('input')
+      const beforeWidget = await page.evaluate(() => ({
+        scrollTop: document.querySelector('.reading-scroll').scrollTop,
+        height: document.querySelector('.reading-block-widget iframe').getBoundingClientRect().height,
+        slotHeight: document.querySelector('.reading-widget-slot').getBoundingClientRect().height,
+      }))
+      await page.screenshot({ path: name('widget-inline') })
+
+      // Expand in place
+      await page.click('.reading-widget-toggle')
+      await page.waitForSelector('.reading-widget.is-expanded')
+      await page.waitForTimeout(250)
+      const expandedInfo = await page.evaluate(() => {
+        const box = document.querySelector('.reading-widget.is-expanded')
+        const cs = getComputedStyle(box)
+        const slot = document.querySelector('.reading-widget-slot')
+        return {
+          position: cs.position, bg: cs.backgroundColor,
+          width: box.getBoundingClientRect().width, height: box.getBoundingClientRect().height,
+          slotMinHeight: parseFloat(slot.style.minHeight || '0'),
+          fill: !!box.querySelector('.widget-frame-fill'),
+        }
+      })
+      const valExpanded = await frame.locator('#gain').inputValue()
+      const toggleClickable = await visibleAt(page, '.reading-widget.is-expanded .reading-widget-toggle')
+      check(`${tag} 原地放大：position:fixed、实色浅底、占满视口、原位留占位、顶层不被侧栏遮挡`, expandedInfo.position === 'fixed' && expandedInfo.bg === 'rgb(255, 255, 255)' && expandedInfo.fill && expandedInfo.slotMinHeight >= beforeWidget.slotHeight - 2 && toggleClickable, JSON.stringify({ ...expandedInfo, toggleClickable }))
+      check(`${tag} 放大后控件状态保持不变`, valExpanded === '8', `gain=${valExpanded}`)
+      await page.screenshot({ path: name('widget-expanded') })
+
+      // 8b13fde in expanded state: unclicked __widgetSendMessage is blocked; real click sends with R13 marker
+      const beforeSessions = await service.application.studio.db.prepare('SELECT 1').all()
+      void beforeSessions
+      const msgCount = async () => {
+        const res = await fetch(`http://127.0.0.1:${address.port}/lumen/topics/fe/sessions`, { headers: { Authorization: `Bearer ${lock.identity}` } })
+        const sessions = (await res.json()).items
+        let total = 0
+        for (const s of sessions) {
+          const id = encodeURIComponent(`fe:${s.taskId}`)
+          const r = await fetch(`http://127.0.0.1:${address.port}/api/agent-controller/lumen/sessions/${id}/threads/${id}/messages`, { headers: { Authorization: `Bearer ${lock.identity}` } })
+          const msgs = (await r.json()).messages ?? []
+          total += msgs.length
+        }
+        return total
+      }
+      const count0 = await msgCount()
+      // Wait for user-activation window from the expand click (outer doc) to not affect iframe; inside iframe no click happened yet
+      await frame.locator('#val').evaluate(() => { window.__widgetSendMessage('无点击偷发') })
+      await page.waitForTimeout(300)
+      const countAfterUnclicked = await msgCount()
+      check(`${tag} 放大态未点击调用 __widgetSendMessage 被拦（8b13fde）`, countAfterUnclicked === count0, `${count0} -> ${countAfterUnclicked}`)
+
+      // Real click inside expanded iframe sends with R13 marker
+      await frame.locator('#send-guess').click()
+      await page.waitForFunction(async ([base, tok, prev]) => {
+        const res = await fetch(`${base}/lumen/topics/fe/sessions`, { headers: { Authorization: `Bearer ${tok}` } })
+        const sessions = (await res.json()).items
+        for (const s of sessions) {
+          const id = encodeURIComponent(`fe:${s.taskId}`)
+          const r = await fetch(`${base}/api/agent-controller/lumen/sessions/${id}/threads/${id}/messages`, { headers: { Authorization: `Bearer ${tok}` } })
+          const msgs = (await r.json()).messages ?? []
+          const txt = JSON.stringify(msgs)
+          if (txt.includes('— 小实验') && txt.includes('增益调到 8') && txt.includes('收到小实验参数')) return true
+        }
+        return false
+      }, [`http://127.0.0.1:${address.port}`, lock.identity, count0], { timeout: 15000 })
+      check(`${tag} 放大态真点击发出带 R13 标记的消息并获回复（8b13fde）`, true)
+
+      // Collapse by clicking the toggle button, then expand again and collapse by Esc: both preserve state, scrollTop, height and load count = 1
+      await page.click('.reading-widget.is-expanded .reading-widget-toggle')
+      await page.waitForFunction(() => !document.querySelector('.reading-widget.is-expanded'))
+      await page.waitForTimeout(250)
+      const valAfterBtn = await frame.locator('#gain').inputValue()
+      const reloadsAfterBtn = await page.evaluate(() => window.__widgetReloads)
+      check(`${tag} 点收起按钮后控件值不变且 iframe 未重载`, valAfterBtn === '8' && reloadsAfterBtn === 0, `gain=${valAfterBtn} reloads=${reloadsAfterBtn}`)
+
+      await page.click('.reading-widget-toggle')
+      await page.waitForSelector('.reading-widget.is-expanded')
+      await page.waitForTimeout(150)
+      await page.keyboard.press('Escape')
+      await page.waitForFunction(() => !document.querySelector('.reading-widget.is-expanded'))
+      await page.waitForTimeout(300)
+      const afterCollapse = await page.evaluate(() => ({
+        reloads: window.__widgetReloads,
+        scrollTop: document.querySelector('.reading-scroll').scrollTop,
+        height: document.querySelector('.reading-block-widget iframe').getBoundingClientRect().height,
+        fill: !!document.querySelector('.reading-widget .widget-frame-fill'),
+      }))
+      const valAfter = await frame.locator('#gain').inputValue()
+      check(`${tag} 收起后控件值不变且 iframe 仅加载 1 次`, valAfter === '8' && afterCollapse.reloads === 0 && !afterCollapse.fill, JSON.stringify({ valAfter, ...afterCollapse }))
+      check(`${tag} 收起后高度与滚动位置还原`, Math.abs(afterCollapse.height - beforeWidget.height) <= 40 && Math.abs(afterCollapse.scrollTop - beforeWidget.scrollTop) <= 8, JSON.stringify({ before: beforeWidget, after: afterCollapse }))
+
+      // Split reader convergence: open PDF alongside and check no overflow
+      await page.locator('.reading-section .reading-chip').first().click()
+      await page.waitForSelector('.studio-split')
+      await page.locator('.reading-block-widget').scrollIntoViewIfNeeded()
+      await page.waitForTimeout(300)
+      const splitInfo = await page.evaluate(() => {
+        const scroller = document.querySelector('.reading-scroll')
+        const paraW = document.querySelector('.reading-para').getBoundingClientRect().width
+        const widgetW = document.querySelector('.reading-block-widget').getBoundingClientRect().width
+        return { overflowX: scroller.scrollWidth > scroller.clientWidth + 1, paraW, widgetW, clientW: scroller.clientWidth }
+      })
+      check(`${tag} 分屏下文字与 widget 自动收敛、无横向溢出`, !splitInfo.overflowX && splitInfo.paraW <= 700 && splitInfo.widgetW <= splitInfo.clientW + 1, JSON.stringify(splitInfo))
+      await page.screenshot({ path: name('widget-split') })
+      await page.click(`.studio-reader .reader-actions button[aria-label="${S.reader.close}"]`)
+      await page.waitForFunction(() => !document.querySelector('.studio-split'))
+      await page.waitForTimeout(150)
+    }
 
     // ---- Once: the live write from the Materials row; sections appear while the run goes on ----
     if (pass === 0) {

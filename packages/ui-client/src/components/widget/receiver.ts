@@ -4,7 +4,7 @@
  *           WIDGET_DIAG 走查打点(csp/error/finalize/appended);
  *           finalize 吃 src(CDN + lumenwidget:);同内容幂等且拒绝旧世代异步脚本
  * [POS]: widget/ 沙箱壳 —— CSP + 高度同步 + 链接拦截 + __widgetSendMessage(只在用户刚点过或按过键的 SEND_WINDOW_MS 内放行，脚本自发的一律丢弃);
- *       主题变量见 themeVars.ts;THEME.fillHeight 切岛内滚动(阅读器)vs hidden(对话跟高);
+ *       主题变量见 themeVars.ts;THEME.fillHeight 切岛内滚动(阅读器/解读放大)vs hidden(对话/解读跟高),退出 fillHeight 时重置 _lastH 并主动重报自然高度;
  *       控件去系统外观以吃 inline 背景,滑块/勾选/单选保留系统外观(否则浅档连轨道都看不见)
  * [PROTOCOL]: 变更时更新此头部,然后检查 CLAUDE.md
  *
@@ -73,10 +73,13 @@ _ro.observe(root);
 
 /* In a conversation: overflow hidden and the host follows the height; reader fillHeight pins the viewport, so the island must scroll itself */
 function setFillScroll(on){
+  var prev=_fill;
   _fill=!!on;
   var r=document.documentElement,b=document.body;
   r.style.overflow=b.style.overflow=_fill?'auto':'hidden';
   r.style.height=b.style.height=_fill?'100%':'';
+  /* Leaving fillHeight: force a fresh natural-height report back to the host even if the value matches a stale measurement */
+  if(prev&&!_fill){_lastH=0;_h();}
 }
 
 function applyHtml(html){root.innerHTML=html;_h();}
