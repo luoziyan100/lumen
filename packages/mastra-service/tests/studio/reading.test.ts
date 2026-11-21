@@ -3,7 +3,9 @@
  * [OUTPUT]: evidence for P1-2 S1/S2/S3 and G1: a reading written through reading_write reads back over HTTP in order with ETag; replace by section id (an unknown id is refused);
  *           an unreferenced item is refused with read_material's sentence; quotes are checked on the cited page (wrong page refused, whitespace differences pass, too short refused,
  *           page past the end refused); a material without pages takes no page; the three caps; reading_view; R1's readable 409 on a second conversation's message while the topic runs;
- *           G1: sediment_quote refuses a reading question's quote (whole or part) and accepts the person's words from the same message, bound to it, original = the words only
+ *           G1: sediment_quote refuses a reading question's quote (whole or part) and accepts the person's words from the same message, bound to it, original = the words only;
+ *           widget params: an old widget without params reads back unchanged, declared params are stored and shown by reading_view without the html, param and script refusals
+ *           through reading_write / reading_insert name the block and store nothing, and reading_widget_guide answers the model
  * [POS]: the reading mechanism's end-to-end proof; the controllable model proves mechanism only and never stands in for real-model acceptance
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -263,6 +265,27 @@ test('living reading: reading_write mixes prose/table/diagram/widget with quote 
     assert.match(viewed, /"kind":"widget"/)
     assert.match(viewed, /"htmlBytes":/)
     assert.ok(!viewed.includes('__widgetSendMessage'))
+    assert.equal(section.paragraphs[3].html, '<div><button onclick="window.__widgetSendMessage(\'试了一次\')">试</button></div>')
+    assert.ok(!('params' in section.paragraphs[3]), '没有 params 的旧写法原样写入、原样读出')
+
+    // ---- P1/P4 through the tool: declared params are stored and shown by reading_view (never the html); refusals name the block, the parameter or the script ----
+    const params = [
+      { type: 'range', name: 'gain', label: '增益', min: 0, max: 4, step: 0.5, default: 1, unit: 'x' },
+      { type: 'toggle', name: 'feedback', label: '反馈', default: true },
+      { type: 'choice', name: 'mode', label: '模式', options: [{ value: 'fast', label: '快' }, { value: 'slow', label: '慢' }], default: 'slow' },
+    ]
+    const html = '<p id="v"></p><script>var show = function (p) { document.getElementById("v").textContent = JSON.stringify(p) }; show(window.lumenParams); addEventListener("lumen:params", function (e) { show(e.detail) })</script>'
+    assert.match(await call('reading_write', { itemId, title: '调参', paragraphs: [inference('拨一拨。'), { kind: 'widget', title: '增益', html, params, source: { kind: 'inference' } }] }), /"sections":2/)
+    const tuned = (await read()).sections[1].paragraphs[1]
+    assert.deepEqual(tuned.params, params)
+    const viewedParams = await call('reading_view', { itemId })
+    assert.deepEqual(JSON.parse(viewedParams).sections[1].paragraphs[1].params, params)
+    assert.ok(!viewedParams.includes('lumen:params'), 'reading_view 不带 html')
+    assert.match(await call('reading_write', { itemId, title: '坏参', paragraphs: [inference('先说。'), { kind: 'widget', html, params: [{ ...params[0], default: 9 }], source: { kind: 'inference' } }] }), /第 2 块小实验的第 1 个参数「gain」的 default（9）要在 0–4 之间/)
+    assert.match(await call('reading_insert', { itemId, sectionId: section.id, block: { kind: 'widget', html: '<script>if (</script>', source: { kind: 'inference' } } }), /第 1 块小实验的第 1 个脚本有语法错误/)
+    assert.match(await call('reading_insert', { itemId, sectionId: section.id, block: { kind: 'widget', html: '<p>静态</p>', params, source: { kind: 'inference' } } }), /声明了 params，页面却没有读/)
+    assert.equal((await read()).sections.length, 2, '被拒的写入什么也不留')
+    assert.match(await call('reading_widget_guide', {}), /lumen:params/)
 
     // ---- Invalid visual blocks and wrong-page quotes on visual blocks are refused ----
     assert.match(await call('reading_write', { itemId, title: '坏表', paragraphs: [{ kind: 'table', columns: ['a', 'b'], rows: [['only-one']], source: { kind: 'inference' } }] }), /格数要和列数一致/)

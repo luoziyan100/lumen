@@ -49,6 +49,8 @@ export const zh: Messages = {
       openSource: '在旁边打开原文',
       footprint: '你问过这一句，点开看问答',
       widgetIdle: '交互小实验', widgetRun: '打开', widgetExpand: '放大查看', widgetCollapse: '收起 Esc',
+      widgetAsk: '就这个小实验问 AI', widgetFootprint: '你问过这个小实验，点开看问答', widgetControls: '小实验参数',
+      widgetFailed: '这个小实验没能运行起来', widgetFix: '请 AI 修正',
       ask: {
         label: '就这一句问 AI', placeholder: '问这一句', send: '发送', close: '关闭',
         keep: '把我的话记成沉淀', kept: '已记成你的沉淀', keepFailed: '没能存下：',

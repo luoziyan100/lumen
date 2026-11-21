@@ -7,7 +7,8 @@
  *           shared subscription; Esc closes; the footprint reopens the exchange; a follow-up continues the same conversation and its Markdown reply renders as strong/li/blockquote (G3); keep stores only typed words; another
  *           conversation's run gets the service's readable 409 and nothing is sent; footprints survive a reload and are inline role="button" spans opened by Enter/Space (G4);
  *           the service's readingQuestion reads the real askReading output exactly as parseAsk does, and userWords drops the quote (G1 binding); userWords gives nothing for the
- *           program-written messages (write request, widget message, diagram fix) and drops the upload list (R13);
+ *           program-written messages (write request, widget message, diagram fix, widget fix) and drops the upload list (R13); a widget question (title line plus 「当前参数」 line) reads the same on
+ *           both sides with only the words as the person's, and readingAsks ties it to its widget by section and title (widgetIdle for an untitled one);
  *           living-reading explorable: in-place widget expand closes AskWindow first, keeps the exact iframe DOM node and 3-slot auto-run quota, routes expanded WIDGET_SEND with R13 marker + live reading_insert + 8255d27 auto-focus, Esc collapses in place (both outer window Esc and iframe-focused WIDGET_ESCAPE with source check; inline WIDGET_ESCAPE is a no-op), and receiver re-reports natural height on leaving fillHeight and forwards Escape in capture phase
  * [POS]: P1-2's UI mechanism acceptance; the controllable model proves mechanism only and never stands in for real-model acceptance; layout and WebKit are covered by the
  *        browser assertions (scripts/sprite/ui-assert-reading.mts), not here
@@ -28,7 +29,7 @@ import { fixtureProvider, textReply, toolReply, type ProviderRequest } from '../
 import { ensureTopic } from '../../mastra-service/tests/topic-fixture.ts'
 import { pagedPdf } from '../../mastra-service/tests/studio/library-fixtures.ts'
 import { readingQuestion, userWords } from '../../mastra-service/src/studio/reading-question.ts'
-import { LumenApi } from '../src/mastra/data/client.ts'
+import { LumenApi, type WidgetParam } from '../src/mastra/data/client.ts'
 import { messageRole, messageText } from '../src/mastra/data/feed.ts'
 import type { MastraDBMessage } from '@mastra/client-js'
 import { zh, MODEL_TEXT } from './helpers/zh.ts'
@@ -48,8 +49,14 @@ register('./helpers/tsx-loader.mjs', import.meta.url)
 register('data:text/javascript,' + encodeURIComponent(`export async function resolve(specifier, context, next) { if (specifier.endsWith('?url')) return { url: 'data:text/javascript,export default "test-worker-url"', shortCircuit: true }; return next(specifier, context) } export async function load(url, context, next) { const result = await next(url, context); if (url.endsWith('/WidgetFrame.tsx')) return { ...result, source: String(result.source).replaceAll('import.meta.env.BASE_URL', JSON.stringify('/')) }; return result }`), import.meta.url)
 const { createRoot } = await import('react-dom/client')
 const { StudioApp } = await import('../src/mastra/studio/StudioApp.tsx')
-const { askText, parseAsk, asksOf, footprintRanges, latestReadingWrite, readingSignal, prose, readingAsks } = await import('../src/mastra/studio/reading-ask.ts')
+const { askText, askWidgetText, parseAsk, asksOf, footprintRanges, latestReadingWrite, readingSignal, prose, readingAsks } = await import('../src/mastra/studio/reading-ask.ts')
 const { DEFAULT_SHAPE, SPRITE_KEY } = await import('../src/mastra/studio/sprite-place.ts')
+const { widgetQuote } = await import('../src/mastra/studio/widget-params.ts')
+const widgetParams: WidgetParam[] = [
+  { type: 'range', name: 'gain', label: '增益', min: 0, max: 4, step: 0.5, default: 1, unit: 'x' },
+  { type: 'toggle', name: 'feedback', label: '反馈', default: true },
+  { type: 'choice', name: 'mode', label: '模式', options: [{ value: 'fast', label: '快' }, { value: 'slow', label: '慢' }], default: 'slow' },
+]
 
 const token = 'ui-reading-token-at-least-24-characters'
 const headers = { Authorization: `Bearer ${token}` }
@@ -107,6 +114,8 @@ test('reading question format: the service reads MODEL_TEXT.askReading exactly a
     askText('遮挡不是细节，是一个无法反推的信息损失', '3. 关键的一步', 'A theory of cortical responses', '我还是不懂\n为什么遮挡就反推不了'),
     askText('a quote with 《brackets》 · and dots', '12. 边界', 'Title · with 《marks》', 'ok'),
     MODEL_TEXT.askReading('two\nlines', '2. Evidence', 'Paper', '那下界呢？'),
+    askWidgetText(widgetQuote('增益', widgetParams, { gain: 2, feedback: false, mode: 'fast' }), '2. 机制', 'Free energy', '为什么增益到 2 就变陡了'),
+    askWidgetText(widgetQuote('交互小实验', undefined, {}), '3. 边界', 'Free energy', '这个在演示什么'),
   ]
   for (const text of cases) {
     const ui = parseAsk(text)
@@ -123,14 +132,32 @@ test('reading question format: the service reads MODEL_TEXT.askReading exactly a
 })
 
 // Everything the program writes in the person's name, fed as the real MODEL_TEXT output: none of it is the person's words (R13)
-test('program-written messages are not the person\'s words: write request, widget message, diagram fix, the upload list', () => {
+test('a widget question: two program lines as its quote, the person\'s words after; readingAsks finds it on its widget', () => {
+  const text = askWidgetText(widgetQuote('增益', widgetParams, { gain: 2, feedback: false, mode: 'fast' }), '2. 机制', 'Free energy', '为什么变陡了')
+  assert.equal(text, '> 小实验「增益」\n> 当前参数：增益=2x，反馈=关，模式=快\n— 解读《Free energy》· 2. 机制\n\n为什么变陡了')
+  const ask = { ...parseAsk(text)!, messageId: 'm', identity: { topicId: 't', taskId: 'a' }, reply: '', createdAt: 0 }
+  assert.equal(ask.words, '为什么变陡了')
+  const widget = (title?: string) => ({ id: 'w', kind: 'widget', ...(title ? { title } : {}), html: '<p></p>', source: { kind: 'inference' } })
+  const reading = (title?: string, ord = 2) => ({ itemTitle: 'Free energy', sections: [{ id: 's', ord, title: '机制', paragraphs: [widget(title)] }] }) as never
+  assert.equal(readingAsks(reading('增益'), [ask]).length, 1)
+  assert.equal(readingAsks(reading('别的'), [ask]).length, 0, '标题不同不算这块')
+  assert.equal(readingAsks(reading('增益', 3), [ask]).length, 0, '节不同不算这块')
+  const idle = { ...parseAsk(askWidgetText(widgetQuote(S.reading.widgetIdle, undefined, {}), '2. 机制', 'Free energy', '演示什么'))!, messageId: 'n', identity: ask.identity, reply: '', createdAt: 0 }
+  assert.equal(readingAsks(reading(), [idle]).length, 1, '没标题的小实验按 widgetIdle 认')
+})
+
+test('program-written messages are not the person\'s words: write request, widget message, diagram fix, widget fix, the upload list', () => {
   for (const text of [
     MODEL_TEXT.writeReading('A theory of cortical responses', 'item-1'),
     MODEL_TEXT.writeReading('Title · with 《marks》）and more', 'item-2'),
     MODEL_TEXT.widgetSend('我猜 B'),
     MODEL_TEXT.widgetSend('  参数 3\n第二行 '),
     MODEL_TEXT.mermaidFix('graph TD\nA-->B', 'Parse error on line 2'),
-  ]) assert.equal(userWords(text), '', `程序代写的不算用户的话：${text}`)
+    MODEL_TEXT.widgetFix('Free energy', '2. 机制', '增益', 'ReferenceError: gain is not defined'),
+  ]) {
+    assert.equal(userWords(text), '', `程序代写的不算用户的话：${text}`)
+    assert.equal(parseAsk(text), null, `程序代写的也不是提问：${text}`)
+  }
   assert.equal(MODEL_TEXT.widgetSend(' 我猜 B '), '— 小实验\n\n我猜 B', 'the widget mark is its own first line')
   const typed = '这里的上界为什么成立？'
   const withList = `${typed}\n\n${MODEL_TEXT.uploadedMaterials}\n- paper.pdf: item-9`

@@ -2,7 +2,7 @@
  * [INPUT]: no runtime dependencies; the objects and states of the product model in doc/studio/model.md
  * [OUTPUT]: topic, library (with authors/year/arXiv id/title source), reference, sheet, block, source and version, the canvas (element, pending AI op, erasure, viewport, scene, snapshot, author),
  *           sediment entry/link/offer/invite DTOs,
- *           the reading of a material (sections, mixed prose/table/diagram/widget blocks and their paper/inference sources) and its list summary,
+ *           the reading of a material (sections, mixed prose/table/diagram/widget blocks, a widget's declared WidgetParam controls, paper/inference sources) and its list summary,
  *           plus the BlockKind/BlockState/SedimentOrigin/ReadingBlockKind literals
  * [POS]: the pure type boundary shared by the service and the desktop; carries no database or framework objects
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -253,11 +253,19 @@ export interface ReadingDiagramBlock {
   source: ReadingSource
 }
 
+/** A control a reading widget declares; the desktop draws it under the widget and pushes its value into the page as window.lumenParams. */
+export type WidgetParam =
+  | { type: 'range'; name: string; label: string; min: number; max: number; step: number; default: number; unit?: string }
+  | { type: 'toggle'; name: string; label: string; default: boolean }
+  | { type: 'choice'; name: string; label: string; options: { value: string; label: string }[]; default: string }
+
 export interface ReadingWidgetBlock {
   id: string
   kind: 'widget'
   title?: string
   html: string
+  /** Absent on widgets without host controls, including every widget written before params existed */
+  params?: WidgetParam[]
   caption?: string
   source: ReadingSource
 }

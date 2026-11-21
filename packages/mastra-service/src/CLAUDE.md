@@ -3,10 +3,10 @@
 
 新应用实现目录；旧运行时不参与生产依赖。
 
-- `application.ts`：组合 AgentController、Memory、studio 存储与按主题共享的 Workspace（关闭时每主题只销毁一次）；白板工具接主 Agent（专家只给 board_view）; the reading tools (reading_view/reading_write/reading_insert) go to the main agent only, built on the same material access and the board's trusted writer，主题现状经指令注入，运行结束（非挂起，含停止/出错）给改过的白板写一个画布快照；模型能看图时挂上 glance 请求处理器与 board_look（每次请求至多一张白板画面）；R1 一主题一运行由 `admitRun`（同步段预留 + 实时运行/等待投影）裁决，新开对话用 `assertTopicIdle`；`admitRun` 内 `assertOpen` 拒绝归档（409）与正在删除（404）的对象；`whileIdle` 占住主题准入槽做空闲检查（归档/删除用），`release` 删除前清掉进程内会话、工作区与 Memory 挂载；资料库工具只经受信会话推出的主题引用；全局一组专家按角色能力与独立调用目录隔离，关闭先排空父子输出和诊断评估；诊断仅取得当前模型快照，不继承研究工具或工作区；原生threadState恢复清单展示，持久挂起阻止模型切换。
+- `application.ts`：组合 AgentController、Memory、studio 存储与按主题共享的 Workspace（关闭时每主题只销毁一次）；白板工具接主 Agent（专家只给 board_view）; the reading tools (reading_view/reading_widget_guide/reading_write/reading_insert) go to the main agent only, built on the same material access and the board's trusted writer，主题现状经指令注入，运行结束（非挂起，含停止/出错）给改过的白板写一个画布快照；模型能看图时挂上 glance 请求处理器与 board_look（每次请求至多一张白板画面）；R1 一主题一运行由 `admitRun`（同步段预留 + 实时运行/等待投影）裁决，新开对话用 `assertTopicIdle`；`admitRun` 内 `assertOpen` 拒绝归档（409）与正在删除（404）的对象；`whileIdle` 占住主题准入槽做空闲检查（归档/删除用），`release` 删除前清掉进程内会话、工作区与 Memory 挂载；资料库工具只经受信会话推出的主题引用；全局一组专家按角色能力与独立调用目录隔离，关闭先排空父子输出和诊断评估；诊断仅取得当前模型快照，不继承研究工具或工作区；原生threadState恢复清单展示，持久挂起阻止模型切换。
 - `model.ts`：本地档案到 SDK Gateway 的配置边界，模型网络通过 SDK 执行；按协议建模型交给 providers.ts。
 - `providers.ts`：接口协议表，每个协议一项：默认地址、要剥掉的粘贴端点、用哪个 SDK 建模型、流是否 OpenAI SSE（决定能否流前重试）。model.ts、settings/models.ts、settings/runtime.ts 与 config.ts 只查表，不再按协议分支。协议名单在 settings/types.ts 的 `PROVIDER_IDS`；加一个协议只改名单、表、设置界面的地址提示和中英文案，后三处缺项都过不了类型检查。Google 走原生接口：它的 OpenAI 兼容口丢 Gemini 的 thought signature，带工具的多轮请求会被回 400。
-- `permissions.ts`：主 Agent 工具权限类别唯一真源与 Controller 内建工具单独放行名单；未登记工具落入 other，不被默认放行。reading_view is read and reading_write/reading_insert are edit, like the board tools.
+- `permissions.ts`：主 Agent 工具权限类别唯一真源与 Controller 内建工具单独放行名单；未登记工具落入 other，不被默认放行。reading_view and reading_widget_guide are read and reading_write/reading_insert are edit, like the board tools.
 
 - `drain.ts`：按受信 Controller 的父任务 resourceId 等待主/子模型输出持久化，使停止先排空再取消快照；关闭时排空全部运行，单任务停止不等待其他会话。
 - Error responses (i18n I6): every product error carries a stable `code` (and `params` when the text has values) next to the Chinese `error`; the error classes (`StudioError`, settings/catalog/diagnostics errors) take the code as a constructor argument. Codes live only in `http/error-codes.ts`. Model-facing text is unchanged.

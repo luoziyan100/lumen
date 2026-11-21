@@ -2,7 +2,9 @@
  * [INPUT]: sanitize.ts 的 CDN_WHITELIST;宿主注入的 CSS 变量块
  * [OUTPUT]: buildReceiverSrcdoc —— receiver HTML(供 emit 成 public/ 同源页;勿再当 srcdoc);
  *           WIDGET_DIAG 走查打点(csp/error/finalize/appended);
- *           finalize 吃 src(CDN + lumenwidget:);同内容幂等且拒绝旧世代异步脚本
+ *           finalize 吃 src(CDN + lumenwidget:);同内容幂等且拒绝旧世代异步脚本;
+ *           lumenwidget: 脚本带 crossOrigin=anonymous 加载(scheme 回 ACAO:*),运行期报错才有原文而非 "Script error.";CORS 加载失败就去掉 crossOrigin 重载一次;
+ *           WIDGET_PARAMS 参数单向进页:finalize 带的初值在执行脚本前设成只读冻结的 window.lumenParams,之后每条 params 消息替换它并派发 lumen:params(detail=全部当前值)
  * [POS]: widget/ 沙箱壳 —— CSP + 高度同步 + 链接拦截 + Esc 捕获转发(WIDGET_ESCAPE) + __widgetSendMessage(只在用户刚点过或按过键的 SEND_WINDOW_MS 内放行，脚本自发的一律丢弃);
  *       主题变量见 themeVars.ts;THEME.fillHeight 切岛内滚动(阅读器/解读放大)vs hidden(对话/解读跟高),退出 fillHeight 时重置 _lastH 并主动重报自然高度;
  *       控件去系统外观以吃 inline 背景,滑块/勾选/单选保留系统外观(否则浅档连轨道都看不见)
@@ -25,6 +27,8 @@ export const WIDGET_THEME = 'lumen-widget:theme'
 export const WIDGET_LINK = 'lumen-widget:link'
 export const WIDGET_SEND = 'lumen-widget:sendMessage'
 export const WIDGET_ESCAPE = 'lumen-widget:escape'
+/** Host → page only: the current values of the widget's declared params; the page reads window.lumenParams and listens for lumen:params */
+export const WIDGET_PARAMS = 'lumen-widget:params'
 /** 走查仪表:CSP violation / onerror / finalize 计数,抬宿主 */
 export const WIDGET_DIAG = 'lumen-widget:diag'
 
@@ -85,7 +89,14 @@ function setFillScroll(on){
 
 function applyHtml(html){root.innerHTML=html;_h();}
 
-function finalizeHtml(html,generation){
+function _setParams(v){
+  if(!v||typeof v!=='object')return null;
+  var o={};for(var k in v)o[k]=v[k];
+  Object.freeze(o);
+  try{Object.defineProperty(window,'lumenParams',{value:o,writable:false,configurable:true});}catch(e){}
+  return o;
+}
+function finalizeHtml(html,generation,params){
   html=String(html||'');
   var seq=typeof generation==='number'&&isFinite(generation)?generation:_finalizeGeneration+1;
   if(seq<_finalizeGeneration||html===_lastFinalHtml){
@@ -94,6 +105,7 @@ function finalizeHtml(html,generation){
   }
   _finalizeGeneration=seq;
   _lastFinalHtml=html;
+  _setParams(params);
   var tmp=document.createElement('div');
   tmp.innerHTML=html;
   var ss=tmp.querySelectorAll('script');
@@ -127,17 +139,20 @@ function finalizeHtml(html,generation){
   else{
     var _pending=cdnScripts.length;
     function _onCdnDone(){_pending--;if(_pending<=0)_appendInline()}
-    for(var i=0;i<cdnScripts.length;i++){
+    function _load(script,cors){
       var n=document.createElement('script');
       n.async=false;
-      n.src=cdnScripts[i].src;
-      n.onload=_onCdnDone;n.onerror=_onCdnDone;
-      for(var j=0;j<cdnScripts[i].attrs.length;j++){
-        if(cdnScripts[i].attrs[j].name!=='onload')n.setAttribute(cdnScripts[i].attrs[j].name,cdnScripts[i].attrs[j].value);
+      if(cors)n.crossOrigin='anonymous';
+      n.src=script.src;
+      n.onload=_onCdnDone;
+      n.onerror=function(){if(cors)_load(script,false);else _onCdnDone()};
+      for(var j=0;j<script.attrs.length;j++){
+        if(script.attrs[j].name!=='onload'&&script.attrs[j].name!=='crossorigin')n.setAttribute(script.attrs[j].name,script.attrs[j].value);
       }
       root.appendChild(n);
       _diag('appended',{src:n.src||'cdn',len:0});
     }
+    for(var i=0;i<cdnScripts.length;i++)_load(cdnScripts[i],cdnScripts[i].src.indexOf('lumenwidget:')===0);
   }
   _h();
 }
@@ -146,7 +161,11 @@ window.addEventListener('message',function(e){
   if(!e.data)return;
   switch(e.data.type){
     case '${WIDGET_UPDATE}': applyHtml(e.data.html); break;
-    case '${WIDGET_FINALIZE}': finalizeHtml(e.data.html,e.data.generation); setTimeout(_h,150); break;
+    case '${WIDGET_FINALIZE}': finalizeHtml(e.data.html,e.data.generation,e.data.params); setTimeout(_h,150); break;
+    case '${WIDGET_PARAMS}':
+      var _p=_setParams(e.data.params);
+      if(_p){var _d={};for(var k in _p)_d[k]=_p[k];window.dispatchEvent(new CustomEvent('lumen:params',{detail:Object.freeze(_d)}));}
+      break;
     case '${WIDGET_THEME}':
       var r=document.documentElement,v=e.data.vars;
       if(v)for(var k in v)r.style.setProperty(k,v[k]);

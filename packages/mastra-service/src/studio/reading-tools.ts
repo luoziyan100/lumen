@@ -1,7 +1,8 @@
 /**
- * [INPUT]: the reading store and its shared block/section/insert schemas and quote rule, material access (R15 open, the PDF page cache, plain text), the board's trusted writer (topic, conversation, run)
- * [OUTPUT]: createReadingTools: reading_view (the reading of one referenced material: section ids, titles and blocks with ids), reading_write (append, or replace a section by id;
- *           supports mixed prose/table/diagram/widget blocks, with a one-sentence 2D explorable diagram visual grammar hint on widget), and reading_insert (add one block into an existing section after a given block or at the end, for inline visual follow-ups)
+ * [INPUT]: the reading store and its shared block/section/insert schemas and quote rule, widget-guide's handbook, material access (R15 open, the PDF page cache, plain text), the board's trusted writer (topic, conversation, run)
+ * [OUTPUT]: createReadingTools: reading_view (the reading of one referenced material: section ids, titles and blocks with ids; a widget shows its params, never its html),
+ *           reading_widget_guide (read-only: the widget handbook from widget-guide.ts, fetched before writing a widget), reading_write (append, or replace a section by id;
+ *           mixed prose/table/diagram/widget blocks; the widget line is its shape plus 「先调 reading_widget_guide」), and reading_insert (add one block into an existing section after a given block or at the end, for inline visual follow-ups)
  * [POS]: the AI's only way to write a reading. The program checks only what would break a promise — the material is this topic's (R15), every paper quote occurs on the cited page
  *        of exactly the text read_material returns, and the caps; what medium (text vs table/diagram/widget) and how deep is the model's call. Main agent only; refusals name the item to fix
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -14,6 +15,7 @@ import { normalizeQuote, quoteFound, READING_LIMITS, readingInput, readingInsert
 import type { Studio } from './studio.ts'
 import type { createMaterialAccess, TopicResolver } from './tools.ts'
 import type { ReadingParagraph } from './types.ts'
+import { WIDGET_GUIDE } from './widget-guide.ts'
 
 type Access = ReturnType<typeof createMaterialAccess>
 
@@ -43,19 +45,19 @@ async function checkQuotes(access: Access, opened: Awaited<ReturnType<Access['op
   }
 }
 
-/** Compact view of one reading block for reading_view: preserves ids and prose/table/diagram details without flooding context with full widget HTML. */
+/** Compact view of one reading block for reading_view: preserves ids and prose/table/diagram details and a widget's declared params (so a rewrite keeps their names), without flooding context with full widget HTML. */
 function summarizeBlock(block: ReadingParagraph) {
   if ('text' in block) return { id: block.id, kind: 'text', text: block.text, source: block.source }
   if (block.kind === 'table') return { id: block.id, kind: 'table', ...(block.title ? { title: block.title } : {}), columns: block.columns, rows: block.rows.length, ...(block.caption ? { caption: block.caption } : {}), source: block.source }
   if (block.kind === 'diagram') return { id: block.id, kind: 'diagram', ...(block.title ? { title: block.title } : {}), mermaid: block.mermaid, ...(block.caption ? { caption: block.caption } : {}), source: block.source }
-  return { id: block.id, kind: 'widget', ...(block.title ? { title: block.title } : {}), ...(block.caption ? { caption: block.caption } : {}), htmlBytes: Buffer.byteLength(block.html), source: block.source }
+  return { id: block.id, kind: 'widget', ...(block.title ? { title: block.title } : {}), ...(block.caption ? { caption: block.caption } : {}), htmlBytes: Buffer.byteLength(block.html), ...(block.params ? { params: block.params } : {}), source: block.source }
 }
 
 const BLOCK_HINT = [
   'text（默认，可省 kind）：{ text, source }（≤600 字）',
   'table：{ kind: "table", title?, columns: [...], rows: [[...]], caption?, source }',
   'diagram：{ kind: "diagram", title?, mermaid, caption?, source }（Mermaid 流程图/关系图，≤8KB）',
-  'widget：{ kind: "widget", title?, html, caption?, source }（2D 活结构图/交互小实验，原生 HTML+SVG/Canvas+JS，≤64KB，零外网依赖：纸面浅底、贴合学科的 2D 矢量图、底部 3–5 步推演条、1–2 个反事实开关或滑块与同步读数，关键断点可选轻柔「先猜一下/直接看」，无红字/分数/判词；可调 window.__widgetSendMessage("一句话") 在用户点击后把猜测或参数发回对话）',
+  'widget：{ kind: "widget", title?, html, params?, caption?, source }（交互小实验；写之前先调 reading_widget_guide）',
 ].join('；')
 
 export function createReadingTools(studio: Studio, access: Access, topicOf: TopicResolver, writer: BoardWriter) {
@@ -69,6 +71,10 @@ export function createReadingTools(studio: Studio, access: Access, topicOf: Topi
         return { itemId, sections: reading?.sections.map(section => ({ id: section.id, ord: section.ord, title: section.title, paragraphs: section.paragraphs.map(summarizeBlock) })) ?? [],
           limits: { sections: READING_LIMITS.sections, paragraphs: READING_LIMITS.paragraphs, sectionMax: READING_LIMITS.sectionMax, paragraphChars: READING_LIMITS.paragraphChars } }
       },
+    }),
+    reading_widget_guide: createTool({ id: 'reading_widget_guide', description: '写小实验（widget 块）之前先调：返回小实验的完整写法手册——视觉语法、params 的声明与读取、回发对话的时机、硬限制和一个完整范例。',
+      inputSchema: z.object({}),
+      execute: async () => ({ guide: WIDGET_GUIDE }),
     }),
     reading_write: createTool({ id: 'reading_write',
       description: `为本主题引用的一份材料写一节解读。title 不带序号（不写「三、」「3.」），视图会给每节编号。不给 sectionId 就接在最后，给了就把那一节整节换掉。paragraphs 可自由混排四种块：${BLOCK_HINT}。每块的 source 是 { kind: "paper", page, quote }（quote 是那一页上的原文短引，至少 ${READING_LIMITS.quoteMin} 字；材料没有页码时省掉 page）或 { kind: "inference" }（你自己的理解、串联或小实验）。服务逐条核对引文，对不上会拒绝并说明是哪一段。quote 会显示在对应段/块下面，正文可以直接引向它，但不要在正文里再抄一遍。最多 ${READING_LIMITS.sections} 节，每节最多 ${READING_LIMITS.paragraphs} 块。写好一节就调一次，用户会先读起来。`,

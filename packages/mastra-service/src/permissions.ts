@@ -8,7 +8,7 @@ export type ToolCategory = 'read' | 'edit' | 'execute' | 'other'
 
 export const TOOL_CATEGORIES: Readonly<Record<string, Exclude<ToolCategory, 'other'>>> = {
   read_file: 'read', list_files: 'read', grep: 'read', read_memory: 'read', read_history: 'read',
-  list_materials: 'read', read_material: 'read', board_view: 'read', board_look: 'read', reading_view: 'read', search_papers: 'read', get_citations: 'read',
+  list_materials: 'read', read_material: 'read', board_view: 'read', board_look: 'read', reading_view: 'read', reading_widget_guide: 'read', search_papers: 'read', get_citations: 'read',
   fetch_url: 'read', search_web: 'read', extract_pdf: 'read', extract_docx: 'read', look_at_image: 'read',
   list_skills: 'read', run_skill: 'read', read_skill_file: 'read', task_check: 'read',
   write_file: 'edit', edit_file: 'edit', write_memory: 'edit', install_skill: 'edit',

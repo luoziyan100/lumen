@@ -2,7 +2,8 @@
  * [INPUT]: receiver/sanitize;宿主 onSendMessage/onEscape;collectThemeVars/hostChromeIsDark;MODEL_TEXT.widgetSend(回发的消息带小实验标记)
  * [OUTPUT]: WidgetFrame —— 沙箱 iframe + 高度同步(策略见 height.ts);
  *           WIDGET_DIAG 常挂 data-widget-diag,可见条默认隐藏(localStorage lumen:widgetDiag=1 打开);
- *           finalize 前 hoistInlineScripts(内联→lumenwidget: src);同代同内容只推送一次
+ *           finalize 前 hoistInlineScripts(内联→lumenwidget: src);同代同内容只推送一次;
+ *           params(宿主已校验的参数值)随 finalize 送入、变化时另发 WIDGET_PARAMS,单向不回读;onRuntimeError:finalize 后 RUNTIME_ERROR_MS 内的首个 error 诊断
  * [POS]: widget/ 渲染核心;被 AssistantContent 与 HtmlViewer 消费;
  *       暗壳内容岛浅档 + color-scheme:light,防 WKWebView 洗灰;
  *       fillHeight(阅读器)经 THEME.fillHeight 开岛内滚动,对话跟高仍 overflow:hidden;
@@ -20,6 +21,7 @@ import {
   WIDGET_ESCAPE,
   WIDGET_FINALIZE,
   WIDGET_LINK,
+  WIDGET_PARAMS,
   WIDGET_READY,
   WIDGET_RESIZE,
   WIDGET_SEND,
@@ -39,6 +41,8 @@ function receiverUrl(): string {
 const heightCache = new Map<string, number>()
 const UPDATE_DEBOUNCE_MS = 120
 const MIN_H = 48
+/** A runtime error this soon after the receiver finalized counts as the widget failing to start */
+export const RUNTIME_ERROR_MS = 3000
 const MAX_H = 2400
 
 type ContentPushState = {
@@ -70,6 +74,8 @@ export function WidgetFrame({
   onEscape,
   fillHeight,
   light,
+  params,
+  onRuntimeError,
 }: {
   widgetCode: string
   title?: string
@@ -82,6 +88,10 @@ export function WidgetFrame({
   fillHeight?: boolean
   /** 白板区块：岛始终浅档，不随系统暗色变黑（浅色白板里黑底小部件读不清） */
   light?: boolean
+  /** Current values of the widget's declared params, already checked by the host: sent with finalize and again on every change, never read back */
+  params?: Record<string, number | boolean | string>
+  /** The page threw within RUNTIME_ERROR_MS of finalize: the error text, once per finalize */
+  onRuntimeError?: (message: string) => void
 }) {
   const W = useT().widget
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -93,6 +103,11 @@ export function WidgetFrame({
   onSendRef.current = onSendMessage
   const onEscapeRef = useRef(onEscape)
   onEscapeRef.current = onEscape
+  const paramsRef = useRef(params)
+  paramsRef.current = params
+  const onErrorRef = useRef(onRuntimeError)
+  onErrorRef.current = onRuntimeError
+  const finalizedAtRef = useRef<number | null>(null)
 
   const initial = heightCache.get(cacheKey(widgetCode)) ?? (fillHeight ? undefined : 120)
   const [height, setHeight] = useState<number | undefined>(initial)
@@ -119,7 +134,7 @@ export function WidgetFrame({
   }, [])
 
   function sendContent(iframe: HTMLIFrameElement, code: string, streaming: boolean): void {
-    pushContent(iframe, code, streaming, contentPushRef)
+    pushContent(iframe, code, streaming, contentPushRef, paramsRef)
   }
 
   function pushTheme(win: Window): void {
@@ -173,6 +188,11 @@ export function WidgetFrame({
           break
         case WIDGET_DIAG: {
           const kind = String(e.data.kind ?? '')
+          if (kind === 'finalize') finalizedAtRef.current = Date.now()
+          if (kind === 'error' && finalizedAtRef.current !== null && Date.now() - finalizedAtRef.current <= RUNTIME_ERROR_MS) {
+            finalizedAtRef.current = null
+            onErrorRef.current?.(String(e.data.message ?? ''))
+          }
           const line = kind === 'csp'
             ? `csp ${String(e.data.directive ?? '')} ${String(e.data.blocked ?? '')}`
             : kind === 'error'
@@ -229,6 +249,13 @@ export function WidgetFrame({
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [widgetCode, isStreaming])
 
+  const paramsKey = params ? JSON.stringify(params) : ''
+  useEffect(() => {
+    const win = iframeRef.current?.contentWindow
+    if (!win || !readyRef.current || !paramsRef.current || !contentPushRef.current.key.startsWith('final:')) return
+    win.postMessage({ type: WIDGET_PARAMS, params: paramsRef.current }, '*')
+  }, [paramsKey])
+
   // 主题 / fillHeight 变化推送
   useEffect(() => {
     const iframe = iframeRef.current
@@ -280,6 +307,7 @@ function pushContent(
   widgetCode: string,
   streaming: boolean,
   stateRef: { current: ContentPushState },
+  paramsRef: { current: Record<string, number | boolean | string> | undefined },
 ): void {
   const state = stateRef.current
   const key = `${streaming ? 'stream' : 'final'}:${widgetCode}`
@@ -288,7 +316,7 @@ function pushContent(
   state.iframe = iframe
   state.key = key
   state.token = token
-  void pushContentAsync(iframe, widgetCode, streaming, token, stateRef)
+  void pushContentAsync(iframe, widgetCode, streaming, token, stateRef, paramsRef)
 }
 
 async function pushContentAsync(
@@ -297,6 +325,7 @@ async function pushContentAsync(
   streaming: boolean,
   token: number,
   stateRef: { current: ContentPushState },
+  paramsRef: { current: Record<string, number | boolean | string> | undefined },
 ): Promise<void> {
   const win = iframe.contentWindow
   if (!win) return
@@ -315,5 +344,5 @@ async function pushContentAsync(
     html = cleaned
   }
   if (iframe.contentWindow !== win || stateRef.current.token !== token) return
-  win.postMessage({ type: WIDGET_FINALIZE, html, generation: token }, '*')
+  win.postMessage({ type: WIDGET_FINALIZE, html, generation: token, params: paramsRef.current }, '*')
 }

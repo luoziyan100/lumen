@@ -3,7 +3,7 @@
  * [OUTPUT]: readingQuestion (a reading question split into the quoted reading sentence, its place and the person's words; null for any other message), userWords (the part of a user
  *           message that is the person's own words: empty for a message the program or a widget wrote)
  * [POS]: the service's reading of the messages the desktop writes for the person (`MODEL_TEXT` in ui-client): a reading question (`> quote` lines, `— 解读《item》· section`,
- *        a blank line, the words), the request to write a reading, a widget's message (`— 小实验`, a blank line, the text), the diagram fix request, and the uploaded-material
+ *        a blank line, the words), the request to write a reading, a widget's message (`— 小实验`, a blank line, the text), the diagram and widget fix requests, and the uploaded-material
  *        list appended to a typed message. Only typed words are the user's, so sediment (R13) sees nothing else. The desktop keeps its own parser for footprints;
  *        ui-client/tests/reading.test.ts feeds the real MODEL_TEXT output to both and requires the same answer, so the two cannot drift apart silently
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -17,6 +17,7 @@ const PROGRAM = [
   /^请为《[\s\S]*》写一份解读。（材料 id：[^）]*）$/, // the Materials row's 「写解读」
   /^— 小实验\n/, // a widget's message, sent only right after the person touched the widget
   /^上面回复里的这张 Mermaid 图无法渲染，解析错误：/, // the automatic diagram fix request
+  /^解读里的小实验运行出错：/,
 ]
 
 /** Appended after the typed words when files were uploaded with them; the list is the program's */

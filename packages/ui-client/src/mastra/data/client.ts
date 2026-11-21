@@ -17,7 +17,7 @@ export interface Connection { baseUrl: string; token: string; error?: string }
 export interface Identity { topicId: string; taskId: string }
 export type { SessionSummary as SessionInfo, ArchivedSession, Page } from '../../../../mastra-service/src/catalog/types.ts'
 import type { SessionSummary as SessionInfo, ArchivedSession, Page } from '../../../../mastra-service/src/catalog/types.ts'
-export type { Topic, LibraryItem, TopicMaterial, Sheet, SedimentEntry, SedimentOffer, SedimentInvite, SpeechHabit, CanvasScene, CanvasElement, CanvasOp, CanvasErasure, Viewport, Reading, ReadingSection, ReadingParagraph, ReadingTextBlock, ReadingTableBlock, ReadingDiagramBlock, ReadingWidgetBlock, ReadingSummary } from '../../../../mastra-service/src/studio/types.ts'
+export type { Topic, LibraryItem, TopicMaterial, Sheet, SedimentEntry, SedimentOffer, SedimentInvite, SpeechHabit, CanvasScene, CanvasElement, CanvasOp, CanvasErasure, Viewport, Reading, ReadingSection, ReadingParagraph, ReadingTextBlock, ReadingTableBlock, ReadingDiagramBlock, ReadingWidgetBlock, ReadingSummary, WidgetParam } from '../../../../mastra-service/src/studio/types.ts'
 import type { Topic, LibraryItem, TopicMaterial, Sheet, SedimentEntry, SedimentOffer, SedimentInvite, SpeechHabit, CanvasScene, CanvasElement, Viewport, Reading, ReadingSummary } from '../../../../mastra-service/src/studio/types.ts'
 /** writable: newest live sheet (old field). selected/target come from R16 services; optional so an older service still parses. */
 /** An image of the canvas as Excalidraw keeps it (BinaryFileData's stored fields). */

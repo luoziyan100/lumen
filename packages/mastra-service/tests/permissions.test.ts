@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 完整应用 Controller、项目内建角色与模型 HTTP 夹具
- * [OUTPUT]: 主 Agent 实际请求中的每个工具都有权限类别或单独放行的证据
+ * [OUTPUT]: 主 Agent 实际请求中的每个工具都有权限类别或单独放行的证据（含只读的 reading_widget_guide）
  * [POS]: 防止新增工具因漏登记落入 other 而在正式会话中触发人工审批
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -23,7 +23,7 @@ test('主 Agent 暴露给模型的每个工具都有权限类别或单独放行'
     const session = await application.session('p', 'task')
     await session.sendMessage({ content: '列出工具' })
     const names = fixture.requests[0]?.tools?.map(tool => tool.function.name) ?? []
-    for (const expected of ['read_file', 'run_code', 'search_papers', 'look_at_image', 'agent-reader', 'ask_user']) assert.ok(names.includes(expected), expected)
+    for (const expected of ['read_file', 'run_code', 'search_papers', 'look_at_image', 'agent-reader', 'ask_user', 'reading_widget_guide']) assert.ok(names.includes(expected), expected)
     const allowed = new Set<string>(ALWAYS_ALLOWED_TOOLS)
     const unclassified = names.filter(name => toolCategory(name) === 'other' && !allowed.has(name))
     assert.deepEqual(unclassified, [], `未登记权限类别的工具：${unclassified.join('、')}`)

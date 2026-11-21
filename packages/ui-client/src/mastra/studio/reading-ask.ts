@@ -1,6 +1,6 @@
 /**
- * [INPUT]: native messages (feed's messageRole/messageText), MODEL_TEXT's question format and its READING_PLACE line, the service error catalog
- * [OUTPUT]: prose (a prose block's shown text and its bold and code marks), askText / parseAsk (a reading question and back), asksOf (each question with the assistant reply that followed it), footprintRanges (where a paragraph shows
+ * [INPUT]: native messages (feed's messageRole/messageText), MODEL_TEXT's question format and its READING_PLACE line, widget-params' widgetTitleOf, the service error catalog
+ * [OUTPUT]: prose (a prose block's shown text and its bold and code marks), askText / askWidgetText / parseAsk (a reading question and back; a widget question's quote keeps its two lines), asksOf (each question with the assistant reply that followed it), readingAsks (the questions of one reading: about its sentences or its widgets), footprintRanges (where a paragraph shows
  *           the person's footprints), readingSignal (completed reading_write / reading_insert calls, the refresh signal), latestReadingWrite (the current turn's latest completed reading write's callId/itemId for auto-focus), answered (a request has an assistant message after it), sendErrorText (a native send refusal in the UI language)
  * [POS]: pure helpers behind the Reading view. Footprints are not stored anywhere: they are rebuilt from the conversation's own messages, so a reload or another device
  *        shows the same underlines and nothing new is persisted
@@ -11,6 +11,7 @@ import { serviceErrorText, t } from '../../i18n/index.ts'
 import { MODEL_TEXT, READING_PLACE } from '../../i18n/locales/model.ts'
 import { messageRole, messageText } from '../data/feed.ts'
 import type { Identity, Reading, ReadingSection } from '../data/client.ts'
+import { widgetTitleOf } from './widget-params.ts'
 
 /** Whitespace runs collapse to one space; quotes match on this form. */
 export const squash = (text: string) => text.replace(/\s+/g, ' ').trim()
@@ -35,6 +36,11 @@ export const sectionLabel = (section: Pick<ReadingSection, 'ord' | 'title'>) => 
 
 export function askText(quote: string, section: string, item: string, words: string) {
   return MODEL_TEXT.askReading(squash(quote), section, item, words.trim())
+}
+
+/** A question asked from a widget: its quote is the two program lines of widgetQuote, each kept on its own line */
+export function askWidgetText(quote: string, section: string, item: string, words: string) {
+  return MODEL_TEXT.askReading(quote.split('\n').map(squash).filter(Boolean).join('\n'), section, item, words.trim())
 }
 
 /** A user message written by askText, read back; anything else is null. */
@@ -107,10 +113,17 @@ export function footprintRanges(text: string, quotes: string[]): { start: number
   return ranges.sort((a, b) => a.start - b.start)
 }
 
-/** Questions that belong to this reading: asked about its material, with a quote found in one of its prose paragraphs. */
+/** Questions that belong to this reading: asked about its material, with a quote found in one of its prose paragraphs, or asked from one of its widgets
+ *  (same section label and widget title; an untitled widget goes by the `widgetIdle` name, as its question did). */
 export function readingAsks(reading: Reading, asks: Ask[]): Ask[] {
   const texts = reading.sections.flatMap(section => section.paragraphs.flatMap(paragraph => 'text' in paragraph ? [squash(prose(paragraph.text).text)] : []))
-  return asks.filter(ask => ask.item === reading.itemTitle && texts.some(text => text.includes(ask.quote)))
+  const idle = t().studio.reading.widgetIdle
+  const widgets = new Set(reading.sections.flatMap(section => section.paragraphs.flatMap(paragraph => paragraph.kind === 'widget' ? [`${sectionLabel(section)}\n${paragraph.title || idle}`] : [])))
+  return asks.filter(ask => {
+    if (ask.item !== reading.itemTitle) return false
+    const widget = widgetTitleOf(ask.quote)
+    return widget !== null ? widgets.has(`${ask.section}\n${widget}`) : texts.some(text => text.includes(ask.quote))
+  })
 }
 
 function record(value: unknown): Record<string, unknown> {

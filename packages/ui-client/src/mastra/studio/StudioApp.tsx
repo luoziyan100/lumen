@@ -31,7 +31,7 @@ import { Settings } from '../views/Settings'
 import { Board } from './Board'
 import { Materials, useMaterials } from './Materials'
 import { ReadingView, type AskTarget } from './Reading'
-import { answered, askText, asksOf, latestReadingWrite, readingSignal, sameAsks, sendErrorText, type Ask } from './reading-ask'
+import { answered, askText, askWidgetText, asksOf, latestReadingWrite, readingSignal, sameAsks, sendErrorText, type Ask } from './reading-ask'
 import { useReading, useTopicAsks } from './useReading'
 import { Sprite, useSessions, type SpriteBox } from './Sprite'
 import { Takeaways } from './Takeaways'
@@ -207,7 +207,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const opened = reading?.target.scope === 'library' ? reading.target.path : null
   const startItem = materials.items.find(item => item.id === (readingItem ?? opened)) ?? (materials.items.length === 1 ? materials.items[0]! : null)
   async function askReading(target: AskTarget, words: string) {
-    const failure = await say(target.identity, askText(target.quote, target.section, readings.reading?.itemTitle ?? '', words))
+    const failure = await say(target.identity, (target.widget ? askWidgetText : askText)(target.quote, target.section, readings.reading?.itemTitle ?? '', words))
     if (!failure && chatShown) setReveal({ messageId: null, nonce: Date.now() })
     return failure
   }

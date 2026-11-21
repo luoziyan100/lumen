@@ -1,8 +1,9 @@
 /**
- * [INPUT]: studio/db's connection and transaction, the R15 refusal, studio/types's ReadingParagraph union
+ * [INPUT]: studio/db's connection and transaction, the R15 refusal, studio/types's ReadingParagraph union, studio/widget-check's param shape, param caps and html self-check
  * [OUTPUT]: ReadingStore (write = append or replace one section; insert = add one prose/table/diagram/widget block into an existing section after a given block or at the end; view; list, newest first),
  *           READING_LIMITS, readingBlockInput, readingInput, readingInsertInput, normalizeQuote / quoteFound
  * [POS]: the only writer of readings. The AI reaches it through reading_write / reading_insert after the tool has checked every paper quote against the material's text;
+ *        a widget block passes widget-check (declared params, compile-only html check) before anything is stored;
  *        the user only reads it over HTTP. A reading belongs to one (topic, library item) pair; pre-visual rows without `kind` read as prose text
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -12,6 +13,7 @@ import { z } from 'zod'
 import { transaction } from './db.ts'
 import { notReferenced, StudioError } from './errors.ts'
 import type { Reading, ReadingParagraph, ReadingSection, ReadingSource, ReadingSummary } from './types.ts'
+import { checkWidgetHtml, normalizeParams, widgetParamInput } from './widget-check.ts'
 
 export const READING_LIMITS = {
   sections: 12,
@@ -59,6 +61,7 @@ const widgetBlockInput = z.object({
   kind: z.literal('widget'),
   title: optionalTitle,
   html: z.string(),
+  params: z.array(widgetParamInput).optional(),
   caption: optionalCaption,
   source,
 }).strict()
@@ -136,7 +139,9 @@ function normalizeBlock(block: ReadingBlockInput, index: number): ReadingParagra
   if (!html) throw new StudioError(`第 ${n} 块小部件的 html 是空的`, 400, 'reading.block_invalid', { paragraph: n, kind: 'widget' })
   if (Buffer.byteLength(html) > READING_LIMITS.widgetBytes)
     throw new StudioError(`第 ${n} 块小部件超过 ${Math.round(READING_LIMITS.widgetBytes / 1024)}KB；保持轻量`, 400, 'reading.block_invalid', { paragraph: n, kind: 'widget' })
-  return { id: shortId('p'), kind: 'widget', ...(title ? { title } : {}), html, ...(caption ? { caption } : {}), source: normalizedSource }
+  const params = block.params?.length ? normalizeParams(block.params, n) : undefined
+  checkWidgetHtml(html, n, !!params)
+  return { id: shortId('p'), kind: 'widget', ...(title ? { title } : {}), html, ...(params ? { params } : {}), ...(caption ? { caption } : {}), source: normalizedSource }
 }
 
 function section(row: Record<string, SQLOutputValue>): ReadingSection {

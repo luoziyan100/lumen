@@ -53,6 +53,8 @@ export const en = {
       openSource: 'Open the paper alongside',
       footprint: 'You asked about this sentence. Open the exchange',
       widgetIdle: 'Interactive widget', widgetRun: 'Open', widgetExpand: 'Expand', widgetCollapse: 'Restore (Esc)',
+      widgetAsk: 'Ask AI about this widget', widgetFootprint: 'You asked about this widget. Open the exchange', widgetControls: 'Widget controls',
+      widgetFailed: "This widget didn't start", widgetFix: 'Ask AI to fix',
       ask: {
         label: 'Ask the AI about this sentence', placeholder: 'Ask about this sentence', send: 'Send', close: 'Close',
         keep: 'Save my words as a takeaway', kept: 'Saved as your takeaway', keepFailed: "Couldn't save it: ",

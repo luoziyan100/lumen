@@ -6,7 +6,15 @@
  *           input and send button pass elementFromPoint and which never covers the selected sentence (below, or above near the bottom); the reply arrives in the window;
  *           no text line in view runs under the sprite's figure (top and bottom of the reading);
  *           a footprint on a sentence that starts mid-line leaves the paragraph's line count unchanged and its first line box on the line of the text before it (G4); footprints from earlier page loads are rebuilt; the header holds the title only; the empty state is the typewriter alone;
- *           in-place widget expand/collapse (position:fixed solid light stage above side panes/sprite, state preserved, single iframe load, button + iframe-focused Esc restore height & scrollTop, inline iframe Esc no-op, 8b13fde user-activation gate + R13 marker in expanded state, split-reader convergence); the live write from the Materials row (zh 1440 light)
+ *           in-place widget expand/collapse (position:fixed solid light stage above side panes/sprite, state preserved, single iframe load, button + iframe-focused Esc restore height & scrollTop, inline iframe Esc no-op, 8b13fde user-activation gate + R13 marker in expanded state, split-reader convergence); the live write from the Materials row (zh 1440 light);
+ *           widget params (2026-11-20): a seeded three-param widget in section 3 — every pass: the host-drawn control row sits outside the iframe under the widget, each control passes
+ *           elementFromPoint, no overflow, clear of the sprite, the ask button is reachable; the two widget passes: range/toggle/choice changes reach the page (its #seen node), expand
+ *           and collapse keep values with no reload, a reload restores them, a widget question opens its window under the widget (anchored to the live box) and sends 「小实验「…」」
+ *           plus 「当前参数：…」 matching the controls, the answer shows in the window only, a footprint mark appears and reopens the exchange; once, the model rewrites the section
+ *           (same names, max 10 → 6: values kept, the out-of-range one clamped) and inserts a widget that throws: the quiet failure line and 「请 AI 修正」 appear on that widget only,
+ *           the fix request reaches the conversation (Chromium carries the error text; WebKit mutes the opaque-origin sandbox's own inline-script errors to "Script error.",
+ *           which the request carries as given) and never sediment; with the conversation open a widget footprint reveals its question there, the window shows no answers,
+ *           and a send closes it. The deliberate widget's runtime error is the only script error tolerated
  * [POS]: an acceptance script that swaps the model network only and touches no product protocol; screenshots land in the evidence directory, never in the repo
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -21,6 +29,8 @@ import { publishDiscovery, removeDiscovery } from '../../../mastra-service/src/d
 import { fixtureProvider, textReply, toolReply } from '../../../mastra-service/tests/provider-fixture.ts'
 import { pagedPdf } from '../../../mastra-service/tests/studio/library-fixtures.ts'
 import { ensureTopic } from '../../../mastra-service/tests/topic-fixture.ts'
+import { DEFAULT_SHAPE, SPRITE_KEY } from '../../src/mastra/studio/sprite-place.ts'
+import { messageRole, messageText } from '../../src/mastra/data/feed.ts'
 
 const out = process.argv[2]
 if (!out) throw new Error('evidence dir required')
@@ -33,6 +43,27 @@ const root = assertRoot('/tmp/lumen-p1-reading-data')
 assertPortFree(port)
 const TOPIC = '自由能读书', EMPTY = '还没读的主题'
 const ANSWER = 'KL 散度非负，所以自由能总在惊讶之上。压低它，就压住了惊讶。'
+const WIDGET_ANSWER = '增益越大，预测误差被放得越大，表征更新就越猛。'
+const PARAM_TITLE = '参数小实验：增益与反馈'
+const FIX_MARK = '解读里的小实验运行出错：'
+/** Set by the seed: where the params widget lives, so the model can rewrite its section and insert next to it */
+const seeded = { itemId: '', sectionId: '', paragraphs: [] }
+const paramsOf = max => [
+  { type: 'range', name: 'gain', label: '增益', min: 0, max, step: 1, default: 3, unit: 'x' },
+  { type: 'toggle', name: 'feedback', label: '反馈', default: false },
+  { type: 'choice', name: 'mode', label: '模式', options: [{ value: 'fast', label: '快' }, { value: 'slow', label: '慢' }], default: 'slow' },
+]
+const PARAM_HTML = `<div style="padding:12px 16px;font:14px system-ui,sans-serif;color:#1f1d1a;background:#fbfaf7">
+  <svg viewBox="0 0 600 60" style="width:100%;height:auto;display:block"><rect id="bar" x="10" y="20" width="90" height="20" rx="4" fill="#256f6c"/></svg>
+  <pre id="seen" style="margin:8px 0 0;font:12px monospace"></pre>
+</div>
+<script>
+function show(p) { document.getElementById('seen').textContent = JSON.stringify(p); document.getElementById('bar').setAttribute('width', String(10 + p.gain * 50)) }
+show(window.lumenParams);
+window.addEventListener('lumen:params', function (e) { show(e.detail) });
+</script>`
+const paramWidget = max => ({ kind: 'widget', title: PARAM_TITLE, html: PARAM_HTML, params: paramsOf(max), caption: '控件由宿主画在下方', source: { kind: 'inference' } })
+const BROKEN = { kind: 'widget', title: '会出错的小实验', html: '<div id="x">坏</div><script>document.getElementById("x").textContent = missingValue.length</script>', source: { kind: 'inference' } }
 const results = []
 let failed = 0
 let failure = ''
@@ -65,6 +96,12 @@ const model = (() => {
         { text: '笔记没有给出证据，只是转述；要判断这句话，得回到原论文。', source: { kind: 'inference' } }] })
       if (results === 1) { await new Promise(resolve => setTimeout(resolve, 1500)); return call('reading_write', { itemId: item, title: '它没说什么', paragraphs: [{ text: '笔记没说预测从哪里来，也没说落差如何被测量。', source: { kind: 'inference' } }] }) }
       return textReply('写好了，两节。')
+    }
+    if (text.includes(FIX_MARK)) return textReply('收到，我来修这一块。')
+    if (text.includes('小实验「')) {
+      if (text.includes('上限调小') && results === 0) return call('reading_write', { itemId: seeded.itemId, sectionId: seeded.sectionId, title: TITLES[2], paragraphs: seeded.paragraphs.map(block => block.kind === 'widget' ? paramWidget(6) : { ...block, source: { kind: 'inference' } }) })
+      if (text.includes('加一个会出错的') && results === 0) return call('reading_insert', { itemId: seeded.itemId, sectionId: seeded.sectionId, block: BROKEN })
+      return textReply(WIDGET_ANSWER)
     }
     if (text.includes('— 解读《')) return textReply(ANSWER)
     if (text.includes('— 小实验')) return textReply('收到小实验参数。')
@@ -126,7 +163,9 @@ for (const [i, title] of TITLES.entries()) {
     { text: `第 ${i + 1} 节的第三段把前两段连起来：原文用的是“${pages[i]![0]}”这句话来立论，我们读到这里应当能说清楚，它到底在主张什么、又没有主张什么。`, source: { kind: 'paper', page: i + 1, quote: pages[i]![0]! } },
   ]
   if (i === 1) paragraphs.splice(1, 0, { kind: 'widget', title: '2D 活结构图：预测误差增益', html: WIDGET_HTML, caption: '拖动滑块看表征更新，点放大展开', source: { kind: 'inference' } })
-  studio.readings.write('fe', pdf.item.id, { title, paragraphs }, { threadId: null, runId: null })
+  if (i === 2) paragraphs.splice(1, 0, paramWidget(10))
+  const written = studio.readings.write('fe', pdf.item.id, { title, paragraphs }, { threadId: null, runId: null })
+  if (i === 2) Object.assign(seeded, { itemId: pdf.item.id, sectionId: written.sectionId, paragraphs })
 }
 
 // ---- The vite dev page (the discovery file points at the isolated service) ----
@@ -213,6 +252,36 @@ const textLines = (page, paragraph, from, to) => page.evaluate(([index, start, e
   return { lines, spanLines: span.length, spanTop: span[0], beforeTop: Math.round(before.top), beforeRight: before.right }
 }, [paragraph, from, to])
 const rect = (page, selector) => page.evaluate(target => { const r = document.querySelector(target)?.getBoundingClientRect(); return r ? { left: r.left, right: r.right, top: r.top, bottom: r.bottom } : null }, selector)
+// ---- Widget params helpers: the params widget's figure, its iframe page's view of the values, its messages over HTTP ----
+const paramFigure = page => page.locator('.reading-block-widget').filter({ has: page.locator('.reading-widget-name', { hasText: PARAM_TITLE }) })
+async function paramFrame(page) {
+  for (let attempt = 0; attempt < 80; attempt++) {
+    const handle = await paramFigure(page).locator('iframe').elementHandle().catch(() => null)
+    const frame = await handle?.contentFrame().catch(() => null)
+    if (frame && await frame.locator('#seen').count().catch(() => 0) > 0 && (await frame.locator('#seen').textContent().catch(() => '')).startsWith('{')) return frame
+    await page.waitForTimeout(150)
+  }
+  throw new Error('params widget frame with #seen never showed values')
+}
+const seenIn = async frame => JSON.parse(await frame.locator('#seen').textContent())
+const controls = page => paramFigure(page).evaluate(figure => {
+  const row = figure.querySelector('.reading-widget-params'), iframe = figure.querySelector('iframe')
+  const range = row?.querySelector('[data-param="gain"] input')
+  return row ? { gain: Number(range.value), max: Number(range.max), feedback: row.querySelector('[data-param="feedback"] [role="switch"]')?.getAttribute('aria-checked') === 'true',
+    mode: row.querySelector('[data-param="mode"] button')?.textContent?.trim() ?? '', readout: row.querySelector('[data-param="gain"] output')?.textContent ?? '',
+    below: row.getBoundingClientRect().top >= iframe.getBoundingClientRect().bottom - 1, overflow: row.scrollWidth > row.clientWidth + 1 } : null
+})
+async function userMessages() {
+  const sessions = (await (await fetch(`http://127.0.0.1:${address.port}/lumen/topics/fe/sessions`, { headers: { Authorization: `Bearer ${lock.identity}` } })).json()).items
+  const texts = []
+  for (const s of sessions) {
+    const id = encodeURIComponent(`fe:${s.taskId}`)
+    const messages = (await (await fetch(`http://127.0.0.1:${address.port}/api/agent-controller/lumen/sessions/${id}/threads/${id}/messages`, { headers: { Authorization: `Bearer ${lock.identity}` } })).json()).messages ?? []
+    for (const message of messages) if (messageRole(message) === 'user') texts.push(messageText(message))
+  }
+  return texts
+}
+let mutated = false
 
 try {
   const matrix = useWebkit
@@ -360,12 +429,12 @@ try {
 
     // ---- E1/E2/E3: explorable widget wide layout, in-place expand (state preserved, single load, solid light surface, 8b13fde gate), Esc restore & split-view convergence ----
     if ((locale === 'zh' && w === 1440 && !dark) || (locale === 'en' && w === 1280 && dark)) {
-      await page.locator('.reading-block-widget').scrollIntoViewIfNeeded()
+      await page.locator('.reading-block-widget').first().scrollIntoViewIfNeeded()
       await page.waitForTimeout(400)
       let frame = null
       for (let attempt = 0; attempt < 60; attempt++) {
         const candidates = [
-          await page.locator('.reading-block-widget iframe').elementHandle().then(h => h?.contentFrame()).catch(() => null),
+          await page.locator('.reading-block-widget iframe').first().elementHandle().then(h => h?.contentFrame()).catch(() => null),
           ...page.frames().filter(item => !item.isDetached() && item.url().includes('widget-receiver.html')),
         ].filter(Boolean)
         for (const candidate of candidates) {
@@ -487,7 +556,7 @@ try {
       // Split reader convergence: open PDF alongside and check no overflow
       await page.locator('.reading-section .reading-chip').first().click()
       await page.waitForSelector('.studio-split')
-      await page.locator('.reading-block-widget').scrollIntoViewIfNeeded()
+      await page.locator('.reading-block-widget').first().scrollIntoViewIfNeeded()
       await page.waitForTimeout(300)
       const splitInfo = await page.evaluate(() => {
         const scroller = document.querySelector('.reading-scroll')
@@ -502,6 +571,162 @@ try {
       await page.waitForTimeout(150)
     }
 
+    // ---- Widget params (every pass): the host draws the controls outside the iframe, under the widget; each hits itself, nothing overflows or sits under the sprite ----
+    await paramFigure(page).scrollIntoViewIfNeeded()
+    await page.waitForTimeout(300)
+    let frame2 = await paramFrame(page)
+    const layout = await paramFigure(page).evaluate(figure => {
+      const hit = element => { if (!element) return false; const r = element.getBoundingClientRect(); const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!at && (at === element || element.contains(at)) }
+      const row = figure.querySelector('.reading-widget-params'), sprite = document.querySelector('.sprite-orb')?.getBoundingClientRect(), view = document.querySelector('.reading-scroll').getBoundingClientRect()
+      const parts = ['[data-param="gain"] input', '[data-param="feedback"] [role="switch"]', '[data-param="mode"] button'].map(selector => row?.querySelector(selector))
+      const under = sprite ? parts.filter(Boolean).some(element => { const r = element.getBoundingClientRect(); return r.left < sprite.right && sprite.left < r.right && r.top < sprite.bottom && sprite.top < r.bottom }) : false
+      const box = row?.getBoundingClientRect()
+      return { row: !!row, inIframe: !!row?.closest('iframe'), hits: parts.map(hit), under, inside: !!box && box.left >= view.left - 1 && box.right <= view.right + 1, ask: hit(figure.querySelector('.reading-widget-ask')) }
+    })
+    const look = await controls(page)
+    check(`${tag} 参数控件画在小实验下方、iframe 之外`, layout.row && !layout.inIframe && look.below, JSON.stringify({ ...layout, below: look.below }))
+    check(`${tag} 三个控件各自经 elementFromPoint 命中自己`, layout.hits.every(Boolean), JSON.stringify(layout.hits))
+    check(`${tag} 控件行不溢出、在视图内、不被精灵挡住`, !look.overflow && layout.inside && !layout.under, JSON.stringify({ overflow: look.overflow, inside: layout.inside, under: layout.under }))
+    check(`${tag} 提问按钮可点`, layout.ask)
+    await paramFigure(page).screenshot({ path: name('params-row') })
+
+    if ((locale === 'zh' && w === 1440 && !dark) || (locale === 'en' && w === 1280 && dark)) {
+      // ---- Drag, flip, pick: the page inside the iframe reads what the controls show ----
+      await page.evaluate(() => { const iframe = [...document.querySelectorAll('.reading-block-widget iframe')].find(node => node.closest('.reading-block-widget').textContent.includes('参数小实验')); window.__paramReloads = 0; iframe.addEventListener('load', () => { window.__paramReloads++ }) })
+      const range = paramFigure(page).locator('[data-param="gain"] input')
+      await range.focus()
+      await page.keyboard.press('End')
+      await page.keyboard.press('ArrowLeft')
+      await page.keyboard.press('ArrowLeft')
+      const startFeedback = (await controls(page)).feedback
+      await paramFigure(page).locator('[data-param="feedback"] [role="switch"]').click()
+      await paramFigure(page).locator('[data-param="mode"] button').click()
+      await page.locator('[role="option"]', { hasText: '快' }).click()
+      await page.waitForTimeout(250)
+      const set = await controls(page), seen = await seenIn(frame2)
+      const target = { gain: set.max - 2, feedback: !startFeedback, mode: 'fast' }
+      check(`${tag} 拖滑块、拨开关、选选项后页面读到的值与控件一致`, JSON.stringify(seen) === JSON.stringify(target) && set.gain === target.gain && set.feedback === target.feedback && set.mode === '快' && set.readout === `${target.gain}x`, JSON.stringify({ seen, set }))
+      // ---- Expanded: the controls travel with the stage and keep their values; collapse loads nothing ----
+      await paramFigure(page).locator('.reading-widget-toggle').click()
+      await page.waitForSelector('.reading-widget.is-expanded .reading-widget-params')
+      await page.waitForTimeout(250)
+      check(`${tag} 放大态控件行随舞台一起走且可点`, await visibleAt(page, '.reading-widget.is-expanded [data-param="gain"] input') && await visibleAt(page, '.reading-widget.is-expanded [data-param="mode"] button'))
+      await page.screenshot({ path: name('params-expanded') })
+      await page.keyboard.press('Escape')
+      await page.waitForFunction(() => !document.querySelector('.reading-widget.is-expanded'))
+      await page.waitForTimeout(250)
+      check(`${tag} 展开再收起后值不变、iframe 只 load 一次`, JSON.stringify(await seenIn(frame2)) === JSON.stringify(target) && await page.evaluate(() => window.__paramReloads) === 0, JSON.stringify({ seen: await seenIn(frame2), reloads: await page.evaluate(() => window.__paramReloads) }))
+      // ---- Reload: the values come back from this device's storage ----
+      await page.reload()
+      await page.waitForSelector('.studio-topics .topic')
+      await page.locator('.studio-topics .topic', { hasText: TOPIC }).click()
+      await page.locator('.material').filter({ hasText: /free energy principle|free-energy/i }).locator('.material-reading').click()
+      await paramFigure(page).waitFor()
+      await paramFigure(page).scrollIntoViewIfNeeded()
+      frame2 = await paramFrame(page)
+      check(`${tag} 刷新后值仍在`, JSON.stringify(await seenIn(frame2)) === JSON.stringify(target), JSON.stringify(await seenIn(frame2)))
+
+      // ---- Ask from the widget (conversation closed): the window opens under it, never over its bar; the message carries the title and the values ----
+      await paramFigure(page).locator('.reading-widget-ask').click()
+      await page.waitForSelector('.reading-ask[data-placed="true"]')
+      await page.waitForTimeout(150)
+      const askBox = await rect(page, '.reading-ask'), bar = await paramFigure(page).locator('.reading-widget-bar').boundingBox(), stage = await paramFigure(page).locator('.reading-widget').boundingBox()
+      const barRect = { left: bar.x, right: bar.x + bar.width, top: bar.y, bottom: bar.y + bar.height }
+      check(`${tag} 小实验提问小窗在小实验下方、不遮标题栏`, !overlaps(askBox, barRect) && askBox.top >= stage.y + stage.height - 1, `win ${Math.round(askBox.top)} stage-bottom ${Math.round(stage.y + stage.height)}`)
+      check(`${tag} 小实验提问小窗、输入、发送可点`, await visibleAt(page, '.reading-ask textarea') && await visibleAt(page, '.reading-ask-send'))
+      await page.screenshot({ path: name('params-ask') })
+      const words = locale === 'zh' ? '为什么增益大了会更陡？' : 'Why is it steeper with more gain?'
+      await page.fill('.reading-ask textarea', words)
+      await page.waitForSelector('.reading-ask-send:not([disabled])', { timeout: 30000 })
+      await page.press('.reading-ask textarea', 'Enter')
+      await page.waitForFunction(answer => [...document.querySelectorAll('.reading-ask-reply')].some(node => node.textContent.includes(answer)), WIDGET_ANSWER, { timeout: 30000 })
+      const line = `当前参数：增益=${target.gain}x，反馈=${target.feedback ? '开' : '关'}，模式=快`
+      const sent = (await userMessages()).find(text => text.includes(words))
+      check(`${tag} 发出的消息带小实验标题与控件一致的当前参数`, !!sent && sent.startsWith(`> 小实验「${PARAM_TITLE}」\n> ${line}\n— 解读《`), JSON.stringify(sent?.slice(0, 120)))
+      check(`${tag} 大窗关着时回答只在小窗里`, !(await page.$('.sprite .mw-assistant')) || !(await page.isVisible('.sprite .mw-assistant')))
+      await page.keyboard.press('Escape')
+      await paramFigure(page).locator('.reading-widget-footprint').waitFor({ timeout: 10000 })
+      check(`${tag} 提问后标题栏出现足迹标记`, await visibleAt(page, '.reading-widget-footprint'))
+      await paramFigure(page).locator('.reading-widget-footprint').click()
+      await page.waitForSelector('.reading-ask[data-placed="true"]')
+      check(`${tag} 点足迹标记重开这段问答（与文字足迹相同）`, await page.evaluate(([w, answer]) => [...document.querySelectorAll('.reading-ask-you')].some(node => node.textContent.includes(w)) && [...document.querySelectorAll('.reading-ask-reply')].some(node => node.textContent.includes(answer)), [words, WIDGET_ANSWER]))
+
+      if (!mutated) {
+        mutated = true
+        // ---- The model rewrites the section (same names, gain max 10 → 6): values stay, the out-of-range one is clamped ----
+        await page.fill('.reading-ask textarea', '请把增益的上限调小')
+        await page.waitForSelector('.reading-ask-send:not([disabled])', { timeout: 30000 })
+      await page.press('.reading-ask textarea', 'Enter')
+        await page.waitForFunction(() => Number(document.querySelector('[data-param="gain"] input')?.max) === 6, null, { timeout: 30000 })
+        await page.keyboard.press('Escape')
+        frame2 = await paramFrame(page)
+        await page.waitForTimeout(300)
+        const rewritten = await controls(page), seenAfter = await seenIn(frame2)
+        check(`${tag} 整节重写后值保留、越界的被夹回`, rewritten.gain === 6 && rewritten.feedback === target.feedback && rewritten.mode === '快' && JSON.stringify(seenAfter) === JSON.stringify({ ...target, gain: 6 }), JSON.stringify({ rewritten, seenAfter }))
+        check(`${tag} 重写后足迹仍在`, await visibleAt(page, '.reading-widget-footprint'))
+        // ---- The model inserts a widget that throws at runtime ----
+        await paramFigure(page).locator('.reading-widget-ask').click()
+        await page.fill('.reading-ask textarea', '再加一个会出错的')
+        await page.waitForSelector('.reading-ask-send:not([disabled])', { timeout: 30000 })
+      await page.press('.reading-ask textarea', 'Enter')
+        await page.waitForSelector('.reading-block-widget:has(.reading-widget-failed)', { timeout: 30000 })
+        await page.keyboard.press('Escape')
+      }
+      // ---- Runtime failure: a quiet line and 「请 AI 修正」; the fix request reaches the conversation and never sediment ----
+      const broken = page.locator('.reading-block-widget:has(.reading-widget-failed)')
+      await broken.waitFor({ timeout: 10000 })
+      const failedAt = await page.evaluate(() => performance.now())
+      void failedAt
+      await broken.scrollIntoViewIfNeeded()
+      check(`${tag} 只有运行期出错的那一个小实验显示失败提示与「请 AI 修正」`, await broken.count() === 1 && (await broken.locator('.reading-widget-name').textContent()) === '会出错的小实验' && (await broken.locator('.reading-widget-failed > span').textContent()) === S.reading.widgetFailed && await visibleAt(page, '.reading-widget-failed button'))
+      await broken.screenshot({ path: name('params-failed') })
+      const fixCount = (await userMessages()).filter(text => text.startsWith(FIX_MARK)).length
+      await broken.locator('.reading-widget-failed button').click()
+      await page.waitForFunction(async ([base, tok, mark, before]) => {
+        const sessions = (await (await fetch(`${base}/lumen/topics/fe/sessions`, { headers: { Authorization: `Bearer ${tok}` } })).json()).items
+        let n = 0
+        for (const s of sessions) {
+          const id = encodeURIComponent(`fe:${s.taskId}`)
+          const messages = (await (await fetch(`${base}/api/agent-controller/lumen/sessions/${id}/threads/${id}/messages`, { headers: { Authorization: `Bearer ${tok}` } })).json()).messages ?? []
+          n += messages.filter(message => JSON.stringify(message).includes(mark)).length
+        }
+        return n > before
+      }, [`http://127.0.0.1:${address.port}`, lock.identity, FIX_MARK, fixCount], { timeout: 15000 })
+      const fix = (await userMessages()).filter(text => text.startsWith(FIX_MARK)).at(-1) ?? ''
+      check(`${tag} 修正请求进对话：写明节、小实验标题与错误原文（${useWebkit ? 'WebKit 只给 Script error.' : 'Chromium 给原文'}）`, fix.includes('「会出错的小实验」') && fix.includes(`3. ${TITLES[2]}`) && (useWebkit ? /missingValue|Script error\./ : /missingValue/).test(fix), JSON.stringify(fix.slice(-260)))
+      const sediment = await (await fetch(`http://127.0.0.1:${address.port}/lumen/topics/fe/sediment`, { headers: { Authorization: `Bearer ${lock.identity}` } })).json()
+      check(`${tag} 修正请求不进沉淀`, !JSON.stringify(sediment).includes(FIX_MARK) && !JSON.stringify(sediment).includes('missingValue'))
+    }
+
+    // ---- Conversation open (the two widget passes): a widget question lands there, the window closes on send, answers are not shown twice; the footprint reveals it ----
+    if ((locale === 'zh' && w === 1440 && !dark) || (locale === 'en' && w === 1280 && dark)) {
+      await page.evaluate(([key, shape]) => localStorage.setItem(key, JSON.stringify({ ...shape, open: true, docked: true })), [SPRITE_KEY, DEFAULT_SHAPE])
+      await page.reload()
+      await page.waitForSelector('.studio-topics .topic')
+      await page.locator('.studio-topics .topic', { hasText: TOPIC }).click()
+      await page.waitForSelector('.sprite .mw-message', { timeout: 15000 }).catch(() => null)
+      await page.waitForTimeout(800)
+      await page.locator('.material').filter({ hasText: /free energy principle|free-energy/i }).locator('.material-reading').click()
+      await paramFigure(page).waitFor()
+      await paramFigure(page).scrollIntoViewIfNeeded()
+      await page.waitForSelector('.sprite .mw-message', { timeout: 15000 }).catch(() => null)
+      await paramFigure(page).locator('.reading-widget-footprint').click()
+      const revealed = await page.waitForFunction(title => document.querySelector('.sprite .mw-message.is-revealed')?.textContent?.includes(title) ?? false, PARAM_TITLE, { timeout: 15000 }).then(() => true, () => false)
+      check(`${tag} 大窗开着时点小实验足迹，大窗跳到那一问`, revealed)
+      check(`${tag} 大窗开着时小窗不重复显示回答`, (await page.$$('.reading-ask-turn')).length === 0)
+      await page.screenshot({ path: name('params-chat-footprint') })
+      check(`${tag} 大窗开着时小窗仍打开供追问`, !!(await page.$('.reading-ask textarea')))
+      const asked = (await page.$$('.sprite .msg-ask-quote')).length
+      const again = locale === 'zh' ? '那反馈关掉呢？' : 'And with feedback off?'
+      await page.fill('.reading-ask textarea', again)
+      await page.waitForSelector('.reading-ask-send:not([disabled])', { timeout: 30000 })
+      await page.press('.reading-ask textarea', 'Enter')
+      await page.waitForFunction(() => !document.querySelector('.reading-ask'), null, { timeout: 10000 })
+      await page.waitForFunction(n => document.querySelectorAll('.sprite .msg-ask-quote').length === n + 1, asked, { timeout: 15000 })
+      await page.waitForFunction(answer => [...document.querySelectorAll('.sprite .mw-assistant')].some(node => node.textContent.includes(answer)), WIDGET_ANSWER, { timeout: 30000 })
+      check(`${tag} 大窗开着时小实验提问发出即关小窗、回答只在大窗里`, !(await page.$('.reading-ask')))
+      await page.screenshot({ path: name('params-chat-open') })
+    }
     // ---- Once: the live write from the Materials row; sections appear while the run goes on ----
     if (pass === 0) {
       await page.locator('.material').filter({ hasText: /notes/i }).locator('.material-reading').click()
@@ -516,12 +741,17 @@ try {
       check(`${tag} 行内按钮变为「打开解读」`, (await page.locator('.material').filter({ hasText: /notes/i }).locator('.material-reading').textContent()) === S.reading.open)
       await page.screenshot({ path: name('live-done') })
     }
-    check(`${tag} 无脚本错误`, !errors.length, errors.join('; ').slice(0, 200))
+    const unexpected = errors.filter(message => !/missingValue/.test(message))
+    check(`${tag} 无脚本错误（故意抛错的小实验 missingValue 除外）`, !unexpected.length, unexpected.join('; ').slice(0, 200))
     await context.close()
     pass++
   }
 } catch (error) {
   failure = error instanceof Error ? `${error.message}\n${error.stack}` : String(error)
+  const tools = model.requests.at(-1)?.messages.filter(message => message.role === 'tool') ?? []
+  failure += `\nlast tool result: ${String(tools.at(-1)?.content ?? '').slice(0, 400)}`
+  failure += `\nlast user: ${JSON.stringify(model.requests.at(-1)?.messages.filter(message => message.role === 'user').at(-1)).slice(0, 600)}`
+  try { failure += `\nstored users: ${JSON.stringify((await userMessages()).slice(-3)).slice(0, 600)}` } catch (e) { failure += `\nstored users failed: ${e}` }
   failed++
 } finally {
   results.forEach(line => console.log(line))

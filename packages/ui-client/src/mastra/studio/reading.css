@@ -1,7 +1,8 @@
 /**
  * [INPUT]: tokens.css / yan-design-system tokens, studio.css's type scale and .source-chip, the appearance pipeline's --font-serif (the reading font setting)
  * [OUTPUT]: the Reading view's styles: the in-view scroller, one centred 960px column whose prose/headings/quotes/tables/diagrams stay within 700px while interactive widgets use the full column width and expand in place (`position: fixed`, solid light surface, `.studio-center:has(.reading-widget.is-expanded)` raised to z-index 50 above glass side panes and floating sprite, same-height slot placeholder); numbered section titles, the paper quote under each sourced block, source chips, footprint underlines (inline, wrapping like text),
- *           the selection window (solid surface, quote clamped to two lines, Markdown replies at window size scrolling inside its max height, growing input) and the material row's reading action;
+ *           the host-drawn widget control row and the quiet runtime-failure line (both inside the stage; light surfaces re-declared when expanded), the widget bar's ask button and footprint mark,
+ *           the selection window (solid surface, quote clamped to two lines and keeping a widget question's line break, Markdown replies at window size scrolling inside its max height, growing input) and the material row's reading action;
  *           the empty view's start block (the 300px typewriter alone, centred)
  * [POS]: Reading.tsx's own sheet next to studio.css; existing tokens only (solid light island for expanded widgets matches .widget-iframe). The window is a control and keeps a solid surface under glass/paper skins
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -42,7 +43,7 @@ html[data-justify="true"] .reading-para { text-align: justify; }
   font: var(--st-body) var(--font-sans); color: var(--text); background: var(--surface-elevated); border: 1px solid var(--border-strong); border-radius: var(--radius-lg); box-shadow: var(--shadow-2); }
 .reading-ask[data-placed="false"] { visibility: hidden; }
 .reading-ask-head { display: flex; align-items: flex-start; gap: 6px; }
-.reading-ask-quote { flex: 1; min-width: 0; margin: 0; padding-left: 8px; border-left: 2px solid var(--border-strong); color: var(--text-soft); font-size: var(--st-note); line-height: 1.5;
+.reading-ask-quote { flex: 1; min-width: 0; margin: 0; padding-left: 8px; border-left: 2px solid var(--border-strong); color: var(--text-soft); font-size: var(--st-note); line-height: 1.5; white-space: pre-line;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .reading-ask-log { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
 .reading-ask-turn > p { margin: 0; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -87,6 +88,15 @@ html[data-justify="true"] .reading-para { text-align: justify; }
 .reading-widget-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--border); background: var(--surface-fill); }
 .reading-widget-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--st-note); font-weight: 500; color: var(--text-soft); }
 .reading-widget-toggle { flex: none; }
+.reading-widget-actions { flex: none; display: flex; align-items: center; gap: 2px; }
+.reading-widget-footprint { color: var(--accent-ink); }
+/* ---- Host-drawn controls under the widget (tokens + Kumo); the row lives inside the stage, so it travels with the expanded view ---- */
+.reading-widget-params { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; padding: 8px 12px; border-top: 1px solid var(--border); background: var(--surface-fill); font: var(--st-note) var(--font-sans); color: var(--text-soft); }
+.widget-param { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.widget-param-label { white-space: nowrap; }
+.widget-param-range input[type="range"] { width: 140px; margin: 0; accent-color: var(--accent-ink); }
+.widget-param-value { min-width: 4ch; font-variant-numeric: tabular-nums; color: var(--text); }
+.reading-widget-failed { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 12px; border-top: 1px solid var(--border); background: var(--surface-card); font: var(--st-note) var(--font-sans); color: var(--text-soft); }
 .reading-widget .widget-frame { margin: 0; border: 0; border-radius: 0; }
 /* Expanded in place via position:fixed: same mounted WidgetFrame/iframe stays alive; solid light surface matches the light widget island even under dark/glass chrome.
    Raise .studio-center above later glass panels (.studio-materials) and floating sprite (.sprite-orb, z-index 30) so WebKit/Chromium paint the expanded stage on top. */
@@ -98,6 +108,9 @@ html[data-justify="true"] .reading-para { text-align: justify; }
 .reading-widget.is-expanded .reading-widget-name { color: #3a3630; }
 .reading-widget.is-expanded .reading-widget-toggle { color: #3a3630; }
 .reading-widget.is-expanded .reading-widget-toggle:hover { background: rgba(31, 29, 26, 0.08); }
+/* The expanded stage is a solid light surface: the control row re-declares the light surfaces it reads, and data-theme re-derives Kumo's colours from them */
+.reading-widget.is-expanded .reading-widget-params, .reading-widget.is-expanded .reading-widget-failed { flex: none; --surface-fill: #f6f4ef; --surface-card: #f6f4ef; --surface-control: #ffffff; --surface-base: #ffffff; --surface-elevated: #ffffff;
+  --text: #1f1d1a; --text-soft: #3a3630; --border: #e2ddd3; --border-strong: #d4cfc4; color-scheme: only light; }
 .reading-widget-backdrop { position: fixed; inset: 0; z-index: 49; background: rgba(16, 18, 22, 0.42); }
 .reading-widget-idle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface-card); font-size: var(--st-body); color: var(--text-soft); }
 .reading-block-caption { margin: 8px 0 0; font-size: var(--st-note); line-height: 1.6; color: var(--text-muted); }
