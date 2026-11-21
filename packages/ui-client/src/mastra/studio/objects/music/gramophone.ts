@@ -1,16 +1,18 @@
 /**
- * [INPUT]: the engraving kit of ./line.ts
+ * [INPUT]: the engraving kit of ./line.ts; the 3D horn of ./horn.ts (hornSvg, hornAt)
  * [OUTPUT]: gramophoneSvg(): GRAMMOFONO · III, a horn gramophone (640×400) for the empty Takeaways view; GRAMOPHONE_CSS; GRAMOPHONE_ARM (pivot, arm length and the solved angles, for the tests)
  * [POS]: music object M3, the counterpart of the press. A near-cubic wooden case (mouldings, corner posts, panelled front and side, winding crank on the right) in cabinet oblique;
  *        the record nearly fills the top face. The top face, the record, the turntable and the tone arm share one plane, projected by one matrix (depth recedes up-right by kx, ky).
  *        The tapered tone arm turns about a swivel at the back right; its angle for a groove radius is solved from two circles (pivot, ARM) and (centre, radius), so the needle lands on the groove.
  *        The soundbox at the arm's end is drawn upright: its group cancels the plane's shear and counter-rotates with the arm, so its face (diaphragm rings, rim screws, needle clamp, needle) always faces the viewer.
- *        The horn's small end rises from the swivel; a bracket from the back of the case carries the horn body in a cradle. DETAIL A magnifies the soundbox at 3:1.
+ *        The horn is a 3D surface on one spine (SPINE): its gooseneck rises from the swivel and bends into a petalled bell that opens toward the viewer's left, so the mouth shows its throat.
+ *        A bracket from the back of the case holds the tube in a cradle solved from the spine (hornAt). DETAIL A magnifies the soundbox at 3:1.
  *        At rest the arm sits on its post off the record. Hover lowers it onto the outer groove, spins the record and sends notes out of the horn into the blank upper left.
  *        Click lets the needle walk inward to the run-out groove
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { circle, curve, dbl, detail, ellipse, hatch, knurl, line, note, path, plate, r, rect, screw, shadow, shadowDef, ticks, type Pt } from './line.ts'
+import { hornAt, hornSvg, type HornSpine } from './horn.ts'
 
 const P = 'gr-'
 const DECK = { cx: 330, cy: 200, kx: .32, ky: .34, w: 100, d: 100, h: 118 }
@@ -106,44 +108,21 @@ function arm() {
 /* ============================================================
    Horn, swivel and bracket
    ============================================================ */
-const BELL = { cx: 186, cy: 96, rx: 98, ry: 70, rot: -16 }
-const bellAt = (deg: number, scale = 1): Pt => {
-  const t = deg * Math.PI / 180, c = Math.cos(BELL.rot * Math.PI / 180), s = Math.sin(BELL.rot * Math.PI / 180)
-  const x = Math.cos(t) * BELL.rx * scale, y = Math.sin(t) * BELL.ry * scale
-  return [BELL.cx + x * c - y * s, BELL.cy + x * s + y * c]
-}
 const SWIVEL = (() => { const p = screenOf(PIVOT.x, PIVOT.y); return { base: p, elbow: [p[0], p[1] - 20] as Pt } })()
-const hornOutline = () => {
-  const [ex, ey] = SWIVEL.elbow, up = bellAt(-76), down = bellAt(64)
-  return `M${r(ex - 3.4)} ${r(ey)}C${r(ex - 6)} ${r(ey - 50)} ${r(up[0] + 110)} ${r(up[1] + 6)} ${r(up[0])} ${r(up[1])}` +
-    `A${BELL.rx} ${BELL.ry} ${BELL.rot} 0 1 ${r(down[0])} ${r(down[1])}C${r(down[0] + 80)} ${r(down[1] - 2)} ${r(ex + 4)} ${r(ey - 22)} ${r(ex + 3.4)} ${r(ey)}Z`
-}
-/** Petal seams, unevenly spaced: the petals are cut by hand */
-const SEAMS = [-64, -50, -31, -18, 2, 15, 33, 50]
+const SPINE: HornSpine = { from: SWIVEL.elbow, mouth: [206, 104, -30], axis: [-.72, -.3, -.62], rise: 64, reach: 150 }
+const CRADLE = (() => { const { p, radius } = hornAt(SPINE, .5); return { x: p[0], y: p[1], r: radius + 1.6 } })()
 
-function horn() {
+function swivel() {
   const [bx, by] = SWIVEL.base, [ex, ey] = SWIVEL.elbow
-  let out = path(`M${r(bx - 7)} ${r(by)}L${r(bx - 3.4)} ${r(ey)}L${r(bx + 3.4)} ${r(ey)}L${r(bx + 7)} ${r(by)}Z`, 'w1 pf') + line(bx - 5, by - 6, bx + 5, by - 6, 'w0') + line(bx - 4, by - 12, bx + 4, by - 12, 'w0')
-  out += ellipse(ex, ey, 4.6, 1.8, 'w1 pf')
-  out += `<path d="${hornOutline()}" class="w2 pf"/>` + hatch(`${P}horn`, [BELL.cx, BELL.cy - 100, 280, 220], 62, 4.2)
-  SEAMS.forEach((deg, i) => {
-    const [x, y] = bellAt(deg), d = `M${r(ex)} ${r(ey - 4)}C${r(ex - 16)} ${r(ey - 46)} ${r(x + 64)} ${r(y + (y - BELL.cy) * .08)} ${r(x)} ${r(y)}`
-    out += i % 2 ? path(d, 'w1') : dbl(d, 1.6, .25)
-  })
-  out += ellipse(BELL.cx, BELL.cy, BELL.rx + 2.6, BELL.ry + 2.6, 'w1 pf', BELL.rot) + ellipse(BELL.cx, BELL.cy, BELL.rx, BELL.ry, 'w1', BELL.rot) + ellipse(BELL.cx, BELL.cy, BELL.rx - 2, BELL.ry - 2, 'w0', BELL.rot)
-  for (const deg of SEAMS) { const [x, y] = bellAt(deg, 1.026), [x2, y2] = bellAt(deg, .97); out += line(x, y, x2, y2, 'w1') }
-  for (const [s, dx] of [[.8, 14], [.6, 27], [.42, 38], [.26, 47]] as const) out += ellipse(BELL.cx + dx, BELL.cy + dx * .26, BELL.rx * s, BELL.ry * s, 'w0', BELL.rot)
-  out += hatch(`${P}throat`, [BELL.cx + 10, BELL.cy - 30, 80, 70], -30, 1.1) + ellipse(BELL.cx + 52, BELL.cy + 14, BELL.rx * .1, BELL.ry * .1, 'if ns', BELL.rot)
-  for (let deg = 104; deg <= 256; deg += 19) { const [x, y] = bellAt(deg, .98), [x2, y2] = bellAt(deg, .3); out += line(x, y, x2 + 46, y2 + 12, 'w0') }
-  return out
+  return path(`M${r(bx - 7)} ${r(by)}L${r(ex - 4.4)} ${r(ey)}L${r(ex + 4.4)} ${r(ey)}L${r(bx + 7)} ${r(by)}Z`, 'w1 pf') + line(bx - 5, by - 6, bx + 5, by - 6, 'w0') + line(bx - 4, by - 12, bx + 4, by - 12, 'w0') + ellipse(ex, ey, 5.4, 2, 'w1 pf')
 }
 
 function bracket() {
-  const cradle: Pt = [298, 92]
-  const foot = screenOf(cradle[0] - DECK.cx - DECK.kx * DECK.d, -DECK.d)
+  const foot = screenOf(CRADLE.x - DECK.cx + DECK.kx * -DECK.d, -DECK.d), { x: cx, y: cy, r: cr } = CRADLE
   let out = path(pts([[foot[0] - 7, foot[1] + 2], [foot[0] + 7, foot[1] + 2], [foot[0] + 5, foot[1] - 4], [foot[0] - 5, foot[1] - 4]]), 'w1 pf')
-  out += dbl(`M${r(foot[0])} ${r(foot[1] - 4)}L${r(cradle[0])} ${r(cradle[1] + 14)}`, 3.2, .3)
-  return out + path(`M${cradle[0] - 9} ${cradle[1] + 14}C${cradle[0] - 9} ${cradle[1] - 14} ${cradle[0] + 9} ${cradle[1] - 14} ${cradle[0] + 9} ${cradle[1] + 14}`, 'w2') + screw(cradle[0], cradle[1] + 14, 1.6, 20)
+  out += dbl(`M${r(foot[0])} ${r(foot[1] - 4)}L${r(cx)} ${r(cy + cr + 3)}`, 3.2, .3)
+  out += path(`M${r(cx - cr)} ${r(cy)}A${r(cr)} ${r(cr)} 0 0 0 ${r(cx + cr)} ${r(cy)}`, 'w2') + path(`M${r(cx - cr - 1.6)} ${r(cy)}A${r(cr + 1.6)} ${r(cr + 1.6)} 0 0 0 ${r(cx + cr + 1.6)} ${r(cy)}`, 'w0')
+  return out + rect(cx - cr - 3, cy - 1.4, 3, 2.8, 'w1 pf') + rect(cx + cr, cy - 1.4, 3, 2.8, 'w1 pf') + screw(cx, cy + cr + 1.2, 1.4, 20)
 }
 
 /* DETAIL A: the soundbox at 3:1 — rim and its screws, the diaphragm's rings, stylus bar, needle clamp with its set screw, the needle in the groove */
@@ -169,10 +148,9 @@ function rising() {
 
 export function gramophoneSvg() {
   const sideClip = pts([screenOf(DECK.w, DECK.d), screenOf(DECK.w, -DECK.d), [screenOf(DECK.w, -DECK.d)[0], screenOf(DECK.w, -DECK.d)[1] + DECK.h], [screenOf(DECK.w, DECK.d)[0], screenOf(DECK.w, DECK.d)[1] + DECK.h]])
-  const defs = `<defs>${shadowDef(`${P}sh`)}<clipPath id="${P}horn"><path d="${hornOutline()}"/></clipPath><clipPath id="${P}side"><path d="${sideClip}"/></clipPath>` +
-    `<clipPath id="${P}throat"><ellipse cx="${BELL.cx + 47}" cy="${BELL.cy + 12}" rx="${r(BELL.rx * .26)}" ry="${r(BELL.ry * .26)}" transform="rotate(${BELL.rot} ${BELL.cx + 47} ${BELL.cy + 12})"/></clipPath></defs>`
-  const body = defs + shadow(`${P}sh`, DECK.cx + 16, DECK.cy + DECK.d * DECK.ky + DECK.h + 16, 170, 12) + bracket() + cabinet() +
-    `<g transform="${MATRIX}">${record()}</g>` + horn() + `<g transform="${MATRIX}">${arm()}</g>` + soundboxDetail() + rising() + plate(560, 386, 'GRAMMOFONO · III')
+  const defs = `<defs>${shadowDef(`${P}sh`)}<clipPath id="${P}side"><path d="${sideClip}"/></clipPath></defs>`
+  const body = defs + shadow(`${P}sh`, DECK.cx + 16, DECK.cy + DECK.d * DECK.ky + DECK.h + 16, 170, 12) + cabinet() +
+    `<g transform="${MATRIX}">${record()}</g>` + swivel() + hornSvg(SPINE) + bracket() + `<g transform="${MATRIX}">${arm()}</g>` + soundboxDetail() + rising() + plate(560, 386, 'GRAMMOFONO · III')
   return `<svg class="mu mu-gramophone" viewBox="0 0 640 400" role="img" aria-hidden="true">${body}</svg>`
 }
 

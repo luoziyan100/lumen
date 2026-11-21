@@ -24,8 +24,11 @@ Motion runs only on hover, `data-open` (click) or `is-typing`. Reduced motion st
   - One stroke table drives both the ink's dashoffset and the pen's keyframes, sampled by arc length. Click turns the right leaf.
 - `gramophone.ts` (`gr-`, 640×400): GRAMMOFONO · III in Takeaways.
   - A near-cubic panelled case with mouldings and corner posts; the record nearly fills the top. The deck is drawn in plan and projected by one oblique matrix, the same projection as the case top. The crank sits on the right face.
-  - The tapered tone arm swings from a swivel that carries the horn. The soundbox at its end cancels the plane transform and counter-rotates with the arm, so it always faces the viewer. A bracket from the back of the case holds the horn. DETAIL A magnifies the soundbox.
+  - The horn lives in `horn.ts`. The tapered tone arm swings from a swivel that carries the horn. The soundbox at its end cancels the plane transform and counter-rotates with the arm, so it always faces the viewer. A bracket from the back of the case holds the horn. DETAIL A magnifies the soundbox.
   - The arm angle for a groove radius is solved from two intersecting circles. Hover sets the needle on the outer groove. Click walks it inward.
+- `horn.ts`: the gramophone's 3D horn.
+  - It sweeps a petalled profile along a 3D cubic spine, projects the mesh orthographically and paints it far to near, so the near wall hides the far one.
+  - Shade is hatch density only: meridian hatching inside, darker toward the throat; ring hatching outside, darker away from the light. The rim is one smooth scalloped ring drawn last.
 - `cello.ts` (`cl-`, 280×340): VIOLONCELLO · IV in Materials.
   - The bow has two poses on one group: leaning, and playing on the contact line.
 - `musicbox.ts` (`mb-`, 260×220): CARILLON · V under the topic list.
