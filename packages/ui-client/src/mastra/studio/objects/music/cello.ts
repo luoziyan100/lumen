@@ -33,7 +33,7 @@ function rising() {
 }
 
 export function celloSvg() {
-  const bowG = `<g class="${P}bow" style="transform-box:view-box;transform-origin:0 0"><g class="${P}bowi">${bow(BOW)}</g></g>`
+  const bowG = `<g class="${P}bow" style="transform-box:view-box;transform-origin:0 0"><g class="${P}bowi">${bow(BOW, P)}</g></g>`
   const body = `<defs>${C.defs}${shadowDef(`${P}sh`)}</defs>` + shadow(`${P}sh`, CX + 30, FLOOR, 110, 9) + floor() + C.markup + rising() + bowG + plate(52, 322, 'VIOLONCELLO · IV', 4.6)
   return `<svg class="mu mu-cello" viewBox="0 0 280 340" role="img" aria-hidden="true">${body}</svg>`
 }

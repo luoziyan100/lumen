@@ -88,7 +88,7 @@ function innerFace() {
 }
 
 function rising() {
-  return TUNE.map((_, k) => `<g class="${P}n ${P}n${k}">${note((['e', 'q', 'e', 'q'] as const)[k % 4]!, 46 - (k % 3) * 4, 100, .7)}</g>`).join('')
+  return TUNE.map((_, k) => `<g class="${P}n ${P}n${k}">${note((['e', 'q', 'e', 'q'] as const)[k % 4]!, 52 - (k % 3) * 4, 100, .7)}</g>`).join('')
 }
 
 export function musicBoxSvg({ words }: { words: BoxWords | null }) {
@@ -109,7 +109,7 @@ const toothRules = TUNE.map((t, k) => `.iso-host[data-open] .mu-box .${P}t${t} {
 export const MUSIC_BOX_CSS = `
 @keyframes ${P}slide { 0% { transform: translateY(0); } 100% { transform: translateY(${r(TUNE.length * SP)}px); } }
 @keyframes ${P}pluck { 0% { transform: none; } 2% { transform: rotate(-9deg); } 5% { transform: rotate(5deg); } 8% { transform: rotate(-3deg); } 11% { transform: rotate(1.4deg); } 14%, 100% { transform: none; } }
-@keyframes ${P}up { 0% { opacity: 0; transform: translate(0, 0); } 6% { opacity: 1; } 40% { opacity: 0; transform: translate(-28px, -66px); } 100% { opacity: 0; transform: translate(-28px, -66px); } }
+@keyframes ${P}up { 0% { opacity: 0; transform: translate(0, 0); } 6% { opacity: 1; } 40% { opacity: 0; transform: translate(-18px, -60px); } 100% { opacity: 0; transform: translate(-18px, -60px); } }
 .mu-box .${P}n { opacity: 0; }
 .mu-box .${P}slit { opacity: 0; transition: opacity 200ms; }
 .iso-host:hover:not([data-open]) .mu-box .${P}slit { opacity: 1; }

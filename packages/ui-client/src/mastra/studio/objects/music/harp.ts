@@ -1,12 +1,12 @@
 /**
  * [INPUT]: the engraving kit of ./line.ts
- * [OUTPUT]: harpSvg(): ARPA · VI, a concert pedal harp in side elevation with a front elevation beside it (640×400) for the empty Map view; HARP_CSS; HARP_STRINGS (40)
+ * [OUTPUT]: harpSvg(): ARPA · VI, a concert pedal harp in side elevation with DETAIL A beside it (640×400) for the empty Map view; HARP_CSS; HARP_STRINGS (40)
  * [POS]: music object M6, the counterpart of the cork board. Each string runs straight down from a tuning pin under the neck (NECK) to an eyelet on the soundboard line (BOARD);
  *        C strings are drawn heavier and F strings dashed, the ink form of the coloured strings. The column carries a fluted shaft and a crown; the base carries seven pedals.
- *        Hover plucks a broken chord string by string, each note rising into the blank between the two elevations. Click runs a glissando across all forty, low to high, once
+ *        Hover plucks a broken chord string by string, each note rising into the blank between the harp and the detail. DETAIL A magnifies the discs and fork pins under the neck. Click runs a glissando across all forty, low to high, once
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
-import { circle, curve, dbl, hatch, inset, knurl, line, note, path, plate, r, rect, rivet, shadow, shadowDef, ticks } from './line.ts'
+import { circle, curve, dbl, detail, hatch, inset, knurl, line, note, path, plate, r, rect, rivet, shadow, shadowDef, ticks } from './line.ts'
 
 const P = 'hp-'
 export const HARP_STRINGS = 40
@@ -75,29 +75,41 @@ function strings() {
   return out
 }
 
-function front() {
-  const cx = 500, yt = 40, yb = 346
-  let out = `<text x="${cx - 52}" y="${yt - 10}" font-size="4" letter-spacing="1">ELEV · F</text>`
-  const box = `M${cx - 8} ${yt + 40}L${cx + 8} ${yt + 40}L${cx + 34} ${yb}L${cx - 34} ${yb}Z`
-  out += `<path d="${box}" class="w2 pf"/>` + inset(box, `${P}fr`, [2.4, 3.4]) + line(cx, yt + 42, cx, yb - 2, 'w1') + line(cx - 2, yt + 42, cx - 2, yb - 2, 'w0') + line(cx + 2, yt + 42, cx + 2, yb - 2, 'w0')
-  for (let k = 0; k < HARP_STRINGS; k += 2) { const y = yt + 48 + k * 7.2; out += circle(cx, y, .7, 'if ns') }
-  out += rect(cx - 6, yt, 12, 44, 'w1 pf') + path(`M${cx - 8} ${yt}C${cx - 10} ${yt - 10} ${cx + 10} ${yt - 10} ${cx + 8} ${yt}Z`, 'w1 pf') + circle(cx, yt - 12, 2.6, 'w1 pf')
-  out += path(`M${cx - 40} ${yb}L${cx + 40} ${yb}L${cx + 46} ${yb + 16}L${cx - 46} ${yb + 16}Z`, 'w1 pf') + rect(cx - 50, yb + 16, 100, 8, 'w1 pf')
-  for (let x = cx - 48; x < cx + 48; x += 2.6) out += line(x, yb + 17.4, x, yb + 22.6, 'w0')
-  out += line(cx + 64, yt - 12, cx + 64, yb + 24, 'w0') + line(cx + 61, yt - 12, cx + 67, yt - 12, 'w0') + line(cx + 61, yb + 24, cx + 67, yb + 24, 'w0')
-  out += `<rect x="${cx + 60}" y="${(yt + yb) / 2 - 12}" width="8" height="24" class="pf ns"/><text x="${cx + 65.4}" y="${(yt + yb) / 2}" font-size="4.6" letter-spacing="1" text-anchor="middle" transform="rotate(-90 ${cx + 65.4} ${(yt + yb) / 2})">1 880</text>`
-  return out
+/* DETAIL A: the action under the neck at 3:1. Each string leaves its tuning pin, bends at a bridge pin, then passes two brass discs (natural, sharp);
+   a disc whose two fork pins grip the string is engaged (its pedal is down) */
+const WIN = { x: 500, y: 152, r: 62 }
+const MARK = { x: stringX(22) + GAP * .5, y: neckY(stringX(22)) + 6, r: WIN.r / 3 }
+function action() {
+  let c = ''
+  const neckEdge = (x: number) => WIN.y - 30 + (x - WIN.x) * .12
+  c += path(`M${WIN.x - WIN.r} ${WIN.y - WIN.r}L${WIN.x + WIN.r} ${WIN.y - WIN.r}L${WIN.x + WIN.r} ${r(neckEdge(WIN.x + WIN.r))}L${WIN.x - WIN.r} ${r(neckEdge(WIN.x - WIN.r))}Z`, 'w1 pf')
+  c += `<clipPath id="${P}nk"><path d="M${WIN.x - WIN.r} ${WIN.y - WIN.r}L${WIN.x + WIN.r} ${WIN.y - WIN.r}L${WIN.x + WIN.r} ${r(neckEdge(WIN.x + WIN.r))}L${WIN.x - WIN.r} ${r(neckEdge(WIN.x - WIN.r))}Z"/></clipPath>` + hatch(`${P}nk`, [WIN.x - WIN.r, WIN.y - WIN.r, WIN.r * 2, 40], 8, 2.6)
+  c += path(`M${WIN.x - WIN.r} ${r(neckEdge(WIN.x - WIN.r) + 2)}L${WIN.x + WIN.r} ${r(neckEdge(WIN.x + WIN.r) + 2)}L${WIN.x + WIN.r} ${WIN.y + 44}L${WIN.x - WIN.r} ${WIN.y + 44}Z`, 'w1 pf')
+  for (let x = WIN.x - WIN.r + 4; x < WIN.x + WIN.r; x += 9) c += circle(x, WIN.y + 40, .7, 'w0')
+  const xs = [-20, -6.6, 6.6, 20].map(dx => WIN.x + dx)
+  const disc = (x: number, y: number, engaged: boolean) => {
+    const a = (engaged ? 0 : 70) * Math.PI / 180, rad = engaged ? 2.5 : 3.6, ox = Math.cos(a) * rad, oy = Math.sin(a) * rad
+    return circle(x, y, 5.6, 'w1 pf') + circle(x, y, 4.2, 'w0') + knurl(x, y, 5.6, 22, .8) + circle(x + ox, y + oy, 1.3, 'w1 pf') + circle(x - ox, y - oy, 1.3, 'w1 pf')
+  }
+  xs.forEach((x, i) => {
+    const pinY = neckEdge(x) - 14, bridgeY = neckEdge(x) + 9, drop = i % 2 ? 12 : 0
+    const cls = i === 1 ? 'w2' : i === 3 ? 'w1 dash' : 'w1'
+    c += circle(x - 5, pinY, 3.4, 'w1 pf') + rect(x - 6.4, pinY - 1.4, 2.8, 2.8, 'w0 pf') + circle(x - 1.8, bridgeY, 1.6, 'w1 pf')
+    c += disc(x, WIN.y - 2 + drop, i === 2) + disc(x, WIN.y + 22 + drop, i === 0)
+    c += path(`M${r(x - 5 + 3.4)} ${r(pinY)}L${r(x)} ${r(bridgeY - 1)}L${r(x)} ${WIN.y + WIN.r}`, cls)
+  })
+  return detail(`${P}da`, MARK, WIN, 'DETAIL A · 3:1', c)
 }
 
 function rising() {
-  return ARPEGGIO.map((_, k) => `<g class="${P}n ${P}n${k}">${note((['q', 'e', 'q', 'b'] as const)[k % 4]!, 392 + (k % 3) * 10, 236 - k * 12, .85)}</g>`).join('')
+  return ARPEGGIO.map((_, k) => `<g class="${P}n ${P}n${k}">${note((['q', 'e', 'q', 'b'] as const)[k % 4]!, 376 + (k % 3) * 8, 236 - k * 12, .85)}</g>`).join('')
 }
 
 export function harpSvg() {
   const defs = `<defs>${shadowDef(`${P}sh`)}<clipPath id="${P}col"><path d="M150 70L152 336L168 336L170 70Z"/></clipPath>` +
     `<clipPath id="${P}box"><path d="M${BOARD.a[0]} ${BOARD.a[1]}L${BOARD.b[0]} ${BOARD.b[1]}L${BOARD.b[0] + 8} ${BOARD.b[1] + 2}L${BOARD.a[0] + 34} ${BOARD.a[1] + 4}Z"/></clipPath>` +
-    `<clipPath id="${P}fr"><path d="M492 80L508 80L534 346L466 346Z"/></clipPath></defs>`
-  const body = defs + shadow(`${P}sh`, 200, 372, 120, 10) + soundbox() + strings() + column() + neck() + base() + front() + rising() + plate(560, 386, 'ARPA · VI')
+    '</defs>'
+  const body = defs + shadow(`${P}sh`, 200, 372, 120, 10) + soundbox() + strings() + column() + neck() + base() + action() + rising() + plate(560, 386, 'ARPA · VI')
   return `<svg class="mu mu-harp" viewBox="0 0 640 400" role="img" aria-hidden="true">${body}</svg>`
 }
 

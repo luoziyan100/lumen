@@ -3,10 +3,10 @@
  * [OUTPUT]: metronomeSvg(): METRONOMO · VIII, a pyramid metronome with its front cover off (640×400) for the empty All view; METRONOME_CSS
  * [POS]: music object M8, the counterpart of the type case. The rod turns about the pivot (PIVOT) in front of a scale engraved with Maelzel's marks (40–208);
  *        the slider's height on the rod sets the tempo, and the swing period is 60/bpm per beat. Hover swings it at the slider's tempo (72) with a note per beat at each end of the swing.
- *        Click slides the weight down to 120 and the swing quickens. Behind the scale, the clockwork shows as hidden (dashed) wheels; a side elevation sits at the right
+ *        Click slides the weight down to 120 and the swing quickens. Behind the scale, the clockwork shows as hidden (dashed) wheels; DETAIL A at the right magnifies the escapement: the anchor rocks with the rod and the escape wheel steps half a tooth each beat
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
-import { circle, curve, dbl, hatch, knurl, line, note, path, plate, r, rect, screw, shadow, shadowDef, ticks } from './line.ts'
+import { circle, curve, dbl, detail, hatch, knurl, line, note, path, plate, r, rect, screw, shadow, shadowDef, ticks } from './line.ts'
 
 const P = 'mt-'
 const CX = 250, BASE = 352, TOP = 58, PIVOT = 300, ROD = 232
@@ -70,17 +70,37 @@ function rod() {
   return `<g class="${P}rod" style="transform-box:view-box;transform-origin:${CX}px ${PIVOT}px">${out}</g>`
 }
 
-function elevation() {
-  const x0 = 470, yb = BASE - 14, h = yb - TOP
-  let out = `<text x="${x0 - 10}" y="${TOP - 6}" font-size="4" letter-spacing="1">ELEV · C</text>`
-  out += path(`M${x0} ${yb}L${x0 + 20} ${TOP}L${x0 + 34} ${TOP}L${x0 + 66} ${yb}Z`, 'w1 pf') + path(`M${x0 + 20} ${TOP}L${x0 + 27} ${TOP - 16}L${x0 + 34} ${TOP}`, 'w1 pf')
-  out += line(x0 + 4, yb - 8, x0 + 22, TOP + 6, 'w0') + rect(x0 - 8, yb, 82, 6, 'w2 pf') + rect(x0 - 12, yb + 6, 90, 8, 'w1 pf')
-  out += circle(x0 + 52, yb - 40, 6, 'w1 pf') + knurl(x0 + 52, yb - 40, 6, 18, 1.2) + line(x0 + 58, yb - 40, x0 + 74, yb - 40, 'w1') + path(`M${x0 + 74} ${yb - 40}C${x0 + 80} ${yb - 52} ${x0 + 88} ${yb - 46} ${x0 + 84} ${yb - 40}C${x0 + 88} ${yb - 34} ${x0 + 80} ${yb - 28} ${x0 + 74} ${yb - 40}Z`, 'w1 pf')
-  for (let y = TOP + 8; y < yb; y += 6) out += line(x0 + 66 - (yb - y) * 46 / h + 3, y, x0 + 66 - (yb - y) * 46 / h + 7, y + 3, 'w0')
-  const dx = x0 + 104
-  out += line(dx, TOP - 16, dx, yb + 14, 'w0') + line(dx - 3, TOP - 16, dx + 3, TOP - 16, 'w0') + line(dx - 3, yb + 14, dx + 3, yb + 14, 'w0')
-  out += `<rect x="${dx - 4}" y="${(TOP + yb) / 2 - 10}" width="8" height="20" class="pf ns"/><text x="${dx + 1.4}" y="${(TOP + yb) / 2}" font-size="4.6" letter-spacing="1" text-anchor="middle" transform="rotate(-90 ${dx + 1.4} ${(TOP + yb) / 2})">225</text>`
-  return out
+/* DETAIL A: the escapement behind the scale at 3:1. The escape wheel (20 teeth) steps half a tooth each beat; the anchor on the pendulum arbor rocks with the rod */
+const MARK = { x: CX, y: PIVOT + 6, r: 21.3 }, WIN = { x: 516, y: 196, r: 64 }
+const WHEEL = { x: WIN.x, y: WIN.y + 16, r: 34, teeth: 20 }, ANCHOR = { x: WIN.x, y: WIN.y - 30 }
+function escapement() {
+  let c = ''
+  for (let y = WIN.y - WIN.r; y < WIN.y + WIN.r; y += 3.2) c += line(WIN.x - WIN.r, y, WIN.x + WIN.r, y + 1.2, 'w0 mu-gr')
+  c += rect(WIN.x - 52, WIN.y + 46, 104, 6, 'w1 pf') + rect(WIN.x - 52, WIN.y - 52, 104, 5, 'w1 pf')
+  for (const x of [WIN.x - 44, WIN.x + 44]) c += screw(x, WIN.y + 49, 2, 30) + screw(x, WIN.y - 49.5, 2, 80)
+  let teeth = ''
+  for (let i = 0; i < WHEEL.teeth; i++) {
+    const a = i / WHEEL.teeth * Math.PI * 2, b = (i + .62) / WHEEL.teeth * Math.PI * 2, e = (i + 1) / WHEEL.teeth * Math.PI * 2, rr = WHEEL.r - 6
+    teeth += `${i ? 'L' : 'M'}${r(WHEEL.x + Math.cos(a) * rr)} ${r(WHEEL.y + Math.sin(a) * rr)}L${r(WHEEL.x + Math.cos(b) * WHEEL.r)} ${r(WHEEL.y + Math.sin(b) * WHEEL.r)}L${r(WHEEL.x + Math.cos(e) * rr)} ${r(WHEEL.y + Math.sin(e) * rr)}`
+  }
+  let wheel = path(teeth + 'Z', 'w1 pf') + circle(WHEEL.x, WHEEL.y, WHEEL.r - 9, 'w0')
+  for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2 + .3; wheel += dbl(`M${r(WHEEL.x + Math.cos(a) * 6)} ${r(WHEEL.y + Math.sin(a) * 6)}L${r(WHEEL.x + Math.cos(a) * (WHEEL.r - 9))} ${r(WHEEL.y + Math.sin(a) * (WHEEL.r - 9))}`, 3, .3) }
+  wheel += circle(WHEEL.x, WHEEL.y, 6, 'w1 pf') + circle(WHEEL.x, WHEEL.y, 2.4, 'w1 pf') + circle(WHEEL.x, WHEEL.y, .8, 'if ns')
+  c += `<g class="${P}wheel" style="transform-box:view-box;transform-origin:${WHEEL.x}px ${WHEEL.y}px">${wheel}</g>`
+  const pallet = (side: number) => {
+    const a = (-90 + side * 38) * Math.PI / 180, px = WHEEL.x + Math.cos(a) * (WHEEL.r + 6), py = WHEEL.y + Math.sin(a) * (WHEEL.r + 6)
+    return { arm: `M${ANCHOR.x} ${ANCHOR.y}Q${r(ANCHOR.x + side * 30)} ${r(ANCHOR.y + 2)} ${r(px)} ${r(py)}` }
+  }
+  let anchor = ''
+  for (const side of [-1, 1]) {
+    const { arm } = pallet(side)
+    const a = (-90 + side * 38) * Math.PI / 180, ux = Math.cos(a), uy = Math.sin(a), nx = -uy * 1.8, ny = ux * 1.8
+    const at = (rad: number, w: number) => `${r(WHEEL.x + ux * rad + nx * w)} ${r(WHEEL.y + uy * rad + ny * w)}`
+    anchor += dbl(arm, 4.4, .3) + path(`M${at(WHEEL.r - 3, -1)}L${at(WHEEL.r + 7, -1)}L${at(WHEEL.r + 7, 1)}L${at(WHEEL.r - 3, 1)}Z`, 'w1 pf') + path(`M${at(WHEEL.r - 1, 0)}L${at(WHEEL.r + 6, 0)}`, 'w0')
+  }
+  anchor += dbl(`M${ANCHOR.x} ${ANCHOR.y}L${ANCHOR.x} ${WIN.y - WIN.r}`, 3.6, .3) + circle(ANCHOR.x, ANCHOR.y, 5.4, 'w1 pf') + circle(ANCHOR.x, ANCHOR.y, 2.2, 'w0') + screw(ANCHOR.x, ANCHOR.y - 12, 1.6, 0)
+  c += `<g class="${P}anchor" style="transform-box:view-box;transform-origin:${ANCHOR.x}px ${ANCHOR.y}px">${anchor}</g>`
+  return detail(`${P}da`, MARK, WIN, 'DETAIL A · 3:1', c)
 }
 
 function beats() {
@@ -92,14 +112,23 @@ export function metronomeSvg() {
   const yb = BASE - 14
   const defs = `<defs>${shadowDef(`${P}sh`)}<clipPath id="${P}face"><path d="M${CX - 18} ${TOP}L${CX + 18} ${TOP}L${CX + halfW(yb)} ${yb}L${CX - halfW(yb)} ${yb}Z"/></clipPath>` +
     `<clipPath id="${P}side"><path d="M${CX + 18} ${TOP}L${CX + 30} ${TOP + 6}L${CX + halfW(yb) + 14} ${yb}L${CX + halfW(yb)} ${yb}Z"/></clipPath></defs>`
-  const body = defs + shadow(`${P}sh`, CX + 10, BASE + 2, 140, 12) + caseFront() + hidden() + scale() + rod() + beats() + elevation() + plate(CX, 380, 'METRONOMO · VIII')
+  const body = defs + shadow(`${P}sh`, CX + 10, BASE + 2, 140, 12) + caseFront() + hidden() + scale() + rod() + beats() + escapement() + plate(CX, 380, 'METRONOMO · VIII')
   return `<svg class="mu mu-metronome" viewBox="0 0 640 400" role="img" aria-hidden="true">${body}</svg>`
 }
 
 const period = (bpm: number) => r(120 / bpm)
 const noteFrames = `@keyframes ${P}up { 0% { opacity: 0; transform: translate(0, 0); } 6% { opacity: 1; } 44% { opacity: 0; transform: translate(0, -44px); } 100% { opacity: 0; transform: translate(0, -44px); } }`
 
+const STEP = 360 / 20 / 2
+const stepFrames = `@keyframes ${P}step { 0%, 24% { transform: rotate(0deg); } 27%, 74% { transform: rotate(${STEP}deg); } 77%, 100% { transform: rotate(${STEP * 2}deg); } }`
+const rockFrames = `@keyframes ${P}rock { 0% { transform: rotate(0deg); animation-timing-function: ease-out; } 25% { transform: rotate(6deg); animation-timing-function: ease-in-out; } 75% { transform: rotate(-6deg); animation-timing-function: ease-in; } 100% { transform: rotate(0deg); } }`
+
 export const METRONOME_CSS = `
+${stepFrames}
+${rockFrames}
+.iso-host:hover .mu-metronome .${P}wheel { animation: ${P}step ${period(SLOW)}s linear infinite; }
+.iso-host:hover .mu-metronome .${P}anchor { animation: ${P}rock ${period(SLOW)}s linear infinite; }
+.iso-host[data-open]:hover .mu-metronome .${P}wheel, .iso-host[data-open]:hover .mu-metronome .${P}anchor { animation-duration: ${period(FAST)}s; }
 @keyframes ${P}swing { 0% { transform: rotate(0deg); animation-timing-function: ease-out; } 25% { transform: rotate(${SWING}deg); animation-timing-function: ease-in-out; } 75% { transform: rotate(-${SWING}deg); animation-timing-function: ease-in; } 100% { transform: rotate(0deg); } }
 ${noteFrames}
 .mu-metronome .${P}n { opacity: 0; }

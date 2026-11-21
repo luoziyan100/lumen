@@ -1,7 +1,7 @@
 /**
  * [INPUT]: escapeXml from ../iso.ts (the one escape for SVG text)
  * [OUTPUT]: the line-engraving kit of the music set: r (2-decimal rounding), curve (lines and cubics with d, arc-length points and normals), the brushes path/line/circle/ellipse/rect,
- *           dbl (a parallel double line from an ink stroke under a paper stroke), inset (lines at fixed offsets inside a closed shape, clipped to it), ticks (engraved short lines along a
+ *           dbl (a parallel double line from an ink stroke under a paper stroke), detail (a marked spot led to a round magnified window), inset (lines at fixed offsets inside a closed shape, clipped to it), ticks (engraved short lines along a
  *           curve's normals), hatch (parallel lines clipped to a shape), screw / rivet / knurl, note (a quarter, eighth, half or beamed pair drawn as paths), plate (a monospaced label in a
  *           double frame), shadow (a faint ground ellipse from a radial gradient), count (how many drawn primitives a markup holds), buzzFrames / riseFrames (a decaying shake, a one-shot rise inside a loop), MUSIC_BASE (the ink/paper rules every music object shares)
  * [POS]: the base of objects/music/. Ink is var(--text), paper var(--surface-base): every music object follows the skin, a dark skin turns them into light lines on a dark ground.
@@ -117,17 +117,19 @@ const head = (x: number, y: number, s: number, open: boolean) => {
   const e = ellipse(x, y, rx, ry, open ? 'w1 pf' : 'if ns', -22)
   return open ? e + ellipse(x, y, rx * .55, ry * .32, 'if ns', -22) : e
 }
-/** One note with its head centred at (x, y), stem up from the head's right side; s scales it */
+/** One note with its head centred at (x, y), stem up from the head's right side; s scales it. The group is `mu-note`, so the frame checks can find every note */
 export function note(kind: NoteKind, x: number, y: number, s = 1) {
   const sx = x + 3 * s, top = y - 17 * s
+  let out: string
   if (kind === 'b') {
     const x2 = x + 10 * s, y2 = y - 3 * s, sx2 = x2 + 3 * s, top2 = y2 - 17.5 * s
-    return head(x, y, s, false) + head(x2, y2, s, false) + line(sx, y - .8 * s, sx, top, 'w1') + line(sx2, y2 - .8 * s, sx2, top2, 'w1') +
+    out = head(x, y, s, false) + head(x2, y2, s, false) + line(sx, y - .8 * s, sx, top, 'w1') + line(sx2, y2 - .8 * s, sx2, top2, 'w1') +
       path(`M${r(sx)} ${r(top)}L${r(sx2)} ${r(top2)}L${r(sx2)} ${r(top2 + 2.6 * s)}L${r(sx)} ${r(top + 2.6 * s)}Z`, 'if ns')
+  } else {
+    out = head(x, y, s, kind === 'h') + line(sx, y - .8 * s, sx, top, 'w1')
+    if (kind === 'e') out += path(`M${r(sx)} ${r(top)}C${r(sx + 1 * s)} ${r(top + 5 * s)} ${r(sx + 6 * s)} ${r(top + 6 * s)} ${r(sx + 5 * s)} ${r(top + 12 * s)}`, 'w1')
   }
-  let out = head(x, y, s, kind === 'h') + line(sx, y - .8 * s, sx, top, 'w1')
-  if (kind === 'e') out += path(`M${r(sx)} ${r(top)}C${r(sx + 1 * s)} ${r(top + 5 * s)} ${r(sx + 6 * s)} ${r(top + 6 * s)} ${r(sx + 5 * s)} ${r(top + 12 * s)}`, 'w1')
-  return out
+  return `<g class="mu-note">${out}</g>`
 }
 
 /* ============================================================
@@ -139,6 +141,15 @@ export function plate(cx: number, cy: number, label: string, size = 5.2) {
   return rect(x, y, w, h, 'w1 pf', .6) + rect(x + 1.2, y + 1.2, w - 2.4, h - 2.4, 'w0') +
     screw(x + size * .95, cy, size * .32, 20) + screw(x + w - size * .95, cy, size * .32, -40) +
     `<text x="${r(cx)}" y="${r(cy + size * .36)}" font-size="${size}" letter-spacing="${r(size * .22)}" text-anchor="middle">${escapeXml(label)}</text>`
+}
+
+/** A drafting detail: a thin circle marks the spot on the main view, a leader runs to a round window holding the magnified mechanism (content, drawn in window coordinates and clipped to it), labelled under the window */
+export function detail(id: string, mark: { x: number; y: number; r: number }, win: { x: number; y: number; r: number }, label: string, content: string) {
+  const dx = win.x - mark.x, dy = win.y - mark.y, d = Math.hypot(dx, dy), ux = dx / d, uy = dy / d
+  return circle(mark.x, mark.y, mark.r, 'w0') + line(mark.x + ux * mark.r, mark.y + uy * mark.r, win.x - ux * (win.r + 2), win.y - uy * (win.r + 2), 'w0') +
+    `<clipPath id="${id}"><circle cx="${r(win.x)}" cy="${r(win.y)}" r="${r(win.r)}"/></clipPath>` + circle(win.x, win.y, win.r, 'w1 pf') +
+    `<g clip-path="url(#${id})">${content}</g>` + circle(win.x, win.y, win.r, 'w1') + circle(win.x, win.y, win.r + 2, 'w0') +
+    `<text x="${r(win.x)}" y="${r(win.y + win.r + 10)}" font-size="4.4" letter-spacing="1.2" text-anchor="middle">${escapeXml(label)}</text>`
 }
 
 /** The gradient a shadow uses; put it in the object's <defs> */

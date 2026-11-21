@@ -1,7 +1,7 @@
 /**
  * [INPUT]: the engraving kit of ./line.ts
  * [OUTPUT]: bowedBody(spec): the front of a violin-family instrument (body, purfling, grain, f-holes, bridge, fingerboard, pegbox, scroll, tailpiece, strings) plus its geometry
- *           (string x at a depth, bridge and fingerboard-end depths, f-hole eyes, the contact depth for a bow); bow(prefix, L): a bow drawn along +x from tip (0, 0) to frog (L, 0), hair on y = 0
+ *           (string x at a depth, bridge and fingerboard-end depths, f-hole eyes, the contact depth for a bow); bow(L, id): a bow drawn along +x from tip (0, 0) to frog (L, 0), hair on y = 0, with a pointed head, an ebony frog (pearl eye, ferrule, slide) and the screw button
  * [POS]: the shared model of objects/music/violin.ts and cello.ts. One unit outline (body length 1, top at 0) is mirrored about the centre line and scaled, so both instruments
  *        keep the same structure: the bridge stands on the line through the f-hole notches, the fingerboard ends before the bridge, four strings run nut → bridge → tailpiece.
  *        Each string sits in its own group (`${prefix}s${i}`) so the owner can shake it; the bow's hair line is y = 0, so a translate along x keeps the contact point on the strings
@@ -68,20 +68,28 @@ export function bowedBody(spec: BowedSpec) {
   /* ------------------------------ f-holes ------------------------------ */
   const eyes: Pt[] = []
   let fholes = ''
+  const W_MAX = .005 * len, EYE_UP = .0055 * len, EYE_LO = .0075 * len
   for (const side of [1, -1]) {
-    const up = u(side * .072, .45), lo = u(side * .098, .66)
+    const up = u(side * .06, .445), lo = u(side * .106, .655)
     eyes.push(up, lo)
-    const c = curve(u(side * .072, .462), [['C', u(side * .058, .52), u(side * .104, .6), u(side * .098, .645)]])
+    const c = curve([up[0] + side * EYE_UP * .6, up[1]], [
+      ['C', u(side * .078, .445), u(side * .084, .47), u(side * .084, .5)],
+      ['C', u(side * .084, .56), u(side * .086, .605), u(side * .09, .632)],
+      ['C', u(side * .093, .652), u(side * .097, .656), [lo[0] - side * EYE_LO * .6, lo[1]]],
+    ])
     const left: Pt[] = [], right: Pt[] = []
-    for (let s = 0; s <= c.length + 1e-6; s += c.length / 24) {
-      const q = c.at(s), t = s / c.length, w = (.0025 + .0055 * Math.sin(Math.PI * t)) * len
+    for (let i = 0; i <= 32; i++) {
+      const q = c.at(c.length * i / 32), w = .25 + W_MAX * Math.pow(Math.sin(Math.PI * i / 32), .9)
       left.push([q.p[0] + q.n[0] * w, q.p[1] + q.n[1] * w]); right.push([q.p[0] - q.n[0] * w, q.p[1] - q.n[1] * w])
     }
-    const poly = [...left, ...right.reverse()]
-    fholes += path('M' + poly.map(p => `${r(p[0])} ${r(p[1])}`).join('L') + 'Z', 'if ns')
-    fholes += circle(...up, .013 * len, 'if ns') + circle(...up, .013 * len + .9, 'w0') + circle(...lo, .016 * len, 'if ns') + circle(...lo, .016 * len + .9, 'w0')
-    const notch = c.points.reduce((best, p) => Math.abs(p[1] - u(0, BRIDGE)[1]) < Math.abs(best[1] - u(0, BRIDGE)[1]) ? p : best)
-    fholes += line(notch[0] - .016 * len, notch[1] + .004 * len, notch[0] + .016 * len, notch[1] - .004 * len, 'w1')
+    fholes += path('M' + [...left, ...right.reverse()].map(p => `${r(p[0])} ${r(p[1])}`).join('L') + 'Z', 'if ns')
+    fholes += circle(...up, EYE_UP, 'if ns') + circle(...up, EYE_UP + .7, 'w0') + circle(...lo, EYE_LO, 'if ns') + circle(...lo, EYE_LO + .7, 'w0')
+    const mid = c.at(c.length / 2), tx = -mid.n[1], ty = mid.n[0], half = .004 * len, reach = W_MAX + .011 * len
+    for (const dir of [1, -1]) {
+      const base = (k: number): Pt => [mid.p[0] + tx * k * half + mid.n[0] * dir * W_MAX * .8, mid.p[1] + ty * k * half + mid.n[1] * dir * W_MAX * .8]
+      const apex: Pt = [mid.p[0] + mid.n[0] * dir * reach - tx * half * .4, mid.p[1] + mid.n[1] * dir * reach - ty * half * .4]
+      fholes += path(`M${r(base(-1)[0])} ${r(base(-1)[1])}L${r(apex[0])} ${r(apex[1])}L${r(base(1)[0])} ${r(base(1)[1])}Z`, 'if ns')
+    }
   }
 
   /* ------------------------------ fingerboard, neck, pegbox, scroll ------------------------------ */
@@ -158,22 +166,32 @@ export function bowedBody(spec: BowedSpec) {
 }
 
 /* ============================================================
-   Bow · tip at (0, 0), frog at (L, 0); hair on y = 0, the stick above it (−y) with a camber
+   Bow · tip at (0, 0), frog at (L, 0); hair (two lines) on y = 0, the stick above it (−y) with its camber toward the hair.
+   The head is a pointed hatchet with a face plate; the frog is an ebony block with a pearl eye, a metal ferrule where the hair enters,
+   a slide along its underside, and behind it the adjusting screw button. `id` prefixes the frog's clip
    ============================================================ */
-export function bow(L: number) {
+export function bow(L: number, id: string) {
   const s = L / 320
   const lift = (x: number) => -(5.4 - 2.4 * Math.sin(Math.PI * x / L)) * s - 1.4
-  const stick = curve([L * .02, lift(L * .02)], [['C', [L * .3, lift(L * .3)], [L * .6, lift(L * .6)], [L * .9, lift(L * .9)]]])
-  let out = line(L * .025, 0, L * .87, 0, 'w1') + line(L * .025, .9 * s + .2, L * .87, .9 * s + .2, 'w0')
+  const stick = curve([L * .03, lift(L * .03)], [['C', [L * .3, lift(L * .3)], [L * .6, lift(L * .6)], [L * .9, lift(L * .9)]]])
+  const fx = L * .855, fw = L * .085, fy0 = lift(fx) + 1.2 * s, fy1 = 5.2 * s
+  let out = line(L * .02, 0, fx + 1, 0, 'w0') + line(L * .02, 1.1 * s, fx + 1, 1.1 * s, 'w0')
   out += dbl(stick.d, 1.9 * s + .6, .3)
   for (const q of stick.every(9 * s, L * .05, L * .74)) out += line(q.p[0], q.p[1] - .9 * s - .2, q.p[0] + 1.6, q.p[1] + .9 * s + .2, 'w0')
   for (let x = L * .76; x < L * .84; x += 1.1) out += line(x, lift(x) - 1.1 * s - .3, x + .5, lift(x) + 1.1 * s + .3, 'w0')
-  out += path(`M0 ${r(1.2 * s)}L${r(L * .006)} ${r(lift(0) - 2 * s)}L${r(L * .022)} ${r(lift(L * .022) - .6 * s)}L${r(L * .022)} ${r(1.4 * s)}Z`, 'w1 pf') + line(L * .018, lift(L * .018), L * .018, 1.4 * s, 'w0')
-  const fx = L * .855
-  out += path(`M${r(fx)} ${r(lift(fx) + 1)}L${r(L * .95)} ${r(lift(L * .95) + 1)}L${r(L * .95)} ${r(2 * s + 1)}C${r(L * .93)} ${r(5 * s + 1.4)} ${r(L * .89)} ${r(5 * s + 1.4)} ${r(fx)} ${r(1.6 * s + .6)}Z`, 'w1 pf')
-  out += circle(L * .905, lift(L * .905) / 2 + 1.6 * s, 1.5 * s + .5, 'w1 pf') + circle(L * .905, lift(L * .905) / 2 + 1.6 * s, .5 * s + .2, 'if ns')
-  out += rect(fx - .5, 0, L * .015, 1.6 * s + .4, 'w0 pf')
-  for (const x of [L * .955, L * .97, L * .985]) out += line(x, lift(x) - .6, x, lift(x) + 2.2 * s + .6, 'w0')
-  out += rect(L * .95, lift(L * .95) - .4, L * .05, 2.4 * s + 1.4, 'w1 pf', .8)
+  const hy = lift(0)
+  out += path(`M${r(L * .05)} ${r(lift(L * .05) - .8 * s)}C${r(L * .03)} ${r(hy - 1 * s)} ${r(3 * s)} ${r(hy - 6 * s)} ${r(-.8 * s)} ${r(hy - 7.2 * s)}L${r(-.2 * s)} ${r(hy - 5.4 * s)}L${r(1 * s)} ${r(1.8 * s)}L${r(L * .03)} ${r(1.8 * s)}L${r(L * .05)} ${r(lift(L * .05) + 1.2 * s)}Z`, 'w1 pf')
+  out += path(`M${r(.7 * s)} ${r(hy - 5.2 * s)}L${r(1.9 * s)} ${r(1.2 * s)}`, 'w0') + line(1 * s, 1.8 * s, L * .03, 1.8 * s, 'w1')
+  const frog = `M${r(fx)} ${r(fy0)}L${r(fx + fw)} ${r(fy0)}L${r(fx + fw)} ${r(fy1 - 1.2 * s)}C${r(fx + fw * .7)} ${r(fy1 + .6 * s)} ${r(fx + fw * .35)} ${r(fy1 + .6 * s)} ${r(fx + 3 * s)} ${r(fy1 - .4 * s)}L${r(fx)} ${r(1.8 * s)}Z`
+  out += `<clipPath id="${id}frog"><path d="${frog}"/></clipPath><path d="${frog}" class="w1 pf"/>` + hatch(`${id}frog`, [fx - 2, fy0 - 2, fw + 4, fy1 - fy0 + 4], 70, .7 * s + .25)
+  const ex = fx + fw * .55, ey = (fy0 + fy1) / 2 - .4 * s
+  out += circle(ex, ey, 2.2 * s + .4, 'w1 pf') + circle(ex, ey, 1.4 * s + .2, 'w0') + circle(ex, ey, .5 * s + .1, 'w0')
+  out += path(`M${r(fx + 3.4 * s)} ${r(fy1 - .2 * s)}C${r(fx + fw * .4)} ${r(fy1 + .9 * s)} ${r(fx + fw * .7)} ${r(fy1 + .9 * s)} ${r(fx + fw - .6)} ${r(fy1 - .8 * s)}`, 'w0')
+  out += rect(fx - .4, -.8 * s, 2.6 * s, 2.8 * s + .4, 'w1 pf') + line(fx + .9 * s, -.8 * s, fx + .9 * s, 2.4 * s, 'w0')
+  const bx = fx + fw + .6
+  out += rect(bx, lift(bx) - .4, 2.2 * s, 2.6 * s + .8, 'w1 pf')
+  out += rect(bx + 2.2 * s, lift(bx) - .6, L - bx - 2.2 * s, 2.6 * s + 1.2, 'w1 pf', .8)
+  for (let x = bx + 3.4 * s; x < L - 1; x += 1.3 * s + .3) out += line(x, lift(bx) - .2, x, lift(bx) + 2.6 * s + .4, 'w0')
+  out += rect(L - 1.6 * s, lift(bx) - .2, 1.6 * s, 2.6 * s + .4, 'w0 pf')
   return out
 }

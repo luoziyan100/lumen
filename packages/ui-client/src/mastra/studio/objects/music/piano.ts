@@ -2,7 +2,7 @@
  * [INPUT]: the engraving kit of ./line.ts (curve, inset, ticks, dbl, screw, note, plate, shadow, frames)
  * [OUTPUT]: pianoSvg(): PIANO · I, a concert grand in plan (640×400) for the empty Reading view; PIANO_CSS; PIANO_KEYS (the 52 white and 36 black keys it draws, for the tests)
  * [POS]: music object M1, the counterpart of the typewriter. The plan is one model: 88 keys from A0 at the top (bass on the player's left), a straight bass side and a bent treble side,
- *        tuning pins, dampers, trichord treble strings that end on a bridge solved from the bent rim, overstrung bass strings crossing them, the iron frame with its struts and bolts,
+ *        tuning pins, dampers, trichord treble strings that end on a bridge solved from the bent rim, a parallel band of overstrung bass strings crossing them onto their own bridge, hitch pins along the inner rim, the iron frame with its struts and bolts,
  *        hidden lines (dashed) for the music desk, legs and soundboard ribs. Hover plays a phrase: each key goes ink, the string group in line with it shakes, a note rises in the band above.
  *        is-typing keeps playing and draws a staff left to right with the phrase's notes on their pitches. Open raises the lid in the front elevation at the lower right (hinge on the bass side, prop stick)
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -48,7 +48,7 @@ export const PIANO_KEYS = (() => {
 const MELODY = [23, 25, 27, 28, 30, 28, 27, 32]
 const LOOP = 4.8, STEP = LOOP / (MELODY.length + 2)
 const keyV = (k: number) => KEY_V0 + (k + .5) * KW
-const TREBLE_V0 = 72, GROUP = 2.05, GROUPS = Math.floor((204 - TREBLE_V0) / GROUP) + 1
+const TREBLE_V0 = 92, GROUP = 2.05, GROUPS = Math.floor((204 - TREBLE_V0) / GROUP) + 1
 const groupOf = (k: number) => Math.max(0, Math.min(GROUPS - 1, Math.round((keyV(k) - TREBLE_V0) / GROUP)))
 
 function keyboard() {
@@ -81,8 +81,16 @@ function dampers() {
   return out + line(...at(75, TREBLE_V0 - 2), ...at(75, 206), 'w1') + line(...at(82, TREBLE_V0 - 2), ...at(82, 206), 'w0')
 }
 
-const BASS = 22
-const bassEnd = (i: number): Pt => { const t = i / (BASS - 1); return at(230 + 70 * t, 62 + 46 * t) }
+/* Bass strings: one parallel band from the tuning pins near the straight side, crossing over the tenor strings at BASS_ANGLE;
+   each runs until it is HITCH from the case edge (its hitch pin), and stands on a separate bass bridge BASS_BRIDGE before that */
+const BASS = 22, BASS_ANGLE = 11 * Math.PI / 180, HITCH = 9, BASS_BRIDGE = 34
+const rimGap = (p: Pt) => { let m = Infinity; for (const q of CASE.points) m = Math.min(m, Math.hypot(q[0] - p[0], q[1] - p[1])); return m }
+const BASS_RUNS = Array.from({ length: BASS }, (_, i) => {
+  const a = at(86, 14 + i * 2.4), d: Pt = [Math.cos(BASS_ANGLE), Math.sin(BASS_ANGLE)]
+  let t = 60
+  while (rimGap([a[0] + d[0] * t, a[1] + d[1] * t]) > HITCH) t += .5
+  return { a, hitch: [a[0] + d[0] * t, a[1] + d[1] * t] as Pt, bridge: [a[0] + d[0] * (t - BASS_BRIDGE), a[1] + d[1] * (t - BASS_BRIDGE)] as Pt }
+})
 
 function strings() {
   let treble = '', bridge: Pt[] = [], hitch = ''
@@ -96,15 +104,14 @@ function strings() {
   }
   const bridgeD = 'M' + bridge.map(p => `${r(p[0])} ${r(p[1])}`).join('L')
   let bass = '', bassHitch = ''
-  for (let i = 0; i < BASS; i++) {
-    const a = at(84, 12 + i * 2.3), b = bassEnd(i), dx = b[0] - a[0], dy = b[1] - a[1], k = 12 / Math.hypot(dx, dy)
-    bass += line(a[0], a[1], b[0] + dx * k * .3, b[1] + dy * k * .3, 'w1')
-    bassHitch += circle(b[0] + dx * k, b[1] + dy * k, .65, 'if ns')
+  for (const run of BASS_RUNS) {
+    bass += line(run.a[0], run.a[1], run.hitch[0], run.hitch[1], 'w1') + line(run.a[0], run.a[1], run.bridge[0], run.bridge[1], 'w0 pw')
+    bassHitch += circle(run.hitch[0], run.hitch[1], .75, 'if ns') + circle(run.bridge[0] - .9, run.bridge[1] + .9, .3, 'if ns')
   }
-  const bassBridge = `M${r(bassEnd(0)[0] - 1)} ${r(bassEnd(0)[1] - 2)}L${r(bassEnd(BASS - 1)[0] + 1)} ${r(bassEnd(BASS - 1)[1] + 2)}`
+  const bassBridge = 'M' + BASS_RUNS.map(run => `${r(run.bridge[0])} ${r(run.bridge[1])}`).join('L')
   let bridgePins = ''
   for (const p of bridge) bridgePins += circle(p[0] + 1.2, p[1] - .6, .32, 'if ns')
-  return treble + dbl(bridgeD, 2.4) + bridgePins + hitch + bass + dbl(bassBridge, 2.6) + bassHitch
+  return treble + dbl(bridgeD, 2.4) + bridgePins + hitch + bass + dbl(bassBridge, 3) + bassHitch
 }
 
 function frame() {

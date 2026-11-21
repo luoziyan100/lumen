@@ -1,13 +1,13 @@
 /**
  * [INPUT]: bowedBody and bow from ./bowed.ts; the engraving kit of ./line.ts
  * [OUTPUT]: violinSvg(): VIOLINO · VII, a violin upright with its bow laid across the strings (640×400) for the empty Ideas view; VIOLIN_CSS; VIOLIN_STRINGS (4, for the tests)
- * [POS]: music object M7, the counterpart of the lamp. Right of the violin sits a side elevation (arching, ribs, neck angle, scroll) under a dimension line.
+ * [POS]: music object M7, the counterpart of the lamp. Right of the violin, DETAIL A magnifies bridge, strings and the E-string fine tuner at 3:1 (mapped from the main view).
  *        Hover bows: the bow slides along its own axis (the hair stays on the contact line between fingerboard end and bridge), the four strings hum, notes rise into the blank upper right.
  *        Click plays a pizzicato chord: the bow lifts off to the lower right, the strings are plucked G → E one after another, a chord rises once
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { bow, bowedBody } from './bowed.ts'
-import { circle, curve, line, note, path, plate, r, rect, riseFrames, shadow, shadowDef, ticks } from './line.ts'
+import { circle, dbl, detail, ellipse, hatch, knurl, line, note, path, plate, r, rect, riseFrames, screw, shadow, shadowDef } from './line.ts'
 
 const P = 'vn-'
 const CX = 196, TOP = 150, LEN = 160, BOW = 330
@@ -16,28 +16,38 @@ export const VIOLIN_STRINGS = 4
 const V = bowedBody({ prefix: P, cx: CX, top: TOP, len: LEN, chinrest: true })
 const TIP_X = CX - 74, ANGLE = -5
 
-function elevation() {
-  const x0 = 440, y0 = 296, L = 150, h = 9
-  let out = `<text x="${x0 - 8}" y="${y0 - 34}" font-size="4" letter-spacing="1">ELEV · B</text>`
-  out += line(x0, y0 - 26, x0 + L, y0 - 26, 'w0') + line(x0, y0 - 29, x0, y0 - 23, 'w0') + line(x0 + L, y0 - 29, x0 + L, y0 - 23, 'w0')
-  out += `<rect x="${x0 + L / 2 - 10}" y="${y0 - 29.5}" width="20" height="7" class="pf ns"/><text x="${x0 + L / 2}" y="${y0 - 24.2}" font-size="4.6" letter-spacing="1" text-anchor="middle">356</text>`
-  const arch = curve([x0, y0], [['C', [x0 + 20, y0 - 8], [x0 + L - 20, y0 - 8], [x0 + L, y0]]])
-  const back = curve([x0, y0 + h], [['C', [x0 + 20, y0 + h + 6], [x0 + L - 20, y0 + h + 6], [x0 + L, y0 + h]]])
-  out += path(arch.d, 'w1') + path(back.d, 'w1') + rect(x0, y0, L, h, 'w1 pf') + line(x0, y0 + 2, x0 + L, y0 + 2, 'w0') + line(x0, y0 + h - 2, x0 + L, y0 + h - 2, 'w0')
-  out += ticks(arch.every(2.2), -2.6, 'w0', -1.6) + ticks(back.every(2.2), 2.6, 'w0', 1.6)
-  for (let x = x0 + 4; x < x0 + L; x += 3) out += line(x, y0 + 2.6, x, y0 + h - 2.6, 'w0')
-  out += path(`M${x0 + 70} ${y0 - 8}L${x0 + 76} ${y0 - 16}L${x0 + 80} ${y0 - 16}L${x0 + 82} ${y0 - 8}`, 'w1 pf')
-  out += path(`M${x0} ${y0 - 2}L${x0 - 88} ${y0 - 14}L${x0 - 88} ${y0 - 8}L${x0} ${y0 + 4}`, 'w1 pf') + line(x0 + 76, y0 - 16, x0 - 88, y0 - 16 - 2, 'w0')
-  out += path(`M${x0 - 88} ${y0 - 14}L${x0 - 120} ${y0 - 18}L${x0 - 120} ${y0 - 8}L${x0 - 88} ${y0 - 8}Z`, 'w1 pf')
-  for (const dx of [-96, -104, -112]) out += line(x0 + dx, y0 - 22, x0 + dx, y0 - 4, 'w1')
-  let d = ''
-  for (let a = 0; a <= Math.PI * 4.6; a += Math.PI / 12) {
-    const rad = 8 * (1 - a / (Math.PI * 4.6) * .85)
-    d += `${d ? 'L' : 'M'}${r(x0 - 128 + Math.cos(a) * rad)} ${r(y0 - 13 + Math.sin(a) * rad)}`
+/* DETAIL A: bridge, strings and the E-string fine tuner at 3:1, mapped from the main view so every part sits where the main view puts it */
+const MARK = { x: CX, y: V.y(.65), r: 21.3 }, WIN = { x: 530, y: 240, r: 64 }, MAG = 3
+const mag = (x: number, y: number): [number, number] => [WIN.x + (x - MARK.x) * MAG, WIN.y + (y - MARK.y) * MAG]
+function detailA() {
+  let c = ''
+  for (let x = WIN.x - WIN.r; x < WIN.x + WIN.r; x += 7.8) c += line(x, WIN.y - WIN.r, x + 1, WIN.y + WIN.r, 'w0 mu-gr')
+  const by = mag(0, V.bridge)[1]
+  const bx = (v: number) => mag(CX + v * LEN, 0)[0]
+  for (const [a0, a1] of [[-.072, -.042], [.042, .072]] as const) c += rect(bx(a0), by + 3, bx(a1) - bx(a0), 7, 'w1 pf') + hatch(`${P}ft${a0 < 0 ? 'l' : 'r'}`, [bx(a0), by + 3, bx(a1) - bx(a0), 7], 45, 1.2)
+  c += `<clipPath id="${P}ftl">${rect(bx(-.072), by + 3, bx(-.042) - bx(-.072), 7, '')}</clipPath><clipPath id="${P}ftr">${rect(bx(.042), by + 3, bx(.072) - bx(.042), 7, '')}</clipPath>`
+  const top = (v: number) => by - 6 * (1 - (v / .085) ** 2)
+  let arc = `M${r(bx(-.085))} ${r(top(-.085) + 4)}`
+  for (let v = -.085; v <= .0851; v += .0085) arc += `L${r(bx(v))} ${r(top(v))}`
+  let under = ''
+  for (let v = .085; v >= -.0851; v -= .0085) under += `L${r(bx(v))} ${r(top(v) + 4.4)}`
+  c += path(arc + under + 'Z', 'w2 pf') + path(arc.replace(/^M[^L]*L/, 'M'), 'w0') + path(`M${r(bx(-.03))} ${r(top(-.03) + 4.4)}C${r(bx(-.012))} ${r(by - 10)} ${r(bx(.012))} ${r(by - 10)} ${r(bx(.03))} ${r(top(.03) + 4.4)}`, 'w0')
+  const tailY = mag(0, V.y(.7))[1]
+  c += path(`M${r(bx(-.05))} ${r(tailY)}C${r(bx(-.02))} ${r(tailY - 5)} ${r(bx(.02))} ${r(tailY - 5)} ${r(bx(.05))} ${r(tailY)}L${r(bx(.046))} ${r(WIN.y + WIN.r)}L${r(bx(-.046))} ${r(WIN.y + WIN.r)}Z`, 'w1 pf')
+  c += `<clipPath id="${P}tpd"><path d="M${r(bx(-.05))} ${r(tailY)}C${r(bx(-.02))} ${r(tailY - 5)} ${r(bx(.02))} ${r(tailY - 5)} ${r(bx(.05))} ${r(tailY)}L${r(bx(.046))} ${r(WIN.y + WIN.r)}L${r(bx(-.046))} ${r(WIN.y + WIN.r)}Z"/></clipPath>` + hatch(`${P}tpd`, [bx(-.06), tailY - 6, bx(.06) - bx(-.06), 70], -58, 1.3)
+  for (let i = 0; i < 4; i++) {
+    const x0 = mag(V.stringX(i, .5), 0)[0], xb = mag(V.stringX(i, .55), 0)[0], xt = mag(V.stringX(i, .725), 0)[0], yt = mag(0, V.y(.725))[1]
+    const d = `M${r(x0)} ${r(WIN.y - WIN.r)}L${r(xb)} ${r(top((V.stringX(i, .55) - CX) / LEN))}L${r(xt)} ${r(yt)}`
+    c += i === 0 ? dbl(d, 1.8, .3) : i === 1 ? dbl(d, 1.3, .3) : path(d, i === 2 ? 'w1' : 'w0')
+    c += path(`M${r(xb - 1.6)} ${r(top((V.stringX(i, .55) - CX) / LEN) - .4)}L${r(xb)} ${r(top((V.stringX(i, .55) - CX) / LEN) + 1.6)}L${r(xb + 1.6)} ${r(top((V.stringX(i, .55) - CX) / LEN) - .4)}`, 'w0')
+    if (i < 3) c += circle(xt, yt, 1.8, 'w1 pf') + ellipse(xt, yt + 3.2, 1.4, 1, 'w1 pf')
   }
-  out += circle(x0 - 128, y0 - 13, 8.4, 'w1 pf') + path(d, 'w0')
-  out += line(x0 + L, y0 + 3, x0 + L + 6, y0 + 4.5, 'w1') + circle(x0 + L + 7, y0 + 4.5, 1.4, 'w1 pf')
-  return out
+  const [fx, fy] = mag(CX + .032 * LEN, V.y(.75))
+  c += path(`M${r(fx - 6)} ${r(fy - 10)}L${r(fx + 5)} ${r(fy - 12)}L${r(fx + 7)} ${r(fy + 8)}L${r(fx - 4)} ${r(fy + 10)}Z`, 'w1 pf') + line(fx - 3, fy - 8, fx + 4, fy - 9.4, 'w0')
+  c += path(`M${r(fx - 2)} ${r(fy - 12)}C${r(fx - 1)} ${r(fy - 20)} ${r(fx + 6)} ${r(fy - 20)} ${r(fx + 5)} ${r(fy - 12)}`, 'w1') + circle(mag(V.stringX(3, .725), 0)[0], mag(0, V.y(.725))[1], 1.6, 'w1 pf')
+  c += circle(fx + 1, fy + 2, 6.4, 'w1 pf') + knurl(fx + 1, fy + 2, 6.4, 30, 1.3) + circle(fx + 1, fy + 2, 3.6, 'w0') + line(fx - 1.6, fy + 2, fx + 3.6, fy + 2, 'w1')
+  c += screw(fx - 3, fy - 8.6, 1.3, 20)
+  return detail(`${P}da`, MARK, WIN, 'DETAIL A · 3:1', c)
 }
 
 function rising() {
@@ -52,8 +62,8 @@ function chord() {
 export function violinSvg() {
   const [cx, cy] = [TIP_X, V.contact]
   const bowG = `<g class="${P}bow" style="transform-box:view-box;transform-origin:${r(CX)}px ${r(cy)}px"><g transform="rotate(${ANGLE} ${r(CX)} ${r(cy)}) translate(${r(cx)} ${r(cy)})">` +
-    `<g class="${P}bowi">${bow(BOW)}</g></g></g>`
-  const body = `<defs>${V.defs}${shadowDef(`${P}sh`)}</defs>` + shadow(`${P}sh`, CX + 8, 330, 120, 22) + V.markup + elevation() + bowG + rising() + chord() + plate(540, 372, 'VIOLINO · VII')
+    `<g class="${P}bowi">${bow(BOW, P)}</g></g></g>`
+  const body = `<defs>${V.defs}${shadowDef(`${P}sh`)}</defs>` + shadow(`${P}sh`, CX + 8, 330, 120, 22) + V.markup + detailA() + bowG + rising() + chord() + plate(540, 372, 'VIOLINO · VII')
   return `<svg class="mu mu-violin" viewBox="0 0 640 400" role="img" aria-hidden="true">${body}</svg>`
 }
 

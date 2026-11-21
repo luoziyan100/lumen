@@ -1,16 +1,17 @@
 /**
  * [INPUT]: the engraving kit of ./line.ts
  * [OUTPUT]: gramophoneSvg(): GRAMMOFONO · III, a horn gramophone (640×400) for the empty Takeaways view; GRAMOPHONE_CSS; GRAMOPHONE_ARM (pivot, arm length and the solved angles, for the tests)
- * [POS]: music object M3, the counterpart of the press. The deck top is drawn in plan and flattened by one transform (scale 1, DECK.k), so the record, the turntable and the arm share a plane.
+ * [POS]: music object M3, the counterpart of the press. The deck top is drawn in plan and projected by one transform, so the record, the turntable, the arm and the top face share a plane.
  *        The arm turns about its pivot; its angle for any groove radius is solved from two circles (pivot, ARM) and (centre, radius), so the needle lands on the groove, never beside it.
+ *        The deck plane is cabinet oblique (matrix: depth recedes up-right by kx, ky), the same projection as the top face and the right face with its winding crank.
  *        At rest the arm sits on its post off the record. Hover lowers it onto the outer groove, spins the record and sends notes out of the horn into the blank upper left.
  *        Click lets the needle walk inward to the run-out groove
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
-import { circle, curve, ellipse, hatch, knurl, line, note, path, plate, r, rect, screw, shadow, shadowDef, ticks } from './line.ts'
+import { circle, curve, dbl, ellipse, hatch, knurl, line, note, path, plate, r, rect, screw, shadow, shadowDef, ticks } from './line.ts'
 
 const P = 'gr-'
-const DECK = { cx: 392, cy: 252, k: .35, w: 132, d: 124 }
+const DECK = { cx: 380, cy: 250, kx: .32, ky: .34, w: 132, d: 124, h: 62 }
 const REC = { outer: 98, inner: 44, label: 30 }
 const PIVOT = { x: 110, y: -92 }, ARM = 132
 /** The arm angle (degrees, from +x about the pivot) that puts the needle on a groove of radius rho */
@@ -20,24 +21,39 @@ function armAngle(rho: number) {
   return (Math.atan2(dy, dx) - a) * 180 / Math.PI
 }
 export const GRAMOPHONE_ARM = { pivot: PIVOT, length: ARM, rest: armAngle(128), outer: armAngle(REC.outer - 2), inner: armAngle(REC.inner + 2), radius: REC }
-const plane = (inner: string) => `<g transform="translate(${DECK.cx} ${DECK.cy}) scale(1 ${DECK.k})">${inner}</g>`
-const screenOf = (x: number, y: number): [number, number] => [DECK.cx + x, DECK.cy + y * DECK.k]
+const plane = (inner: string) => `<g transform="matrix(1 0 ${-DECK.kx} ${DECK.ky} ${DECK.cx} ${DECK.cy})">${inner}</g>`
+const screenOf = (x: number, y: number): [number, number] => [DECK.cx + x - y * DECK.kx, DECK.cy + y * DECK.ky]
 
 function cabinet() {
-  const { cx, cy, k, w, d } = DECK
-  const top = cy - d * k, front = cy + d * k, bottom = front + 62
-  let out = rect(cx - w, front, w * 2, bottom - front, 'w2 pf') + rect(cx - w + 4, front + 4, w * 2 - 8, bottom - front - 8, 'w0') + rect(cx - w + 6, front + 6, w * 2 - 12, bottom - front - 12, 'w0')
-  for (let x = cx - w + 10; x < cx + w - 8; x += 3) out += line(x, front + 8, x, bottom - 8, 'w0 mu-gr')
-  out += rect(cx - 40, front + 18, 80, 26, 'w1 pf') + rect(cx - 37, front + 21, 74, 20, 'w0')
-  out += `<text x="${cx}" y="${front + 33}" font-size="5.4" letter-spacing="2" text-anchor="middle">78 · RPM</text>`
-  for (const x of [cx - w + 14, cx + w - 14]) out += screw(x, front + 14, 1.6, 40) + screw(x, bottom - 14, 1.6, 100)
-  out += rect(cx - w - 4, bottom, w * 2 + 8, 6, 'w1 pf')
-  for (const x of [cx - w + 4, cx + w - 18]) out += path(`M${x} ${bottom + 6}L${x + 14} ${bottom + 6}L${x + 11} ${bottom + 14}L${x + 3} ${bottom + 14}Z`, 'w1 pf')
-  out += path(`M${cx - w} ${front}L${cx - w} ${top}L${cx + w} ${top}L${cx + w} ${front}Z`, 'w2 pf')
-  out += line(cx - w + 4, top + 3, cx + w - 4, top + 3, 'w0') + line(cx - w + 3, top + 3, cx - w + 3, front - 2, 'w0') + line(cx + w - 3, top + 3, cx + w - 3, front - 2, 'w0')
-  out += ticks(curve([cx - w, front], [['L', [cx + w, front]]]).every(2.4), 2.4, 'w0', 1.4, .6)
-  const cr = [cx + w + 2, front + 22] as const
-  out += rect(cr[0], cr[1] - 3, 10, 6, 'w1 pf') + line(cr[0] + 10, cr[1], cr[0] + 22, cr[1] + 18, 'w2') + line(cr[0] + 22, cr[1] + 18, cr[0] + 30, cr[1] + 18, 'w2') + rect(cr[0] + 28, cr[1] + 12, 6, 13, 'w1 pf', 2)
+  const { w, d, h } = DECK
+  const fl = screenOf(-w, d), fr = screenOf(w, d), br = screenOf(w, -d), bl = screenOf(-w, -d)
+  const front = fl[1], bottom = front + h, x0 = fl[0], x1 = fr[0]
+  let out = path(`M${fr.join(' ')}L${br.join(' ')}L${br[0]} ${br[1] + h}L${fr[0]} ${bottom}Z`, 'w2 pf') + hatch(`${P}side`, [fr[0], br[1], br[0] - fr[0], bottom - br[1]], 90, 1.8)
+  out += rect(x0, front, x1 - x0, h, 'w2 pf') + rect(x0 + 4, front + 4, x1 - x0 - 8, h - 8, 'w0') + rect(x0 + 6, front + 6, x1 - x0 - 12, h - 12, 'w0')
+  for (let x = x0 + 10; x < x1 - 8; x += 3) out += line(x, front + 8, x, bottom - 8, 'w0 mu-gr')
+  const mx = (x0 + x1) / 2
+  out += rect(mx - 40, front + 18, 80, 26, 'w1 pf') + rect(mx - 37, front + 21, 74, 20, 'w0')
+  out += `<text x="${mx}" y="${front + 33}" font-size="5.4" letter-spacing="2" text-anchor="middle">78 · RPM</text>`
+  for (const x of [x0 + 14, x1 - 14]) out += screw(x, front + 14, 1.6, 40) + screw(x, bottom - 14, 1.6, 100)
+  out += path(`M${x0 - 4} ${bottom}L${x1 + 4} ${bottom}L${br[0] + 4} ${br[1] + h}L${br[0] + 4} ${br[1] + h + 6}L${x1 + 4} ${bottom + 6}L${x0 - 4} ${bottom + 6}Z`, 'w1 pf') + line(x1 + 4, bottom, x1 + 4, bottom + 6, 'w0')
+  for (const x of [x0 + 4, x1 - 18]) out += path(`M${x} ${bottom + 6}L${x + 14} ${bottom + 6}L${x + 11} ${bottom + 14}L${x + 3} ${bottom + 14}Z`, 'w1 pf')
+  out += path(`M${fl.join(' ')}L${bl.join(' ')}L${br.join(' ')}L${fr.join(' ')}Z`, 'w2 pf')
+  const lip = (t: number) => { const a = screenOf(-w + t, d - t), b = screenOf(-w + t, -d + t), c = screenOf(w - t, -d + t), e = screenOf(w - t, d - t); return `M${a.join(' ')}L${b.join(' ')}L${c.join(' ')}L${e.join(' ')}Z` }
+  out += path(lip(5), 'w0') + path(lip(8), 'w0')
+  out += ticks(curve(fl, [['L', fr]]).every(2.4), 2.4, 'w0', 1.4, .6)
+  return out + crank(fr, br, bottom)
+}
+
+/* The winding crank on the right face: a shaft out of the face, a crank arm down, a turned wooden handle; all in double lines */
+function crank(fr: [number, number], br: [number, number], bottom: number) {
+  const sx = (fr[0] + br[0]) / 2, sy = (fr[1] + br[1]) / 2 + (bottom - fr[1]) * .5, ex = sx + 20, ay = sy + 24
+  let out = path(`M${r(sx - 4)} ${r(sy - 5)}L${r(sx + 2)} ${r(sy - 7)}L${r(sx + 2)} ${r(sy + 5)}L${r(sx - 4)} ${r(sy + 7)}Z`, 'w1 pf')
+  out += dbl(`M${r(sx + 2)} ${r(sy)}L${r(ex)} ${r(sy)}`, 3.2, .3) + circle(ex, sy, 3.4, 'w1 pf') + circle(ex, sy, 1.2, 'w0')
+  out += dbl(`M${r(ex)} ${r(sy + 2)}L${r(ex)} ${r(ay)}`, 3.4, .3) + circle(ex, ay, 2.6, 'w1 pf')
+  const hx = ex + 3
+  out += path(`M${hx} ${ay - 1.6}C${hx + 4} ${ay - 2} ${hx + 6} ${ay - 4.4} ${hx + 10} ${ay - 4.2}C${hx + 15} ${ay - 4} ${hx + 18} ${ay - 2.8} ${hx + 19} ${ay - 1.6}L${hx + 19} ${ay + 1.6}C${hx + 18} ${ay + 2.8} ${hx + 15} ${ay + 4} ${hx + 10} ${ay + 4.2}C${hx + 6} ${ay + 4.4} ${hx + 4} ${ay + 2} ${hx} ${ay + 1.6}Z`, 'w1 pf')
+  for (let x = hx + 6; x < hx + 18; x += 1.6) out += line(x, ay - 2.6, x + .8, ay + 2.6, 'w0')
+  out += line(hx + 4.6, ay - 2.6, hx + 4.6, ay + 2.6, 'w0') + circle(hx + 19.8, ay, 1, 'w1 pf')
   return out
 }
 
@@ -93,7 +109,6 @@ function horn() {
     const [x, y] = bellAt(deg, .98), [x2, y2] = bellAt(deg, .3)
     out += line(x, y, x2 + 52, y2 + 10, 'w0')
   }
-  out += path(`M${tx + 30} ${ty + 4}L${tx + 30} ${ty - 70}C${tx + 30} ${ty - 96} ${tx - 20} ${ty - 110} ${tx - 60} ${ty - 106}`, 'w1') + circle(tx + 30, ty + 4, 2.6, 'w1 pf')
   return out
 }
 
@@ -104,9 +119,10 @@ function rising() {
 export function gramophoneSvg() {
   const defs = `<defs>${shadowDef(`${P}sh`)}` +
     `<clipPath id="${P}horn"><path d="M${screenOf(PIVOT.x, PIVOT.y)[0] - 4} ${screenOf(PIVOT.x, PIVOT.y)[1] - 26}C${screenOf(PIVOT.x, PIVOT.y)[0] - 20} ${screenOf(PIVOT.x, PIVOT.y)[1] - 70} ${bellAt(-74)[0] + 120} ${bellAt(-74)[1] + 10} ${bellAt(-74)[0]} ${bellAt(-74)[1]}L${bellAt(62)[0]} ${bellAt(62)[1]}C${bellAt(62)[0] + 90} ${bellAt(62)[1] - 4} ${screenOf(PIVOT.x, PIVOT.y)[0] - 10} ${screenOf(PIVOT.x, PIVOT.y)[1] - 30} ${screenOf(PIVOT.x, PIVOT.y)[0] + 5} ${screenOf(PIVOT.x, PIVOT.y)[1] - 18}Z"/></clipPath>` +
+    `<clipPath id="${P}side"><path d="M${screenOf(DECK.w, DECK.d).join(' ')}L${screenOf(DECK.w, -DECK.d).join(' ')}L${screenOf(DECK.w, -DECK.d)[0]} ${screenOf(DECK.w, -DECK.d)[1] + DECK.h}L${screenOf(DECK.w, DECK.d)[0]} ${screenOf(DECK.w, DECK.d)[1] + DECK.h}Z"/></clipPath>` +
     `<clipPath id="${P}throat"><ellipse cx="${BELL.cx + 52}" cy="${BELL.cy + 10.4}" rx="${r(BELL.rx * .24)}" ry="${r(BELL.ry * .24)}" transform="rotate(${BELL.rot} ${BELL.cx + 52} ${BELL.cy + 10.4})"/></clipPath></defs>`
   const deck = plane(record() + arm())
-  const body = defs + shadow(`${P}sh`, DECK.cx, DECK.cy + DECK.d * DECK.k + 76, 170, 12) + cabinet() + deck + horn() + rising() + plate(560, 386, 'GRAMMOFONO · III')
+  const body = defs + shadow(`${P}sh`, DECK.cx + 10, DECK.cy + DECK.d * DECK.ky + DECK.h + 14, 180, 12) + cabinet() + deck + horn() + rising() + plate(560, 386, 'GRAMMOFONO · III')
   return `<svg class="mu mu-gramophone" viewBox="0 0 640 400" role="img" aria-hidden="true">${body}</svg>`
 }
 
