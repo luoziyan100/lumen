@@ -1,8 +1,10 @@
 /**
  * [INPUT]: studio/db's connection and transaction, the R15 refusal, studio/types's ReadingParagraph union, studio/widget-check's param shape, param caps and html self-check
- * [OUTPUT]: ReadingStore (write = append or replace one section; insert = add one prose/table/diagram/widget block into an existing section after a given block or at the end; view; list, newest first),
- *           READING_LIMITS, readingBlockInput, readingInput, readingInsertInput, normalizeQuote / quoteFound
- * [POS]: the only writer of readings. The AI reaches it through reading_write / reading_insert after the tool has checked every paper quote against the material's text;
+ * [OUTPUT]: ReadingStore (write = append or replace one section; insert = add one prose/table/diagram/widget block into an existing section after a given block or at the end;
+ *           patch = edit one block in place: ordered exact-once old→new edits on its text/mermaid/html, title/caption replaced ('' deletes), widget params replaced ([] deletes), source untouched; view; list, newest first),
+ *           READING_LIMITS, readingBlockInput, readingInput, readingInsertInput, readingPatchInput, blockNotFound, normalizeQuote / quoteFound
+ * [POS]: the only writer of readings. The AI reaches it through reading_write / reading_insert / reading_patch after the tool has checked every paper quote against the material's text;
+ *        a patched block is rebuilt as a write input and passes the same normalizeBlock rules, keeping its id so title-keyed widget values survive;
  *        a widget block passes widget-check (declared params, compile-only html check) before anything is stored;
  *        the user only reads it over HTTP. A reading belongs to one (topic, library item) pair; pre-visual rows without `kind` read as prose text
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -83,6 +85,15 @@ export const readingInsertInput = z.object({
 })
 export type ReadingInsertInput = z.infer<typeof readingInsertInput>
 
+export const readingPatchInput = z.object({
+  blockId: z.string().min(1).max(64),
+  edits: z.array(z.object({ old: z.string().min(1), new: z.string() }).strict()).min(1).max(20).optional(),
+  title: z.string().trim().max(READING_LIMITS.title).optional(),
+  caption: z.string().trim().max(READING_LIMITS.caption).optional(),
+  params: z.array(widgetParamInput).optional(),
+})
+export type ReadingPatchInput = z.infer<typeof readingPatchInput>
+
 /** The quote rule: NFKC, whitespace runs collapse to one space. Length counts on this form; matching ignores whitespace entirely, because PDF extraction breaks lines and spaces CJK text unpredictably. */
 export function normalizeQuote(text: string) {
   return text.normalize('NFKC').replace(/\s+/g, ' ').trim()
@@ -91,6 +102,9 @@ export function quoteFound(haystack: string, quote: string) {
   const squeeze = (text: string) => text.normalize('NFKC').replace(/\s+/g, '')
   return squeeze(haystack).includes(squeeze(quote))
 }
+
+export const blockNotFound = (blockId: string) =>
+  new StudioError(`这份解读里没有 id 为 ${blockId} 的块；先不带 blockId 调一次 reading_view({ itemId }) 看现有各块的 id`, 404, 'reading.block_invalid', { paragraph: 1, blockId })
 
 const shortId = (prefix: string) => prefix + randomBytes(5).toString('hex')
 
@@ -142,6 +156,38 @@ function normalizeBlock(block: ReadingBlockInput, index: number): ReadingParagra
   const params = block.params?.length ? normalizeParams(block.params, n) : undefined
   checkWidgetHtml(html, n, !!params)
   return { id: shortId('p'), kind: 'widget', ...(title ? { title } : {}), html, ...(params ? { params } : {}), ...(caption ? { caption } : {}), source: normalizedSource }
+}
+
+/** Apply the edits in order: each `old` must occur exactly once in the result of the edits before it, so the model never changes a place it has not read. */
+function applyEdits(content: string, edits: { old: string; new: string }[], blockId: string, paragraph: number) {
+  return edits.reduce((text, edit, index) => {
+    const n = index + 1, at = text.indexOf(edit.old)
+    if (at < 0)
+      throw new StudioError(`第 ${n} 条 edits 的 old 在这一块的当前内容里找不到；先用 reading_view({ itemId, blockId: "${blockId}" }) 读原文，照原文一字不差地摘（空白和换行也要一致）`, 400, 'reading.block_invalid', { paragraph, edit: n })
+    if (text.indexOf(edit.old, at + 1) >= 0)
+      throw new StudioError(`第 ${n} 条 edits 的 old 在这一块里出现了不止一次；带上前后更多的原文，让它只出现一次`, 400, 'reading.block_invalid', { paragraph, edit: n })
+    return text.slice(0, at) + edit.new + text.slice(at + edit.old.length)
+  }, content)
+}
+
+/** The block as reading_write would have received it, with the patch applied: normalizeBlock then checks it by the same rules as a fresh write. */
+function patchedInput(block: ReadingParagraph, patch: ReadingPatchInput, paragraph: number): ReadingBlockInput {
+  const { edits, params } = patch
+  const edit = (content: string) => edits ? applyEdits(content, edits, block.id, paragraph) : content
+  const invalid = (message: string) => new StudioError(message, 400, 'reading.block_invalid', { paragraph, blockId: block.id })
+  const title = patch.title ?? ('title' in block ? block.title : undefined)
+  const caption = patch.caption ?? ('caption' in block ? block.caption : undefined)
+  if ('text' in block) {
+    if (patch.title !== undefined || patch.caption !== undefined || params) throw invalid('文字段没有 title、caption 和 params；只用 edits 改它的 text')
+    return { text: edit(block.text), source: block.source }
+  }
+  if (params && block.kind !== 'widget') throw invalid('只有小实验有 params')
+  if (block.kind === 'table') {
+    if (edits) throw invalid('表格不支持 edits；要改单元格，用 reading_write 把这一节整节换掉')
+    return { kind: 'table', title, columns: block.columns, rows: block.rows, caption, source: block.source }
+  }
+  if (block.kind === 'diagram') return { kind: 'diagram', title, mermaid: edit(block.mermaid), caption, source: block.source }
+  return { kind: 'widget', title, html: edit(block.html), params: params ?? block.params, caption, source: block.source }
 }
 
 function section(row: Record<string, SQLOutputValue>): ReadingSection {
@@ -211,6 +257,36 @@ export class ReadingStore {
       this.db.prepare('UPDATE readings SET updated_at = ? WHERE id = ?').run(now, readingId)
       return { reading: this.view(topicId, itemId)!, sectionId: parsed.sectionId, blockId: block.id, count: paragraphs.length }
     })
+  }
+
+  /** Patch one block in place: same id, section and position. The patched block passes normalizeBlock's rules or the whole call is refused and nothing is written. */
+  patch(topicId: string, itemId: string, input: ReadingPatchInput, origin: { threadId: string | null; runId: string | null }): { reading: Reading; sectionId: string; block: ReadingParagraph } {
+    const parsed = readingPatchInput.parse(input)
+    if (!parsed.edits && parsed.title === undefined && parsed.caption === undefined && !parsed.params)
+      throw new StudioError('reading_patch 至少要给 edits、title、caption、params 中的一项；什么都不改就不用调', 400, 'reading.block_invalid', { paragraph: 1, blockId: parsed.blockId })
+    const now = new Date().toISOString()
+    return transaction(this.db, () => {
+      if (!this.db.prepare('SELECT 1 FROM topic_materials WHERE topic_id = ? AND item_id = ?').get(topicId, itemId)) throw notReferenced(itemId)
+      const readingId = this.db.prepare('SELECT id FROM readings WHERE topic_id = ? AND item_id = ?').get(topicId, itemId)?.id as string | undefined
+      const found = readingId ? this.locate(readingId, parsed.blockId) : null
+      if (!found) throw blockNotFound(parsed.blockId)
+      const { sectionId, paragraphs, at } = found
+      const block = { ...normalizeBlock(patchedInput(paragraphs[at]!, parsed, at + 1), at), id: parsed.blockId }
+      paragraphs[at] = block
+      this.db.prepare('UPDATE reading_sections SET paragraphs = ?, thread_id = ?, run_id = ?, updated_at = ? WHERE id = ? AND reading_id = ?')
+        .run(JSON.stringify(paragraphs), origin.threadId, origin.runId, now, sectionId, readingId!)
+      this.db.prepare('UPDATE readings SET updated_at = ? WHERE id = ?').run(now, readingId!)
+      return { reading: this.view(topicId, itemId)!, sectionId, block }
+    })
+  }
+
+  private locate(readingId: string, blockId: string) {
+    for (const row of this.db.prepare('SELECT id, paragraphs FROM reading_sections WHERE reading_id = ? ORDER BY ord').all(readingId)) {
+      const paragraphs = JSON.parse(String(row.paragraphs)) as ReadingParagraph[]
+      const at = paragraphs.findIndex(item => item.id === blockId)
+      if (at >= 0) return { sectionId: String(row.id), paragraphs, at }
+    }
+    return null
   }
 
   view(topicId: string, itemId: string): Reading | null {

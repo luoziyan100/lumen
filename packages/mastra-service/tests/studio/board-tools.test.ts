@@ -1,7 +1,7 @@
 /**
  * [INPUT]: 真实 HTTP 服务/应用组合根、Mastra Controller 工具循环、catalog.sqlite 画布表、确定性模型；canvas-fixtures 代替桌面落笔
  * [OUTPUT]: 白板工具 × 真实 Controller 的行为证据：两笔 board_draw 排队、运行结束写一个场景快照、桌面提交后元素记为 AI 与本轮对话；第二段对话的实际请求带画布摘要且守上限；
- *           专家只有 board_view（解读工具含 reading_widget_guide 也不给专家）；通用文件工具碰不到白板（R4）；一主题一运行的 409（R1，含等待用户与停止后恢复）；中途停止只留已排队的一笔且写快照（R8）；
+ *           专家只有 board_view（解读工具含 reading_widget_guide、reading_patch 也不给专家）；通用文件工具碰不到白板（R4）；一主题一运行的 409（R1，含等待用户与停止后恢复）；中途停止只留已排队的一笔且写快照（R8）；
  *           看图（Q6）：有视觉时每次请求恰好一张白板画面、board_look 等到新画面后下一次请求换成新图、多轮之后仍 ≤1 张、画面不进持久消息与资料库；
  *           vision=off 时没有 board_look、请求里没有图，只读 board_view 的结构
  * [POS]: S3 机制验收；可控模型只证明机制，不冒充真实模型研究验收
@@ -141,7 +141,7 @@ test('两笔 board_draw 排队、运行结束写一个场景快照；桌面落�
     assert.ok(specialistTools.length > 0, '专家没有被调用')
     for (const tools of specialistTools) {
       assert.ok(tools.includes('board_view'), JSON.stringify(tools))
-      assert.ok(!tools.some(name => ['board_draw', 'board_update', 'board_erase', 'board_look', 'reading_view', 'reading_widget_guide', 'reading_write', 'reading_insert'].includes(name)), JSON.stringify(tools))
+      assert.ok(!tools.some(name => ['board_draw', 'board_update', 'board_erase', 'board_look', 'reading_view', 'reading_widget_guide', 'reading_write', 'reading_insert', 'reading_patch'].includes(name)), JSON.stringify(tools))
     }
     // ---- The main agent's board tools are 'edit'/'read': allowed by default, no approval ----
     assert.equal(second.displayState.get().pendingApprovals.size, 0)

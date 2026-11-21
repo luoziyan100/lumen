@@ -3,7 +3,7 @@
  *          the current main run id and the run-target resolution
  * [OUTPUT]: createBoardTools: board_view (the target sheet's structure: element type, text, arrow ends, author, the user's viewport; never an image) /
  *           board_draw (ElementSkeleton fragments, queued for the app to lay out) / board_update (the AI's own elements) / board_erase (R5), all against the run's
- *           target (R16); canvasView; topicState: the per-request topic state (the run's target canvas, the user's takeaways, existing readings, materials, speech habits, capped)
+ *           target (R16); canvasView; topicState: the per-request topic state (the run's target canvas, the user's takeaways, existing readings with where to read a block / patch it / insert one, materials, speech habits, capped)
  * [POS]: the AI's only path onto the board (R4). Topic and sheet always derive from the session identity — the parameters carry neither; every write records its
  *        conversation and run, snapshots are written by the application when the run ends. A draw returns before the app lays it out: the card and board_view say so
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -165,7 +165,7 @@ export function topicState(studio: Studio, topicId: string, limit = TOPIC_STATE_
     }
   }
   fit('用户的沉淀（新的在前；只能用户自己写，你挑刺，不代写）', sediment)
-  fit('已有解读（用 reading_view 看各节与段落 id，可用 reading_insert 原地补图或小实验）', readings)
+  fit('已有解读（用 reading_view 看各节与段落 id，带 blockId 看块原文；局部修改用 reading_patch，原地补图或小实验仍用 reading_insert）', readings)
   fit('白板上带字的元素（用户正看着的在前）', worded)
   fit('本主题引用的材料', items)
   // ---- S14 speech habits: one compact global section (~120 tokens) inside the same cap ----

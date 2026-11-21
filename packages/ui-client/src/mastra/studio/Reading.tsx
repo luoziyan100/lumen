@@ -1,5 +1,5 @@
 /**
- * [INPUT]: components/Markdown for replies, components/MermaidBlock for inline diagrams, ReadingWidget for an active interactive widget (WidgetFrame, its controls and failure line), widget-params' value rules and question lines, MODEL_TEXT.widgetFix, objects/ (IsoObject, typewriterSvg/paperLines), useReading's state, the topic's questions (useTopicAsks), the pure helpers of reading-ask.ts, i18n `studio.reading`, the host's send/widget-send/keep/open-source callbacks
+ * [INPUT]: components/Markdown for replies, components/MermaidBlock for inline diagrams, ReadingWidget for an active interactive widget (WidgetFrame, its controls and failure line), components/widget/generation (the html's generation keys the iframe and its failure), widget-params' value rules and question lines, MODEL_TEXT.widgetFix, objects/ (IsoObject, typewriterSvg/paperLines), useReading's state, the topic's questions (useTopicAsks), the pure helpers of reading-ask.ts, i18n `studio.reading`, the host's send/widget-send/keep/open-source callbacks
  * [OUTPUT]: ReadingView: the centre 「解读 / Reading」 view — a centred 960px column whose prose, headings, quotes, tables and diagrams stay within 700px while interactive HTML widgets (`WidgetFrame`, up to 3 active by default, bidirectional via onSendMessage) use the full 960px column width and can expand in place via `position: fixed` (same mounted WidgetFrame/iframe so interactive state survives expand/collapse, same-height placeholder, solid light stage, closes AskWindow first so one Esc handles it, including Esc pressed while focus is inside the expanded iframe via `onEscape`); a paper block is followed by its quote in the paper's own words, ending in the source chip
  *           (「原文 p.N」 opens split reading at that page), an inference block ends in a dashed chip; the quote line opens no window; the person's footprints (thin underlines on sentences asked about, inline spans with role="button" that wrap like text and open on click/Enter/Space);
  *           selecting text inside one prose paragraph opens AskWindow under the selection; the quote is cut from the shown text by `shownOffset` (a KaTeX formula counts as its `$…$` source and is taken whole), never from the DOM's text. An answer shows in one place only: with the conversation open (chatShown) the window is
@@ -7,7 +7,7 @@
  *           window, and opening the conversation closes a window that shows answers. Esc, × and a press outside close it
  *           and kept clear of the sprite's figure (padding on the side it sits);
  *           with no reading, ReadingStart: the typewriter alone, centred (title on the paper, typing while a requested reading has no section; no text, no button: writing starts from the Materials row);
- *           widgets: the view keeps each widget's param values (fitted to its declaration, saved per place), runtime failures (「请 AI 修正」 sends widgetFix) and questions; a widget question opens AskWindow
+ *           widgets: the view keeps each widget's param values (fitted to its declaration, saved per place), runtime failures (keyed by block id and html generation, so a patched html starts clean; 「请 AI 修正」 sends widgetFix with the block's ids) and questions; a widget question opens AskWindow
  *           under the widget, anchored to its live box, its exchange is every question on that widget and its quote is rebuilt from the current values when sent;
  *           AskWindow: the quote (two lines), the exchange so far (the person's words and the streamed reply, rendered by components/Markdown as Block.tsx does), a one-line growing input, send, and, once a question was asked, 「把我的话记成沉淀」 (only the person's words)
  * [POS]: the living reading stage. It sends nothing itself: the host posts visible user messages through the conversation's own path (for both AskWindow questions and widget __widgetSendMessage actions), and replies come from the
@@ -27,6 +27,7 @@ import { paperLines, typewriterSvg } from './objects/typewriter.ts'
 import { footprintRanges, prose, readingAsks, sectionLabel, squash, wholeMath, type Ask, type Prose } from './reading-ask.ts'
 import { marked, Rich } from './ProseText'
 import type { ReadingState } from './useReading.ts'
+import { widgetGeneration } from '../../components/widget/generation'
 import { ReadingWidget } from './ReadingWidget'
 import { fitValues, loadValues, paramsStoreKey, saveValues, widgetQuote, widgetTitleOf, type ParamValue, type ParamValues } from './widget-params.ts'
 import type { SpriteBox } from './Sprite'
@@ -385,12 +386,12 @@ export function ReadingView({ state, requested, startItem, asks, busyFor, onSend
       identity: last?.identity ?? null, widget: { title, key, params: block.params, stage } })
     if (footprint && chatShown && last) onReveal?.(last)
   }
-  function fixWidget(block: ReadingWidgetBlock, section: ReadingSection) {
+  function fixWidget(block: ReadingWidgetBlock, section: ReadingSection, failureKey: string) {
     if (!onWidgetSend || !reading) return
     setWidgetError('')
-    void onWidgetSend(MODEL_TEXT.widgetFix(reading.itemTitle, sectionLabel(section), block.title || S.widgetIdle, failures[block.id] ?? '')).then(failure => {
+    void onWidgetSend(MODEL_TEXT.widgetFix(reading.itemTitle, sectionLabel(section), block.title || S.widgetIdle, failures[failureKey] ?? '', reading.itemId, block.id)).then(failure => {
       if (failure) setWidgetError(failure)
-      else setFailures(({ [block.id]: _, ...rest }) => rest)
+      else setFailures(({ [failureKey]: _, ...rest }) => rest)
     })
   }
   function onFootprint(quote: string, element: HTMLElement) {
@@ -419,12 +420,13 @@ export function ReadingView({ state, requested, startItem, asks, busyFor, onSend
             let stage: ReactNode = null
             if (paragraph.kind === 'widget' && activeWidgets.has(paragraph.id)) {
               const block = paragraph, key = paramsStoreKey(reading.topicId, reading.itemId, section.id, paragraph.title, ++ordinal), isExpanded = expanded?.id === block.id
-              stage = <ReadingWidget block={block} expanded={isExpanded} slotHeight={isExpanded ? expanded.height : 0} values={valuesFor(key, block.params)}
-                failure={failures[block.id] ?? null} asked={widgetAsks(block.title || S.widgetIdle, sectionLabel(section)).length > 0}
+              const generation = widgetGeneration(block.html), failureKey = `${block.id}:${generation}`
+              stage = <ReadingWidget block={block} generation={generation} expanded={isExpanded} slotHeight={isExpanded ? expanded.height : 0} values={valuesFor(key, block.params)}
+                failure={failures[failureKey] ?? null} asked={widgetAsks(block.title || S.widgetIdle, sectionLabel(section)).length > 0}
                 onToggleExpand={toggleExpand} onCollapse={collapseWidget} onWidgetSend={sendWidget}
                 onValue={(name, value) => setValue(key, block.params!, name, value)}
                 onAsk={element => openWidgetAsk(block, section, key, element, false)} onFootprint={element => openWidgetAsk(block, section, key, element, true)}
-                onRuntimeError={message => setFailures(previous => ({ ...previous, [block.id]: message }))} onFix={() => fixWidget(block, section)} />
+                onRuntimeError={message => setFailures(previous => ({ ...previous, [failureKey]: message }))} onFix={() => fixWidget(block, section, failureKey)} />
             } else if (paragraph.kind === 'widget') ordinal++
             return <VisualBlock key={paragraph.id} block={paragraph} stage={stage} onActivate={activateWidget} onOpenSource={page => onOpenSource(reading.itemId, page)} />
           }

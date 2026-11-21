@@ -5,7 +5,8 @@
  *           the host-drawn control row under it (range = native input[type=range] on tokens with its readout and unit, toggle = Kumo Switch, choice = Kumo Select) and,
  *           when the page threw right after it started, one quiet failure line with 「请 AI 修正」
  * [POS]: split out of Reading.tsx's VisualBlock. It owns no state: values, failures and questions belong to ReadingView, so a rewrite of the section, an expand or a
- *        question never resets them. The control row sits inside the stage, so it travels with the expanded view; the iframe is never remounted (load count stays 1).
+ *        question never resets them. The control row sits inside the stage, so it travels with the expanded view; the iframe is keyed by the html's generation:
+ *        expand, collapse, values and title keep it (load count stays 1), a patched html mounts a fresh one so no receiver runs its scripts twice.
  *        The ask button and the footprint hide while expanded: the expanded stage is for looking, and the window opens in the column
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -35,8 +36,10 @@ function ParamControl({ param, value, onChange }: { param: WidgetParam; value: P
   </div>
 }
 
-export function ReadingWidget({ block, expanded, slotHeight, values, failure, asked, onToggleExpand, onCollapse, onWidgetSend, onValue, onAsk, onFootprint, onRuntimeError, onFix }: {
+export function ReadingWidget({ block, generation, expanded, slotHeight, values, failure, asked, onToggleExpand, onCollapse, onWidgetSend, onValue, onAsk, onFootprint, onRuntimeError, onFix }: {
   block: ReadingWidgetBlock
+  /** widgetGeneration of block.html: a new value mounts a fresh iframe */
+  generation: string
   expanded: boolean
   slotHeight: number
   /** The values the page sees, already fitted to the declaration; undefined for a widget without params */
@@ -68,7 +71,7 @@ export function ReadingWidget({ block, expanded, slotHeight, values, failure, as
             onClick={() => onToggleExpand(block.id, slot.current)}>{expanded ? <CollapseIcon /> : <ExpandIcon />}</button>
         </span>
       </div>
-      <WidgetFrame widgetCode={block.html} isStreaming={false} light fillHeight={expanded} params={values} onRuntimeError={onRuntimeError}
+      <WidgetFrame key={generation} widgetCode={block.html} isStreaming={false} light fillHeight={expanded} params={values} onRuntimeError={onRuntimeError}
         onSendMessage={onWidgetSend} onEscape={expanded ? onCollapse : undefined} />
       {block.params?.length && values ? <div className="reading-widget-params" role="group" aria-label={S.widgetControls} data-theme="celadon">
         {block.params.map(param => <ParamControl key={param.name} param={param} value={values[param.name]!} onChange={value => onValue(param.name, value)} />)}

@@ -1,7 +1,7 @@
 /**
  * [INPUT]: native messages (feed's messageRole/messageText), MODEL_TEXT's question format and its READING_PLACE line, widget-params' widgetTitleOf, the service error catalog
  * [OUTPUT]: prose (a prose block's shown text and its bold, code and formula marks; a formula keeps its `$…$` source in the shown text, so quotes carry the TeX), wholeMath (a range widened so it never cuts a formula), askText / askWidgetText / parseAsk (a reading question and back; a widget question's quote keeps its two lines), asksOf (each question with the assistant reply that followed it), readingAsks (the questions of one reading: about its sentences or its widgets), footprintRanges (where a paragraph shows
- *           the person's footprints), readingSignal (completed reading_write / reading_insert calls, the refresh signal), latestReadingWrite (the current turn's latest completed reading write's callId/itemId for auto-focus), answered (a request has an assistant message after it), sendErrorText (a native send refusal in the UI language)
+ *           the person's footprints), readingSignal (completed reading_write / reading_insert / reading_patch calls, the refresh signal), latestReadingWrite (the current turn's latest completed reading write's callId/itemId for auto-focus), answered (a request has an assistant message after it), sendErrorText (a native send refusal in the UI language)
  * [POS]: pure helpers behind the Reading view. Footprints are not stored anywhere: they are rebuilt from the conversation's own messages, so a reload or another device
  *        shows the same underlines and nothing new is persisted
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -147,24 +147,26 @@ function record(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' ? value as Record<string, unknown> : {}
 }
 
-/** The ids of completed reading_write and reading_insert calls: a new id means a section or inline block landed, so the view refetches (no second event protocol). */
+const READING_WRITES = new Set(['reading_write', 'reading_insert', 'reading_patch'])
+
+/** The ids of completed reading_write, reading_insert and reading_patch calls: a new id means a section or block landed or changed, so the view refetches (no second event protocol). */
 export function readingSignal(messages: MastraDBMessage[]): string {
   const done: string[] = []
   for (const message of messages) for (const part of message.content.parts) {
-    if (part.type !== 'tool-invocation' || (part.toolInvocation.toolName !== 'reading_write' && part.toolInvocation.toolName !== 'reading_insert') || !('result' in part.toolInvocation)) continue
+    if (part.type !== 'tool-invocation' || !READING_WRITES.has(part.toolInvocation.toolName) || !('result' in part.toolInvocation)) continue
     if (!record(part.toolInvocation.result).error) done.push(part.toolInvocation.toolCallId)
   }
   return done.join(',')
 }
 
-/** The latest completed reading_write / reading_insert call and its material id, so the centre stage can auto-focus what the AI just wrote. */
+/** The latest completed reading_write / reading_insert / reading_patch call and its material id, so the centre stage can auto-focus what the AI just wrote. */
 export function latestReadingWrite(messages: MastraDBMessage[]): { callId: string; itemId: string } | null {
   // Only the current turn: a write in older history is not news, however late that history loads
   let turn = messages.length
   while (turn > 0 && messageRole(messages[turn - 1]!) !== 'user') turn--
   let latest: { callId: string; itemId: string } | null = null
   for (const message of messages.slice(turn)) for (const part of message.content.parts) {
-    if (part.type !== 'tool-invocation' || (part.toolInvocation.toolName !== 'reading_write' && part.toolInvocation.toolName !== 'reading_insert') || !('result' in part.toolInvocation)) continue
+    if (part.type !== 'tool-invocation' || !READING_WRITES.has(part.toolInvocation.toolName) || !('result' in part.toolInvocation)) continue
     if (record(part.toolInvocation.result).error) continue
     const itemId = record(part.toolInvocation.args).itemId
     if (typeof itemId === 'string' && itemId) latest = { callId: part.toolInvocation.toolCallId, itemId }

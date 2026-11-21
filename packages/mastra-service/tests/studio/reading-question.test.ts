@@ -26,5 +26,5 @@ test('a widget question keeps only the words; a widget fix request carries none'
   const asked = '> 小实验「增益」\n> 当前参数：增益=2x，反馈=开\n— 解读《Free energy》· 2. 证据\n\n为什么变陡了'
   assert.deepEqual(readingQuestion(asked), { quote: '小实验「增益」 当前参数：增益=2x，反馈=开', item: 'Free energy', section: '2. 证据', words: '为什么变陡了' })
   assert.equal(userWords(asked), '为什么变陡了')
-  assert.equal(userWords('解读里的小实验运行出错：《Free energy》· 2. 证据「增益」\n\nReferenceError: x is not defined\n\n请先用 reading_view 找到这一块'), '')
+  assert.equal(userWords('解读里的小实验运行出错：《Free energy》· 2. 证据「增益」\n\nReferenceError: x is not defined\n\n请先用 reading_view({ itemId: "item-1", blockId: "p0123456789" }) 读这一块的原文，再用 reading_patch 只改出错的部分，其余内容不变。'), '')
 })

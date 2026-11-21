@@ -152,7 +152,7 @@ export const en = {
     toolNames: {
       search_papers: 'Search papers', openalex_search: 'Search papers', web_search: 'Search the web', search_web: 'Search the web', extract_pdf: 'Read PDF',
       fetch_url: 'Fetch page', read_url: 'Fetch page', web_fetch: 'Fetch page', board_view: 'View board', board_draw: 'Draw on board', board_update: 'Edit board',
-      board_erase: 'Erase on board', board_look: 'Look at board', reading_view: 'Read the reading', reading_write: 'Write a reading', reading_insert: 'Add to reading', write_file: 'Write file', edit_file: 'Edit file', read_file: 'Read file', list_materials: 'List materials',
+      board_erase: 'Erase on board', board_look: 'Look at board', reading_view: 'Read the reading', reading_write: 'Write a reading', reading_insert: 'Add to reading', reading_patch: 'Edit the reading', write_file: 'Write file', edit_file: 'Edit file', read_file: 'Read file', list_materials: 'List materials',
       read_material: 'Read material', list_files: 'Browse workspace', list_dir: 'List folder', grep: 'Search in files', glob: 'Find files', run_code: 'Run code',
       execute_command: 'Run command', todo_write: 'Update progress', update_plan: 'Update progress', ask_user: 'Ask you', spawn_subagent: 'Subagent',
       wait_subagents: 'Subagent (wait)', get_subagent_output: 'Subagent (read result)', kill_subagent: 'Subagent (stop)', look_at_image: 'Look at image',

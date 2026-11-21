@@ -146,7 +146,7 @@ export const zh: Messages = {
     toolNames: {
       search_papers: '检索文献', openalex_search: '检索文献', web_search: '网页搜索', search_web: '网页搜索', extract_pdf: '读取 PDF',
       fetch_url: '抓取网页', read_url: '抓取网页', web_fetch: '抓取网页', board_view: '看白板', board_draw: '在白板上画', board_update: '改白板',
-      board_erase: '擦白板', board_look: '看白板画面', reading_view: '看解读', reading_write: '写解读', reading_insert: '补一块进解读', write_file: '写入文件', edit_file: '编辑文件', read_file: '读取文件', list_materials: '查看材料',
+      board_erase: '擦白板', board_look: '看白板画面', reading_view: '看解读', reading_write: '写解读', reading_insert: '补一块进解读', reading_patch: '改解读', write_file: '写入文件', edit_file: '编辑文件', read_file: '读取文件', list_materials: '查看材料',
       read_material: '阅读材料', list_files: '浏览工作区', list_dir: '列目录', grep: '检索内文', glob: '查找文件', run_code: '运行代码',
       execute_command: '执行命令', todo_write: '更新进度', update_plan: '更新进度', ask_user: '询问用户', spawn_subagent: '子代理',
       wait_subagents: '等待子代理', get_subagent_output: '读子代理结果', kill_subagent: '中止子代理', look_at_image: '查看图像',

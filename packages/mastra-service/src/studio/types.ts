@@ -273,7 +273,7 @@ export interface ReadingWidgetBlock {
 /** One entry in a reading section: prose paragraph by default, or an AI-chosen table, Mermaid diagram or interactive HTML widget. */
 export type ReadingParagraph = ReadingTextBlock | ReadingTableBlock | ReadingDiagramBlock | ReadingWidgetBlock
 
-/** One section of a reading; paragraphs can be replaced whole via reading_write or extended in place via reading_insert. */
+/** One section of a reading; paragraphs can be replaced whole via reading_write, extended in place via reading_insert or edited one block at a time via reading_patch. */
 export interface ReadingSection {
   id: string
   /** Display order, 1-based and gapless */

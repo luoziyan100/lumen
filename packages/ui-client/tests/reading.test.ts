@@ -76,7 +76,7 @@ async function until(check: () => boolean | Promise<boolean>, message: string, m
   }
 }
 
-test('reading-ask: the question format reads back; replies attach to their question; footprints map across line breaks; only completed reading_write calls signal', () => {
+test('reading-ask: the question format reads back; replies attach to their question; footprints map across line breaks; only completed reading_write/insert/patch calls signal and auto-focus', async () => {
   const text = askText('an upper   bound\non surprise', '1. 为什么值得读', 'Free energy', ' 为什么是上界？ ')
   assert.equal(text, '> an upper bound on surprise\n— 解读《Free energy》· 1. 为什么值得读\n\n为什么是上界？')
   assert.deepEqual(parseAsk(text), { quote: 'an upper bound on surprise', item: 'Free energy', section: '1. 为什么值得读', words: '为什么是上界？' })
@@ -93,6 +93,11 @@ test('reading-ask: the question format reads back; replies attach to their quest
   const ask = message('m6', 'user', [{ type: 'text', text }])
   assert.equal(latestReadingWrite([msg, ask]), null)
   assert.deepEqual(latestReadingWrite([ask, msg]), { callId: 'c5', itemId: 'item-1' })
+  const patched = message('m7', 'assistant', [call('c6', 'reading_patch', { blockId: 'p1', kind: 'widget' }, { itemId: 'item-3' }), call('c7', 'reading_patch', { error: true, message: 'x' }, { itemId: 'item-err' })])
+  assert.equal(readingSignal([msg, patched]), 'c1,c5,c6', '完成的 reading_patch 让解读刷新，被拒的不算')
+  assert.deepEqual(latestReadingWrite([ask, msg, patched]), { callId: 'c6', itemId: 'item-3' }, 'reading_patch 也让本轮自动跟焦')
+  const [{ en }, { zh }] = await Promise.all([import('../src/i18n/locales/en.ts'), import('../src/i18n/locales/zh.ts')])
+  assert.deepEqual([en.process.toolNames.reading_patch, zh.process.toolNames.reading_patch], ['Edit the reading', '改解读'])
 })
 
 test('reading prose: **bold** and `code` are drawn without their markers; quotes, footprints and an old question that quoted the markers all use the shown text', () => {
@@ -195,11 +200,15 @@ test('program-written messages are not the person\'s words: write request, widge
     MODEL_TEXT.widgetSend('我猜 B'),
     MODEL_TEXT.widgetSend('  参数 3\n第二行 '),
     MODEL_TEXT.mermaidFix('graph TD\nA-->B', 'Parse error on line 2'),
-    MODEL_TEXT.widgetFix('Free energy', '2. 机制', '增益', 'ReferenceError: gain is not defined'),
+    MODEL_TEXT.widgetFix('Free energy', '2. 机制', '增益', 'ReferenceError: gain is not defined', 'item-1', 'p0123456789'),
   ]) {
     assert.equal(userWords(text), '', `程序代写的不算用户的话：${text}`)
     assert.equal(parseAsk(text), null, `程序代写的也不是提问：${text}`)
   }
+  const fix = MODEL_TEXT.widgetFix('Free energy', '2. 机制', '增益', 'ReferenceError', 'item-1', 'p0123456789')
+  assert.ok(fix.startsWith('解读里的小实验运行出错：'), '前缀与服务端 reading-question.ts 对齐')
+  assert.ok(fix.includes('reading_view({ itemId: "item-1", blockId: "p0123456789" })') && fix.includes('再用 reading_patch 只改出错的部分'), '修正请求指向按块读与局部修改')
+  assert.ok(!/reading_write|reading_insert/.test(fix), '修正请求不再把模型推回整节重写')
   assert.equal(MODEL_TEXT.widgetSend(' 我猜 B '), '— 小实验\n\n我猜 B', 'the widget mark is its own first line')
   const typed = '这里的上界为什么成立？'
   const withList = `${typed}\n\n${MODEL_TEXT.uploadedMaterials}\n- paper.pdf: item-9`

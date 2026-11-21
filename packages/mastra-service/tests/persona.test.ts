@@ -1,6 +1,6 @@
 /**
  * [INPUT]: the full application Controller and the model HTTP fixture
- * [OUTPUT]: the main agent's actual system prompt carries the full drawing contract (closed nodes first/branching/subgraph-end/sequence/scale/semantic classes, no colors) and the board-scratch-paper beliefs plus the board and sediment tools (2026-11-19 co-drawn canvas: the AI judges what to draw, erasing the user's strokes is explained and restorable, the retired block rules are gone; delete tics only), the reading belief (short answers about one sentence, no board unless asked, no quizzing, quotes are not the user's words) and reading_write titles without ordinals; the widget beliefs (one core mechanism, own section after section 1, guess first / look directly) stay while how to write a widget is only 「先调 reading_widget_guide」; the persona always says 「用户」
+ * [OUTPUT]: the main agent's actual system prompt carries the full drawing contract (closed nodes first/branching/subgraph-end/sequence/scale/semantic classes, no colors) and the board-scratch-paper beliefs plus the board and sediment tools (2026-11-19 co-drawn canvas: the AI judges what to draw, erasing the user's strokes is explained and restorable, the retired block rules are gone; delete tics only), the reading belief (short answers about one sentence, no board unless asked, no quizzing, quotes are not the user's words) and reading_write titles without ordinals, the reading_patch line (read the block with reading_view({ itemId, blockId }) first; whole-section changes stay with reading_write); the widget beliefs (one core mechanism, own section after section 1, guess first / look directly) stay while how to write a widget is only 「先调 reading_widget_guide」; the persona always says 「用户」
  * [POS]: a mirror regression of the drawing rules and the UI host's color decisions (ui-client mermaidTheme); the rules only persuade — rendering still has its own guardrails
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -34,7 +34,7 @@ test('主 Agent 实际请求的 system 提示包含完整画图规则', { timeou
     }
     // ---- Readings (living reading: prose + 2D explorable widget + inline reading_insert): beliefs and tools arrive together ----
     for (const belief of ['## 写一份解读', '写好一节就落一节', '第一节要快', '第一节写它为什么值得读', '由你自主决定每一处用文字还是用画面补助', '活结构图', '单独成节', '先猜一下', '直接看', 'reading_widget_guide', '引文保留原文的语言，不翻译；解读本身用用户的语言写', '就标成推断',
-      '最后写边界和判断', '就那一句和用户的问题回答，两三句，最多一小段', '不画白板，除非用户要你画', '不出题考用户', 'reading_insert', '引文是解读里的句子，不是用户的话，不要当作用户的话递回沉淀', 'title 不带序号', 'quote 会显示在这段下面', 'reading_view({ itemId })', 'reading_write({ itemId, sectionId?, title, paragraphs })', 'reading_insert({ itemId, sectionId, afterId?, block })']) {
+      '最后写边界和判断', '就那一句和用户的问题回答，两三句，最多一小段', '不画白板，除非用户要你画', '不出题考用户', 'reading_insert', '引文是解读里的句子，不是用户的话，不要当作用户的话递回沉淀', 'title 不带序号', 'quote 会显示在这段下面', 'reading_view({ itemId })', 'reading_write({ itemId, sectionId?, title, paragraphs })', 'reading_insert({ itemId, sectionId, afterId?, block })', 'reading_patch', 'reading_view({ itemId, blockId })', '整节换结构才用 reading_write']) {
       assert.ok(system.includes(belief), belief)
     }
   } finally { await application.close(); await rm(root, { recursive: true, force: true }) }

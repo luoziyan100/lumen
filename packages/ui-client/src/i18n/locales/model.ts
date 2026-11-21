@@ -26,8 +26,8 @@ export const MODEL_TEXT = {
   askReading: (quote: string, section: string, item: string, words: string) => `${quote.split('\n').map(line => `> ${line}`).join('\n')}\n${READING_MARK}《${item}》· ${section}\n\n${words}`,
   /** What a widget sends back (a guess, a parameter): the conversation answers it like any message, sediment never keeps it (R13) */
   widgetSend: (text: string) => `${WIDGET_MARK}\n\n${text.trim()}`,
-  /** 「请 AI 修正」 under a reading widget that threw at runtime: names where it is and the error, and asks for this one block only; the service reads it as not the person's words */
-  widgetFix: (item: string, section: string, title: string, error: string) => `解读里的小实验运行出错：《${item}》· ${section}「${title}」\n\n${error.trim().slice(0, 800)}\n\n请先用 reading_view 找到这一块，只用 reading_write 或 reading_insert 修正这一个小实验，保持其余内容不变。`,
+  /** 「请 AI 修正」 under a reading widget that threw at runtime: names where it is, the error and the block's ids, and asks to read that block and patch only what broke; the service reads it as not the person's words */
+  widgetFix: (item: string, section: string, title: string, error: string, itemId: string, blockId: string) => `解读里的小实验运行出错：《${item}》· ${section}「${title}」\n\n${error.trim().slice(0, 800)}\n\n请先用 reading_view({ itemId: "${itemId}", blockId: "${blockId}" }) 读这一块的原文，再用 reading_patch 只改出错的部分，其余内容不变。`,
   /** The quote of a question asked from a widget: the title line, then the current values line with toggles as 开/关 */
   widgetAsk: {
     title: (title: string) => `小实验「${title}」`,

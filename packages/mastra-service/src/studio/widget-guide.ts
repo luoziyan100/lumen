@@ -56,7 +56,7 @@ export const WIDGET_GUIDE = `# 小实验写法手册
 - range：{ type: "range", name, label, min, max, step, default, unit? }
 - toggle：{ type: "toggle", name, label, default: true 或 false }
 - choice：{ type: "choice", name, label, options: [{ value, label }]（2–6 个）, default: 某个 value }
-name 用小写字母开头的字母数字。改写时沿用原来的 name（reading_view 能看到原声明），用户调过的值就会保留。
+name 用小写字母开头的字母数字。改一个已有的小实验：先用 reading_view({ itemId, blockId }) 读这一块的 html 和 params，再用 reading_patch 只换要改的几处，沿用原来的 name 和标题，用户调过的值就会保留。
 页面这样读：脚本开始执行时 window.lumenParams 已经是全部当前值；之后每次变化，页面收到 lumen:params 事件，event.detail 是全部当前值。页面不能改参数。
 不要在页面里再画这些控件，读数可以画。声明了就必须读，没声明就不能读，否则写入会被拒。
 

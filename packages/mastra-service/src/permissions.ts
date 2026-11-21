@@ -13,7 +13,7 @@ export const TOOL_CATEGORIES: Readonly<Record<string, Exclude<ToolCategory, 'oth
   list_skills: 'read', run_skill: 'read', read_skill_file: 'read', task_check: 'read',
   write_file: 'edit', edit_file: 'edit', write_memory: 'edit', install_skill: 'edit',
   board_draw: 'edit', board_update: 'edit', board_erase: 'edit',
-  sediment_invite: 'edit', sediment_quote: 'edit', reading_write: 'edit', reading_insert: 'edit',
+  sediment_invite: 'edit', sediment_quote: 'edit', reading_write: 'edit', reading_insert: 'edit', reading_patch: 'edit',
   task_write: 'edit', task_update: 'edit', task_complete: 'edit',
   run_code: 'execute',
 }
