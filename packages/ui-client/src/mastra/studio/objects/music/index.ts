@@ -31,7 +31,7 @@ export interface MusicObject { slot: MusicSlot; label: string; width: number; cr
 export const MUSIC_OBJECTS: MusicObject[] = [
   { slot: 'reading', label: 'PIANO · I', width: 640, crop: [40, 130, 220, 130], svg: () => pianoSvg() },
   { slot: 'board', label: 'LEGGIO · II', width: 640, crop: [320, 180, 150, 70], svg: () => standSvg() },
-  { slot: 'takeaways', label: 'GRAMMOFONO · III', width: 640, crop: [380, 180, 140, 90], svg: () => gramophoneSvg() },
+  { slot: 'takeaways', label: 'GRAMMOFONO · III', width: 640, crop: [470, 70, 150, 150], svg: () => gramophoneSvg() },
   { slot: 'materials', label: 'VIOLONCELLO · IV', width: 280, crop: [66, 176, 96, 96], svg: () => celloSvg() },
   { slot: 'box', label: 'CARILLON · V', width: 260, crop: [60, 80, 100, 60], svg: ({ words }) => musicBoxSvg({ words: words ?? null }) },
   { slot: 'map', label: 'ARPA · VI', width: 640, crop: [140, 14, 130, 90], svg: () => harpSvg() },

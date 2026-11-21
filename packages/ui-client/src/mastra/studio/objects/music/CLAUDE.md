@@ -13,7 +13,7 @@ Motion runs only on hover, `data-open` (click) or `is-typing`. Reduced motion st
   - `count` counts primitives. `MUSIC_BASE` holds the shared rules.
 - `bowed.ts`: the violin family's single model.
   - It mirrors one unit outline about the centre line and scales it.
-  - Each f-hole is a stem that tapers at both ends and hooks into a small inner eye and a large outer eye, with wings at its middle.
+  - Each f-hole is a tilted S-shaped stem that tapers at both ends, from a small inner upper eye to a large outer lower eye, with wings at its middle.
   - The bridge stands on the f-hole notch line. The fingerboard ends before the bridge. Four strings run nut → bridge → tailpiece.
   - The bow has a pointed head, an ebony frog (pearl eye, ferrule, slide) and a screw button. Its hair lies on y = 0. A translate along the bow's own axis keeps the contact point on the strings.
 - `piano.ts` (`pn-`, 640×400): PIANO · I in Reading.
@@ -23,7 +23,8 @@ Motion runs only on hover, `data-open` (click) or `is-typing`. Reduced motion st
 - `stand.ts` (`ms-`, 640×400): LEGGIO · II on the Board.
   - One stroke table drives both the ink's dashoffset and the pen's keyframes, sampled by arc length. Click turns the right leaf.
 - `gramophone.ts` (`gr-`, 640×400): GRAMMOFONO · III in Takeaways.
-  - The deck is drawn in plan and projected by one oblique matrix, the same projection as the cabinet's top and right faces. The crank sits on the right face.
+  - A near-cubic panelled case with mouldings and corner posts; the record nearly fills the top. The deck is drawn in plan and projected by one oblique matrix, the same projection as the case top. The crank sits on the right face.
+  - The tapered tone arm swings from a swivel that carries the horn. The soundbox at its end cancels the plane transform and counter-rotates with the arm, so it always faces the viewer. A bracket from the back of the case holds the horn. DETAIL A magnifies the soundbox.
   - The arm angle for a groove radius is solved from two intersecting circles. Hover sets the needle on the outer groove. Click walks it inward.
 - `cello.ts` (`cl-`, 280×340): VIOLONCELLO · IV in Materials.
   - The bow has two poses on one group: leaning, and playing on the contact line.

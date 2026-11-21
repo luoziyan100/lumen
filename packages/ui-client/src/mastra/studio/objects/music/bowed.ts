@@ -70,12 +70,10 @@ export function bowedBody(spec: BowedSpec) {
   let fholes = ''
   const W_MAX = .005 * len, EYE_UP = .0055 * len, EYE_LO = .0075 * len
   for (const side of [1, -1]) {
-    const up = u(side * .06, .445), lo = u(side * .106, .655)
+    const up = u(side * .056, .442), lo = u(side * .112, .662)
     eyes.push(up, lo)
-    const c = curve([up[0] + side * EYE_UP * .6, up[1]], [
-      ['C', u(side * .078, .445), u(side * .084, .47), u(side * .084, .5)],
-      ['C', u(side * .084, .56), u(side * .086, .605), u(side * .09, .632)],
-      ['C', u(side * .093, .652), u(side * .097, .656), [lo[0] - side * EYE_LO * .6, lo[1]]],
+    const c = curve([up[0] + side * EYE_UP * .7, up[1] + EYE_UP * .7], [
+      ['C', u(side * .118, .49), u(side * .044, .615), [lo[0] - side * EYE_LO * .7, lo[1] - EYE_LO * .7]],
     ])
     const left: Pt[] = [], right: Pt[] = []
     for (let i = 0; i <= 32; i++) {
