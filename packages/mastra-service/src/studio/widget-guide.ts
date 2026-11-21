@@ -64,7 +64,7 @@ name 用小写字母开头的字母数字。改写时沿用原来的 name（read
 window.__widgetSendMessage("一句话") 只在用户点击之后调用（如「先猜一下」的提交按钮）。加载时或定时器里调用会被丢弃。
 
 ## 硬限制
-- 零外网：不用 http:、https: 或 // 开头的地址；不用 fetch、XMLHttpRequest、WebSocket、EventSource、import()。
+- 零外网：src、<link href>、CSS url() 不用 http:、https: 或 // 开头的地址；不用 fetch、XMLHttpRequest、WebSocket、EventSource、import()。<a href> 指向论文或网页可以保留，点击后由宿主在外部浏览器打开。
 - 不用 type="module" 的脚本；整块 html ≤64KB；每个脚本都要能编译通过。
 - 服务写入前只编译、不执行；运行期报错由用户点「请 AI 修正」发回给你。
 

@@ -3,9 +3,9 @@
  * [OUTPUT]: WIDGET_PARAM_LIMITS, widgetParamInput (the structural shape of one declared parameter), normalizeParams (the per-item caps on a widget's params),
  *           checkWidgetHtml (the static self-check of a widget's html before it is stored)
  * [POS]: the widget half of reading.ts's normalizeBlock. A reading widget declares its controls as params and the desktop draws them (P1); the html is checked here
- *        without executing a line: classic inline scripts compile under vm.Script, module scripts, remote addresses and network APIs are refused (the receiver's CSP
- *        blocks them anyway, so the person would see a blank widget), and declared params must be read while undeclared ones must not be. Runtime errors stay the
- *        desktop's (the 「请 AI 修正」 path). Every refusal names the block, the script or the parameter and how to fix it, like the rest of normalizeBlock
+ *        without executing a line: classic inline scripts compile under vm.Script, module scripts, remote loads (src, <link href>, CSS url()) and network APIs are refused
+ *        (the receiver's CSP blocks them anyway, so the person would see a blank widget) while an <a href> to the web passes (the receiver hands its click to the host),
+ *        and declared params must be read while undeclared ones must not be. Runtime errors stay the desktop's (the 「请 AI 修正」 path). Every refusal names the block, the script or the parameter and how to fix it, like the rest of normalizeBlock
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { Script } from 'node:vm'
@@ -64,15 +64,22 @@ export function normalizeParams(params: WidgetParamInput[], n: number): WidgetPa
 const SCRIPT = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi
 /** Script types the browser runs as classic script; any other type (application/json, text/plain…) is data and is not compiled */
 const CLASSIC = new Set(['', 'text/javascript', 'application/javascript', 'text/ecmascript', 'application/ecmascript'])
-const REMOTE = /\b(?:src|href)\s*=\s*["']?\s*((?:https?:|\/\/)[^\s"'>]*)|url\(\s*["']?\s*((?:https?:|\/\/)[^\s"')]*)/i
+const REMOTE = /\b(src|href)\s*=\s*["']?\s*((?:https?:|\/\/)[^\s"'>]*)|url\(\s*["']?\s*((?:https?:|\/\/)[^\s"')]*)/gi
+const TAG_NAME = /^<([a-z][a-z0-9-]*)/i
 const NETWORK = /\bfetch\s*\(|\bXMLHttpRequest\b|\bWebSocket\b|\bEventSource\b|\bimport\s*\(/
 const HANDLER = /\son[a-z]+\s*=\s*(?:"([^"]*)"|'([^']*)')/gi
 const READS_PARAMS = /\blumenParams\b|lumen:params/
 
+/** An `<a href>` to the web is a link the person may open, not a load: the receiver hands the click to the host, which opens it outside. */
+function isLink(html: string, match: RegExpExecArray) {
+  if (match[1]?.toLowerCase() !== 'href') return false
+  return TAG_NAME.exec(html.slice(html.lastIndexOf('<', match.index)))?.[1]?.toLowerCase() === 'a'
+}
+
 /** The static self-check of a widget's html (compile, never execute). `declared` says whether the block declares params. */
 export function checkWidgetHtml(html: string, n: number, declared: boolean) {
-  const remote = REMOTE.exec(html)
-  if (remote) refuse(n, `引用了外网地址「${(remote[1] ?? remote[2])!.slice(0, 80)}」；小实验不能联网，把图片、字体或脚本内联进 html，或者删掉`)
+  const remote = [...html.matchAll(REMOTE)].find(match => !isLink(html, match))
+  if (remote) refuse(n, `引用了外网地址「${(remote[2] ?? remote[3])!.slice(0, 80)}」；小实验不能联网，把图片、字体、样式或脚本内联进 html，或者删掉（<a href> 链接可以保留）`)
   const code: string[] = []
   let k = 0
   for (const [, attrs, body] of html.matchAll(SCRIPT)) {

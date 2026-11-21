@@ -400,7 +400,7 @@ export function ReadingView({ state, requested, startItem, asks, busyFor, onSend
           if (!('text' in paragraph)) {
             let stage: ReactNode = null
             if (paragraph.kind === 'widget' && activeWidgets.has(paragraph.id)) {
-              const block = paragraph, key = paramsStoreKey(reading.topicId, reading.itemId, section.id, ++ordinal), isExpanded = expanded?.id === block.id
+              const block = paragraph, key = paramsStoreKey(reading.topicId, reading.itemId, section.id, paragraph.title, ++ordinal), isExpanded = expanded?.id === block.id
               stage = <ReadingWidget block={block} expanded={isExpanded} slotHeight={isExpanded ? expanded.height : 0} values={valuesFor(key, block.params)}
                 failure={failures[block.id] ?? null} asked={widgetAsks(block.title || S.widgetIdle, sectionLabel(section)).length > 0}
                 onToggleExpand={toggleExpand} onCollapse={collapseWidget} onWidgetSend={sendWidget}

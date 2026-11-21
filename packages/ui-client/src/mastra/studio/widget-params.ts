@@ -3,8 +3,9 @@
  * [OUTPUT]: ParamValues, defaultValues, fitValues (stored values filtered by the current declaration), paramsStoreKey / loadValues / saveValues,
  *           paramsLine (the 「当前参数：…」 line a widget question carries), widgetQuote / widgetTitleOf (the two program lines of a widget question and back)
  * [POS]: the value rules behind the host-drawn widget controls (P2). Values never reach the service: they live in this device's localStorage under
- *        topic, material, section and the widget's position in that section, and every read passes the current declaration — an unknown name is dropped,
- *        a number outside the range is clamped, a wrong type or a vanished choice falls back to the default. A rewrite that keeps the names keeps the person's values.
+ *        topic, material, section and the widget's title (its position among the section's widgets when it has none), and every read passes the current declaration — an unknown name is dropped,
+ *        a number outside the range is clamped, a wrong type or a vanished choice falls back to the default. A rewrite that keeps the names keeps the person's values;
+ *        a rewrite that changes the title starts from the defaults, and two widgets with one title in one section share one set of values.
  *        Storage that is full or blocked loses only persistence; the controls keep working for the session. The same filter guards every push into the iframe, so the page only ever sees values its declaration allows. The question's fixed words live in MODEL_TEXT.widgetAsk
  *        like every model-facing string; the service's reading-question.ts reads it back as a quote, never as the person's words
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -32,8 +33,9 @@ export function fitValues(params: readonly WidgetParam[], stored: unknown): Para
   }))
 }
 
-export function paramsStoreKey(topicId: string, itemId: string, sectionId: string, ordinal: number) {
-  return `${STORE}:${topicId}:${itemId}:${sectionId}:${ordinal}`
+/** A titled widget is keyed by its title, so a widget inserted before it moves nothing; an untitled one falls back to its position among the section's widgets. */
+export function paramsStoreKey(topicId: string, itemId: string, sectionId: string, title: string | undefined, ordinal: number) {
+  return `${STORE}:${topicId}:${itemId}:${sectionId}:${title || ordinal}`
 }
 
 export function loadValues(key: string, params: readonly WidgetParam[]): ParamValues {

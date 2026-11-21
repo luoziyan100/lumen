@@ -1,7 +1,7 @@
 /**
  * [INPUT]: studio/widget-check's param caps and html self-check, studio/widget-guide's handbook and example, permissions' categories
  * [OUTPUT]: unit evidence for P1 (each param type valid and invalid, refusals name the block and the parameter), P4 (syntax error, module script, remote src,
- *           fetch(, declared-but-unread and read-but-undeclared params each refused with what to fix; a valid page with an application/json block passes;
+ *           an <a href> paper link passes while a remote <link rel=stylesheet> and a url() inside an <a> are refused, fetch(, declared-but-unread and read-but-undeclared params each refused with what to fix; a valid page with an application/json block passes;
  *           the check compiles and never runs page script: a global the page would set stays unset and a page that throws on run passes) and P5 (the handbook is ≤4KB, teaches lumenParams / lumen:params / __widgetSendMessage, its own example
  *           passes the check, and the tool is 'read')
  * [POS]: the pure half of the widget-params proof; reading.test.ts carries the same rules through the real Controller, reading_write and reading_view
@@ -54,6 +54,9 @@ test('checkWidgetHtml: compiles without running, refuses what the sandbox would 
   refusal(() => checkWidgetHtml('<script type="module">var x = 1</script>', 2, false), /第 1 个脚本是 type="module"/)
   refusal(() => checkWidgetHtml('<script src="https://cdn.example.com/d3.js"></script>', 2, false), /引用了外网地址「https:\/\/cdn\.example\.com\/d3\.js」/)
   refusal(() => checkWidgetHtml('<div style="background:url(//img.example.com/a.png)"></div>', 2, false), /外网地址「\/\/img\.example\.com\/a\.png」/)
+  checkWidgetHtml('<p>出处：<a href="https://arxiv.org/abs/1706.03762" target="_blank">Attention Is All You Need</a></p>', 2, false)
+  refusal(() => checkWidgetHtml('<a href="https://arxiv.org/abs/1706.03762">论文</a><link rel="stylesheet" href="https://cdn.example.com/a.css">', 2, false), /外网地址「https:\/\/cdn\.example\.com\/a\.css」/)
+  refusal(() => checkWidgetHtml('<a href="https://arxiv.org" style="background:url(https://img.example.com/b.png)">论文</a>', 2, false), /外网地址「https:\/\/img\.example\.com\/b\.png」/)
   refusal(() => checkWidgetHtml('<script>fetch("/data.json").then(r => r.json())</script>', 2, false), /脚本用了 fetch\(；小实验的沙箱禁止任何网络请求/)
   refusal(() => checkWidgetHtml('<button onclick="new WebSocket(\'ws://x\')">连</button>', 2, false), /脚本用了 WebSocket/)
   refusal(() => checkWidgetHtml('<script>var a = 1</script>', 5, true), /第 5 块小实验声明了 params，页面却没有读 window\.lumenParams/)

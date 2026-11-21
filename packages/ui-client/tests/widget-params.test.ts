@@ -1,7 +1,7 @@
 /**
  * [INPUT]: studio/widget-params' pure value rules and question lines, a Map standing in for localStorage
  * [OUTPUT]: unit evidence for P2: an unknown name is dropped, a number outside the range is clamped, a wrong type or a vanished choice falls back to the default; values saved
- *           under topic/material/section/position survive a rewrite that keeps the names (a smaller max clamps them); and for P3's quote: the two program lines (title, then
+ *           under topic/material/section/title (position only when untitled) survive a widget inserted before it and a rewrite that keeps the names (a smaller max clamps them); and for P3's quote: the two program lines (title, then
  *           「当前参数」 with toggles as 开/关, choices by label, ranges with their unit) and widgetTitleOf reading the title back from the joined quote
  * [POS]: the pure half of the widget-params desktop proof; reading.test.ts feeds the same quote through both question parsers, ui-assert-reading.mts drives the real controls
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -34,12 +34,18 @@ test('fitValues: the current declaration decides what survives', () => {
 })
 
 test('values saved under the widget\'s place survive a rewrite that keeps the names', () => {
-  const key = paramsStoreKey('topic-1', 'item-1', 's1', 2)
-  assert.equal(key, 'lumen:widgetParams.v1:topic-1:item-1:s1:2')
+  const key = paramsStoreKey('topic-1', 'item-1', 's1', '增益回路', 1)
+  assert.equal(key, 'lumen:widgetParams.v1:topic-1:item-1:s1:增益回路')
+  assert.equal(paramsStoreKey('topic-1', 'item-1', 's1', undefined, 2), 'lumen:widgetParams.v1:topic-1:item-1:s1:2', '没有标题才退回节内序号')
   assert.deepEqual(loadValues(key, params), defaultValues(params), '没存过就是默认值')
   saveValues(key, { gain: 3.5, feedback: false, mode: 'fast' })
   const rewritten: WidgetParam[] = [{ ...params[0]!, max: 2 } as WidgetParam, params[1]!, { type: 'toggle', name: 'noise', label: '噪声', default: false }]
   assert.deepEqual(loadValues(key, rewritten), { gain: 2, feedback: false, noise: false }, '同名保留、上限调小夹回、删掉的 mode 丢弃、新参数取默认')
+  const inserted = paramsStoreKey('topic-1', 'item-1', 's1', '另一个小实验', 1)
+  saveValues(inserted, { gain: 0.5, feedback: true, mode: 'slow' })
+  assert.equal(paramsStoreKey('topic-1', 'item-1', 's1', '增益回路', 2), key, '同一节前面补插一个小实验，原小实验序号后移、键不变')
+  assert.deepEqual(loadValues(key, params), { gain: 3.5, feedback: false, mode: 'fast' }, '补插后原小实验的值不串')
+  assert.deepEqual(loadValues(inserted, params), { gain: 0.5, feedback: true, mode: 'slow' })
   store.set(key, '{not json')
   assert.deepEqual(loadValues(key, params), defaultValues(params), '坏数据回默认')
 })
