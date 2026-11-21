@@ -11,5 +11,8 @@ These scripts drive Chromium 1228 and WebKit 2215 through playwright-core at `/t
 - `views-page.mts`: writes `views.html`, the four objects next to the box and the easel at 320px. `?only=<id>`, `?set=`, `?hover`, `?open` and `?dark` pin a state. Click a host to open it.
 - `views.html`: the generated design page (V1–V4); regenerate it after changing an object.
 - `views-shots.mts`: the V1–V4 checkpoint captures in both browsers: the whole row in light and dark, then per object rest, hover, mid, open, closed again and open in dark. It checks for at least 150 shapes, no `<image>`, stillness and no script errors.
+- `music-page.mts`: writes `music.html`, the eight music objects (objects/music/) each in a host at its product viewBox width, labelled with slot, label, primitive count and line-weight tiers. Click a host to open it. `?only=<slot>`, `?open`, `?typing`, `?dark` (the dark skin's ink and paper tokens) and `?w=<px>` pin a state.
+- `music.html`: the generated music design page; regenerate it after changing a music object.
+- `music-shots.mts`: the music design-gate captures per object, browser and theme: rest, hover mid (1.1 s), open, typing (piano), plus a 3× crop of each object's `crop` region. It prints primitive counts and tiers and checks for no `<image>`, stillness at rest and no script errors. `ONLY`, `SLOT` and `THEME` narrow the run.
 
 [PROTOCOL]: Update this header on change, then check CLAUDE.md
