@@ -1,5 +1,5 @@
 /**
- * [INPUT]: components/Markdown for replies, components/MermaidBlock for inline diagrams, ReadingWidget for an active interactive widget (WidgetFrame, its controls and failure line), components/widget/generation (the html's generation keys the iframe and its failure), widget-params' value rules and question lines, MODEL_TEXT.widgetFix, objects/ (IsoObject, typewriterSvg/paperLines), useReading's state, the topic's questions (useTopicAsks), the pure helpers of reading-ask.ts, i18n `studio.reading`, the host's send/widget-send/keep/open-source callbacks
+ * [INPUT]: components/Markdown for replies, components/MermaidBlock for inline diagrams, ReadingWidget for an active interactive widget (WidgetFrame, its controls and failure line), components/widget/generation (the html's generation keys the iframe and its failure), widget-params' value rules and question lines, MODEL_TEXT.widgetFix, objects/ (the reading slot's DeskObject), useReading's state, the topic's questions (useTopicAsks), the pure helpers of reading-ask.ts, i18n `studio.reading`, the host's send/widget-send/keep/open-source callbacks
  * [OUTPUT]: ReadingView: the centre 「解读 / Reading」 view — a centred 960px column whose prose, headings, quotes, tables and diagrams stay within 700px while interactive HTML widgets (`WidgetFrame`, up to 3 active by default, bidirectional via onSendMessage) use the full 960px column width and can expand in place via `position: fixed` (same mounted WidgetFrame/iframe so interactive state survives expand/collapse, same-height placeholder, solid light stage, closes AskWindow first so one Esc handles it, including Esc pressed while focus is inside the expanded iframe via `onEscape`); a paper block is followed by its quote in the paper's own words, ending in the source chip
  *           (「原文 p.N」 opens split reading at that page), an inference block ends in a dashed chip; the quote line opens no window; the person's footprints (thin underlines on sentences asked about, inline spans with role="button" that wrap like text and open on click/Enter/Space;
  *           dashed once the AI changed the sentence, a mark at the paragraph's end when nothing is left to sit on, placed by placeFootprints, never dropped);
@@ -23,8 +23,7 @@ import { MermaidBlock } from '../../components/MermaidBlock'
 import { useT } from '../../i18n/index.ts'
 import { MODEL_TEXT } from '../../i18n/locales/model.ts'
 import type { Identity, ReadingParagraph, ReadingSection, ReadingTextBlock, ReadingWidgetBlock, TopicMaterial, WidgetParam } from '../data/client.ts'
-import { IsoObject } from './objects/IsoObject'
-import { paperLines, typewriterSvg } from './objects/typewriter.ts'
+import { DeskObject } from './objects/DeskObject'
 import { placeFootprints, prose, readingAsks, sectionLabel, squash, wholeMath, type Ask, type ParagraphFootprints, type Prose } from './reading-ask.ts'
 import { marked, Rich } from './ProseText'
 import type { ReadingState } from './useReading.ts'
@@ -226,9 +225,8 @@ export function AskWindow({ target, asks, log = true, busy, onSend, onKeep, onCl
 /** The empty Reading view is the typewriter alone (an empty state is one object, no text, no button): the material's title on its paper, typing while a
  *  requested reading has no section yet. Writing starts from the Materials row; a failure to load the reading still shows as an error */
 function ReadingStart({ item, requested, error }: { item: TopicMaterial | null; requested: boolean; error: string }) {
-  const markup = useMemo(() => typewriterSvg({ lines: paperLines(item?.title ?? '') }), [item?.title])
   return <div className="studio-later reading-empty reading-start">
-    <IsoObject markup={markup} className="reading-typewriter" typing={requested} />
+    <DeskObject slot="reading" title={item?.title ?? ''} className="reading-typewriter" typing={requested} />
     {error && <p className="mw-error" role="alert">{error}</p>}
   </div>
 }

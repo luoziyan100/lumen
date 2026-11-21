@@ -13,8 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AttachIcon, CloseIcon, FileTextIcon, FileTypeIcon, ICON_MD, ICON_SM, SearchIcon } from '../../components/icons'
 import { useT } from '../../i18n/index.ts'
 import type { LumenApi, TopicMaterial } from '../data/client.ts'
-import { IsoObject } from './objects/IsoObject'
-import { cabinetSvg } from './objects/cabinet.ts'
+import { DeskObject } from './objects/DeskObject'
 import { PaneToggle } from './Panes'
 
 export function useMaterials(api: LumenApi, topicId: string | null, signal: string) {
@@ -67,10 +66,8 @@ function Row({ item, active, read, readingBusy, onOpen, onReading, onRemove }: {
 
 /** Empty Materials: the card cabinet alone (upload sits in the header); hover and click only, and it leaves when a material arrives */
 function EmptyMaterials() {
-  const { studio: S } = useT()
-  const markup = useMemo(() => cabinetSvg({ labels: S.objects.cabinet }), [S.objects.cabinet])
   return <div className="materials-empty">
-    <IsoObject markup={markup} className="materials-cabinet" />
+    <DeskObject slot="materials" className="materials-cabinet" />
   </div>
 }
 

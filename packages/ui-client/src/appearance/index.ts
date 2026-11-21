@@ -9,6 +9,7 @@ export type {
   AppearanceMode,
   AppearanceState,
   AppearanceTokenName,
+  DeskObjects,
   ResolvedTheme,
   SkinDefinition,
   SkinMaterial,

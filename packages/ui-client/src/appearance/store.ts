@@ -1,19 +1,20 @@
 /**
  * [INPUT]: localStorage lumen:appearance.v2(无则一次性读取 v1)
  * [OUTPUT]: loadAppearance / saveAppearance / normalizeAppearance
- * [POS]: appearance 本地偏好持久化，与服务端模型和运行设置分离；
+ * [POS]: appearance 本地偏好持久化（含桌面物件套组：未知值回到仪器；乐器声音：非 true 即关），与服务端模型和运行设置分离；
  *        v1 迁移：停留在旧默认青瓷的偏好改为新默认「清透」，其余皮肤选择原样保留
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 
 import { coerceSkinId } from './registry.ts'
 import { coerceCjkFont, coerceLatinFont } from './fonts.ts'
-import { DEFAULT_APPEARANCE, type AppearanceMode, type AppearanceState } from './types.ts'
+import { DEFAULT_APPEARANCE, type AppearanceMode, type AppearanceState, type DeskObjects } from './types.ts'
 
 export const APPEARANCE_STORAGE_KEY = 'lumen:appearance.v2'
 export const LEGACY_APPEARANCE_STORAGE_KEY = 'lumen:appearance.v1'
 
 const MODES = new Set<AppearanceMode>(['dark', 'light', 'system'])
+const DESK_OBJECTS = new Set<DeskObjects>(['instruments', 'music'])
 
 export function normalizeAppearance(raw: unknown): AppearanceState {
   if (!raw || typeof raw !== 'object') return { ...DEFAULT_APPEARANCE }
@@ -25,7 +26,9 @@ export function normalizeAppearance(raw: unknown): AppearanceState {
   let blurPx = typeof o.blurPx === 'number' && Number.isFinite(o.blurPx) ? o.blurPx : DEFAULT_APPEARANCE.blurPx
   blurPx = Math.max(0, blurPx)
   return { version: 1, mode, skinId, overlay, blurPx,
-    latinFont: coerceLatinFont(o.latinFont), cjkFont: coerceCjkFont(o.cjkFont), justify: o.justify === true }
+    latinFont: coerceLatinFont(o.latinFont), cjkFont: coerceCjkFont(o.cjkFont), justify: o.justify === true,
+    deskObjects: DESK_OBJECTS.has(o.deskObjects as DeskObjects) ? (o.deskObjects as DeskObjects) : DEFAULT_APPEARANCE.deskObjects,
+    instrumentSounds: o.instrumentSounds === true }
 }
 
 export function loadAppearance(): AppearanceState {

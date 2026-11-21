@@ -3,7 +3,7 @@
  * [OUTPUT]: harpSvg(): ARPA · VI, a concert pedal harp in side elevation with DETAIL A beside it (640×400) for the empty Map view; HARP_CSS; HARP_STRINGS (40)
  * [POS]: music object M6, the counterpart of the cork board. Each string runs straight down from a tuning pin under the neck (NECK) to an eyelet on the soundboard line (BOARD);
  *        C strings are drawn heavier and F strings dashed, the ink form of the coloured strings. The column carries a fluted shaft and a crown; the base carries seven pedals.
- *        Hover plucks a broken chord string by string, each note rising into the blank between the harp and the detail. DETAIL A magnifies the discs and fork pins under the neck. Click runs a glissando across all forty, low to high, once
+ *        Hover plucks a broken chord string by string, each note rising into the blank between the harp and the detail. DETAIL A magnifies the discs and fork pins under the neck. Click runs a glissando across all forty, low to high, once (finished within 1.3 s)
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { circle, curve, dbl, detail, hatch, inset, knurl, line, note, path, plate, r, rect, rivet, shadow, shadowDef, ticks } from './line.ts'
@@ -117,8 +117,8 @@ const pluckFrames = `@keyframes ${P}pluck { 0% { transform: none; } 3% { transfo
 const glissFrames = `@keyframes ${P}gliss { 0% { transform: none; } 12% { transform: translateX(1.1px); } 24% { transform: translateX(-.9px); } 38% { transform: translateX(.6px); } 52% { transform: translateX(-.35px); } 70%, 100% { transform: none; } }`
 const arp = ARPEGGIO.map((s, k) => `.iso-host:hover:not([data-open]) .mu-harp .${P}s${s} { animation: ${P}pluck ${LOOP}s ${r(k * LOOP / 10)}s linear infinite; }\n` +
   `.iso-host:hover:not([data-open]) .mu-harp .${P}n${k} { animation: ${P}up ${LOOP}s ${r(k * LOOP / 10)}s cubic-bezier(.3,.6,.4,1) infinite; }`).join('\n')
-const gliss = Array.from({ length: HARP_STRINGS }, (_, i) => `.iso-host[data-open] .mu-harp .${P}s${i} { animation: ${P}gliss 700ms ${i * 24}ms ease-out 1 both; }`).join('\n')
-const run = ARPEGGIO.map((_, k) => `.iso-host[data-open] .mu-harp .${P}n${k} { animation: ${P}run 1.8s ${k * 120}ms cubic-bezier(.3,.6,.4,1) 1 both; }`).join('\n')
+const gliss = Array.from({ length: HARP_STRINGS }, (_, i) => `.iso-host[data-open] .mu-harp .${P}s${i} { animation: ${P}gliss 500ms ${i * 18}ms ease-out 1 both; }`).join('\n')
+const run = ARPEGGIO.map((_, k) => `.iso-host[data-open] .mu-harp .${P}n${k} { animation: ${P}run 1s ${k * 50}ms cubic-bezier(.3,.6,.4,1) 1 both; }`).join('\n')
 
 export const HARP_CSS = `
 ${pluckFrames}

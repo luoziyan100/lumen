@@ -1,10 +1,10 @@
 /**
  * [INPUT]: AppearanceState + onChange、桌面精灵本机开关、统一勾选图标
- * [OUTPUT]: PreferencePane：顶部界面语言（按各语言自称列出，即选即换），整窗皮肤（名称与说明随语言）、真实明暗、阅读字体与背景效果；桌面精灵入口由集中常量隐藏，保留代码便于恢复
+ * [OUTPUT]: PreferencePane：顶部界面语言（按各语言自称列出，即选即换），整窗皮肤（名称与说明随语言）、真实明暗、阅读字体、背景效果，桌面物件套组（仪器/音乐）与乐器声音开关（只在音乐套组可用）；桌面精灵入口由集中常量隐藏，保留代码便于恢复
  * [POS]: Mastra 设置的外观页；复用迁移前皮肤控件，偏好仅保存在本机
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
-import type { AppearanceMode, AppearanceState, ReadingFontOption, SkinDefinition } from '../../../appearance'
+import type { AppearanceMode, AppearanceState, DeskObjects, ReadingFontOption, SkinDefinition } from '../../../appearance'
 import { CJK_FONTS, LATIN_FONTS, coerceCjkFont, coerceLatinFont, coerceSkinId, listSkins } from '../../../appearance'
 import { CheckIcon, ICON_SM } from '../../../components/icons'
 import { DESKTOP_SPRITE_ENABLED, useDesktopSpriteEnabled } from '../../studio/sprite-desktop/preference'
@@ -12,6 +12,7 @@ import { Select } from '@cloudflare/kumo/components/select'
 import { localeNames, setLocale, useLocale, useT } from '../../../i18n/index.ts'
 
 const MODES: AppearanceMode[] = ['dark', 'light', 'system']
+const DESK_KITS: DeskObjects[] = ['instruments', 'music']
 
 export function PreferencePane({
   state,
@@ -108,6 +109,22 @@ export function PreferencePane({
             onChange={(e) => onChange({ blurPx: Number(e.target.value) })}
             aria-label={A.blurLabel}
           />
+        </label>
+      </section>
+      <section className="pref-section pref-desk">
+        <h3 className="pref-h">{A.deskObjects}</h3>
+        <div className="pref-mode-row" role="group" aria-label={A.deskObjects}>
+          {DESK_KITS.map((kit) => (
+            <button key={kit} type="button" className={`pref-mode-btn${state.deskObjects === kit ? ' is-active' : ''}`} aria-pressed={state.deskObjects === kit}
+              onClick={() => onChange({ deskObjects: kit })}>
+              {A.deskKits[kit]}
+            </button>
+          ))}
+        </div>
+        <label className="pref-check">
+          <input type="checkbox" checked={state.deskObjects === 'music' && state.instrumentSounds} disabled={state.deskObjects !== 'music'}
+            onChange={(e) => onChange({ instrumentSounds: e.target.checked })} />
+          <span>{A.instrumentSounds}</span>
         </label>
       </section>
       {DESKTOP_SPRITE_ENABLED && <section className="pref-section">

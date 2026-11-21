@@ -82,5 +82,5 @@ ${riseFrames(`${P}up`, 60, -118, 70)}
 .iso-host:hover:not([data-open]) .mu-violin .${P}s { animation: ${P}hum .12s linear infinite; }
 .iso-host:hover:not([data-open]) .mu-violin .${P}rise { animation: ${P}up 3.1s cubic-bezier(.3,.6,.4,1) infinite; }
 ${[0, 1, 2, 3].map(pluck).join('\n')}
-.iso-host[data-open] .mu-violin .${P}chord { animation: ${P}chord-up 2.2s 300ms cubic-bezier(.3,.6,.4,1) 1 both; }
+.iso-host[data-open] .mu-violin .${P}chord { animation: ${P}chord-up 1.2s 150ms cubic-bezier(.3,.6,.4,1) 1 both; }
 `

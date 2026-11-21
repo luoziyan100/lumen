@@ -195,6 +195,7 @@ export const zh: Messages = {
     sample: '读得懂，不等于被带走。Understanding precedes proof — Einstein chased a beam of light.',
     theme: '皮肤', themeCurrent: name => `当前 ${name}`, selected: '（已选）', light: '浅色', dark: '深色', paper: '纸面', glass: '玻璃',
     overlay: '背景遮罩', overlayLabel: '背景遮罩强度', blur: '背景模糊', blurLabel: '背景模糊像素',
+    deskObjects: '桌面物件', deskKits: { instruments: '仪器', music: '音乐' }, instrumentSounds: '乐器声音',
     desktopSprite: '桌面精灵', desktopSpriteHint: '收起窗口时在桌面显示精灵',
   },
   skins: {

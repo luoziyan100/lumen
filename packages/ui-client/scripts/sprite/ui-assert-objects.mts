@@ -1,5 +1,5 @@
 /**
- * [INPUT]: ./nav-tips.ts for the V6 measurement; a self-contained isolated fixture service (real Controller + controllable model: writes one reading section, holding it until the script releases it) and the vite
+ * [INPUT]: ./nav-tips.ts for the V6 measurement; ./music-checks.ts for the music kit; a self-contained isolated fixture service (real Controller + controllable model: writes one reading section, holding it until the script releases it) and the vite
  *          dev page on PORT (default 5191, refused when already taken); data root LUMEN_ASSERT_ROOT (default /tmp/lumen-obj-data, /tmp/lumen-* only, wiped at start); seeded topics: one with a material, takeaways and no sheet, one empty, one already read and drawn on
  * [OUTPUT]: browser evidence for the objects in the product (1440x900 and 1280x800, light and dark, zh and en): each object shows only in its empty state (typewriter: no
  *           reading, alone and centred; cabinet: no material, alone and centred; box: room under the topic list; easel: no sheet, or a live sheet with no stroke (V0), alone and centred on the canvas;
@@ -12,7 +12,10 @@
  *           deletes it (V8); the box's boundary measured on both sides at 1440×900 and 1440×700 (topics added one by one), a 900→700→900 drag that folds and restores it once
  *           each way with the first/last rows and Settings unmoved; no console or page errors. V6 in Chromium and WebKit, zh and en: with icons only and the sprite parked under
  *           the navigation, every tab shows its name within 600ms by hover and by keyboard Tab, under the tab, inside the window, on top of the sprite, its name in title drawn by Tips (title borrowed while shown, so no native box); a pane toggle's title shows the same tip and comes back on leave.
- *           WebKit: rest and open captures of every object (zh 1440×1400 light)
+ *           WebKit: rest and open captures of every object (zh 1440×1400 light). KIT=music (./music-checks.ts) seeds the music kit and runs the same checks on the music objects, then adds:
+ *           the switch in Settings › Appearance without a reload, persistence after a reload, and the return to Instruments (every visible SVG byte-identical; the Ideas view pixel-identical,
+ *           since most original instruments rasterize differently on any remount); ONLY=switch runs only that block; the piano playing and its staff drawing while a reading is written;
+ *           notes inside their object and clear of text and controls over 10 frames on hover and click; sound off → no AudioContext, sound on → no oscillator on hover, ≥1 on click; a WebKit capture of the appearance pane
  * [POS]: an acceptance script that swaps the model network only and touches no product protocol; Chromium runs with --disable-gpu. Screenshots land in the evidence directory, never in the repo. Usage: node --experimental-strip-types ui-assert-objects.mts <evidence-dir> [--no-easel]. Prints BOX_BOUNDARY for the report
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -21,6 +24,8 @@ import { mkdir, rm } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import { assertPortFree, assertRoot } from './assert-env.ts'
 import { compactNav, spriteUnderNav, tipChecks } from './nav-tips.ts'
+import { KITS, countAudio, notesClear, pickKit, pixelDiff, seedKit, still, type Kit } from './music-checks.ts'
+import { writeFile } from 'node:fs/promises'
 import { createHttpService } from '../../../mastra-service/src/server.ts'
 import { acquireServiceLock } from '../../../mastra-service/src/deployment/lock.ts'
 import { publishDiscovery } from '../../../mastra-service/src/deployment/discovery.ts'
@@ -31,6 +36,8 @@ import { element } from '../../../mastra-service/tests/studio/canvas-fixtures.ts
 const out = process.argv[2]
 if (!out) throw new Error('evidence dir required')
 const EASEL = !process.argv.includes('--no-easel')
+const KIT: Kit = process.env.KIT === 'music' ? 'music' : 'instruments', SVG = KITS[KIT], MUSIC = KIT === 'music'
+const SWITCH_ONLY = MUSIC && process.env.ONLY === 'switch'
 const catalogs = { zh: (await import('../../src/i18n/locales/zh.ts')).zh, en: (await import('../../src/i18n/locales/en.ts')).en }
 const seedLocale = locale => localStorage.setItem('lumen:locale.v1', JSON.stringify({ version: 1, locale }))
 const seedDark = () => localStorage.setItem('lumen:appearance.v2', JSON.stringify({ version: 1, mode: 'dark', skinId: 'yan-clear', overlay: 0, blurPx: 0, latinFont: 'source-serif', cjkFont: 'wenkai', justify: false }))
@@ -137,7 +144,7 @@ for (let i = 0; ; i++) {
   await sleep(500)
 }
 
-async function open(browser, { locale, w, h, dark = false, reduced = false }) {
+async function open(browser, { locale, w, h, dark = false, reduced = false, sounds = false, kit = KIT }) {
   const context = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2, reducedMotion: reduced ? 'reduce' : 'no-preference' })
   const page = await context.newPage()
   const errors = []
@@ -145,7 +152,9 @@ async function open(browser, { locale, w, h, dark = false, reduced = false }) {
   // The vite dev page has no favicon; that 404 belongs to the dev server, not to the app
   page.on('console', message => { const at = message.location()?.url ?? ''; if (message.type() === 'error' && !at.endsWith('/favicon.ico')) errors.push(`${step}: ${message.text()} @ ${at}`) })
   await page.addInitScript(seedLocale, locale)
-  if (dark) await page.addInitScript(seedDark)
+  await page.addInitScript(countAudio)
+  if (kit === 'music') await page.addInitScript(seedKit, [kit, sounds, dark])
+  else if (dark) await page.addInitScript(seedDark)
   await page.goto(`http://localhost:${port}/`)
   await page.waitForSelector('.studio-topics .topic')
   return { context, page, errors }
@@ -187,7 +196,7 @@ const easelAlone = page => page.evaluate(() => {
     zoom: controls.every(r => apart(e, r)), sheets: apart(e, s), noLine: !document.querySelector('.board-empty') }
   return { ...result, ok: result.centred && result.inside && result.zoom && result.sheets && result.noLine && result.width <= 560 && result.width >= 200 }
 })
-const PLACEHOLDERS = [['map', 'iso-cork', 'cork'], ['ideas', 'iso-lamp', 'lamp'], ['all', 'iso-case', 'case']]
+const PLACEHOLDERS = MUSIC ? [['map', SVG.map, 'harp'], ['ideas', SVG.ideas, 'violin'], ['all', SVG.all, 'metronome']] : [['map', SVG.map, 'cork'], ['ideas', SVG.ideas, 'lamp'], ['all', SVG.all, 'case']]
 /** The last topic picked and view opened, so a console error says where it came from */
 let step = ''
 const pick = async (page, title) => { step = title;  await page.locator('.studio-topics .topic', { hasText: title }).click(); await page.waitForSelector('.studio-topics .topic.on >> text=' + title) }
@@ -248,7 +257,7 @@ async function tooltips(browser, name, locale, key = 'Tab') {
 if (process.env.ONLY !== 'webkit') {
 const chrome = await chromium.launch({ executablePath: exe, args: ['--disable-gpu'] })
 try {
-  for (const locale of ['zh', 'en']) for (const [w, h] of [[1440, 900], [1280, 800]]) for (const dark of [false, true]) {
+  if (!SWITCH_ONLY) for (const locale of ['zh', 'en']) for (const [w, h] of [[1440, 900], [1280, 800]]) for (const dark of [false, true]) {
     const M = catalogs[locale], S = M.studio, tag = `${locale} ${w} ${dark ? 'dark' : 'light'}`
     const { context, page, errors } = await open(chrome, { locale, w, h, dark })
 
@@ -260,7 +269,7 @@ try {
       return Math.abs(c.width - 220) < 1 && Math.abs((c.left + c.right) / 2 - (pane.left + pane.right) / 2) < 2 && !document.querySelector('.materials-empty p')
     }))
     check(`${tag} 卡片柜是装饰`, (await decoration(page, '.materials-cabinet')) === 'ok', await decoration(page, '.materials-cabinet'))
-    const typewriter = await aloneCentred(page, '.reading-typewriter', 'iso-typewriter')
+    const typewriter = await aloneCentred(page, '.reading-typewriter', SVG.reading)
     check(`${tag} 解读为空：只有打字机、居中（≤8px）、没有文字和按钮`, typewriter === 'ok', JSON.stringify(typewriter))
     check(`${tag} 上传可点`, await hits(page, '.materials-upload'))
     check(`${tag} 每个主题可点`, await allHit(page, '.studio-topics .topic'))
@@ -273,7 +282,7 @@ try {
 
     // ---- V1–V4 on BLANK: the press, the cork board, the lamp and the type case, each alone and centred in its view ----
     await view(page, S, 'settled'); await page.waitForSelector('.sediment-press')
-    const press = await aloneCentred(page, '.sediment-press', 'iso-press')
+    const press = await aloneCentred(page, '.sediment-press', SVG.takeaways)
     check(`${tag} 沉淀为空：只有压花板、居中（≤8px）、宽 min(560, 可用宽)、没有文字和按钮`, press === 'ok', JSON.stringify(press))
     check(`${tag} 压花板是装饰`, (await decoration(page, '.sediment-press')) === 'ok', await decoration(page, '.sediment-press'))
     await page.screenshot({ path: `${out}/${tag.replaceAll(' ', '-')}-settled.png` })
@@ -284,7 +293,7 @@ try {
       check(`${tag} ${S.views[name]}：只有物件、居中（≤8px）、没有可见文字，读屏名是「${S.notOpen}」`, placed === 'ok' && await page.getAttribute('.studio-later', 'aria-label') === S.notOpen, JSON.stringify(placed))
       check(`${tag} ${S.views[name]} 物件是装饰`, (await decoration(page, '.studio-later-object')) === 'ok', await decoration(page, '.studio-later-object'))
       check(`${tag} ${S.views[name]}：每个视图标签可点`, await allHit(page, '.studio-views:not(.studio-views-ghost) [role=tab]'))
-      if (name === 'ideas') check(`${tag} 台灯光斑不压任何文字与控件`, (await poolClear(page)) === 'ok', await poolClear(page))
+      if (name === 'ideas' && !MUSIC) check(`${tag} 台灯光斑不压任何文字与控件`, (await poolClear(page)) === 'ok', await poolClear(page))
       await page.screenshot({ path: `${out}/${tag.replaceAll(' ', '-')}-${name}.png` })
       if (!dark && w === 1440) await states(page, '.studio-later-object', id, tag)
     }
@@ -294,10 +303,10 @@ try {
     await pick(page, READ)
     await page.waitForSelector('.material')
     check(`${tag} 有素材：没有卡片柜`, !(await page.$('.materials-cabinet')))
-    const readTypewriter = await aloneCentred(page, '.reading-typewriter', 'iso-typewriter')
+    const readTypewriter = await aloneCentred(page, '.reading-typewriter', SVG.reading)
     check(`${tag} 有素材、没解读：仍只有打字机、居中、没有按钮`, readTypewriter === 'ok', JSON.stringify(readTypewriter))
     check(`${tag} 素材行的写解读可点`, await hits(page, '.material-reading'))
-    check(`${tag} 纸上是资料标题`, await page.evaluate(title => [...document.querySelectorAll('.reading-typewriter text')].some(node => node.textContent === title), notes.title))
+    if (!MUSIC) check(`${tag} 纸上是资料标题`, await page.evaluate(title => [...document.querySelectorAll('.reading-typewriter text')].some(node => node.textContent === title), notes.title))
     check(`${tag} 打字机是装饰`, (await decoration(page, '.reading-typewriter')) === 'ok', await decoration(page, '.reading-typewriter'))
     await page.waitForFunction(() => document.querySelectorAll('.topics-box text').length > 0 && [...document.querySelectorAll('.topics-box text')].some(node => node.textContent?.startsWith('预测往下走')))
     const card = await page.evaluate(() => [...document.querySelectorAll('.topics-box g[clip-path] text')].map(node => node.textContent))
@@ -363,6 +372,7 @@ try {
       const a = await page.locator('.reading-typewriter').screenshot({ animations: 'allow' }); await sleep(370)
       const b = await page.locator('.reading-typewriter').screenshot({ animations: 'allow' })
       check(`${tag} 请求后、第一节前在打字（动画在跑、画面在变）`, typing > 0 && !a.equals(b), `${typing} animations`)
+      if (MUSIC) check(`${tag} 正在写解读：钢琴在弹，五线谱在画`, await page.evaluate(() => ['.pn-staff', '.pn-k'].every(target => document.querySelector('.reading-typewriter')!.querySelector(target) && [...document.querySelectorAll(`.reading-typewriter ${target}`)].some(node => node.getAnimations({ subtree: true }).some(a => a.playState === 'running')))))
       check(`${tag} 等待时只有打字机在打字，没有状态句`, !(await page.$('.reading-start [role=status]')) && !(await page.$('.reading-start p')))
       await page.screenshot({ path: `${out}/${tag.replaceAll(' ', '-')}-typing.png` })
       openGate()
@@ -374,7 +384,7 @@ try {
   }
 
   // ---- Reduced motion: every object's transitions are at most 100ms ----
-  {
+  if (!SWITCH_ONLY) {
     const { context, page, errors } = await open(chrome, { locale: 'zh', w: 1440, h: 900, reduced: true })
     await pick(page, BLANK)
     await page.waitForSelector('.materials-cabinet')
@@ -397,8 +407,74 @@ try {
     await context.close()
   }
 
+  // ---- The music kit only: switching without a reload, persistence, pixel-identical return; notes inside the frame; sound only on a click with the switch on ----
+  if (MUSIC) {
+    for (const locale of ['zh', 'en']) {
+      const { context, page, errors } = await open(chrome, { locale, w: 1440, h: 900, kit: 'instruments' })
+      const catalog = catalogs[locale], S = catalog.studio, tag = `${locale} 切换`
+      const markup = () => page.evaluate(() => [...document.querySelectorAll('.iso-host')].map(host => `${host.className.split(' ')[1]}:${host.innerHTML.length}:${host.innerHTML}`).sort())
+      const ideas = async () => { await view(page, S, 'ideas'); await page.waitForSelector('.studio-later-object'); await page.mouse.move(2, 2); await sleep(1400); return still(page, '.studio-later-object') }
+      await pick(page, BLANK); await view(page, S, 'settled'); await page.waitForSelector(`.sediment-press svg.${KITS.instruments.takeaways}`)
+      const before = await markup()
+      const baseline = await ideas()
+      await page.evaluate(() => { (window as unknown as { __stay: number }).__stay = 1 })
+      await pickKit(page, catalog, 'music')
+      await page.waitForSelector(`.studio-later-object svg.${KITS.music.ideas}`)
+      const swapped = await page.evaluate(() => ({ stay: (window as unknown as { __stay?: number }).__stay, kits: [...document.querySelectorAll('.iso-host svg')].map(svg => svg.classList.contains('mu')) }))
+      check(`${tag}：设置里选「${catalog.appearance.deskKits.music}」，可见物件不刷新就换成音乐`, swapped.stay === 1 && swapped.kits.length >= 3 && swapped.kits.every(Boolean), JSON.stringify(swapped))
+      await page.reload(); await page.waitForSelector('.studio-topics .topic')
+      await pick(page, BLANK); await view(page, S, 'settled')
+      check(`${tag}：刷新后仍是音乐`, !!(await page.waitForSelector(`.sediment-press svg.${KITS.music.takeaways}`).catch(() => null)))
+      await page.screenshot({ path: `${out}/switch-${locale}-music.png` })
+      await pickKit(page, catalog, 'instruments')
+      await page.waitForSelector(`.sediment-press svg.${KITS.instruments.takeaways}`)
+      const after = await markup()
+      check(`${tag}：切回「${catalog.appearance.deskKits.instruments}」，每件可见物件的 SVG 与基线逐字节一致`, after.length >= 3 && JSON.stringify(after) === JSON.stringify(before), after.map(m => m.split(':').slice(0, 2).join(':')).join(' '))
+      const back = await ideas(), again = await still(page, '.studio-later-object')
+      await writeFile(`${out}/switch-${locale}-baseline.png`, baseline); await writeFile(`${out}/switch-${locale}-back.png`, back)
+      const diff = await pixelDiff(page, baseline, back), noise = await pixelDiff(page, back, again)
+      check(`${tag}：切回「${catalog.appearance.deskKits.instruments}」与基线逐像素一致（灵感视图，重挂载可复现的物件）`, diff.size && diff.pixels === 0, JSON.stringify({ diff, noise }))
+      check(`${tag}：无控制台错误`, errors.length === 0, errors.slice(0, 2).join(' | '))
+      await context.close()
+    }
+    for (const dark of [false, true]) {
+      const { context, page, errors } = await open(chrome, { locale: 'zh', w: 1440, h: 900, dark })
+      const S = catalogs.zh.studio, tag = `音符 ${dark ? 'dark' : 'light'}`
+      const sample = async (host: string, name: string) => {
+        await page.mouse.move(2, 2); await sleep(600)
+        await page.hover(host); await sleep(500)
+        const hovered = await notesClear(page, host)
+        await page.click(host); await sleep(300)
+        const opened = await notesClear(page, host)
+        await page.click(host); await page.mouse.move(2, 2)
+        const frames = [...hovered, ...opened]
+        check(`${tag} ${name}：悬停与点击各 10 帧，音符都在物件框内、不压文字和控件`, frames.every(f => f.startsWith('ok')), frames.join(' '))
+      }
+      await pick(page, BLANK); await page.waitForSelector('.materials-cabinet')
+      await sample('.materials-cabinet', 'cello'); await sample('.reading-typewriter', 'piano'); await sample('.topics-box', 'music box')
+      await view(page, S, 'settled'); await page.waitForSelector('.sediment-press'); await sample('.sediment-press', 'gramophone')
+      for (const [name, , id] of PLACEHOLDERS) { await view(page, S, name); await page.waitForSelector('.studio-later-object'); await sample('.studio-later-object', id) }
+      if (EASEL) { await view(page, S, 'board'); await page.waitForSelector('.board-easel'); await sample('.board-easel', 'stand') }
+      check(`${tag}：无控制台错误`, errors.length === 0, errors.slice(0, 2).join(' | '))
+      await context.close()
+    }
+    for (const sounds of [false, true]) {
+      const { context, page, errors } = await open(chrome, { locale: 'zh', w: 1440, h: 900, sounds })
+      await pick(page, BLANK); await page.waitForSelector('.reading-typewriter svg.mu-piano')
+      const count = () => page.evaluate(() => ({ ...(window as unknown as { __audio: { contexts: number; oscillators: number } }).__audio }))
+      await page.hover('.reading-typewriter'); await sleep(800)
+      const hovered = await count()
+      await page.click('.reading-typewriter'); await sleep(400)
+      const clicked = await count()
+      if (sounds) check('声音开：悬停 0 个振荡器，点击 ≥1 个', hovered.oscillators === 0 && clicked.oscillators >= 1, JSON.stringify({ hovered, clicked }))
+      else check('声音关：悬停与点击都是 0 个 AudioContext', hovered.contexts === 0 && clicked.contexts === 0, JSON.stringify({ hovered, clicked }))
+      check(`声音${sounds ? '开' : '关'}：无控制台错误`, errors.length === 0, errors.slice(0, 2).join(' | '))
+      await context.close()
+    }
+  }
+
   // ---- V8: LIVE's only sheet is empty, so its 「⋯」 deletes it with no dialog and the no-sheet state follows, easel included ----
-  {
+  if (!SWITCH_ONLY) {
     const { context, page, errors } = await open(chrome, { locale: 'zh', w: 1440, h: 900 })
     const S = catalogs.zh.studio
     await pick(page, LIVE); await view(page, S, 'board'); await page.waitForSelector('.board-tab')
@@ -411,11 +487,11 @@ try {
     await context.close()
   }
 
-  for (const locale of ['zh', 'en']) await tooltips(chrome, 'chromium', locale)
+  if (!SWITCH_ONLY) for (const locale of ['zh', 'en']) await tooltips(chrome, 'chromium', locale)
 
   // ---- The box's boundary (Q1): at 1440×900 and 1440×700, the last topic count that still shows the box and the next that folds it, both measured, not assumed.
   //      Folding and coming back moves neither the first nor the last topic row nor Settings (0px); dragging 900→700→900 folds and restores it with no flicker ----
-  {
+  if (!SWITCH_ONLY) {
     const { context, page, errors } = await open(chrome, { locale: 'zh', w: 1440, h: 900 })
     await pick(page, READ)
     const settings = catalogs.zh.studio.settings
@@ -477,6 +553,7 @@ try {
 }
 
 // ---- WebKit: rest and open of the four objects ----
+if (SWITCH_ONLY) { console.log(results.join('\n')); console.log(`\n${results.length - failed}/${results.length} passed`); process.exit(failed ? 1 : 0) }
 const wk = await webkit.launch()
 try {
   // Taller than the Chromium passes: the boundary check above left more topics than a 900px panel has room for beside the box
@@ -497,6 +574,13 @@ try {
   await pick(page, BLANK)
   await view(page, S, 'settled'); await page.waitForSelector('.sediment-press'); await shoot('.sediment-press', 'press')
   for (const [name, svg, id] of PLACEHOLDERS) { await view(page, S, name); await page.waitForSelector(`.studio-later-object svg.${svg}`); await shoot('.studio-later-object', id) }
+  if (MUSIC) {
+    await page.locator('.studio-topics .studio-item', { hasText: S.settings }).click()
+    await page.locator('.settings-nav-item', { hasText: catalogs.zh.settings.tabs.preference }).click()
+    await page.locator('.pref-desk').scrollIntoViewIfNeeded(); await sleep(400)
+    await page.locator('.settings-modal').screenshot({ path: `${out}/webkit-settings-appearance.png` })
+    await page.locator('.settings-close').click()
+  }
   check('WebKit 物件静止与点开截图', true, EASEL ? '8 × 2' : '7 × 2（画架待批）')
   check('WebKit 无控制台错误', errors.length === 0, errors.slice(0, 2).join(' | '))
   await context.close()

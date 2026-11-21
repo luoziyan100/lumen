@@ -1,5 +1,5 @@
 /**
- * [INPUT]: useSediment's entries and offers, i18n, the trusted jump callback (evidence chip → its board; links to retired blocks show their title only), the flower press and IsoObject
+ * [INPUT]: useSediment's entries and offers, i18n, the trusted jump callback (evidence chip → its board; links to retired blocks show their title only), the takeaways slot's DeskObject
  * [OUTPUT]: Takeaways: the S8 view — entries newest first (dashed frame + Unverified, the quoted marker expands the original, evidence chips jump, report the deleted board, or — pointing at an old block retired with the canvas — show the title only),
  *           inline edit, delete asks once; with no entry and no offer, the flower press alone, centred (no text, no 「写一条沉淀」; an entry brings the button back); OfferRow renders an offer (deleted fragments struck in the original, click restores / re-deletes, Keep/Dismiss,
  *           the original expandable); TakeawayComposer is the one input (Enter keeps, Esc cancels)
@@ -12,10 +12,8 @@ import type { SedimentEntry, SedimentOffer } from '../data/client.ts'
 import { useT } from '../../i18n/index.ts'
 import { SettledViewIcon } from '../../components/icons'
 import type { SedimentState } from './useSediment'
-import { IsoObject } from './objects/IsoObject'
-import { pressSvg } from './objects/press.ts'
+import { DeskObject } from './objects/DeskObject'
 
-const PRESS = pressSvg()
 
 /** Strike state of an offer: fragment index → still deleted? */
 export function offerStruck(offer: SedimentOffer): boolean[] {
@@ -139,7 +137,7 @@ export function Takeaways({ sediment, onJump }: {
   // An empty view is the press alone, centred: no text and no 「写一条沉淀」 (a takeaway starts from the board's invite row or the reading window).
   // An entry or an offer brings the list and its button back
   if (sediment.items.length === 0 && sediment.offers.length === 0) return <section className="sediment-view sediment-empty-view" aria-label={viewLabel}>
-    <IsoObject markup={PRESS} className="sediment-press" />
+    <DeskObject slot="takeaways" className="sediment-press" />
     {sediment.error && <p className="mw-error sediment-error" role="alert">{sediment.revConflict ? S.linkStale : sediment.error}</p>}
   </section>
   return <section className="sediment-view" aria-label={viewLabel}>

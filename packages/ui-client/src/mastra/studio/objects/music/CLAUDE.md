@@ -44,6 +44,7 @@ Motion runs only on hover, `data-open` (click) or `is-typing`. Reduced motion st
 - `metronome.ts` (`mt-`, 640×400): METRONOMO · VIII in All.
   - The swing period is 60/bpm from the slider's mark. Click moves the slider from 72 to 120.
   - DETAIL A shows the escapement. The anchor rocks with the rod. The wheel steps half a tooth on each beat.
+- `sound.ts`: the only sound source. `playMusic(slot)` builds a lazy AudioContext on the first sounded click and plays oscillators under a decaying gain: piano partials, plucked strings, a high bell, a click. DeskObject calls it only in the music kit with the switch on; hover and event states never reach it.
 - `index.ts`: the single entry.
   - `MUSIC_OBJECTS` lists slot, label, design width, crop and builder.
   - `MUSIC_CSS` joins the base rules and each object's motion.

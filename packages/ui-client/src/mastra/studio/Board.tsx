@@ -18,8 +18,7 @@ import { DropdownMenu } from '@cloudflare/kumo/components/dropdown'
 import { BoardViewIcon, MoreIcon, PlusIcon } from '../../components/icons'
 import { useT } from '../../i18n/index.ts'
 import type { LumenApi, Sheet, SedimentInvite } from '../data/client.ts'
-import { IsoObject } from './objects/IsoObject'
-import { easelSvg } from './objects/easel.ts'
+import { DeskObject } from './objects/DeskObject'
 import { TakeawayComposer } from './Takeaways'
 import type { BoardState } from './useBoard'
 import type { SedimentState } from './useSediment'
@@ -41,7 +40,6 @@ class CanvasBoundary extends Component<{ sheetId: string; fallback: (error: unkn
 }
 
 // The easel carries no data, so its markup is built once
-const EASEL = easelSvg()
 const NOTICE_MS = 4000
 
 /** A sheet's 「⋯」 menu with its one item (R17). The run's target cannot be deleted; the reason sits in the item's title. */
@@ -129,7 +127,7 @@ export function Board({ api, board, drawing, focus, sediment, invite }: {
             onSettled={board.refresh} onError={board.report} onBlank={value => setBlank({ sheetId: scene.sheet.id, blank: value })} />
         </Suspense>
       </CanvasBoundary>}
-      {(noSheet || blankSheet) && <IsoObject markup={EASEL} className={blankSheet ? 'board-easel is-on-canvas' : 'board-easel'} />}
+      {(noSheet || blankSheet) && <DeskObject slot="board" className={blankSheet ? 'board-easel is-on-canvas' : 'board-easel'} />}
       {scene && scene.sheet.state !== 'live' && <p className="board-empty board-hint">{S.board.foldedHint}</p>}
       {drawing && <div className="board-drawing" role="status"><span className="board-drawing-dot" />{drawing === 'new' ? S.board.drawing : S.board.updating}</div>}
       {notice && <div className="board-drawing board-notice" role="status">{S.board.elementGone}</div>}

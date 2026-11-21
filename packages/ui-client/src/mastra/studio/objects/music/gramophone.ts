@@ -8,7 +8,7 @@
  *        The horn is a 3D surface on one spine (SPINE): its gooseneck rises from the swivel and bends into a petalled bell that opens toward the viewer's left, so the mouth shows its throat.
  *        A bracket from the back of the case holds the tube in a cradle solved from the spine (hornAt). DETAIL A magnifies the soundbox at 3:1.
  *        At rest the arm sits on its post off the record. Hover lowers it onto the outer groove, spins the record and sends notes out of the horn into the blank upper left.
- *        Click lets the needle walk inward to the run-out groove
+ *        Click walks the needle inward to the run-out groove in 1.4 s
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { circle, curve, dbl, detail, ellipse, hatch, knurl, line, note, path, plate, r, rect, screw, shadow, shadowDef, ticks, type Pt } from './line.ts'
@@ -162,8 +162,8 @@ export const GRAMOPHONE_CSS = `
 .mu-gramophone .${P}sb { transform: rotate(${r(-GRAMOPHONE_ARM.rest)}deg); transition: transform 900ms cubic-bezier(.32,.72,0,1); }
 .iso-host:hover .mu-gramophone .${P}arm { transform: rotate(${r(GRAMOPHONE_ARM.outer)}deg); }
 .iso-host:hover .mu-gramophone .${P}sb { transform: rotate(${r(-GRAMOPHONE_ARM.outer)}deg); }
-.iso-host[data-open] .mu-gramophone .${P}arm { transform: rotate(${r(GRAMOPHONE_ARM.inner)}deg); transition: transform 7s linear; }
-.iso-host[data-open] .mu-gramophone .${P}sb { transform: rotate(${r(-GRAMOPHONE_ARM.inner)}deg); transition: transform 7s linear; }
+.iso-host[data-open] .mu-gramophone .${P}arm { transform: rotate(${r(GRAMOPHONE_ARM.inner)}deg); transition: transform 1.4s cubic-bezier(.45,.05,.35,1); }
+.iso-host[data-open] .mu-gramophone .${P}sb { transform: rotate(${r(-GRAMOPHONE_ARM.inner)}deg); transition: transform 1.4s cubic-bezier(.45,.05,.35,1); }
 .iso-host:hover .mu-gramophone .${P}spin, .iso-host[data-open] .mu-gramophone .${P}spin { animation: ${P}turn 1.6s linear infinite; }
 .iso-host:hover .mu-gramophone .${P}n { animation: ${P}up 3.2s cubic-bezier(.3,.6,.4,1) infinite; }
 `

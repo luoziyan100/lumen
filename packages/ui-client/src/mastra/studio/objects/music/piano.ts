@@ -57,7 +57,7 @@ function keyboard() {
   for (let i = 0; i < WHITE; i++) out += rect(...at(2, KEY_V0 + i * KW), 42, KW, `w0 pf pn-k pn-k${i}`)
   for (const i of PIANO_KEYS.blackAfter) {
     const v = KEY_V0 + (i + 1) * KW - KW * .29
-    out += rect(...at(18, v), 26, KW * .58, 'if ns') + line(...at(19.5, v + KW * .29), ...at(42.5, v + KW * .29), 'w0 pw')
+    out += rect(...at(18, v), 26, KW * .58, 'if ns pn-bk') + line(...at(19.5, v + KW * .29), ...at(42.5, v + KW * .29), 'w0 pw')
   }
   out += dbl(`M${at(2, KEY_V0)}L${at(2, KEY_V1)}`.replace(/,/g, ' '), 1.4)
   return out

@@ -24,7 +24,7 @@ export { GRAMOPHONE_ARM } from './gramophone.ts'
 export { STAND_PHRASE } from './stand.ts'
 
 export type MusicSlot = 'reading' | 'board' | 'takeaways' | 'materials' | 'box' | 'map' | 'ideas' | 'all'
-export interface MusicInput { words?: BoxWords }
+export interface MusicInput { words?: BoxWords | null }
 /** crop: the viewBox region of the design page's 3× capture */
 export interface MusicObject { slot: MusicSlot; label: string; width: number; crop: [number, number, number, number]; svg: (input: MusicInput) => string }
 

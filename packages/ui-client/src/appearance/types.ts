@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 外观偏好合同 doc/appearance-skin.md
- * [OUTPUT]: AppearanceState(含阅读字体) / SkinDefinition / ResolvedTheme / 白名单
+ * [OUTPUT]: AppearanceState(含阅读字体、桌面物件套组与乐器声音) / DeskObjects / SkinDefinition / ResolvedTheme / 白名单
  * [POS]: appearance 层类型真源;resolve/apply/store/registry 共用
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -19,7 +19,12 @@ export interface AppearanceState {
   latinFont: string
   cjkFont: string
   justify: boolean
+  /** 桌面物件套组：仪器（默认）或音乐；instrumentSounds 只在音乐套组下生效，点击才发声 */
+  deskObjects: DeskObjects
+  instrumentSounds: boolean
 }
+
+export type DeskObjects = 'instruments' | 'music'
 
 export const DEFAULT_APPEARANCE: AppearanceState = {
   version: 1,
@@ -31,6 +36,8 @@ export const DEFAULT_APPEARANCE: AppearanceState = {
   latinFont: 'source-serif',
   cjkFont: 'wenkai',
   justify: false,
+  deskObjects: 'instruments',
+  instrumentSounds: false,
 }
 
 /** 皮肤可 patch 的原语键（不含别名 --code-keyword 等） */

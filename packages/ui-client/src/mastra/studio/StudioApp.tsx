@@ -1,5 +1,5 @@
 /**
- * [INPUT]: components/Tips (the app's one tooltip layer, mounted once here), the service connection, topic/session/board/material/reading data hooks, the one conversation feed (useSessionFeed, read through useFeedSelect), the sprite and reader, settings (specialists pane included), the appearance subscription, the newest takeaway (useSediment.newestTakeaway)
+ * [INPUT]: components/Tips (the app's one tooltip layer, mounted once here), the service connection, topic/session/board/material/reading data hooks, the one conversation feed (useSessionFeed, read through useFeedSelect), the sprite and reader, settings (specialists pane included), the appearance subscription (it also provides the desk-object kit and sound switch to every DeskObject), the newest takeaway (useSediment.newestTakeaway)
  * [OUTPUT]: StudioApp: the new shell — the prototype v7 skeleton: rounded panels with 8px gaps over the canvas (topics left, center, materials right, docked sprite), every panel's
  *           first row on one 50px header line; the center header holds only the centered view navigation (icon + text, icons alone when narrow; the topic name goes to aria-label and
  *           the window title), and in split view the reader header shares the board header's line; the sprite positions itself on the whole window (no longer inside the board area);
@@ -7,8 +7,8 @@
  *           (the board hides but stays mounted with its camera; Esc restores); the Reading view (first in the navigation, the default) with its material action and selection window
  *           (whether the conversation is open decides where an answer shows; a sent question or a footprint reveals it there, switching to the footprint's conversation first);
  *           the material on the empty Reading view's typewriter (the picked one, else the one open beside, else the only one) and the request's end (first section, run end, or an idle
- *           conversation that already answered: a short run can end unseen); each placeholder view is its object alone, centred, named 「还没开放」 for screen readers only
- *           (Map the cork board, Ideas the lamp, All the type case)
+ *           conversation that already answered: a short run can end unseen); each placeholder view is its slot's object alone, centred, named 「还没开放」 for screen readers only
+ *           (Map, Ideas and All slots; the kit decides cork board/lamp/type case or harp/violin/metronome)
  * [POS]: the desktop's only workbench (it replaced the S2 transitional entry). It owns the topic's single conversation feed and lends it to the sprite, which reads the full view;
  *        the shell selects only the values it shows, so streamed text never re-renders the workbench. The sprite and the Reading view
  *        both post visible user messages on the native path (`say`), never a hidden prompt. Board and reading refresh ride only on the conversation's tool completion signals plus
@@ -37,18 +37,15 @@ import { Sprite, useSessions, type SpriteBox } from './Sprite'
 import { Takeaways } from './Takeaways'
 import { TopicPanel, useTopics } from './TopicPanel'
 import { useBoard } from './useBoard'
-import { IsoObject } from './objects/IsoObject'
-import { corkSvg } from './objects/corkboard.ts'
-import { lampSvg } from './objects/lamp.ts'
-import { typecaseSvg } from './objects/typecase.ts'
+import { DeskKitProvider, DeskObject } from './objects/DeskObject'
+import type { DeskSlot } from './objects/registry.ts'
 import { newestTakeaway, useSediment } from './useSediment'
 import { PaneToggle, Splitter, usePanes, type Side } from './Panes'
 import { ViewNav, type View } from './ViewNav'
 import '../views/workbench.css'
 import './studio.css'
 
-// The placeholder views' objects carry no data, so each is built once
-const LATER_OBJECTS: Partial<Record<View, string>> = { map: corkSvg(), ideas: lampSvg(), all: typecaseSvg() }
+const LATER_OBJECTS: Partial<Record<View, DeskSlot>> = { map: 'map', ideas: 'ideas', all: 'all' }
 
 const TOPIC_KEY = 'lumen.studio.topic'
 
@@ -224,7 +221,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const reopenRight = topic && panes.right && <PaneToggle side="right" open={false} onToggle={() => flip('right')} className="head-trail" />
   const split = topic && reading
 
-  return <ExternalLinkGate><Tips /><main className={`app studio${docked ? ' studio-docked' : ''}${topic ? '' : ' studio-no-topic'}${panes.left ? ' studio-left-collapsed' : ''}${panes.right ? ' studio-right-collapsed' : ''}`}>
+  return <ExternalLinkGate><DeskKitProvider kit={appearance.state.deskObjects} sounds={appearance.state.instrumentSounds}><Tips /><main className={`app studio${docked ? ' studio-docked' : ''}${topic ? '' : ' studio-no-topic'}${panes.left ? ' studio-left-collapsed' : ''}${panes.right ? ' studio-right-collapsed' : ''}`}>
     <TopicPanel api={api} topics={topics} error={topicsError} selected={topic?.id ?? null} takeaway={newestTakeaway(sediment.items, topic?.id ?? null)} collapsed={panes.left} onToggle={() => flip('left')} onSelect={setTopicId} onEdit={editTopics}
       onCreated={next => { created.current = next.id; setTopicId(next.id); activity() }} onSettings={() => setSettingsOpen(true)} />
     <section ref={setCenter} className={`studio-panel studio-center${split ? full ? ' studio-full' : ' studio-split' : ''}`} aria-label={topic?.title}
@@ -244,7 +241,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
             : view === 'settled' ? <Takeaways sediment={sediment} onJump={(elementId, sheetId) => { setView('board'); board.select(sheetId); setFocus({ elementId, nonce: Date.now() }) }} />
             // A view not open yet is its object alone, centred; 「还没开放」 is the container's name for screen readers, never visible text
             : <div className="studio-later" role="img" aria-label={S.notOpen}>
-              {LATER_OBJECTS[view] && <IsoObject markup={LATER_OBJECTS[view]} className="studio-later-object" />}
+              {LATER_OBJECTS[view] && <DeskObject slot={LATER_OBJECTS[view]} className="studio-later-object" />}
             </div>}
         </div>
       </div>
@@ -259,5 +256,5 @@ export function StudioApp({ connection }: { connection: Connection }) {
     {topic && <Sprite api={api} topic={topic} identity={identity} feed={feed} sessions={sessions} onSessions={editSessions} onIdentity={setIdentity} onActivity={activity}
       onOpenFile={target => setReading({ target })} onFocusBlock={onFocusBlock} onBoard={onBoard} onSettings={() => setSettingsOpen(true)} onDocked={setDocked} onFigure={setFigure} onShown={setChatShown} reveal={reveal} />}
     {settingsOpen && <Settings api={api} appearance={appearance} onClose={() => setSettingsOpen(false)} />}
-  </main></ExternalLinkGate>
+  </main></DeskKitProvider></ExternalLinkGate>
 }

@@ -1,5 +1,5 @@
 /**
- * [INPUT]: LumenApi's topic directory (with the running/waiting projection), the external refresh signal; the current topic's newest takeaway; the box object and IsoObject
+ * [INPUT]: LumenApi's topic directory (with the running/waiting projection), the external refresh signal; the current topic's newest takeaway; the box slot's DeskObject
  * [OUTPUT]: useTopics: the topic list, its 3s poll (status lights must follow background runs) and `edit` for changes shown before the poll; TopicPanel: the left pane — header 「主题 ＋ 收起」 (＋ opens an input at the list's
  *           top, Enter creates, Esc cancels; collapsed means width 0 and inert), status lights, each row's 「⋯」 menu (RowActions: rename, copy ID, archive, delete; a selected topic that
  *           leaves selects the next, else the previous, else none; on delete the selection moves first and comes back on a refusal), only Settings at the bottom (specialists live inside settings); TakeawayBox: the 沉淀盒
@@ -13,8 +13,8 @@ import { GearIcon, PlusIcon } from '../../components/icons'
 import { errorText, useT } from '../../i18n/index.ts'
 import { PaneToggle } from './Panes'
 import type { LumenApi, SedimentEntry, Topic } from '../data/client.ts'
-import { IsoObject } from './objects/IsoObject'
-import { boxSvg, boxWords } from './objects/box.ts'
+import { DeskObject } from './objects/DeskObject'
+import { boxWords } from './objects/box.ts'
 import { ActionRow } from './RowActions'
 
 export function useTopics(api: LumenApi, signal: number) {
@@ -65,8 +65,7 @@ function TakeawayBox({ scroll, content, takeaway }: { scroll: HTMLElement | null
     return () => resize.disconnect()
   }, [scroll, content])
   const text = takeaway?.text ?? '', stamp = takeaway ? S.objects.box.stamp(stampDate(takeaway.createdAt)) : ''
-  const markup = useMemo(() => boxSvg({ labels: S.objects.box, words: boxWords(text, stamp) }), [S.objects.box, text, stamp])
-  return fits ? <IsoObject markup={markup} className="topics-box" /> : null
+  return fits ? <DeskObject slot="box" words={boxWords(text, stamp)} className="topics-box" /> : null
 }
 
 export function TopicPanel({ api, topics, error, selected, takeaway, collapsed, onToggle, onSelect, onCreated, onSettings, onEdit }: {

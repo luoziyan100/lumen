@@ -201,6 +201,7 @@ export const en = {
     sample: '读得懂，不等于被带走。Understanding precedes proof — Einstein chased a beam of light.',
     theme: 'Theme', themeCurrent: (name: string) => `Current: ${name}`, selected: ' (selected)', light: 'Light', dark: 'Dark', paper: 'Paper', glass: 'Glass',
     overlay: 'Background tint', overlayLabel: 'Background tint strength', blur: 'Background blur', blurLabel: 'Background blur in pixels',
+    deskObjects: 'Desk objects', deskKits: { instruments: 'Instruments', music: 'Music' }, instrumentSounds: 'Instrument sounds',
     desktopSprite: 'Desktop sprite', desktopSpriteHint: 'Show the sprite on the desktop when the window is closed',
   },
   skins: {
