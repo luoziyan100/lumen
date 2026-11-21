@@ -1,12 +1,13 @@
 /**
  * [INPUT]: a self-contained isolated fixture service (real Controller + controllable model that answers with reading_patch / reading_insert) and the vite dev page on PORT
  *          (default 5191, refused when already taken); data root LUMEN_ASSERT_ROOT (default /tmp/lumen-rp-reading-data, /tmp/lumen-* only, wiped at start); a seeded one-section
- *          reading of a PDF: two prose paragraphs (a question about the second one seeded in the conversation, so it carries a footprint) and a params widget whose script
+ *          reading of a PDF: two prose paragraphs (seeded questions: one about the second, one about the first's last sentence with its block id, one that matches nothing) and a params widget whose script
  *          declares top-level const/let and listens to lumen:params
  * [OUTPUT]: browser evidence for reading_patch and rev1 B1 (Chromium zh 1440 light, `--webkit` the same; one pass each): the person moves the range to its max and flips the toggle;
  *           the model patches the widget's html (one text) and params (max 10 → 6) together: no page reload, exactly one fresh iframe, the page shows the new text, the other
  *           value is kept and the range is clamped, the page never reports a redeclared identifier; a params-only patch (label) keeps the same iframe (no load, no new node)
- *           and the values still reach the page; a prose patch shows the new sentence without a reload while the other paragraph keeps its footprint; an inserted widget that
+ *           and the values still reach the page; a prose patch shows the new sentence without a reload while the other paragraph keeps its footprint, and the footprint on the patched sentence turns dashed
+ *           on the new sentence and still opens the original quote; a question that matches nothing keeps a mark at its paragraph's edge (hit-tested, line height kept); an inserted widget that
  *           throws shows the failure line, 「请 AI 修正」 sends the fix request naming reading_view(blockId) and reading_patch; the model's patch still throws, so the
  *           new generation shows the line again; a second patch that works clears it with the new code running. The deliberate widget's runtime errors are the only script errors tolerated
  * [POS]: the reading_patch acceptance beside ui-assert-reading.mts (kept apart so neither suite passes the 800-line cap); it swaps the model network only and touches no
@@ -40,6 +41,7 @@ const TOPIC = '局部修改', TITLE = '缩放与饱和', WIDGET = '常量小实�
 const LINE = 'Scaled dot-product attention divides the logits by the square root of the key dimension.'
 const OLD_SENTENCE = '缩放让 softmax 留在梯度还够大的区域。', NEW_SENTENCE = '缩放把 logits 拉回 softmax 梯度还够大的区域。'
 const ASKED = '没有缩放时，维度越大，点积的方差越大'
+const ORPHAN = 'zzqq xxyy wwvv'
 const FIX_MARK = '解读里的小实验运行出错：'
 const params = (max: number, label = '增益') => [
   { type: 'range', name: 'gain', label, min: 0, max, step: 1, default: 3 },
@@ -112,6 +114,8 @@ const section = written.reading.sections[0]!
 Object.assign(seeded, { itemId: pdf.item.id, sectionId: written.sectionId, prose: section.paragraphs[0]!.id, widget: section.paragraphs[2]!.id })
 await service.catalog.createSession('rp', 'a')
 await (await service.application.session('rp', 'a')).sendMessage({ content: MODEL_TEXT.askReading(ASKED, sectionLabel(section), written.reading.itemTitle, '为什么方差会变大？') })
+await (await service.application.session('rp', 'a')).sendMessage({ content: MODEL_TEXT.askReading(OLD_SENTENCE, sectionLabel(section), written.reading.itemTitle, '为什么要缩放？', seeded.prose) })
+await (await service.application.session('rp', 'a')).sendMessage({ content: MODEL_TEXT.askReading(ORPHAN, sectionLabel(section), written.reading.itemTitle, '这句呢？', section.paragraphs[1]!.id) })
 
 async function userMessages() {
   const texts: string[] = []
@@ -186,6 +190,19 @@ try {
   const asked = page.locator('[data-paragraph]').nth(1).locator('.reading-footprint')
   await asked.waitFor({ timeout: 15000 })
   check(`${tag} 第二段带着种下的足迹`, await asked.count() === 1)
+  const first = page.locator('[data-paragraph]').first()
+  check(`${tag} 第一段被问的那句是普通足迹`, await first.locator('.reading-footprint:not(.is-edited)').count() === 1 && (await first.locator('.reading-footprint').textContent()) === OLD_SENTENCE)
+  const mark = page.locator('[data-paragraph]').nth(1).locator('.reading-footprint-mark')
+  check(`${tag} 一个字都对不上的提问退到那一段的边上`, await mark.count() === 1)
+  const edge = await mark.evaluate(node => {
+    const box = node.getBoundingClientRect(), para = node.closest('.reading-para')!, height = para.getBoundingClientRect().height
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+    ;(node as HTMLElement).style.display = 'none'
+    const without = para.getBoundingClientRect().height
+    ;(node as HTMLElement).style.display = ''
+    return { hit: !!hit && node.contains(hit), height, without }
+  })
+  check(`${tag} 边上的标记点得到、不撑高行`, edge.hit && Math.abs(edge.height - edge.without) < 0.5, JSON.stringify(edge))
   await figure.locator('[data-param="gain"] input').focus()
   await page.keyboard.press('End')
   await figure.locator('[data-param="feedback"] [role="switch"]').click()
@@ -225,6 +242,13 @@ try {
   await page.keyboard.press('Escape')
   check(`${tag} 文字段改了一句：不刷新就显示新句子`, (await counters()).samePage && !(await page.locator('[data-paragraph]').first().textContent())!.includes(OLD_SENTENCE))
   check(`${tag} 同节另一段的足迹不受影响`, await asked.count() === 1 && (await asked.textContent())!.includes(ASKED))
+  const edited = first.locator('.reading-footprint.is-edited')
+  check(`${tag} 被改的那句：足迹换成已改样式、挂在新句子上`, await edited.count() === 1 && (await edited.textContent()) === NEW_SENTENCE
+    && await edited.evaluate(node => getComputedStyle(node).textDecorationStyle) === 'dashed')
+  await edited.click()
+  await page.waitForSelector('.reading-ask[data-placed="true"]')
+  check(`${tag} 点开已改的足迹：小窗里仍是当时问的原句`, (await page.locator('.reading-ask-quote').textContent()) === OLD_SENTENCE)
+  await page.keyboard.press('Escape')
   await page.locator('.reading-section').first().screenshot({ path: shot('patched-prose') })
 
   // ---- 4. a widget that throws; 「请 AI 修正」 names reading_view(blockId) + reading_patch; a patch that still throws shows the line again; a patch that works clears it ----

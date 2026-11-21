@@ -22,7 +22,7 @@ components/
 - `MermaidBlock.tsx`：官方 Mermaid/ELK 渲染与箱外测量，颜色随当前外观、换皮肤重画，渲染串行，缓存 LRU 64 条；外层 figure、SVG 层 role=img(按钮与错误对读屏可达)；失败显示源码并可「请模型修正」(会话内普通消息，同会话同图只发一次)。
 - `MermaidLightbox.tsx`：流程图放大层的缩放/拖移/Esc 交互。
 - `PdfViewer.tsx`：pdf.js 直接读取已认证 Blob 字节，避免桌面 CSP 阻挡二次 blob URL fetch；连续页渲染与受控页码定位只滚 PDF 容器，缩放沿统一图标入口；可选 `fit`（默认关，其他调用方仍从 130% 起）按第 1 页宽度适配容器内宽（页面显示宽度封顶 960px，更宽时居中）、随宽度变化重新适配，手动缩放后停止，工具条「适配宽度」回到适配；没渲染的页尺寸也跟着缩放；被取消的渲染不成为未处理错误；加载失败显示具体原因。
-- `HtmlViewer.tsx`：复用 widget iframe 呈现 HTML，保留脚本能力但隔离同源权限。
+- `HtmlViewer.tsx`：复用 widget iframe 呈现 HTML，保留脚本能力但隔离同源权限；内容变了按 `widgetGeneration` 换新 iframe。
 - `clipboard.ts`：唯一的剪贴板写入 `copyText`；WebKit 无权限时退回点击内的 execCommand，失败抛出可读错误。消息复制与「⋯」菜单的复制 ID 共用。
 - `Tips.tsx`：全应用唯一提示层，StudioApp 挂一次。组件照写原生 `title`；指针或键盘焦点（:focus-visible）找到最近带 title 的元素，250ms 后用 Kumo tooltip 的类名与箭头画在元素下方（下方放不下翻到上方，夹在视口内）。显示期间 title 移到 `data-tip`，WKWebView 的灰色原生框不出现；隐藏时还原，React 改 title（复制→已复制）由 MutationObserver 接住。iframe、输入框和 svg 内的 title 不接管。样式在 `styles.css` 的 `.lumen-tip`。
 - `ExternalLinkDialog.tsx`：由用户确认外链并保存受信域名，实际打开统一走 openExternalUrl。

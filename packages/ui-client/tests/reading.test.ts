@@ -49,7 +49,7 @@ register('./helpers/tsx-loader.mjs', import.meta.url)
 register('data:text/javascript,' + encodeURIComponent(`export async function resolve(specifier, context, next) { if (specifier.endsWith('?url')) return { url: 'data:text/javascript,export default "test-worker-url"', shortCircuit: true }; return next(specifier, context) } export async function load(url, context, next) { const result = await next(url, context); if (url.endsWith('/WidgetFrame.tsx')) return { ...result, source: String(result.source).replaceAll('import.meta.env.BASE_URL', JSON.stringify('/')) }; return result }`), import.meta.url)
 const { createRoot } = await import('react-dom/client')
 const { StudioApp } = await import('../src/mastra/studio/StudioApp.tsx')
-const { askText, askWidgetText, parseAsk, asksOf, footprintRanges, latestReadingWrite, readingSignal, prose, readingAsks, wholeMath } = await import('../src/mastra/studio/reading-ask.ts')
+const { askText, askWidgetText, parseAsk, asksOf, footprintRanges, latestReadingWrite, readingSignal, placeFootprints, prose, readingAsks, sentences, wholeMath } = await import('../src/mastra/studio/reading-ask.ts')
 const { ParagraphText, shownOffset } = await import('../src/mastra/studio/Reading.tsx')
 const { DEFAULT_SHAPE, SPRITE_KEY } = await import('../src/mastra/studio/sprite-place.ts')
 const { widgetQuote } = await import('../src/mastra/studio/widget-params.ts')
@@ -130,7 +130,7 @@ test('reading prose: $…$ and $$…$$ are formulas drawn by KaTeX; the shown te
   document.body.append(host)
   const root = createRoot(host)
   const asked = shown.text.slice(first!.start + 2, first!.end + 2)
-  act(() => root.render(createElement(ParagraphText, { id: 'p1', shown, quotes: [asked], onFootprint: () => {} })))
+  act(() => root.render(createElement(ParagraphText, { id: 'p1', shown, footprints: { ranges: footprintRanges(shown.text, [asked]).map(range => ({ ...range, edited: false })), margin: [] }, onFootprint: () => {} })))
   const paragraph = host.querySelector('[data-paragraph="p1"]')!
   const drawn = paragraph.querySelectorAll('.reading-math')
   assert.equal(drawn.length, 2)
@@ -154,12 +154,52 @@ test('reading prose: $…$ and $$…$$ are formulas drawn by KaTeX; the shown te
   host.remove()
 })
 
+// Owner decision 2026-11-21: a question about a sentence never loses its footprint. Exact stays plain; a changed sentence gets an edited footprint on the closest sentence
+// (its own block first, then its section); with no sentence left to sit on, a mark at the block's edge. Closeness only picks the place, there is no threshold.
+test('footprints after the reading changed: exact, edited on the closest sentence of its block or section, or a mark at the edge; never dropped', () => {
+  assert.deepEqual(sentences('第一句。第二句！ Third one. 3.5 stays whole; end').map(range => '第一句。第二句！ Third one. 3.5 stays whole; end'.slice(range.start, range.end)),
+    ['第一句。', '第二句！', 'Third one.', '3.5 stays whole;', 'end'])
+  const reading = (paragraphs: { id: string; text: string }[][]) => ({ itemTitle: 'Paper', sections: paragraphs.map((list, i) => ({ id: `s${i}`, ord: i + 1, title: `节${i + 1}`,
+    paragraphs: list.map(item => ({ ...item, source: { kind: 'inference' } })) })) }) as never
+  const ask = (quote: string, section: string, blockId?: string) => ({ quote, item: 'Paper', section, ...(blockId ? { blockId } : {}), words: '为什么', messageId: quote, identity: { topicId: 't', taskId: 'a' }, reply: '', createdAt: 0 })
+  const now = reading([[{ id: 'p1', text: '注意力按相关性加权。缩放因子是 1/√d_k，防止点积过大。' }, { id: 'p2', text: '多头把表示拆成几份。每份各自看一种关系。' }], [{ id: 'p3', text: '位置编码用正弦函数。' }]])
+  const show = (map: ReturnType<typeof placeFootprints>, id: string) => {
+    const text = { p1: '注意力按相关性加权。缩放因子是 1/√d_k，防止点积过大。', p2: '多头把表示拆成几份。每份各自看一种关系。', p3: '位置编码用正弦函数。' }[id]!
+    const entry = map.get(id)!
+    return { ranges: entry.ranges.map(range => [text.slice(range.start, range.end), range.edited, range.quote]), margin: entry.margin }
+  }
+
+  const exact = placeFootprints(now, [ask('多头把表示拆成几份', '1. 节1', 'p2')])
+  assert.deepEqual(show(exact, 'p2'), { ranges: [['多头把表示拆成几份', false, '多头把表示拆成几份']], margin: [] }, '原句还在：照常')
+
+  const patched = placeFootprints(now, [ask('缩放因子是 1/d_k，防止点积过大。', '1. 节1', 'p1')])
+  assert.deepEqual(show(patched, 'p1').ranges, [['缩放因子是 1/√d_k，防止点积过大。', true, '缩放因子是 1/d_k，防止点积过大。']], '句子被改：挂到同一块最接近的一句，标为已改，点开仍是当时的原句')
+
+  const old = placeFootprints(now, [ask('每份各看一种关系', '1. 节1')])
+  assert.deepEqual(show(old, 'p2').ranges, [['每份各自看一种关系。', true, '每份各看一种关系']], '旧提问没有块 id：在它的那一节里找最接近的一句')
+  assert.deepEqual(show(old, 'p3').ranges, [], '不跑到别的节')
+
+  const gone = placeFootprints(now, [ask('zzz qqq', '2. 节2', 'p9')])
+  assert.deepEqual(show(gone, 'p3'), { ranges: [], margin: ['zzz qqq'] }, '一个字对都对不上：退到这一块的边上，不消失')
+
+  const twice = placeFootprints(now, [ask('位置编码用正弦函数', '2. 节2', 'p3'), ask('位置编码用余弦函数', '2. 节2', 'p3')])
+  assert.deepEqual(show(twice, 'p3'), { ranges: [['位置编码用正弦函数', false, '位置编码用正弦函数']], margin: ['位置编码用余弦函数'] }, '位置被占：退到边上')
+
+  const same = reading([[{ id: 'a1', text: '同一句话。' }], [{ id: 'a2', text: '同一句话。' }]])
+  const both = placeFootprints(same, [ask('同一句话。', '1. 节1', 'a1'), ask('同一句话。', '2. 节2', 'a2')])
+  assert.deepEqual([both.get('a1')!.ranges.length, both.get('a2')!.ranges.length], [1, 1], '两节里同一句各问一次：各自的块各有足迹')
+  const unnamed = placeFootprints(same, [ask('同一句话。', '1. 节1')])
+  assert.deepEqual([unnamed.get('a1')!.ranges.length, unnamed.get('a2')!.ranges.length], [1, 1], '没有块 id 的原句：每个含它的段都标（同旧行为）')
+  assert.equal(readingAsks(now, [ask('早就改没了的句子', '1. 节1')]).length, 1, '对不上原文的提问仍属于这份解读，问答照常能打开')
+})
+
 // One written format, two readers: the service keeps its own copy (it never imports UI code), so this test feeds the real askReading output to both
 test('reading question format: the service reads MODEL_TEXT.askReading exactly as the UI does, and sediment sees only the words', () => {
   const cases = [
     askText('an upper   bound\non surprise', '1. 为什么值得读', 'Free energy', ' 为什么是上界？ '),
     askText('遮挡不是细节，是一个无法反推的信息损失', '3. 关键的一步', 'A theory of cortical responses', '我还是不懂\n为什么遮挡就反推不了'),
     askText('a quote with 《brackets》 · and dots', '12. 边界', 'Title · with 《marks》', 'ok'),
+    askText('带块 id 的提问', '4. 机制（续）', 'Paper', '为什么', 'p0a1b2c3d4e'),
     MODEL_TEXT.askReading('two\nlines', '2. Evidence', 'Paper', '那下界呢？'),
     askWidgetText(widgetQuote('增益', widgetParams, { gain: 2, feedback: false, mode: 'fast' }), '2. 机制', 'Free energy', '为什么增益到 2 就变陡了'),
     askWidgetText(widgetQuote('交互小实验', undefined, {}), '3. 边界', 'Free energy', '这个在演示什么'),
@@ -171,6 +211,8 @@ test('reading question format: the service reads MODEL_TEXT.askReading exactly a
     assert.equal(userWords(text), ui.words, '沉淀只看用户的话')
     assert.ok(!userWords(text).includes(ui.quote), '引文不算用户的话')
   }
+  assert.deepEqual(parseAsk(askText('带块 id 的提问', '4. 机制（续）', 'Paper', '为什么', 'p0a1b2c3d4e')), { quote: '带块 id 的提问', item: 'Paper', section: '4. 机制（续）', blockId: 'p0a1b2c3d4e', words: '为什么' })
+  assert.equal(parseAsk(askText('旧提问', '1. a', 'Paper', '为什么'))!.blockId, undefined, '旧格式没有块 id')
   for (const text of ['> just a quote\n\nno place line', '普通的一句话', '— 解读《X》· 1. a\n\nno quote above']) {
     assert.equal(parseAsk(text), null)
     assert.equal(readingQuestion(text), null)
@@ -347,7 +389,8 @@ test('Reading view: write → live sections → chips → in-paragraph window �
     // ---- The documented message lands in the same conversation; the reply streams into the window from the one subscription ----
     await until(async () => (await stored(session.taskId)).length === 2, '提问没有发出')
     const itemTitle = $('.reading-title')!.textContent!
-    assert.equal((await stored(session.taskId))[1], `> ${quote}\n— 解读《${itemTitle}》· 1. Why it matters\n\n为什么是上界？`)
+    const blockId = texts[0]!.getAttribute('data-paragraph')!
+    assert.equal((await stored(session.taskId))[1], `> ${quote}\n— 解读《${itemTitle}》· 1. Why it matters（段 ${blockId}）\n\n为什么是上界？`, '提问带上那一段的块 id')
     await until(() => /KL 散度非负/.test($('.reading-ask-reply')?.textContent ?? ''), '回答没有出现在小窗里')
     assert.equal(subscriptions, before, '小窗不开第二条订阅')
     assert.equal(area.value, '', '发出后输入清空')

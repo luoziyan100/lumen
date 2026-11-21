@@ -1,7 +1,8 @@
 /**
  * [INPUT]: components/Markdown for replies, components/MermaidBlock for inline diagrams, ReadingWidget for an active interactive widget (WidgetFrame, its controls and failure line), components/widget/generation (the html's generation keys the iframe and its failure), widget-params' value rules and question lines, MODEL_TEXT.widgetFix, objects/ (IsoObject, typewriterSvg/paperLines), useReading's state, the topic's questions (useTopicAsks), the pure helpers of reading-ask.ts, i18n `studio.reading`, the host's send/widget-send/keep/open-source callbacks
  * [OUTPUT]: ReadingView: the centre 「解读 / Reading」 view — a centred 960px column whose prose, headings, quotes, tables and diagrams stay within 700px while interactive HTML widgets (`WidgetFrame`, up to 3 active by default, bidirectional via onSendMessage) use the full 960px column width and can expand in place via `position: fixed` (same mounted WidgetFrame/iframe so interactive state survives expand/collapse, same-height placeholder, solid light stage, closes AskWindow first so one Esc handles it, including Esc pressed while focus is inside the expanded iframe via `onEscape`); a paper block is followed by its quote in the paper's own words, ending in the source chip
- *           (「原文 p.N」 opens split reading at that page), an inference block ends in a dashed chip; the quote line opens no window; the person's footprints (thin underlines on sentences asked about, inline spans with role="button" that wrap like text and open on click/Enter/Space);
+ *           (「原文 p.N」 opens split reading at that page), an inference block ends in a dashed chip; the quote line opens no window; the person's footprints (thin underlines on sentences asked about, inline spans with role="button" that wrap like text and open on click/Enter/Space;
+ *           dashed once the AI changed the sentence, a mark at the paragraph's end when nothing is left to sit on, placed by placeFootprints, never dropped);
  *           selecting text inside one prose paragraph opens AskWindow under the selection; the quote is cut from the shown text by `shownOffset` (a KaTeX formula counts as its `$…$` source and is taken whole), never from the DOM's text. An answer shows in one place only: with the conversation open (chatShown) the window is
  *           the quote and the input, closes once the question is sent and a footprint asks the host to reveal its question there (onReveal); with it closed the exchange runs in the
  *           window, and opening the conversation closes a window that shows answers. Esc, × and a press outside close it
@@ -16,7 +17,7 @@
  */
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Button } from '@cloudflare/kumo/components/button'
-import { CloseIcon, SendIcon } from '../../components/icons'
+import { ChatIcon, CloseIcon, ICON_SM, SendIcon } from '../../components/icons'
 import { Markdown } from '../../components/Markdown'
 import { MermaidBlock } from '../../components/MermaidBlock'
 import { useT } from '../../i18n/index.ts'
@@ -24,7 +25,7 @@ import { MODEL_TEXT } from '../../i18n/locales/model.ts'
 import type { Identity, ReadingParagraph, ReadingSection, ReadingTextBlock, ReadingWidgetBlock, TopicMaterial, WidgetParam } from '../data/client.ts'
 import { IsoObject } from './objects/IsoObject'
 import { paperLines, typewriterSvg } from './objects/typewriter.ts'
-import { footprintRanges, prose, readingAsks, sectionLabel, squash, wholeMath, type Ask, type Prose } from './reading-ask.ts'
+import { placeFootprints, prose, readingAsks, sectionLabel, squash, wholeMath, type Ask, type ParagraphFootprints, type Prose } from './reading-ask.ts'
 import { marked, Rich } from './ProseText'
 import type { ReadingState } from './useReading.ts'
 import { widgetGeneration } from '../../components/widget/generation'
@@ -98,22 +99,28 @@ export function shownOffset(paragraph: Element, node: Node, offset: number, edge
   return count
 }
 
-/** A paragraph's text with the person's footprints as thin underlines. A footprint is an inline span acting as a button, so a quote that starts mid-line wraps
- *  like the text around it (a real <button> is an atomic inline box and would push the whole quote to its own line). */
-export function ParagraphText({ id, shown, quotes, onFootprint }: { id: string; shown: Prose; quotes: string[]; onFootprint: (quote: string, element: HTMLElement) => void }) {
+const NO_FOOTPRINTS: ParagraphFootprints = { ranges: [], margin: [] }
+
+/** A paragraph's text with the person's footprints as thin underlines (dashed when the sentence changed since the question). A footprint is an inline span acting as a button,
+ *  so a quote that starts mid-line wraps like the text around it (a real <button> is an atomic inline box and would push the whole quote to its own line).
+ *  A question that has no sentence left to sit on keeps a mark at the paragraph's end. */
+export function ParagraphText({ id, shown, footprints = NO_FOOTPRINTS, onFootprint }: { id: string; shown: Prose; footprints?: ParagraphFootprints; onFootprint: (quote: string, element: HTMLElement) => void }) {
   const S = useT().studio.reading
   const parts: ReactNode[] = []
   let at = 0
-  for (const found of footprintRanges(shown.text, quotes)) {
+  for (const found of footprints.ranges) {
     const range = { ...found, ...wholeMath(shown.marks, found.start, found.end) }
     if (range.start < at) continue
     if (range.start > at) parts.push(...marked(shown, at, range.start))
-    parts.push(<span role="button" tabIndex={0} key={`f${range.start}`} className="reading-footprint" title={S.footprint} aria-label={S.footprint}
+    const label = range.edited ? S.footprintEdited : S.footprint
+    parts.push(<span role="button" tabIndex={0} key={`f${range.start}`} className={`reading-footprint${range.edited ? ' is-edited' : ''}`} title={label} aria-label={label}
       onClick={event => onFootprint(range.quote, event.currentTarget)}
       onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onFootprint(range.quote, event.currentTarget) } }}>{marked(shown, range.start, range.end)}</span>)
     at = range.end
   }
   if (at < shown.text.length) parts.push(...marked(shown, at, shown.text.length))
+  for (const quote of footprints.margin) parts.push(' ', <button type="button" key={`m${quote}`} className="icon-btn reading-footprint-mark" title={S.footprintMoved} aria-label={S.footprintMoved}
+    onClick={event => onFootprint(quote, event.currentTarget)}><ChatIcon size={ICON_SM} /></button>)
   return <span className="reading-text" data-paragraph={id}>{parts}</span>
 }
 
@@ -331,7 +338,8 @@ export function ReadingView({ state, requested, startItem, asks, busyFor, onSend
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [expanded, collapseWidget])
-  const mine = reading ? readingAsks(reading, asks) : []
+  const mine = useMemo(() => reading ? readingAsks(reading, asks) : [], [reading, asks])
+  const footprints = useMemo(() => reading ? placeFootprints(reading, mine) : new Map<string, ParagraphFootprints>(), [reading, mine])
   const activeWidgets = useMemo(() => {
     if (!reading) return new Set<string>()
     const auto = reading.sections.flatMap(section => section.paragraphs)
@@ -431,8 +439,8 @@ export function ReadingView({ state, requested, startItem, asks, busyFor, onSend
             return <VisualBlock key={paragraph.id} block={paragraph} stage={stage} onActivate={activateWidget} onOpenSource={page => onOpenSource(reading.itemId, page)} />
           }
           const chip = <SourceChip paragraph={paragraph} onOpen={page => onOpenSource(reading.itemId, page)} />
-          const shown = prose(paragraph.text), flat = squash(shown.text)
-          const text = <ParagraphText id={paragraph.id} shown={shown} quotes={mine.filter(ask => flat.includes(ask.quote)).map(ask => ask.quote)} onFootprint={onFootprint} />
+          const shown = prose(paragraph.text)
+          const text = <ParagraphText id={paragraph.id} shown={shown} footprints={footprints.get(paragraph.id)} onFootprint={onFootprint} />
           if (paragraph.source.kind === 'inference') return <p key={paragraph.id} className="reading-para is-inference">{text}{' '}{chip}</p>
           // The quote stands under its paragraph, in the paper's own words, so a sentence that leads into it ("…the key line:") points at something the reader can see
           return <Fragment key={paragraph.id}>

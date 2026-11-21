@@ -52,6 +52,8 @@ export const en = {
       page: (page: number) => `Paper p.${page}`, paper: 'Paper', inference: "AI's inference",
       openSource: 'Open the paper alongside',
       footprint: 'You asked about this sentence. Open the exchange',
+      footprintEdited: 'You asked about this sentence before it changed. Open the exchange',
+      footprintMoved: 'You asked about a sentence here that has since changed. Open the exchange',
       widgetIdle: 'Interactive widget', widgetRun: 'Open', widgetExpand: 'Expand', widgetCollapse: 'Restore (Esc)',
       widgetAsk: 'Ask AI about this widget', widgetFootprint: 'You asked about this widget. Open the exchange', widgetControls: 'Widget controls',
       widgetFailed: "This widget didn't start", widgetFix: 'Ask AI to fix',

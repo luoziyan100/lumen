@@ -1,6 +1,6 @@
 /**
  * [INPUT]: tokens.css / yan-design-system tokens, studio.css's type scale and .source-chip, the appearance pipeline's --font-serif (the reading font setting)
- * [OUTPUT]: the Reading view's styles: the in-view scroller, one centred 960px column whose prose/headings/quotes/tables/diagrams stay within 700px while interactive widgets use the full column width and expand in place (`position: fixed`, solid light surface, `.studio-center:has(.reading-widget.is-expanded)` raised to z-index 50 above glass side panes and floating sprite, same-height slot placeholder); numbered section titles, the paper quote under each sourced block, source chips, footprint underlines (inline, wrapping like text),
+ * [OUTPUT]: the Reading view's styles: the in-view scroller, one centred 960px column whose prose/headings/quotes/tables/diagrams stay within 700px while interactive widgets use the full column width and expand in place (`position: fixed`, solid light surface, `.studio-center:has(.reading-widget.is-expanded)` raised to z-index 50 above glass side panes and floating sprite, same-height slot placeholder); numbered section titles, the paper quote under each sourced block, source chips, footprint underlines (inline, wrapping like text; dashed once the sentence changed) and the edge mark of a question with no sentence left (22px, line height kept),
  *           the host-drawn widget control row and the quiet runtime-failure line (both inside the stage; light surfaces re-declared when expanded), the widget bar's ask button and footprint mark,
  *           the selection window (solid surface, quote clamped to two lines and keeping a widget question's line break, Markdown replies at window size scrolling inside its max height, growing input) and the material row's reading action;
  *           the empty view's start block (the 300px typewriter alone, centred)
@@ -37,6 +37,8 @@ html[data-justify="true"] .reading-para { text-align: justify; }
 .reading-footprint { display: inline; cursor: pointer; border-radius: 2px; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent); text-decoration-thickness: 1px; text-underline-offset: 4px; }
 .reading-footprint:hover { text-decoration-color: var(--accent); }
 .reading-footprint:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; border-radius: 2px; }
+.reading-footprint.is-edited { text-decoration-style: dashed; }
+.reading-footprint-mark { width: 22px; height: 22px; margin-block: -6px; vertical-align: middle; color: var(--accent-ink); }
 
 /* ---- The selection window: under the selection inside the column, never over it (Reading.tsx places it) ---- */
 .reading-ask { position: absolute; z-index: 6; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; max-height: 360px;

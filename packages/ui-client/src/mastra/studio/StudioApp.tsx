@@ -86,7 +86,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const readings = useReading(api, topic?.id ?? null, readingItem, `${written}|${revision}`, live)
   const asks = useTopicAsks(api, topic?.id ?? null, sessions, identity, liveAsks)
   const running = live || isRunning
-  // ---- Auto-focus the Reading stage when the AI lands a new reading_write / reading_insert in the live conversation's current turn ----
+  // ---- Auto-focus the Reading stage when the AI lands a new reading_write / reading_insert / reading_patch in the live conversation's current turn ----
   // History loads after the switch, so only the current turn counts: a write before the person's latest message never pulls the view away
   const seenWrite = useRef<{ taskId: string | null; callId: string }>({ taskId: null, callId: '' })
   useEffect(() => {
@@ -207,7 +207,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const opened = reading?.target.scope === 'library' ? reading.target.path : null
   const startItem = materials.items.find(item => item.id === (readingItem ?? opened)) ?? (materials.items.length === 1 ? materials.items[0]! : null)
   async function askReading(target: AskTarget, words: string) {
-    const failure = await say(target.identity, (target.widget ? askWidgetText : askText)(target.quote, target.section, readings.reading?.itemTitle ?? '', words))
+    const failure = await say(target.identity, target.widget ? askWidgetText(target.quote, target.section, readings.reading?.itemTitle ?? '', words) : askText(target.quote, target.section, readings.reading?.itemTitle ?? '', words, target.paragraphId))
     if (!failure && chatShown) setReveal({ messageId: null, nonce: Date.now() })
     return failure
   }

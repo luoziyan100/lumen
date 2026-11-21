@@ -48,6 +48,8 @@ export const zh: Messages = {
       page: (page: number) => `原文 p.${page}`, paper: '原文', inference: 'AI 推断',
       openSource: '在旁边打开原文',
       footprint: '你问过这一句，点开看问答',
+      footprintEdited: '你问过这一句，它后来改过，点开看问答',
+      footprintMoved: '你在这里问过的一句后来改了，点开看问答',
       widgetIdle: '交互小实验', widgetRun: '打开', widgetExpand: '放大查看', widgetCollapse: '收起 Esc',
       widgetAsk: '就这个小实验问 AI', widgetFootprint: '你问过这个小实验，点开看问答', widgetControls: '小实验参数',
       widgetFailed: '这个小实验没能运行起来', widgetFix: '请 AI 修正',

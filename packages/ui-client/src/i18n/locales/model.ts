@@ -11,8 +11,8 @@
  */
 /** Begins the line under the quote in a reading question; the footprint parser finds questions by it. */
 const READING_MARK = '— 解读'
-/** The place line of askReading read back: the material's title and the section label */
-export const READING_PLACE = /^— 解读《(.*)》· (.*)$/
+/** The place line of askReading read back: the material's title, the section label and, since 2026-11-21, the asked paragraph's block id (older questions have none) */
+export const READING_PLACE = /^— 解读《(.*)》· (.*?)(?:（段 ([\w-]+)）)?$/
 /** First line of a message a widget sent after the person touched it; the service reads it as not the person's words */
 const WIDGET_MARK = '— 小实验'
 /** A widget question's quote read back (its lines joined by a space): the widget title */
@@ -22,8 +22,8 @@ export const MODEL_TEXT = {
   uploadedMaterials: '已上传材料（资料库条目，用 read_material 读）：',
   activeDraft: (path: string) => `当前稿（主题工作区路径）：${path}\n用户正在查看这份稿件；若要求修改它，请先读取现有内容。`,
   writeReading: (title: string, itemId: string) => `请为《${title}》写一份解读。（材料 id：${itemId}）`,
-  /** A question asked from a reading: the quote as a Markdown quote, then where it sits, then the person's own words. `READING_MARK` begins the second line. */
-  askReading: (quote: string, section: string, item: string, words: string) => `${quote.split('\n').map(line => `> ${line}`).join('\n')}\n${READING_MARK}《${item}》· ${section}\n\n${words}`,
+  /** A question asked from a reading: the quote as a Markdown quote, then where it sits (the paragraph's block id last, so a footprint finds its block after the sentence changed and the model can patch it), then the person's own words. `READING_MARK` begins the second line. */
+  askReading: (quote: string, section: string, item: string, words: string, blockId?: string) => `${quote.split('\n').map(line => `> ${line}`).join('\n')}\n${READING_MARK}《${item}》· ${section}${blockId ? `（段 ${blockId}）` : ''}\n\n${words}`,
   /** What a widget sends back (a guess, a parameter): the conversation answers it like any message, sediment never keeps it (R13) */
   widgetSend: (text: string) => `${WIDGET_MARK}\n\n${text.trim()}`,
   /** 「请 AI 修正」 under a reading widget that threw at runtime: names where it is, the error and the block's ids, and asks to read that block and patch only what broke; the service reads it as not the person's words */

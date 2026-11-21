@@ -1,7 +1,7 @@
 /**
  * [INPUT]: native messages (feed's messageRole/messageText), MODEL_TEXT's question format and its READING_PLACE line, widget-params' widgetTitleOf, the service error catalog
- * [OUTPUT]: prose (a prose block's shown text and its bold, code and formula marks; a formula keeps its `$…$` source in the shown text, so quotes carry the TeX), wholeMath (a range widened so it never cuts a formula), askText / askWidgetText / parseAsk (a reading question and back; a widget question's quote keeps its two lines), asksOf (each question with the assistant reply that followed it), readingAsks (the questions of one reading: about its sentences or its widgets), footprintRanges (where a paragraph shows
- *           the person's footprints), readingSignal (completed reading_write / reading_insert / reading_patch calls, the refresh signal), latestReadingWrite (the current turn's latest completed reading write's callId/itemId for auto-focus), answered (a request has an assistant message after it), sendErrorText (a native send refusal in the UI language)
+ * [OUTPUT]: prose (a prose block's shown text and its bold, code and formula marks; a formula keeps its `$…$` source in the shown text, so quotes carry the TeX), wholeMath (a range widened so it never cuts a formula), askText / askWidgetText / parseAsk (a reading question and back; a widget question's quote keeps its two lines), asksOf (each question with the assistant reply that followed it), readingAsks (the questions of one reading: about its sentences or its widgets), footprintRanges (where a quote stands exactly in a paragraph),
+ *           sentences / likeness / placeFootprints (every sentence question's place: exact, edited on the closest sentence of its block or section, or at a block's edge; never dropped), readingSignal (completed reading_write / reading_insert / reading_patch calls, the refresh signal), latestReadingWrite (the current turn's latest completed reading write's callId/itemId for auto-focus), answered (a request has an assistant message after it), sendErrorText (a native send refusal in the UI language)
  * [POS]: pure helpers behind the Reading view. Footprints are not stored anywhere: they are rebuilt from the conversation's own messages, so a reload or another device
  *        shows the same underlines and nothing new is persisted
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -51,8 +51,8 @@ export function wholeMath(marks: ProseMark[], start: number, end: number): { sta
 /** Where the question sits: the section's number and title, as the reading shows them. */
 export const sectionLabel = (section: Pick<ReadingSection, 'ord' | 'title'>) => `${section.ord}. ${section.title}`
 
-export function askText(quote: string, section: string, item: string, words: string) {
-  return MODEL_TEXT.askReading(squash(quote), section, item, words.trim())
+export function askText(quote: string, section: string, item: string, words: string, blockId?: string) {
+  return MODEL_TEXT.askReading(squash(quote), section, item, words.trim(), blockId)
 }
 
 /** A question asked from a widget: its quote is the two program lines of widgetQuote, each kept on its own line */
@@ -61,14 +61,14 @@ export function askWidgetText(quote: string, section: string, item: string, word
 }
 
 /** A user message written by askText, read back; anything else is null. */
-export function parseAsk(text: string): { quote: string; item: string; section: string; words: string } | null {
+export function parseAsk(text: string): { quote: string; item: string; section: string; blockId?: string; words: string } | null {
   const lines = text.split('\n')
   let at = 0
   const quote: string[] = []
   while (at < lines.length && lines[at]!.startsWith('> ')) quote.push(lines[at++]!.slice(2))
   const place = quote.length ? READING_PLACE.exec(lines[at] ?? '') : null
   if (!place) return null
-  return { quote: squash(quote.join(' ')).replaceAll('**', ''), item: place[1]!, section: place[2]!, words: lines.slice(at + 1).join('\n').trim() }
+  return { quote: squash(quote.join(' ')).replaceAll('**', ''), item: place[1]!, section: place[2]!, ...(place[3] ? { blockId: place[3] } : {}), words: lines.slice(at + 1).join('\n').trim() }
 }
 
 export interface Ask {
@@ -77,6 +77,8 @@ export interface Ask {
   quote: string
   item: string
   section: string
+  /** The asked paragraph's block id; questions written before 2026-11-21 have none */
+  blockId?: string
   words: string
   /** Assistant text after the question, up to the next user message; grows while it streams */
   reply: string
@@ -130,16 +132,94 @@ export function footprintRanges(text: string, quotes: string[]): { start: number
   return ranges.sort((a, b) => a.start - b.start)
 }
 
-/** Questions that belong to this reading: asked about its material, with a quote found in one of its prose paragraphs, or asked from one of its widgets
+export interface Footprint { start: number; end: number; quote: string; edited: boolean }
+/** Where one paragraph shows the person's footprints: ranges in its shown text, and the quotes that only fit at its edge */
+export interface ParagraphFootprints { ranges: Footprint[]; margin: string[] }
+
+/** The full-width 。！？； (escaped: no CJK literal outside the catalogs) */
+const FULL_STOPS = /[\u3002\uff01\uff1f\uff1b]/
+
+/** Sentence ranges of a shown text, trimmed: a sentence ends after 。！？； at once, after . ! ? ; only before whitespace or the end, so 3.5 and e.g. stay whole. */
+export function sentences(text: string): { start: number; end: number }[] {
+  const ranges: { start: number; end: number }[] = []
+  const push = (start: number, end: number) => {
+    while (start < end && /\s/.test(text[start]!)) start++
+    while (end > start && /\s/.test(text[end - 1]!)) end--
+    if (end > start) ranges.push({ start, end })
+  }
+  let from = 0
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]!
+    if (FULL_STOPS.test(c) || ('.!?;'.includes(c) && (i + 1 === text.length || /\s/.test(text[i + 1]!)))) { push(from, i + 1); from = i + 1 }
+  }
+  push(from, text.length)
+  return ranges
+}
+
+function grams(text: string): Map<string, number> {
+  const flat = squash(text).toLowerCase(), counts = new Map<string, number>()
+  const size = flat.length > 1 ? 2 : 1
+  for (let i = 0; i + size <= flat.length; i++) counts.set(flat.slice(i, i + size), (counts.get(flat.slice(i, i + size)) ?? 0) + 1)
+  return counts
+}
+
+/** Dice similarity of character bigrams: language-neutral, so CJK and Latin sentences compare the same way. */
+export function likeness(a: string, b: string): number {
+  const x = grams(a), y = grams(b)
+  let shared = 0, total = 0
+  for (const [gram, n] of x) { shared += Math.min(n, y.get(gram) ?? 0); total += n }
+  for (const n of y.values()) total += n
+  return total ? 2 * shared / total : 0
+}
+
+/** Where each question about a sentence shows, so a footprint never disappears (owner decision 2026-11-21). The sentence is still there: a footprint on it.
+ *  An exact quote marks its own block when the question names one that still exists, else every paragraph that holds it (as before block ids).
+ *  It changed: a footprint marked edited on the closest sentence, in its own block when the question carries a block id that still exists, else in the section it was asked in
+ *  (else anywhere in the reading). Nothing shares a character pair with it, or the place is taken: a mark at that block's edge. "Closest" only picks the place, so there is no threshold. */
+export function placeFootprints(reading: Reading, asks: Ask[]): Map<string, ParagraphFootprints> {
+  const paragraphs = reading.sections.flatMap(section => section.paragraphs.flatMap(paragraph => 'text' in paragraph ? [{ id: paragraph.id, section: sectionLabel(section), text: prose(paragraph.text).text }] : []))
+  const placed = new Map<string, ParagraphFootprints>(paragraphs.map(paragraph => [paragraph.id, { ranges: [], margin: [] }]))
+  const free = (id: string, start: number, end: number) => !placed.get(id)!.ranges.some(range => start < range.end && end > range.start)
+  const seen = new Set<string>(), changed: { ask: Ask; own?: typeof paragraphs[number] }[] = []
+  const edge = (id: string, quote: string) => { const entry = placed.get(id)!; if (!entry.margin.includes(quote)) entry.margin.push(quote) }
+  for (const ask of asks) {
+    const key = `${ask.quote}\n${ask.blockId ?? ask.section}`
+    if (ask.item !== reading.itemTitle || !ask.quote || seen.has(key) || widgetTitleOf(ask.quote) !== null) continue
+    seen.add(key)
+    const own = ask.blockId ? paragraphs.find(paragraph => paragraph.id === ask.blockId) : undefined
+    const hits = (own ? [own] : paragraphs).flatMap(paragraph => footprintRanges(paragraph.text, [ask.quote]).map(range => ({ id: paragraph.id, range })))
+    if (!hits.length) { changed.push({ ask, own }); continue }
+    for (const { id, range } of hits) {
+      if (placed.get(id)!.ranges.some(other => other.quote === ask.quote && other.start === range.start)) continue
+      if (free(id, range.start, range.end)) placed.get(id)!.ranges.push({ ...range, edited: false })
+      else edge(id, ask.quote)
+    }
+  }
+  for (const { ask, own } of changed) {
+    const inSection = paragraphs.filter(paragraph => paragraph.section === ask.section)
+    const pool = own ? [own] : inSection.length ? inSection : paragraphs
+    let best: { id: string; start: number; end: number; score: number } | null = null
+    for (const paragraph of pool) for (const sentence of sentences(paragraph.text)) {
+      const score = likeness(ask.quote, paragraph.text.slice(sentence.start, sentence.end))
+      if (score > (best?.score ?? 0)) best = { id: paragraph.id, ...sentence, score }
+    }
+    if (best && free(best.id, best.start, best.end)) placed.get(best.id)!.ranges.push({ start: best.start, end: best.end, quote: ask.quote, edited: true })
+    else if (best ?? pool[0]) edge((best ?? pool[0]!).id, ask.quote)
+  }
+  for (const entry of placed.values()) entry.ranges.sort((a, b) => a.start - b.start)
+  return placed
+}
+
+/** Questions that belong to this reading: asked about its material's sentences (they always show somewhere, see placeFootprints), or asked from one of its widgets
  *  (same section label and widget title; an untitled widget goes by the `widgetIdle` name, as its question did). */
 export function readingAsks(reading: Reading, asks: Ask[]): Ask[] {
-  const texts = reading.sections.flatMap(section => section.paragraphs.flatMap(paragraph => 'text' in paragraph ? [squash(prose(paragraph.text).text)] : []))
+  const prosed = reading.sections.some(section => section.paragraphs.some(paragraph => 'text' in paragraph))
   const idle = t().studio.reading.widgetIdle
   const widgets = new Set(reading.sections.flatMap(section => section.paragraphs.flatMap(paragraph => paragraph.kind === 'widget' ? [`${sectionLabel(section)}\n${paragraph.title || idle}`] : [])))
   return asks.filter(ask => {
     if (ask.item !== reading.itemTitle) return false
     const widget = widgetTitleOf(ask.quote)
-    return widget !== null ? widgets.has(`${ask.section}\n${widget}`) : texts.some(text => text.includes(ask.quote))
+    return widget !== null ? widgets.has(`${ask.section}\n${widget}`) : prosed
   })
 }
 

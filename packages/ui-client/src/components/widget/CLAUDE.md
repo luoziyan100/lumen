@@ -16,7 +16,7 @@
 - `generation.ts` — `widgetGeneration`:终态 html 的内容摘要(FNV-1a + 长度)。终态 html 会原地变的宿主(解读块经 reading_patch 保留 id)拿它做 WidgetFrame 的 key:换代即换新 iframe,同一个 receiver 绝不执行两次脚本;只改参数不换代
 - `WidgetFrame.tsx` — 回发消息一律包成 `MODEL_TEXT.widgetSend`(首行 `— 小实验`)，服务端据此不把它算作用户原话(R13);可选 `onEscape` 按 `e.source` 校验后响应 `WIDGET_ESCAPE`;可选 `params`(宿主已按声明校验的值)随 finalize 送入、变化时发 `WIDGET_PARAMS`，从不回读;可选 `onRuntimeError`:finalize 后 `RUNTIME_ERROR_MS`(3s)内首个 error 诊断;iframe.src=`/widget-receiver.html`(禁 srcdoc);finalize 走 hoistInlineScripts;同代同内容只推送一次并携带世代 token;阅读器 `fillHeight`;白板区块 `light` 固定浅档(不随系统暗色变黑);WIDGET_DIAG 常挂 `data-widget-diag`,可见条默认隐藏(走查开 `localStorage lumen:widgetDiag=1`)
 - `AssistantContent.tsx` — 文本 Markdown(含 mermaid)+ widget 交错;流式 `deferMath`;气泡入口;终稿把失败图的修正请求经 onSendMessage 发回会话;memo 包一层
-- `../HtmlViewer.tsx` — 工作区 HTML 预览入口(`fillHeight`)
+- `../HtmlViewer.tsx` — 工作区 HTML 预览入口(`fillHeight`);同样按 `widgetGeneration(html)` 做 key,文件原地变化即换新 iframe
 
 测试:`tests/widget-parse.test.ts`(解析 + sanitize + HT-c + hoist + receiver 仪表 + 终态幂等);`tests/widget-theme.test.ts`(暗壳主题对比度 + fillHeight 滚动契约)。
 
