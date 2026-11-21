@@ -16,7 +16,6 @@ import { Skills } from '../Skills'
 import { Attachments } from './Attachments'
 import { conversationDraft } from './draft.ts'
 import { useSkillSlash } from './Slash'
-import { ContextMeter } from './Progress'
 
 export function Composer({ api, identity, feed, connected, canStop, queued, onActivity, onSettings, model, onJumpToLatest, activePath, onClearActivePath, prompt, prepareSession }: {
   api: LumenApi; identity: Identity; feed: SessionFeed | null; connected: boolean; canStop: boolean; queued: number; onActivity: () => void; onSettings?: () => void; model?: string; onJumpToLatest?: () => void; activePath?: string | null; onClearActivePath?: () => void
@@ -123,7 +122,6 @@ export function Composer({ api, identity, feed, connected, canStop, queued, onAc
       <input ref={fileInput} type="file" multiple hidden onChange={event => { store.addFiles(Array.from(event.target.files ?? [])); event.target.value = '' }} />
       <footer className="composer-foot"><div className="composer-pills">
         <DropdownMenu onOpenChange={open => { if (open) void api.settings().then(value => { if (alive.current) { setModels(value); setError('') } }).catch(() => {}) }}><DropdownMenu.Trigger render={<button className="composer-pill liquid-glass" type="button" aria-label={C.pickModel} title={C.pickModel} />}><span className="composer-pill-label">{selectedModel || C.pickModel}</span><ChevronDownIcon /></DropdownMenu.Trigger><DropdownMenu.Content align="start" side="top" sideOffset={6} className="composer-model-menu glass-card">{models?.profiles.flatMap(profile => profile.models.map(model => <DropdownMenu.Item key={`${profile.id}:${model}`} onClick={() => void changeModel(profile.id, model)}>{models.activeProfileId === profile.id && selectedModel === model && <CheckIcon />}<span>{model}</span><span className="composer-model-menu-meta">{profile.name}</span></DropdownMenu.Item>))}{onSettings && <DropdownMenu.Item icon={GearGlyph} onClick={onSettings}>{C.manageModels}</DropdownMenu.Item>}</DropdownMenu.Content></DropdownMenu></div>
-        {!prepareSession && <ContextMeter api={api} identity={identity} running={canStop} />}
         <span className="composer-spacer" />
         {(uploading || queued > 0 || pending > 0 || preparingSend || sendOnConnect) && <small role="status">{uploading ? C.uploading : sendOnConnect ? C.sendOnConnect : queued > 0 ? `${C.queuedMessages} ${queued}` : C.submitting}</small>}
         {canStop

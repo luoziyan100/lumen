@@ -1,12 +1,11 @@
 /**
- * [INPUT]: 官方 displayState 的 tasks/tokenUsage、子用量与最后主请求的真实输入计量
- * [OUTPUT]: Progress、ToolActivity、ContextMeter：任务/累计用量（可仅显示用量）、进行中工具及上次输入占窗口比例
+ * [INPUT]: 官方 displayState 的 tasks/tokenUsage 与子用量
+ * [OUTPUT]: Progress、ToolActivity：任务/累计用量（可仅显示用量）与进行中工具
  * [POS]: 原生和派生用量的只读呈现；旧导入无 usage 时不编造消耗
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { useT, formatNumber as number } from '../../../i18n/index.ts'
-import { useEffect, useState } from 'react'
-import type { DisplayState, Identity, LumenApi } from '../../data/client.ts'
+import type { DisplayState } from '../../data/client.ts'
 
 export function Progress({ display, showTasks = true }: { display: DisplayState | null; showTasks?: boolean }) {
   const C = useT().chat
@@ -36,31 +35,4 @@ export function ToolActivity({ display }: { display: DisplayState | null }) {
   return <>{Object.entries(display.activeTools)
     .filter(([, tool]) => tool.status === 'running' || tool.status === 'streaming_input')
     .map(([id, tool]) => <p className="mw-activity" key={id}>{tool.name} · {C.working}</p>)}</>
-}
-
-// 用上次实际主请求衡量上下文；不把会话累计消耗冒充当前窗口占用。
-export function ContextMeter({ api, identity, running }: { api: LumenApi; identity: Identity; running: boolean }) {
-  const C = useT().chat
-  const [value, setValue] = useState<{ lastMainInputTokens: number | null; contextWindow: number } | null>(null)
-  useEffect(() => {
-    let active = true, pending = false
-    const refresh = async () => {
-      if (pending) return
-      pending = true
-      try {
-        const next = await api.request<{ lastMainInputTokens: number | null; contextWindow: number }>(`/lumen/budget?${api.query(identity)}`)
-        if (active) setValue(next)
-      } catch { /* 未计量的历史不显示推测值。 */ }
-      finally { pending = false }
-    }
-    void refresh()
-    const timer = running ? window.setInterval(() => { void refresh() }, 3000) : undefined
-    return () => { active = false; if (timer !== undefined) clearInterval(timer) }
-  }, [api, identity.topicId, identity.taskId, running])
-  if (!value || value.lastMainInputTokens === null || !Number.isFinite(value.lastMainInputTokens) || value.contextWindow <= 0) return null
-  const ratio = value.lastMainInputTokens / value.contextWindow
-  if (ratio < 0.6) return null
-  return <small role="status" className={ratio >= 0.85 ? 'mw-error' : 'composer-context'} title={C.contextTitle(number(value.lastMainInputTokens), number(value.contextWindow))}>
-    {C.contextShort(Math.round(ratio * 100))}
-  </small>
 }

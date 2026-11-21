@@ -49,7 +49,8 @@ register('./helpers/tsx-loader.mjs', import.meta.url)
 register('data:text/javascript,' + encodeURIComponent(`export async function resolve(specifier, context, next) { if (specifier.endsWith('?url')) return { url: 'data:text/javascript,export default "test-worker-url"', shortCircuit: true }; return next(specifier, context) } export async function load(url, context, next) { const result = await next(url, context); if (url.endsWith('/WidgetFrame.tsx')) return { ...result, source: String(result.source).replaceAll('import.meta.env.BASE_URL', JSON.stringify('/')) }; return result }`), import.meta.url)
 const { createRoot } = await import('react-dom/client')
 const { StudioApp } = await import('../src/mastra/studio/StudioApp.tsx')
-const { askText, askWidgetText, parseAsk, asksOf, footprintRanges, latestReadingWrite, readingSignal, prose, readingAsks } = await import('../src/mastra/studio/reading-ask.ts')
+const { askText, askWidgetText, parseAsk, asksOf, footprintRanges, latestReadingWrite, readingSignal, prose, readingAsks, wholeMath } = await import('../src/mastra/studio/reading-ask.ts')
+const { ParagraphText, shownOffset } = await import('../src/mastra/studio/Reading.tsx')
 const { DEFAULT_SHAPE, SPRITE_KEY } = await import('../src/mastra/studio/sprite-place.ts')
 const { widgetQuote } = await import('../src/mastra/studio/widget-params.ts')
 const widgetParams: WidgetParam[] = [
@@ -105,6 +106,47 @@ test('reading prose: **bold** and `code` are drawn without their markers; quotes
   assert.deepEqual(footprintRanges(shown.text, [old.quote]).map(range => shown.text.slice(range.start, range.end)), ['深度反馈控制（DFC）源于运动控制'])
   const reading = { itemTitle: 'Paper', sections: [{ paragraphs: [{ id: 'p1', text: source, source: { kind: 'inference' } }] }] } as never
   assert.equal(readingAsks(reading, [{ ...old, messageId: 'm', identity: { topicId: 't', taskId: 'a' }, reply: '', createdAt: 0 }]).length, 1)
+})
+
+test('reading prose: $…$ and $$…$$ are formulas drawn by KaTeX; the shown text keeps their source, a selection and a footprint take a formula whole, and prices stay text', () => {
+  const source = '变化率 $\\tau_v \\dot{v}^\\ell_t = -v^\\ell_t$ 与 **DFC** 一样；不动点 $$\\dot{v} = 0$$ 处成立；售价 $5 和 $6，转义 \\$x\\$ 不算'
+  const shown = prose(source)
+  assert.equal(shown.text, source.replace('**DFC**', 'DFC'))
+  const math = shown.marks.filter(mark => mark.kind === 'math')
+  assert.deepEqual(math.map(mark => [shown.text.slice(mark.start, mark.end), mark.tex, mark.display]), [
+    ['$\\tau_v \\dot{v}^\\ell_t = -v^\\ell_t$', '\\tau_v \\dot{v}^\\ell_t = -v^\\ell_t', false],
+    ['$$\\dot{v} = 0$$', '\\dot{v} = 0', true],
+  ])
+  const [first] = math
+  assert.deepEqual(wholeMath(shown.marks, 1, first!.start + 3), { start: 1, end: first!.end })
+  assert.deepEqual(wholeMath(shown.marks, first!.start + 3, first!.end + 2), { start: first!.start, end: first!.end + 2 })
+
+  const host = document.createElement('div')
+  document.body.append(host)
+  const root = createRoot(host)
+  const asked = shown.text.slice(first!.start + 2, first!.end + 2)
+  act(() => root.render(createElement(ParagraphText, { id: 'p1', shown, quotes: [asked], onFootprint: () => {} })))
+  const paragraph = host.querySelector('[data-paragraph="p1"]')!
+  const drawn = paragraph.querySelectorAll('.reading-math')
+  assert.equal(drawn.length, 2)
+  assert.ok(drawn[0]!.querySelector('.katex'), 'KaTeX drew the inline formula')
+  assert.ok(drawn[1]!.classList.contains('is-display'))
+  assert.ok(!paragraph.textContent!.includes('$\\tau'), 'no TeX source shows as text')
+  const footprint = paragraph.querySelector('.reading-footprint')!
+  assert.ok(footprint.contains(drawn[0]!), 'a footprint that started inside the formula holds it whole')
+
+  const inside = drawn[0]!.querySelector('.katex')!.firstChild!
+  const lead = paragraph.firstChild!
+  assert.equal(lead.nodeType, Node.TEXT_NODE)
+  assert.equal(shownOffset(paragraph, lead, 2, 'start'), 2)
+  assert.equal(shownOffset(paragraph, inside, 0, 'start'), first!.start)
+  assert.equal(shownOffset(paragraph, inside, 0, 'end'), first!.end)
+  const strong = paragraph.querySelector('strong')!.firstChild!
+  assert.equal(shownOffset(paragraph, strong, 1, 'end'), shown.text.indexOf('DFC') + 1)
+  const tail = paragraph.lastChild!
+  assert.equal(shownOffset(paragraph, tail, (tail as Text).length, 'end'), shown.text.length)
+  act(() => root.unmount())
+  host.remove()
 })
 
 // One written format, two readers: the service keeps its own copy (it never imports UI code), so this test feeds the real askReading output to both

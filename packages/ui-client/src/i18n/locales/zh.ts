@@ -128,8 +128,6 @@ export const zh: Messages = {
     tokenUsage: '累计用量', inputTokens: '输入', outputTokens: '输出', cachedTokens: '缓存命中', reasoningTokens: '推理',
     mainUsage: tokens => `主 Agent ${tokens} tokens`, childUsage: tokens => `子 Agent ${tokens === null ? '暂无记录' : `${tokens} tokens`}`,
     totalUsage: tokens => `已记录合计 ${tokens} tokens`,
-    contextTitle: (input, window) => `上次主模型请求实际输入 ${input} / 配置窗口 ${window} tokens；不是累计消耗。`,
-    contextShort: percent => `上次输入 ${percent}%`,
     previewImage: '图片预览', close: '关闭', remove: '移除', emptyFile: '这个文件为空。', unsupported: '该文件已保存在工作区。',
     download: '保存到本机', loading: '正在读取…', sendFailed: '消息未提交', restoreDraft: '恢复到草稿', identityMismatch: '会话身份不匹配，未发送研究',
     jumpLatest: '回到最新', add: '添加', addFile: '添加文件', skills: '研究技能', noSkills: '还没有安装技能', readingSkills: '正在读取技能…',

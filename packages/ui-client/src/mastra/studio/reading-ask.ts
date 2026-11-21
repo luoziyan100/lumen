@@ -1,6 +1,6 @@
 /**
  * [INPUT]: native messages (feed's messageRole/messageText), MODEL_TEXT's question format and its READING_PLACE line, widget-params' widgetTitleOf, the service error catalog
- * [OUTPUT]: prose (a prose block's shown text and its bold and code marks), askText / askWidgetText / parseAsk (a reading question and back; a widget question's quote keeps its two lines), asksOf (each question with the assistant reply that followed it), readingAsks (the questions of one reading: about its sentences or its widgets), footprintRanges (where a paragraph shows
+ * [OUTPUT]: prose (a prose block's shown text and its bold, code and formula marks; a formula keeps its `$…$` source in the shown text, so quotes carry the TeX), wholeMath (a range widened so it never cuts a formula), askText / askWidgetText / parseAsk (a reading question and back; a widget question's quote keeps its two lines), asksOf (each question with the assistant reply that followed it), readingAsks (the questions of one reading: about its sentences or its widgets), footprintRanges (where a paragraph shows
  *           the person's footprints), readingSignal (completed reading_write / reading_insert calls, the refresh signal), latestReadingWrite (the current turn's latest completed reading write's callId/itemId for auto-focus), answered (a request has an assistant message after it), sendErrorText (a native send refusal in the UI language)
  * [POS]: pure helpers behind the Reading view. Footprints are not stored anywhere: they are rebuilt from the conversation's own messages, so a reload or another device
  *        shows the same underlines and nothing new is persisted
@@ -16,19 +16,36 @@ import { widgetTitleOf } from './widget-params.ts'
 /** Whitespace runs collapse to one space; quotes match on this form. */
 export const squash = (text: string) => text.replace(/\s+/g, ' ').trim()
 
-export interface Prose { text: string; marks: { start: number; end: number; kind: 'strong' | 'code' }[] }
-const MARKS = /`([^`\n]+)`|\*\*(?!\s)([^*\n]+?)(?<!\s)\*\*/g
+export interface ProseMark { start: number; end: number; kind: 'strong' | 'code' | 'math'; tex?: string; display?: boolean }
+export interface Prose { text: string; marks: ProseMark[] }
+const MARKS = /`([^`\n]+)`|\*\*(?!\s)([^*\n]+?)(?<!\s)\*\*|(?<!\\)\$\$([^$]+?)\$\$|(?<![\\$])\$(?![\s$])([^$\n]+?)(?<![\s\\])\$(?![\d$])/g
 export function prose(source: string): Prose {
-  const marks: Prose['marks'] = []
+  const marks: ProseMark[] = []
   let text = '', at = 0
   for (const match of source.matchAll(MARKS)) {
-    const inner = match[1] ?? match[2]!
     text += source.slice(at, match.index)
-    marks.push({ start: text.length, end: text.length + inner.length, kind: match[1] !== undefined ? 'code' : 'strong' })
-    text += inner
+    const tex = match[3] ?? match[4]
+    if (tex !== undefined) {
+      marks.push({ start: text.length, end: text.length + match[0].length, kind: 'math', tex: tex.trim(), display: match[3] !== undefined })
+      text += match[0]
+    } else {
+      const inner = match[1] ?? match[2]!
+      marks.push({ start: text.length, end: text.length + inner.length, kind: match[1] !== undefined ? 'code' : 'strong' })
+      text += inner
+    }
     at = match.index + match[0].length
   }
   return { text: text + source.slice(at), marks }
+}
+
+/** A range widened so it never cuts a formula: a formula is drawn whole or not at all. */
+export function wholeMath(marks: ProseMark[], start: number, end: number): { start: number; end: number } {
+  for (const mark of marks) {
+    if (mark.kind !== 'math') continue
+    if (start > mark.start && start < mark.end) start = mark.start
+    if (end > mark.start && end < mark.end) end = mark.end
+  }
+  return { start, end }
 }
 
 /** Where the question sits: the section's number and title, as the reading shows them. */

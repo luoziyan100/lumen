@@ -2,7 +2,7 @@
  * [INPUT]: components/Markdown for replies, components/MermaidBlock for inline diagrams, ReadingWidget for an active interactive widget (WidgetFrame, its controls and failure line), widget-params' value rules and question lines, MODEL_TEXT.widgetFix, objects/ (IsoObject, typewriterSvg/paperLines), useReading's state, the topic's questions (useTopicAsks), the pure helpers of reading-ask.ts, i18n `studio.reading`, the host's send/widget-send/keep/open-source callbacks
  * [OUTPUT]: ReadingView: the centre 「解读 / Reading」 view — a centred 960px column whose prose, headings, quotes, tables and diagrams stay within 700px while interactive HTML widgets (`WidgetFrame`, up to 3 active by default, bidirectional via onSendMessage) use the full 960px column width and can expand in place via `position: fixed` (same mounted WidgetFrame/iframe so interactive state survives expand/collapse, same-height placeholder, solid light stage, closes AskWindow first so one Esc handles it, including Esc pressed while focus is inside the expanded iframe via `onEscape`); a paper block is followed by its quote in the paper's own words, ending in the source chip
  *           (「原文 p.N」 opens split reading at that page), an inference block ends in a dashed chip; the quote line opens no window; the person's footprints (thin underlines on sentences asked about, inline spans with role="button" that wrap like text and open on click/Enter/Space);
- *           selecting text inside one prose paragraph opens AskWindow under the selection. An answer shows in one place only: with the conversation open (chatShown) the window is
+ *           selecting text inside one prose paragraph opens AskWindow under the selection; the quote is cut from the shown text by `shownOffset` (a KaTeX formula counts as its `$…$` source and is taken whole), never from the DOM's text. An answer shows in one place only: with the conversation open (chatShown) the window is
  *           the quote and the input, closes once the question is sent and a footprint asks the host to reveal its question there (onReveal); with it closed the exchange runs in the
  *           window, and opening the conversation closes a window that shows answers. Esc, × and a press outside close it
  *           and kept clear of the sprite's figure (padding on the side it sits);
@@ -24,7 +24,8 @@ import { MODEL_TEXT } from '../../i18n/locales/model.ts'
 import type { Identity, ReadingParagraph, ReadingSection, ReadingTextBlock, ReadingWidgetBlock, TopicMaterial, WidgetParam } from '../data/client.ts'
 import { IsoObject } from './objects/IsoObject'
 import { paperLines, typewriterSvg } from './objects/typewriter.ts'
-import { footprintRanges, prose, readingAsks, sectionLabel, squash, type Ask, type Prose } from './reading-ask.ts'
+import { footprintRanges, prose, readingAsks, sectionLabel, squash, wholeMath, type Ask, type Prose } from './reading-ask.ts'
+import { marked, Rich } from './ProseText'
 import type { ReadingState } from './useReading.ts'
 import { ReadingWidget } from './ReadingWidget'
 import { fitValues, loadValues, paramsStoreKey, saveValues, widgetQuote, widgetTitleOf, type ParamValue, type ParamValues } from './widget-params.ts'
@@ -70,27 +71,41 @@ function SourceChip({ paragraph, onOpen }: { paragraph: ReadingParagraph; onOpen
   return <button type="button" className="source-chip reading-chip" title={S.openSource} onClick={() => onOpen(page)}>{page ? S.page(page) : S.paper}</button>
 }
 
-function marked({ text, marks }: Prose, from: number, to: number): ReactNode[] {
-  const parts: ReactNode[] = []
-  let at = from
-  for (const mark of marks) {
-    const start = Math.max(mark.start, from), end = Math.min(mark.end, to)
-    if (start >= end) continue
-    if (start > at) parts.push(text.slice(at, start))
-    parts.push(mark.kind === 'code' ? <code key={start}>{text.slice(start, end)}</code> : <strong key={start}>{text.slice(start, end)}</strong>)
-    at = end
+/** Where a selection boundary falls in a paragraph's shown text: text nodes count their characters, a formula counts its source and is taken whole. */
+export function shownOffset(paragraph: Element, node: Node, offset: number, edge: 'start' | 'end'): number {
+  const math = elementOf(node)?.closest('.reading-math')
+  if (math && paragraph.contains(math)) return Number(math.getAttribute(edge === 'start' ? 'data-start' : 'data-end'))
+  const boundary = document.createRange()
+  boundary.setStart(node, offset)
+  const walker = document.createTreeWalker(paragraph, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT)
+  let count = 0
+  for (let unit = walker.nextNode(); unit; unit = walker.nextNode()) {
+    if (unit instanceof Element) {
+      if (!unit.classList.contains('reading-math')) continue
+      if (boundary.comparePoint(unit.parentNode!, Array.prototype.indexOf.call(unit.parentNode!.childNodes, unit) + 1) > 0) break
+      count = Number(unit.getAttribute('data-end'))
+      let last: Node = unit
+      while (last.lastChild) last = last.lastChild
+      walker.currentNode = last
+      continue
+    }
+    if (unit === node) return count + offset
+    const length = (unit as Text).length
+    if (boundary.comparePoint(unit, length) > 0) break
+    count += length
   }
-  if (at < to) parts.push(text.slice(at, to))
-  return parts
+  return count
 }
 
 /** A paragraph's text with the person's footprints as thin underlines. A footprint is an inline span acting as a button, so a quote that starts mid-line wraps
  *  like the text around it (a real <button> is an atomic inline box and would push the whole quote to its own line). */
-function ParagraphText({ id, shown, quotes, onFootprint }: { id: string; shown: Prose; quotes: string[]; onFootprint: (quote: string, element: HTMLElement) => void }) {
+export function ParagraphText({ id, shown, quotes, onFootprint }: { id: string; shown: Prose; quotes: string[]; onFootprint: (quote: string, element: HTMLElement) => void }) {
   const S = useT().studio.reading
   const parts: ReactNode[] = []
   let at = 0
-  for (const range of footprintRanges(shown.text, quotes)) {
+  for (const found of footprintRanges(shown.text, quotes)) {
+    const range = { ...found, ...wholeMath(shown.marks, found.start, found.end) }
+    if (range.start < at) continue
     if (range.start > at) parts.push(...marked(shown, at, range.start))
     parts.push(<span role="button" tabIndex={0} key={`f${range.start}`} className="reading-footprint" title={S.footprint} aria-label={S.footprint}
       onClick={event => onFootprint(range.quote, event.currentTarget)}
@@ -180,7 +195,7 @@ export function AskWindow({ target, asks, log = true, busy, onSend, onKeep, onCl
     style={{ top: place?.top ?? target.box.bottom + GAP, left: place?.left ?? 0, width: `min(${WINDOW_WIDTH}px, 100%)` }}
 >
     <header className="reading-ask-head">
-      <blockquote className="reading-ask-quote" title={target.quote}>{target.quote}</blockquote>
+      <blockquote className="reading-ask-quote" title={target.quote}><Rich text={target.quote} /></blockquote>
       <button type="button" className="icon-btn" aria-label={S.ask.close} title={S.ask.close} onClick={onClose}><CloseIcon /></button>
     </header>
     {log && asks.length > 0 && <div className="reading-ask-log">{asks.map(ask => <div key={ask.messageId} className="reading-ask-turn">
@@ -221,17 +236,17 @@ function VisualBlock({ block, stage, onActivate, onOpenSource }: {
   const chip = <SourceChip paragraph={block} onOpen={onOpenSource} />
   const body = block.kind === 'table'
     ? <div className="reading-table-wrap"><table className="reading-table">
-      <thead><tr>{block.columns.map((column, index) => <th key={index}>{column}</th>)}</tr></thead>
-      <tbody>{block.rows.map((row, r) => <tr key={r}>{row.map((cell, c) => <td key={c}>{cell}</td>)}</tr>)}</tbody>
+      <thead><tr>{block.columns.map((column, index) => <th key={index}><Rich text={column} /></th>)}</tr></thead>
+      <tbody>{block.rows.map((row, r) => <tr key={r}>{row.map((cell, c) => <td key={c}><Rich text={cell} /></td>)}</tr>)}</tbody>
     </table></div>
     : block.kind === 'diagram'
       ? <div className="reading-diagram"><MermaidBlock chart={block.mermaid} /></div>
       : stage
         ?? <div className="reading-widget-idle"><span>{block.title || S.widgetIdle}</span><Button variant="secondary" size="sm" onClick={() => onActivate(block.id)}>{S.widgetRun}</Button></div>
   return <figure className={`reading-block reading-block-${block.kind}`} data-block-id={block.id}>
-    {block.kind !== 'widget' && block.title && <h3 className="reading-block-title">{block.title}</h3>}
+    {block.kind !== 'widget' && block.title && <h3 className="reading-block-title"><Rich text={block.title} /></h3>}
     {body}
-    {block.caption && <figcaption className="reading-block-caption">{block.caption}</figcaption>}
+    {block.caption && <figcaption className="reading-block-caption"><Rich text={block.caption} /></figcaption>}
     {block.source.kind === 'paper'
       ? <blockquote className="reading-quote reading-block-quote">{block.source.quote}{' '}{chip}</blockquote>
       : <div className="reading-block-foot">{chip}</div>}
@@ -344,9 +359,12 @@ export function ReadingView({ state, requested, startItem, asks, busyFor, onSend
     const range = selection.getRangeAt(0)
     const start = elementOf(range.startContainer)?.closest('[data-paragraph]'), end = elementOf(range.endContainer)?.closest('[data-paragraph]')
     if (!start || start !== end || !column.current.contains(start)) return
-    const quote = squash(selection.toString())
     const section = sectionOf(start.getAttribute('data-paragraph')!)
-    if (quote.length < 2 || !section) return
+    const paragraph = section?.paragraphs.find(item => item.id === start.getAttribute('data-paragraph'))
+    if (!section || !paragraph || !('text' in paragraph)) return
+    const shown = prose(paragraph.text)
+    const quote = squash(shown.text.slice(shownOffset(start, range.startContainer, range.startOffset, 'start'), shownOffset(start, range.endContainer, range.endOffset, 'end')))
+    if (quote.length < 2) return
     setTarget({ quote, section: sectionLabel(section), paragraphId: start.getAttribute('data-paragraph')!, box: boxOf(range.getBoundingClientRect()), identity: null })
   }
   // ---- Widget values live here (and in localStorage), fitted to the current declaration on every read, so a rewrite or an expand never resets them ----
@@ -395,7 +413,7 @@ export function ReadingView({ state, requested, startItem, asks, busyFor, onSend
       </header>
       {(state.error || widgetError) && <p className="mw-error" role="alert">{state.error || widgetError}</p>}
       {reading.sections.map(section => { let ordinal = 0; return <section key={section.id} className="reading-section" data-section={section.id}>
-        <h2><span className="reading-num">{section.ord}</span>{section.title}</h2>
+        <h2><span className="reading-num">{section.ord}</span><Rich text={section.title} /></h2>
         {section.paragraphs.map(paragraph => {
           if (!('text' in paragraph)) {
             let stage: ReactNode = null

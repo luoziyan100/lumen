@@ -134,8 +134,6 @@ export const en = {
     tokenUsage: 'Usage', inputTokens: 'Input', outputTokens: 'Output', cachedTokens: 'Cached', reasoningTokens: 'Reasoning',
     mainUsage: (tokens: string) => `Lead ${tokens} tokens`, childUsage: (tokens: string | null) => tokens === null ? 'Specialists: none recorded' : `Specialists ${tokens} tokens`,
     totalUsage: (tokens: string) => `Recorded total ${tokens} tokens`,
-    contextTitle: (input: string, window: string) => `The last lead model request used ${input} of a ${window}-token context window. This is not total usage.`,
-    contextShort: (percent: number) => `Last input ${percent}%`,
     previewImage: 'Image preview', close: 'Close', remove: 'Remove', emptyFile: 'This file is empty.', unsupported: 'This file is saved in the workspace.',
     download: 'Save a copy', loading: 'Loading…', sendFailed: 'Message not sent', restoreDraft: 'Restore to draft', identityMismatch: "This conversation didn't match, so nothing was sent",
     jumpLatest: 'Jump to latest', add: 'Add', addFile: 'Add files', skills: 'Research skills', noSkills: 'No skills installed yet', readingSkills: 'Loading skills…',

@@ -121,3 +121,6 @@ html[data-justify="true"] .reading-para { text-align: justify; }
 .material-reading { flex: none; height: 24px; padding: 0 8px; border: 1px solid var(--border); border-radius: 999px; background: none; color: var(--text-soft); font-size: var(--st-label); cursor: pointer; white-space: nowrap; }
 .material-reading:hover:not(:disabled) { color: var(--accent-ink); border-color: var(--accent-hover); }
 .material-reading:disabled { color: var(--text-muted); cursor: default; }
+
+.reading-math .katex { font-size: 1.05em; }
+.reading-math.is-display { display: block; margin: 0.5em 0; overflow-x: auto; overflow-y: hidden; }

@@ -123,7 +123,7 @@ test('四轮出现导航，悬停显示对应摘要，点击将消息锚点交�
   } finally { await view.close(); scroller.current.remove() }
 })
 
-test('a reading question shows its quote and the person\'s words; the place line moves into the quote\'s tip; ** in an old quote is dropped', async () => {
+test('a reading question shows its quote and the person\'s words; the place line moves into the quote\'s tip; ** in an old quote is dropped; a formula in the quote is drawn', async () => {
   const view = mounted()
   try {
     const text = askText('深度反馈控制（DFC）**源于运动控制', '1. 核心结论', 'A Control-Theoretic Approximation', '这个是什么')
@@ -133,6 +133,10 @@ test('a reading question shows its quote and the person\'s words; the place line
     assert.equal(quote.getAttribute('title'), 'A Control-Theoretic Approximation · 1. 核心结论')
     assert.equal(view.element.querySelector('.msg-fold-body')!.textContent, '这个是什么')
     assert.doesNotMatch(view.element.textContent!, /解读《|^>/)
+    await act(async () => view.root.render(createElement(UserMessage, { message: message('math', askText('不动点 $\\dot{v}^\\ell_t = 0$ 处', '2. 核心机制', 'Paper', '为什么')), onOpenFile: () => {} })))
+    const formula = view.element.querySelector('.msg-ask-quote .reading-math .katex')
+    assert.ok(formula, 'a formula in the quote is drawn by KaTeX')
+    assert.doesNotMatch(view.element.querySelector('.msg-ask-quote')!.textContent!, /\$\\dot/)
     await act(async () => view.root.render(createElement(UserMessage, { message: message('plain', '> 只是引用\n普通的话'), onOpenFile: () => {} })))
     assert.equal(view.element.querySelector('.msg-ask-quote'), null)
     assert.equal(view.element.querySelector('.msg-fold-body')!.textContent, '> 只是引用\n普通的话')
