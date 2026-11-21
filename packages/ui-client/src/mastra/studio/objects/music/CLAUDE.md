@@ -9,19 +9,21 @@ Motion runs only on hover, `data-open` (click) or `is-typing`. Reduced motion st
 
 - `line.ts`: the engraving kit.
   - `curve` gives a path's `d` string, arc-length samples and normals from one description; other files derive geometry from it.
-  - Shared drawing parts: `dbl` (double line: ink stroke under paper stroke), `inset` (offset lines clipped inside a closed shape), `ticks`, `hatch`, `screw`, `rivet`, `knurl`, `note`, `plate` and the ground shadow.
+  - Shared drawing parts: `dbl` (double line: ink stroke under paper stroke), `inset` (offset lines clipped inside a closed shape), `ticks`, `hatch`, `screw`, `rivet`, `knurl`, `note` (wrapped in `.mu-note`, which the frame checks find), `plate`, `detail` (a marked spot led to a round 3:1 window) and the ground shadow.
   - `count` counts primitives. `MUSIC_BASE` holds the shared rules.
 - `bowed.ts`: the violin family's single model.
   - It mirrors one unit outline about the centre line and scales it.
+  - Each f-hole is a stem that tapers at both ends and hooks into a small inner eye and a large outer eye, with wings at its middle.
   - The bridge stands on the f-hole notch line. The fingerboard ends before the bridge. Four strings run nut → bridge → tailpiece.
-  - The bow's hair lies on y = 0. A translate along the bow's own axis keeps the contact point on the strings.
+  - The bow has a pointed head, an ebony frog (pearl eye, ferrule, slide) and a screw button. Its hair lies on y = 0. A translate along the bow's own axis keeps the contact point on the strings.
 - `piano.ts` (`pn-`, 640×400): PIANO · I in Reading.
-  - Grand piano in plan: 52 white keys and 36 black keys. The bridge is solved from the bent rim.
+  - Grand piano in plan: 52 white keys and 36 black keys. The treble bridge is solved from the bent rim.
+  - The bass strings are one parallel band. They cross over the tenor strings onto their own bridge, and their hitch pins run along the inner rim.
   - Hover plays a phrase. `is-typing` keeps playing and draws the staff. Click raises the lid in the elevation inset.
 - `stand.ts` (`ms-`, 640×400): LEGGIO · II on the Board.
   - One stroke table drives both the ink's dashoffset and the pen's keyframes, sampled by arc length. Click turns the right leaf.
 - `gramophone.ts` (`gr-`, 640×400): GRAMMOFONO · III in Takeaways.
-  - The deck is drawn in plan and flattened by one transform.
+  - The deck is drawn in plan and projected by one oblique matrix, the same projection as the cabinet's top and right faces. The crank sits on the right face.
   - The arm angle for a groove radius is solved from two intersecting circles. Hover sets the needle on the outer groove. Click walks it inward.
 - `cello.ts` (`cl-`, 280×340): VIOLONCELLO · IV in Materials.
   - The bow has two poses on one group: leaning, and playing on the contact line.
@@ -31,10 +33,13 @@ Motion runs only on hover, `data-open` (click) or `is-typing`. Reduced motion st
 - `harp.ts` (`hp-`, 640×400): ARPA · VI in Map.
   - 40 strings run from the neck pins to the soundboard line. C strings are heavier and F strings are dashed.
   - Hover plays a broken chord. Click plays one glissando.
+  - DETAIL A magnifies the disc action under the neck.
 - `violin.ts` (`vn-`, 640×400): VIOLINO · VII in Ideas.
   - Hover bows. Click lifts the bow and plucks a pizzicato chord.
+  - DETAIL A magnifies the bridge, the strings and the fine tuner. Its coordinates come from the main view.
 - `metronome.ts` (`mt-`, 640×400): METRONOMO · VIII in All.
   - The swing period is 60/bpm from the slider's mark. Click moves the slider from 72 to 120.
+  - DETAIL A shows the escapement. The anchor rocks with the rod. The wheel steps half a tooth on each beat.
 - `index.ts`: the single entry.
   - `MUSIC_OBJECTS` lists slot, label, design width, crop and builder.
   - `MUSIC_CSS` joins the base rules and each object's motion.
