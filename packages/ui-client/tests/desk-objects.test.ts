@@ -7,7 +7,7 @@
  *           the piano draws 52 white and 36 black keys, violin and cello 4 strings, the harp ≥30; the settings group switches and persists the kit and enables sound only under Music;
  *           data-hover appears only after the pointer stays 100 ms and a shorter pass leaves none; switched off (or the instrument kit) nothing is requested and no AudioContext is made;
  *           found on at start (under StrictMode, which runs effects twice), nothing loads before the first pointerdown, which unlocks and loads each recording of the slot in view once; a missing recording writes one console line;
- *           motion before the unlock is never replayed; a click (even before the hover is confirmed) plays one source per cue of the slot's open score
+ *           motion before the unlock is never replayed; a click (even before the hover is confirmed) plays one source per cue of the slot's open score; one DeskObject switched map → ideas → all starts each object at rest and loads its own recordings
  * [POS]: the mechanism tests of the second desk-object kit. Layout, motion, frames and real audio are browser facts, covered by scripts/sprite/ui-assert-objects.mts
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -40,7 +40,8 @@ class CountingAudioContext {
   decodeAudioData() { const data = new Float32Array(4410).fill(.2); return Promise.resolve({ sampleRate: 44100, duration: .1, getChannelData: () => data }) }
   createBufferSource() { audio.sources++; return { ...node(), buffer: null, playbackRate: param(), detune: param(), start() {}, stop() {} } }
   createGain() { return { ...node(), gain: param() } }
-  createBiquadFilter() { return { ...node(), type: '', frequency: param() } }
+  createBiquadFilter() { return { ...node(), type: '', frequency: param(), Q: param() } }
+  createDelay() { return { ...node(), delayTime: param() } }
   createOscillator() { return { ...node(), frequency: param(), start() {}, stop() {} } }
 }
 const fetchStub = (url: string) => {
@@ -134,7 +135,7 @@ async function mount(node: ReturnType<typeof createElement>) {
   document.body.appendChild(host)
   const root = createRoot(host)
   await act(async () => { root.render(node) })
-  return { host, unmount: () => act(async () => { root.unmount(); host.remove() }) }
+  return { host, render: (next: ReturnType<typeof createElement>) => act(async () => { root.render(next) }), unmount: () => act(async () => { root.unmount(); host.remove() }) }
 }
 
 test('settings: the desk-object group switches and persists the kit; sound is enabled only under Music', async () => {
@@ -210,5 +211,23 @@ test('sound: off requests nothing; on at start waits for the first gesture; reco
   await click(object)
   assert.equal(object.hasAttribute('data-open'), true)
   assert.equal(audio.sources, MUSIC_SCORES.reading.open.length, 'the opening click plays one source per cue of the piano score')
+  await unmount()
+})
+
+test('one place, three views: a slot change mounts a fresh host that loads its own recordings and starts at rest', async () => {
+  const later = (slot: string) => createElement(DeskKitProvider, { kit: 'music', sounds: true }, createElement(DeskObject, { slot, className: 'studio-later-object' }))
+  const { host, render, unmount } = await mount(later('map'))
+  const harp = host.querySelector('.iso-host') as HTMLElement
+  await act(async () => { harp.click() })
+  assert.equal(harp.hasAttribute('data-open'), true)
+  for (const slot of ['ideas', 'all']) {
+    const before = new Set(audio.fetched)
+    await render(later(slot))
+    await wait(20)
+    const object = host.querySelector('.iso-host') as HTMLElement
+    assert.equal(object.hasAttribute('data-open'), false, `${slot} starts at rest, not in the open state left by the last view`)
+    const wanted = slotSamples(slot as any).map(name => SAMPLES[name]!.url).filter(url => !before.has(url))
+    assert.ok(wanted.length > 0 && wanted.every(url => audio.fetched.includes(url)), `${slot} loads its own recordings`)
+  }
   await unmount()
 })

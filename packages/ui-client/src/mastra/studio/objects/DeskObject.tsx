@@ -2,8 +2,8 @@
  * [INPUT]: buildDeskObject from ./registry.ts; IsoObject; motionMusic, unlockMusic, armMusic and muteMusic from ./music/sound.ts; the localized object labels (studio.objects); DeskObjects from appearance
  * [OUTPUT]: DeskKitProvider (the kit and the sound switch for the tree below), DeskObject (one slot's object in the current kit)
  * [POS]: the bridge between the appearance preference and the views. StudioApp provides the preference; a view names only its slot and its data.
- *        The markup is rebuilt only when the kit, the slot or the data changes, so polling never restarts an animation. The host is keyed by kit, so a switch starts
- *        from rest. Only in the music kit with the switch on does a host report its motion (hover, open, typing) to the sound engine; without a provider the kit is instruments and silent.
+ *        The markup is rebuilt only when the kit, the slot or the data changes, so polling never restarts an animation. The host is keyed by kit and slot, so a switch starts
+ *        from rest and each object owns its host: Map, Ideas and All share one place in StudioApp, and a reused host kept the last view's open state and never loaded the new slot's recordings. Only in the music kit with the switch on does a host report its motion (hover, open, typing) to the sound engine; without a provider the kit is instruments and silent.
  *        Turned on in this session (it was off before: a user gesture), it unlocks the AudioContext at once and the recordings of the objects in view start loading; found on at mount
  *        (the app's start, a remount, or an effect run again by React's StrictMode), it waits
  *        for the first pointerdown or keydown, so nothing loads or sounds before that. Switched off, not one recording is requested. Leaving it (switch off or kit changed) mutes: every sound fades and the AudioContext, if any, is suspended
@@ -49,5 +49,5 @@ export function DeskObject({ slot, className, title = '', words = null, typing }
   const wordsKey = words ? JSON.stringify(words) : ''
   const markup = useMemo(() => buildDeskObject(kit, slot, { title, words, labels }), [kit, slot, title, wordsKey, labels])
   const motion = useCallback((state: Motion | null, host: HTMLElement | null) => motionMusic(slot, state, host), [slot])
-  return <IsoObject key={kit} markup={markup} className={className} typing={typing} onMotion={kit === 'music' && sounds ? motion : undefined} />
+  return <IsoObject key={`${kit}:${slot}`} markup={markup} className={className} typing={typing} onMotion={kit === 'music' && sounds ? motion : undefined} />
 }
