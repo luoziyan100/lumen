@@ -367,6 +367,7 @@ export const en = {
     'specialists.not_continued': "The model didn't continue the specialist you picked. Check this turn's reply.",
     'question.unavailable': 'This question has ended, was cancelled or can no longer be resumed, so your answer was not sent. Refresh the task and send your request again.',
     'question.stale': 'The question is still being saved or has expired, so your answer was not sent. Refresh and try again.',
+    'run.output_limit': "The model used up its output limit on this step before writing any text or calling a tool, so the research stopped. Raise the model's maximum output tokens, or switch models, and try again.",
     'diagnostics.closed': 'Diagnostics are closed.', 'diagnostics.invalid_session': 'The conversation ID is invalid.', 'diagnostics.session_not_found': "This conversation doesn't exist.",
     'diagnostics.storage_unavailable': 'Trace storage is unavailable.', 'diagnostics.invalid_trace': 'The trace ID is invalid.', 'diagnostics.trace_not_found': "This trace doesn't exist.",
     'diagnostics.invalid_page': 'Invalid page.', 'diagnostics.scope_failed': 'The trace scope check failed.', 'diagnostics.invalid_case': 'The issue note is invalid.',

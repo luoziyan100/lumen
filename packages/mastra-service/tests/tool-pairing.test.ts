@@ -99,7 +99,7 @@ test('并行后台委派后，持久历史与下一轮请求的 toolCallId 唯�
   } finally { await mastra.shutdown(); await storage.close(); await rm(root, { recursive: true, force: true }) }
 })
 
-// 1.67.0 复现重复 id 进入下一轮请求，根因在原生 AgentController（见下一用例），1.82.0 已修复；子专家 workspace 元数据写入父线程单列 todo（适配台账 F2）。
+// 1.67.0 复现重复 id 进入下一轮请求，根因在原生 AgentController（见下一用例），1.82.0 已修复（1.85.0 复验仍通过）；子专家 workspace 元数据写入父线程单列 todo（适配台账 F2）。
 test('完整应用：并行后台委派 reader/verifier 读取工作区后，父历史与下一轮请求配对唯一', { timeout: 40000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), 'lumen-pairing-app-'))
   let delegated = false
@@ -155,7 +155,7 @@ test('完整应用：并行后台委派 reader/verifier 读取工作区后，父
     const violations = parentRequests.flatMap(pairingViolations)
 
     assert.deepEqual({ duplicated, violations }, { duplicated: [], violations: [] })
-    await t.test('子专家 workspace 元数据不进入父线程', { todo: '适配台账 F2：1.82.0 仍复现' }, () => { assert.equal(foreign, 0) })
+    await t.test('子专家 workspace 元数据不进入父线程', { todo: '适配台账 F2：1.85.0 仍复现' }, () => { assert.equal(foreign, 0) })
   } finally { await application.close(); await rm(root, { recursive: true, force: true }) }
 })
 

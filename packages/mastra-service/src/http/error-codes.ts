@@ -29,6 +29,7 @@ export const ERROR_CODES = [
   'agents.role_not_found', 'agents.invalid_request', 'agents.load_failed',
   'specialists.busy', 'specialists.no_context', 'specialists.not_continued',
   'question.unavailable', 'question.stale',
+  'run.output_limit',
   'diagnostics.closed', 'diagnostics.invalid_session', 'diagnostics.session_not_found', 'diagnostics.storage_unavailable', 'diagnostics.invalid_trace',
   'diagnostics.trace_not_found', 'diagnostics.invalid_page', 'diagnostics.scope_failed', 'diagnostics.invalid_case', 'diagnostics.span_not_found',
   'diagnostics.case_unsafe', 'diagnostics.invalid_mode', 'diagnostics.evaluating', 'diagnostics.pack_too_large', 'diagnostics.invalid_json',

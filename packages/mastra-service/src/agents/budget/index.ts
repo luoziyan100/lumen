@@ -1,6 +1,8 @@
 /**
  * [INPUT]: 原生模型步骤用量、受信父线程身份、threadState 与显式预算/模型价格
- * [OUTPUT]: createFamilyBudget：父子共享的响应身份准入、输入输出配对结算和只读用量；FAMILY_BUDGET_STATE（thread state 类型，删除对话时一并删）
+ * [OUTPUT]: createFamilyBudget：父子共享的响应身份准入、输入输出配对结算和只读用量；FAMILY_BUDGET_STATE（thread state 类型，删除对话时一并删）。
+ *           有上限时，被框架重试的失败尝试（同一 messageId 与 step、retryCount 加一）在重试准入时记一条 retried 收据：输入取准入估算、输出记 0，与成功那次分开
+ *           （provider 对已开始的流通常已计输入；不能低估，也不能让一次网络抖动锁死对话）。无上限、用户停止和崩溃仍按未知结算
  * [POS]: 在 Mastra processor 边界控制下一次调用；不实现模型循环或账单系统
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -19,7 +21,7 @@ interface ModelStep { key: string; scope: Scope }
 const stepsFor = (state: Record<string, unknown>) => (state.steps ??= {}) as Record<string, ModelStep>
 const stepSlot = (step: number, retry: number) => `${step}:${retry}`
 interface Scope { resourceId: string; runId: string; callId: string }
-interface Receipt { input?: number; output?: number; cost?: number; pricing?: ModelPricing }
+interface Receipt { input?: number; output?: number; cost?: number; pricing?: ModelPricing; retried?: true }
 interface Reservation { scope: Scope; input: number; output: number; cost?: number; pricing?: ModelPricing }
 interface State { receipts: Record<string, Receipt>; pending: Record<string, Reservation>; lastMainInputTokens?: number }
 interface Options {
@@ -82,7 +84,12 @@ export function createFamilyBudget(options: Options) {
     const input = Buffer.byteLength(JSON.stringify([args.systemMessages, args.messages, args.tools ?? {}]), 'utf8') + 256
     const limited = !!(limits.maxPromptTokens || limits.maxCompletionTokens || limits.maxCostUsd)
     let output = args.modelSettings?.maxOutputTokens ?? 4096
+    const failed = args.retryCount > 0 ? stepsFor(args.state)[stepSlot(args.stepNumber, args.retryCount - 1)] : undefined
     await transact(scope.resourceId, state => {
+      if (limited && failed && state.pending[failed.key]) {
+        state.receipts[failed.key] = { input, output: 0, cost: pricing ? cost(input, 0, pricing) : undefined, pricing, retried: true }
+        delete state.pending[failed.key]; active.delete(failed.key)
+      }
       if (state.receipts[key]) throw new Error('同一模型步骤已结算，禁止重放')
       if (state.pending[key]) throw new Error('同一模型步骤已在执行，拒绝重复准入')
       const used = totals(state), pending = Object.values(state.pending)

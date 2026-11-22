@@ -1,6 +1,6 @@
 /**
  * [INPUT]: 现存会话身份、官方 Controller SSE、持久消息、原生 displayState 与专家用量派生值
- * [OUTPUT]: SessionFeed 与 messageRole/messageText/errorText；原生消息展示（message_start 初始消息 + message_update 按 id 增量）、补取和取消订阅，运行错误保留到下一轮开始，连接错误随恢复清除；消息合并在顺序稳定时走追加路径
+ * [OUTPUT]: SessionFeed 与 messageRole/messageText/errorText（错误身份的 codes 含服务端稳定错误码时取当前语言目录的文案，如 run.output_limit）；原生消息展示（message_start 初始消息 + message_update 按 id 增量）、补取和取消订阅，运行错误保留到下一轮开始，连接错误随恢复清除；消息合并在顺序稳定时走追加路径
  * [POS]: 原生数据的展示缓存，只恢复已存在身份；不创建研究或重新实现执行状态机；旧端点重连有界，耗尽通知宿主重新发现
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -92,6 +92,9 @@ export function errorText(error: unknown): string {
   const message = typeof value.message === 'string' ? value.message : ''
   const reason = typeof value.reason === 'string' && value.reason.trim() ? value.reason.trim() : ''
   const codes = Array.isArray(value.codes) ? value.codes.filter((code): code is string => typeof code === 'string' && !!code) : []
+  const catalog = t().errors as Record<string, unknown>
+  const product = codes.map(code => catalog[code]).find((entry): entry is string => typeof entry === 'string')
+  if (product) return product
   const status = typeof value.statusCode === 'number' ? `HTTP ${value.statusCode}` : ''
   const detail = [status, ...codes].join(' · ')
   const text = reason || message || t().data.runFailed

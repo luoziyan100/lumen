@@ -1,7 +1,7 @@
 /**
  * [INPUT]: 应用注入的模型/Memory/工具/用量派生器、受信执行环境解析器、静态角色及父任务文件系统
  * [OUTPUT]: createSpecialists：角色映射、隔离父历史的委派配置、预算准入与同专家继续、明确未完成回报和关闭入口
- * [POS]: 专家组合辅助；不复制调度/审批，真实步骤用量交原生存储派生器，执行工具绑定自身目录
+ * [POS]: 专家组合辅助；不复制调度/审批，真实步骤用量交原生存储派生器，执行工具绑定自身目录；专家注册在 Mastra 上，durable: false 关掉 1.83 起默认开启的续流与回放缓存
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { Agent, type AgentConfig, type ToolsInput, type DelegationConfig } from '@mastra/core/agent'
@@ -78,7 +78,7 @@ export function createSpecialists(options: SpecialistOptions) {
       defaultOptions: { maxSteps: role.maxSteps }, backgroundTasks: { disabled: true },
       inputProcessors: ({ requestContext }) => [...(options.specialistHistory ? [options.specialistHistory.capture] : []), ...createInputProcessors(options.modelSettings?.(requestContext), images), specialistConclusion, ...(options.familyBudget ? [options.familyBudget.inputProcessor] : [])],
       outputProcessors: [...(options.familyBudget ? [options.familyBudget.outputProcessor] : []), ...(options.childUsage ? [options.childUsage.outputProcessor] : []), createEmptyActionProcessor()], maxProcessorRetries: 1,
-      workspace: ({ requestContext }) => workspaces.resolve(requestContext, role),
+      workspace: ({ requestContext }) => workspaces.resolve(requestContext, role), durable: false,
     })
     registeredAgents[id] = agents[role.id]!
   }

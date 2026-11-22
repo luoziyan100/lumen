@@ -1,10 +1,10 @@
 /**
  * [INPUT]: 真实 Mastra/LibSQL/Hono 与官方 SDK，经本机 HTTP/SSE；仅模型网络可控
- * [OUTPUT]: SessionFeed 现存会话恢复、服务商错误原因、message_update 按 id 增量、隔离/并发刷新/断线/分页，以及主子用量在真实 SSE 与 Progress 中的证据；运行错误跨终态补取保留，连接恢复独立清错
+ * [OUTPUT]: SessionFeed 现存会话恢复、服务商错误原因、产品错误码 run.output_limit 的当前语言文案（FEED-013）、message_update 按 id 增量、隔离/并发刷新/断线/分页，以及主子用量在真实 SSE 与 Progress 中的证据；运行错误跨终态补取保留，连接恢复独立清错
  * [POS]: 新客户端恢复契约；网络延迟与断开作用于真实响应，不伪造框架事件
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
-import './helpers/zh.ts'
+import { zh } from './helpers/zh.ts'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { register } from 'node:module'
@@ -21,6 +21,8 @@ import { fixtureProvider, textReply, toolReply } from '../../mastra-service/test
 import { ensureTopic } from '../../mastra-service/tests/topic-fixture.ts'
 import { LumenApi } from '../src/mastra/data/client.ts'
 import { SessionFeed, errorText, mergeMessages, messageRole, messageText } from '../src/mastra/data/feed.ts'
+import { setLocale } from '../src/i18n/index.ts'
+import { en } from '../src/i18n/locales/en.ts'
 
 function gate() {
   let resolve!: () => void
@@ -444,4 +446,18 @@ test('CT-MASTRA-FEED-012: 服务商非标准错误体经真实 SSE 显示框架�
   assert.equal(errorText('纯文本错误'), '纯文本错误')
   assert.equal(errorText({ message: 'Forbidden' }), 'Forbidden')
   assert.equal(errorText({}), '运行失败')
+})
+
+test('CT-MASTRA-FEED-013: 输出额度耗尽且无正文经真实 SSE 显示产品错误码 run.output_limit 的当前语言文案，不显示英文框架原文', { timeout: 25000 }, async () => {
+  const env = await environment(fixtureProvider(() => ({ content: '', finish: 'length' })).fetch)
+  try {
+    const feed = await env.feed('output-limit'); await feed.start()
+    await feed.send('解释这篇论文')
+    await until(() => !!feed.getSnapshot().error && !feed.getSnapshot().display?.isRunning, '未收到输出额度错误')
+    assert.equal(feed.getSnapshot().error, zh.errors['run.output_limit'])
+  } finally { await env.close() }
+  const wire = { name: 'Error', message: '模型这一步用完了输出额度', codes: ['run.output_limit'] }
+  await setLocale('en', false)
+  try { assert.equal(errorText(wire), en.errors['run.output_limit']) } finally { await setLocale('zh', false) }
+  assert.match(errorText({ message: 'API Key 所属分组已删除', codes: ['GROUP_DELETED'] }), /^API Key 所属分组已删除.*GROUP_DELETED/, 'a provider code outside the catalog stays a detail')
 })

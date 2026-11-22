@@ -361,6 +361,7 @@ export const zh: Messages = {
     'specialists.not_continued': '模型没有执行指定专家的继续请求；未将新专家冒充继续，请查看本轮反馈',
     'question.unavailable': '这个问题已经结束、已取消或无法恢复，答案未提交。请刷新任务后重新发送要求。',
     'question.stale': '问题仍在保存或已经失效，答案未提交。请刷新后重试。',
+    'run.output_limit': '模型这一步用完了输出额度，还没写出正文或调用工具，研究已停止。请调大模型的最大输出 token，或换一个模型后重试。',
     'diagnostics.closed': '诊断已关闭', 'diagnostics.invalid_session': '会话身份无效', 'diagnostics.session_not_found': '会话不存在',
     'diagnostics.storage_unavailable': '原生 trace 存储不可用', 'diagnostics.invalid_trace': 'Trace 身份无效', 'diagnostics.trace_not_found': 'Trace 不存在',
     'diagnostics.invalid_page': '分页无效', 'diagnostics.scope_failed': '原生 trace 范围校验失败', 'diagnostics.invalid_case': '问题标注无效',

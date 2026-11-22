@@ -1,7 +1,7 @@
 /**
  * [INPUT]: 原生 Memory、Controller 的受信 thread/resource 与应用任务授权
  * [OUTPUT]: createHistoryTools：当前会话完整持久历史的有界分页读取
- * [POS]: 为输入裁剪提供原文回读，不建摘要库、不向子 Agent 暴露历史检索
+ * [POS]: 为输入裁剪提供原文回读，不建摘要库、不向子 Agent 暴露历史检索；读前先用官方 flushMessages 落盘本轮排队消息（1.84 起放行工具不再经审批暂停落盘）
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import type { MastraMemory } from '@mastra/core/memory'
@@ -21,6 +21,7 @@ export function createHistoryTools(memory: MastraMemory, authorize: (resourceId:
       await authorize(owner.resourceId, owner.threadId)
       const thread = await memory.getThreadById({ threadId: owner.threadId })
       if (!thread || thread.resourceId !== owner.resourceId) throw new Error('历史记录不属于当前会话')
+      await context?.agent?.flushMessages?.()
       const result = await memory.recall({ threadId: owner.threadId, resourceId: owner.resourceId, page, perPage, orderBy: { field: 'createdAt', direction: 'ASC' } })
       const text = JSON.stringify(result.messages.map(message => ({ id: message.id, role: message.role, createdAt: message.createdAt, content: message.content })))
       const nextOffset = offset + limit < text.length ? offset + limit : null

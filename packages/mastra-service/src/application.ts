@@ -2,6 +2,7 @@
  * [INPUT]: Mastra Controller/Memory/Workspace, the studio stores (topics/library), reading-question's userWords (a reading question's quote is not the user's), user roles/skill roots, the native step guard and the isolated diagnostics evaluation
  * [OUTPUT]: createApplication: isolated storage, the main agent's tools (board, sediment and reading tools on one trusted writer), the session/background activity projection, the global specialist group, parent/child budgets and specialist continuation, diagnostics and the drained close; the board's per-run target (R16) takes the selection at run start, survives suspension and shutdown, and releases when the run truly ends; a specialist's board_view looks and never captures; with vision the target sheet's latest glance rides each provider request and board_look waits for a fresh one
  * [POS]: the application composition root; one native execution chain with topicId:taskId identities. Conversations of a topic share one topic workspace (cached per topic, destroyed once at close), and materials are reached only through the reference list
+ *        The main agent sets durable: false: Mastra 1.83+ turns resumable streams on for agents registered on Mastra, and Lumen keeps catching up from persisted history after an SSE drop. Its output chain ends with the output-limit translation (run.output_limit)
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { mkdir } from 'node:fs/promises'
@@ -44,6 +45,7 @@ import { createInputProcessors, modelTools } from './agents/context.ts'
 import { createSpecialistGroup } from './agents/catalog/group.ts'
 import { createDiagnostics, DiagnosticsError } from './diagnostics/index.ts'
 import { createRunBudget } from './agents/guards/budget.ts'
+import { createOutputLimitProcessor } from './agents/guards/output-limit.ts'
 import { createEmptyActionProcessor } from './agents/guards/empty-action.ts'
 import { createHistoryTools } from './agents/guards/history.ts'
 import { createChildUsage } from './agents/usage/children.ts'
@@ -240,9 +242,9 @@ export async function createApplication(options: ApplicationOptions) {
     },
     agents: async () => (await specialists.get()).agents,
     inputProcessors: ({ requestContext }) => [budget.inputProcessor, ...createInputProcessors(settingsFor(requestContext), imageProcessor, glanceProcessor), familyBudget.inputProcessor],
-    outputProcessors: [familyBudget.outputProcessor, createEmptyActionProcessor()], maxProcessorRetries: 1,
+    outputProcessors: [familyBudget.outputProcessor, createEmptyActionProcessor(), createOutputLimitProcessor()], maxProcessorRetries: 1,
     defaultOptions: { delegation: specialists.delegation },
-    backgroundTasks: specialists.backgroundTasks,
+    backgroundTasks: specialists.backgroundTasks, durable: false,
   })
   const drain = trackAgentDrain(agent)
   const drainSpecialists = specialists.drain

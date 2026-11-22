@@ -3,7 +3,9 @@
  * [OUTPUT]: createSedimentTools: sediment_invite (ask one anchor question, optionally pointing at live elements of the target sheet; latest replaces) and sediment_quote (hand the user's words
  *           back: the service scans this thread's user messages newest first for the first one passing the delete-only check, binding its id, full text and deleted fragments to an offer — nothing more);
  *           both exist for the main agent only (the specialist list leaves them out) and only while a run target exists
- * [POS]: the AI's only contact surface with sediment (S4): not one character of entry text — invites and offers both wait for the user's hand in the UI; message originals come only from trusted memory, never from the model
+ * [POS]: the AI's only contact surface with sediment (S4): not one character of entry text — invites and offers both wait for the user's hand in the UI; message originals come only from trusted memory, never from the model.
+ *        The scan runs newest first and the model never sees message ids (S4 as amended). Since Mastra 1.84 an allowed tool runs without an approval pause, so this turn's user message
+ *        may still sit in the save queue: the tool flushes the parent stream's pending messages (official flushMessages) before it reads memory
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import { createTool } from '@mastra/core/tools'
@@ -52,7 +54,7 @@ export function createSedimentTools(studio: Studio, writer: BoardWriter, userMes
         const { topicId, threadId, sheetId } = await writer(context)
         if (sheetId === null) throw new StudioError('这一轮没有写入目标（没有进行中的白板），先在对话里和用户确认写哪张', 409, 'board.no_live_sheet')
         if (threadId === null) throw new StudioError('当前主会话身份缺失，递不回原话', 400, 'sediment.quote_source')
-        // Scan newest first for the first user message the delete-only check accepts and bind to it (the model never sees message ids, S4 as amended)
+        await context?.agent?.flushMessages?.()
         const messages = await userMessages(threadId)
         for (const message of messages) {
           const plan = quotePlan(message.text, text)
