@@ -121,8 +121,8 @@ const PASS = cycle(LOOP)
 const ARP = ARPEGGIO.map((s, k) => ({ at: r(k * LOOP / 10), dur: r(Math.min(1.2, LOOP - k * LOOP / 10)), part: `s${s}`, sound: { kind: 'harp' as const, string: s }, level: .6 }))
 const pluckFrames = restFrames(`@keyframes ${P}pluck { 0% { transform: none; } 3% { transform: translateX(1.2px); } 7% { transform: translateX(-1px); } 11% { transform: translateX(.7px); } 15% { transform: translateX(-.45px); } 20% { transform: translateX(.2px); } 26%, 100% { transform: none; } }`, LOOP, PASS)
 const glissFrames = `@keyframes ${P}gliss { 0% { transform: none; } 12% { transform: translateX(1.1px); } 24% { transform: translateX(-.9px); } 38% { transform: translateX(.6px); } 52% { transform: translateX(-.35px); } 70%, 100% { transform: none; } }`
-const arp = ARP.map((cue, k) => `.iso-host:hover:not([data-open]) .mu-harp .${P}${cue.part} { animation: ${P}pluck ${PASS.total}s ${cue.at}s linear infinite; }\n` +
-  `.iso-host:hover:not([data-open]) .mu-harp .${P}n${k} { animation: ${P}up ${PASS.total}s ${cue.at}s cubic-bezier(.3,.6,.4,1) infinite; }`).join('\n')
+const arp = ARP.map((cue, k) => `.iso-host[data-hover]:not([data-open]) .mu-harp .${P}${cue.part} { animation: ${P}pluck ${PASS.total}s ${cue.at}s linear infinite; }\n` +
+  `.iso-host[data-hover]:not([data-open]) .mu-harp .${P}n${k} { animation: ${P}up ${PASS.total}s ${cue.at}s cubic-bezier(.3,.6,.4,1) infinite; }`).join('\n')
 /* Click score · the glissando sounds every string low to high, each at the moment its own shake starts; closing makes no motion and no sound */
 export const HARP_SCORE: Score = {
   open: Array.from({ length: HARP_STRINGS }, (_, i) => ({ at: i * .018, dur: 1, part: `s${i}`, sound: { kind: 'harp' as const, string: i }, level: .5 })),

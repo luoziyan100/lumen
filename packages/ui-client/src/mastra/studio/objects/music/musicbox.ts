@@ -115,8 +115,8 @@ const toothRules = TUNE.map((t, k) => `.iso-host[data-open] .mu-box .${P}t${t} {
    has risen, then the cylinder stops and rests; that first pass is the click's sound. Closing, the lid lands with a light knock and the tune fades */
 export const MUSIC_BOX_SCORE: Score = {
   open: [],
-  close: [{ at: .62, dur: .2, part: 'top', sound: { kind: 'noise', noise: 'wood' }, level: .7 }],
-  hoverIn: [{ at: .06, dur: .12, part: 'top', sound: { kind: 'noise', noise: 'wood' }, level: .35 }],
+  close: [{ at: .62, dur: .33, part: 'top', sound: { kind: 'noise', noise: 'box-close' }, level: .7 }],
+  hoverIn: [{ at: .06, dur: .41, part: 'top', sound: { kind: 'noise', noise: 'box-open' }, level: .35 }],
   loops: [{ when: { open: true }, cycle: PASS, clock: { animation: `${P}slide`, target: `${P}pins`, delay: OPEN }, cues: [...PLUCKS].sort((a, b) => a.at - b.at) }],
   limit: 1.8,
 }
@@ -127,12 +127,12 @@ ${restFrames(`@keyframes ${P}pluck { 0% { transform: none; } 2% { transform: rot
 ${restFrames(`@keyframes ${P}up { 0% { opacity: 0; transform: translate(0, 0); } 6% { opacity: 1; } 40% { opacity: 0; transform: translate(-18px, -60px); } 100% { opacity: 0; transform: translate(-18px, -60px); } }`, LOOP, PASS)}
 .mu-box .${P}n { opacity: 0; }
 .mu-box .${P}slit { opacity: 0; transition: opacity 200ms; }
-.iso-host:hover:not([data-open]) .mu-box .${P}slit { opacity: 1; }
+.iso-host[data-hover]:not([data-open]) .mu-box .${P}slit { opacity: 1; }
 .mu-box .${P}stamp { opacity: .62; }
 .mu-box .${P}top, .mu-box .${P}band { transform: none; transition: transform 380ms cubic-bezier(.32,.72,0,1) 460ms; }
 .mu-box .${P}inner { transform: scaleY(0); transition: transform 460ms cubic-bezier(.32,.72,0,1); }
-.iso-host:hover:not([data-open]) .mu-box .${P}top { transform: scaleY(.65); transition-delay: 0ms; }
-.iso-host:hover:not([data-open]) .mu-box .${P}band { transform: translateY(-9px); transition-delay: 0ms; }
+.iso-host[data-hover]:not([data-open]) .mu-box .${P}top { transform: scaleY(.65); transition-delay: 0ms; }
+.iso-host[data-hover]:not([data-open]) .mu-box .${P}band { transform: translateY(-9px); transition-delay: 0ms; }
 .iso-host[data-open] .mu-box .${P}top { transform: scaleY(0); transition-delay: 0ms; }
 .iso-host[data-open] .mu-box .${P}band { transform: translateY(-${FRONT.top - BAND}px) scaleY(0); transition-delay: 0ms; }
 .iso-host[data-open] .mu-box .${P}inner { transform: scaleY(1); transition-delay: 360ms; }

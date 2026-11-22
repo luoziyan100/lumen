@@ -160,8 +160,8 @@ const motion = (() => {
     penFrames += `${r(to)}% { transform: translate(${r(end[0])}px, ${r(end[1])}px); } `
     const L = r(c.length + .5)
     inkFrames += restFrames(`@keyframes ${P}w${i} { 0%, ${r(from)}% { stroke-dashoffset: ${L}; opacity: 1; } ${r(to)}% { stroke-dashoffset: 0; } 94% { stroke-dashoffset: 0; opacity: 1; } 99%, 100% { stroke-dashoffset: 0; opacity: 0; } }`, LOOP, PASS)
-    inkRules += `.iso-host:hover .mu-stand .${P}ink${i} { animation: ${P}w${i} ${PASS.total}s linear infinite; }\n`
-    strokes.push({ at: r(from / 100 * LOOP), dur: r(Math.max(.04, (to - from) / 100 * LOOP - .02)), part: `ink${i}`, sound: { kind: 'noise', noise: 'nib' }, level: .5 })
+    inkRules += `.iso-host[data-hover] .mu-stand .${P}ink${i} { animation: ${P}w${i} ${PASS.total}s linear infinite; }\n`
+    strokes.push({ at: r(from / 100 * LOOP), dur: r(Math.max(.04, (to - from) / 100 * LOOP - .02)), part: `ink${i}`, sound: { kind: 'noise', noise: 'pen' }, level: .5 })
     done += c.length
   })
   const [sx, sy] = STAND_PHRASE[0]!.at(0).p
@@ -174,8 +174,8 @@ const motion = (() => {
    ============================================================ */
 const UPRIGHT = .45
 export const STAND_SCORE: Score = {
-  open: [{ at: 0, dur: .9, part: 'leaf', sound: { kind: 'noise', noise: 'paper' }, level: .8 }, { at: UPRIGHT, dur: .14, part: 'front', sound: { kind: 'noise', noise: 'flap' }, level: .5 }],
-  close: [{ at: 0, dur: .6, part: 'leaf', sound: { kind: 'noise', noise: 'paper' }, level: .8 }, { at: UPRIGHT, dur: .14, part: 'front', sound: { kind: 'noise', noise: 'flap' }, level: .4 }],
+  open: [{ at: 0, dur: .9, part: 'leaf', sound: { kind: 'noise', noise: 'page' }, level: .8 }, { at: UPRIGHT, dur: .47, part: 'front', sound: { kind: 'noise', noise: 'page-flap' }, level: .5 }],
+  close: [{ at: 0, dur: .6, part: 'leaf', sound: { kind: 'noise', noise: 'page' }, level: .8 }, { at: UPRIGHT, dur: .47, part: 'front', sound: { kind: 'noise', noise: 'page-flap' }, level: .4 }],
   hoverIn: [],
   loops: [{ when: { hover: true }, cycle: PASS, clock: { animation: `${P}write`, target: `${P}pen`, delay: 0 }, cues: motion.strokes }],
   limit: 1.8,
@@ -184,7 +184,7 @@ export const STAND_SCORE: Score = {
 export const STAND_CSS = `
 ${motion.penFrames}
 ${motion.inkFrames}
-.iso-host:hover .mu-stand .${P}pen { animation: ${P}write ${PASS.total}s linear infinite; }
+.iso-host[data-hover] .mu-stand .${P}pen { animation: ${P}write ${PASS.total}s linear infinite; }
 ${motion.inkRules}
 .mu-stand .${P}leaf { transform: scaleX(1); transition: transform 900ms cubic-bezier(.45,.05,.35,1); }
 .iso-host[data-open] .mu-stand .${P}leaf { transform: scaleX(-1); }

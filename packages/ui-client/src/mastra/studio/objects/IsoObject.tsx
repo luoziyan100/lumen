@@ -1,11 +1,13 @@
 /**
  * [INPUT]: the kit's BASE and every object's CSS (box, cabinet, typewriter, easel, press, cork board, lamp, type case) plus MUSIC_CSS of ./music/; the Motion type of ./music/pitch.ts;
  *          markup built by the caller from one of the builders
- * [OUTPUT]: IsoObject: a host that holds one object's SVG; click toggles data-open (hover is pure CSS); `typing` sets the is-typing event class. When `onMotion` is given it hears every
- *           change of the host's state ({ hover, open, typing } and the host element), and null when the host unmounts
+ * [OUTPUT]: IsoObject: a host that holds one object's SVG; click toggles data-open; a pointer that stays HOVER_CONFIRM (100 ms) sets data-hover, leaving clears it at once;
+ *           `typing` sets the is-typing event class. When `onMotion` is given it hears every change of the host's state ({ hover, open, typing } and the host element), and null when
+ *           the host unmounts. HOVER_CONFIRM
  * [POS]: the only React surface of studio/objects/. The markup is set once per data change and never on a state change: hover, open and typing move only the registered
  *        CSS variables. The host is decoration: aria-hidden, outside the tab order, never takes focus (mousedown keeps the focus where it was), and its SVG takes no pointer
- *        events, so only the host's own box answers a click. The shared sheet (both kits) is injected once per document
+ *        events, so only the host's own box answers a click. data-hover is the confirmed hover: the music set's motion and sound both start from it, so a pointer passing over
+ *        an object moves and sounds nothing (the instrument set still moves on :hover). The shared sheet (both kits) is injected once per document
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
@@ -22,6 +24,7 @@ import { TYPECASE_CSS } from './typecase.ts'
 import { MUSIC_CSS } from './music/index.ts'
 
 const SHEET = 'lumen-iso-objects'
+export const HOVER_CONFIRM = 100
 function ensureSheet() {
   if (typeof document === 'undefined' || document.getElementById(SHEET)) return
   const style = document.createElement('style')
@@ -42,13 +45,14 @@ export const IsoObject = memo(function IsoObject({ markup, className, typing = f
 }) {
   ensureSheet()
   const [open, setOpen] = useState(false), [hover, setHover] = useState(false)
-  const host = useRef<HTMLDivElement>(null), heard = useRef(onMotion)
+  const host = useRef<HTMLDivElement>(null), heard = useRef(onMotion), confirm = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   heard.current = onMotion
   useEffect(() => { onMotion?.({ hover, open, typing }, host.current) }, [hover, open, typing, onMotion])
-  useEffect(() => () => heard.current?.(null, null), [])
+  useEffect(() => () => { clearTimeout(confirm.current); heard.current?.(null, null) }, [])
   // Memoize { __html } by markup so parent re-renders (e.g. 3s polling) or open/typing toggles never rewrite innerHTML and restart SVG animations
   const html = useMemo(() => ({ __html: markup }), [markup])
-  return <div ref={host} className={`iso-host ${className}${typing ? ' is-typing' : ''}`} aria-hidden="true" data-open={open ? '' : undefined}
-    onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}
+  return <div ref={host} className={`iso-host ${className}${typing ? ' is-typing' : ''}`} aria-hidden="true" data-open={open ? '' : undefined} data-hover={hover ? '' : undefined}
+    onPointerEnter={() => { clearTimeout(confirm.current); confirm.current = setTimeout(() => setHover(true), HOVER_CONFIRM) }}
+    onPointerLeave={() => { clearTimeout(confirm.current); setHover(false) }}
     onMouseDown={event => event.preventDefault()} onClick={() => setOpen(value => !value)} dangerouslySetInnerHTML={html} />
 })

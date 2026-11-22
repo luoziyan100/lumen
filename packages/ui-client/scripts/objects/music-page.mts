@@ -1,11 +1,13 @@
 /**
  * [INPUT]: the music set (src/mastra/studio/objects/music/: MUSIC_OBJECTS, MUSIC_CSS, count) and the zh box labels for the music box card
  * [OUTPUT]: writes scripts/objects/music.html: the eight music objects, each in a host at its product width with its slot, primitive count and line-weight tiers; click a host to open it.
- *           A "声音" switch (top right, off by default) sounds every motion (hover, click, typing, the loops) through the product's sound.ts, bundled into the page by esbuild: each host
- *           reports { hover, open, typing } to motionMusic as IsoObject does in the app. window.__music exposes that module (and MUSIC_SCORES) for the audio evidence and checks.
+ *           A "声音" switch (top right, off by default) sounds every motion (hover, click, typing, the loops) through the product's sound.ts and sampler.ts, bundled into the page by
+ *           esbuild: a pointer that stays 100 ms sets data-hover (as IsoObject does), and each host reports { hover, open, typing } to motionMusic. window.__music exposes those
+ *           modules (with Sampler, MUSIC_SCORES, partsOf, partCues) for the audio evidence and checks. The recordings are fetched relative to the served source tree, so open the page
+ *           through music-serve.mts, not as a file.
  *           Query: ?only=<slot> shows one object; ?center centres the row in the window; ?open opens every object; ?typing sets is-typing on every host; ?dark switches tokens and canvas to the dark skin;
  *           ?w=<px> overrides the host width; ?sound starts with the switch on
- * [POS]: the music set's design page (contract step 2), not shipped (scripts/ is outside the bundle); music-shots.mts drives it. Regenerate after changing an object:
+ * [POS]: the music set's design page (contract step 2) and listening page, not shipped (scripts/ is outside the bundle); music-shots.mts and music-audio.mts drive it. Regenerate after changing an object:
  *        node --experimental-strip-types scripts/objects/music-page.mts
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -25,12 +27,12 @@ const cells = MUSIC_OBJECTS.map(o => {
 }).join('\n')
 
 const sound = buildSync({
-  stdin: { contents: "import * as sound from './sound.ts'; import { MUSIC_SCORES } from './index.ts'; window.__music = { ...sound, MUSIC_SCORES }", resolveDir: new URL('../../src/mastra/studio/objects/music/', import.meta.url).pathname, loader: 'ts' },
-  bundle: true, format: 'iife', write: false, platform: 'browser', target: 'es2022',
+  stdin: { contents: "import * as sound from './sound.ts'; import { Sampler } from './sampler.ts'; import { MUSIC_SCORES, partsOf, partCues } from './index.ts'; window.__music = { ...sound, Sampler, MUSIC_SCORES, partsOf, partCues }", resolveDir: new URL('../../src/mastra/studio/objects/music/', import.meta.url).pathname, loader: 'ts' },
+  bundle: true, format: 'iife', write: false, platform: 'browser', target: 'es2022', define: { 'import.meta.url': 'window.__musicModule' },
 }).outputFiles[0]!.text
 
 const page = `<!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><title>Music objects · Lumen</title>
+<html lang="zh-CN"><head><meta charset="utf-8"><link rel="icon" href="data:,"><title>Music objects · Lumen</title>
 <style>
 body { margin: 0; padding: 24px; background: #F3EFE7; font: 13px -apple-system, "PingFang SC", sans-serif; --text: #292720; --surface-base: #F8F5EE; color: var(--text); }
 body.dark { background: #0f1115; --text: #E8EAEE; --surface-base: #14161C; }
@@ -49,19 +51,21 @@ ${MUSIC_CSS}
 <div class="row">
 ${cells}
 </div>
+<script>window.__musicModule = location.origin + '/src/mastra/studio/objects/music/samples.ts'</script>
 <script>${sound.replace(/<\/script/g, '<\\/script')}</script>
 <script>
 const toggle = document.getElementById('sound')
-const report = h => { if (toggle.checked) __music.motionMusic(h.id, { hover: h.matches(':hover'), open: h.hasAttribute('data-open'), typing: h.classList.contains('is-typing') }, h) }
-toggle.addEventListener('change', () => { if (toggle.checked) { __music.warmMusic(); __music.unlockMusic(); document.querySelectorAll('.iso-host').forEach(report) } else __music.muteMusic() })
+const report = h => { if (toggle.checked) __music.motionMusic(h.id, { hover: h.hasAttribute('data-hover'), open: h.hasAttribute('data-open'), typing: h.classList.contains('is-typing') }, h) }
+toggle.addEventListener('change', () => { if (toggle.checked) { __music.unlockMusic(); document.querySelectorAll('.iso-host').forEach(report) } else __music.muteMusic() })
 document.querySelectorAll('.iso-host').forEach(h => {
+  let confirm = 0
   h.addEventListener('mousedown', e => e.preventDefault())
-  h.addEventListener('pointerenter', () => setTimeout(() => report(h)))
-  h.addEventListener('pointerleave', () => setTimeout(() => report(h)))
+  h.addEventListener('pointerenter', () => { clearTimeout(confirm); confirm = setTimeout(() => { h.setAttribute('data-hover', ''); report(h) }, 100) })
+  h.addEventListener('pointerleave', () => { clearTimeout(confirm); h.removeAttribute('data-hover'); report(h) })
   h.addEventListener('click', () => { h.toggleAttribute('data-open'); report(h) })
 })
 const q = new URLSearchParams(location.search)
-if (q.has('sound')) { toggle.checked = true; __music.warmMusic(); __music.armMusic() }
+if (q.has('sound')) { toggle.checked = true; __music.armMusic(); document.querySelectorAll('.iso-host').forEach(report) }
 if (q.has('center')) document.body.classList.add('center')
 if (q.get('only')) document.querySelectorAll('.cell').forEach(c => { if (c.dataset.id !== q.get('only')) c.classList.add('hide') })
 if (q.get('w')) document.querySelectorAll('.cell, .iso-host').forEach(n => { n.style.width = q.get('w') + 'px' })

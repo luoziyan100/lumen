@@ -1,12 +1,13 @@
 /**
  * [INPUT]: the music objects of this directory and their click scores, MUSIC_BASE from ./line.ts, the Score type from ./pitch.ts, BoxWords from ../box.ts
- * [OUTPUT]: MUSIC_OBJECTS (slot, label, design-page width, builder for each of the eight), MUSIC_SCORES (each slot's click score), MUSIC_CSS (the one style text of the set: base plus every object's motion), PIANO_KEYS
+ * [OUTPUT]: MUSIC_OBJECTS (slot, label, design-page width, builder for each of the eight), MUSIC_SCORES (each slot's score), partsOf / partCues (a slot's sounds by name: open, close, hoverIn, loop0…n),
+ *           MUSIC_CSS (the one style text of the set: base plus every object's motion), PIANO_KEYS
  * [POS]: the single entry of objects/music/. The registry and the design page read the set from here, never from the object files. Slots match the instrument set one to one
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import type { BoxWords } from '../box.ts'
 import { MUSIC_BASE } from './line.ts'
-import type { Score } from './pitch.ts'
+import type { Cue, Score } from './pitch.ts'
 import { pianoSvg, PIANO_CSS, PIANO_SCORE } from './piano.ts'
 import { violinSvg, VIOLIN_CSS, VIOLIN_SCORE } from './violin.ts'
 import { celloSvg, CELLO_CSS, CELLO_SCORE } from './cello.ts'
@@ -40,9 +41,16 @@ export const MUSIC_OBJECTS: MusicObject[] = [
   { slot: 'all', label: 'METRONOMO · VIII', width: 640, crop: [200, 120, 110, 90], svg: () => metronomeSvg() },
 ]
 
-/** Each object's click score by slot: the one timetable its click motion and its sound both read */
+/** Each object's score by slot: the one timetable its motion and its sound both read */
 export const MUSIC_SCORES: Record<MusicSlot, Score> = {
   reading: PIANO_SCORE, board: STAND_SCORE, takeaways: GRAMOPHONE_SCORE, materials: CELLO_SCORE, box: MUSIC_BOX_SCORE, map: HARP_SCORE, ideas: VIOLIN_SCORE, all: METRONOME_SCORE,
+}
+
+/** A slot's sounds by name: the one-shots open, close and hoverIn, and loop<i> for one pass of each loop */
+export const partsOf = (slot: MusicSlot) => ['open', 'close', 'hoverIn', ...MUSIC_SCORES[slot].loops.map((_, i) => `loop${i}`)]
+export function partCues(slot: MusicSlot, part: string): Cue[] {
+  const score = MUSIC_SCORES[slot]
+  return part.startsWith('loop') ? score.loops[Number(part.slice(4))]!.cues : score[part as 'open' | 'close' | 'hoverIn']
 }
 
 export const MUSIC_CSS = MUSIC_BASE + PIANO_CSS + VIOLIN_CSS + CELLO_CSS + MUSIC_BOX_CSS + METRONOME_CSS + HARP_CSS + GRAMOPHONE_CSS + STAND_CSS

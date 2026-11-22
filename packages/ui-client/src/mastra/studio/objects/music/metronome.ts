@@ -1,6 +1,6 @@
 /**
  * [INPUT]: the engraving kit of ./line.ts; the Score type and ms from ./pitch.ts
- * [OUTPUT]: metronomeSvg(): METRONOMO · VIII, a pyramid metronome with its front cover off (640×400) for the empty All view; METRONOME_CSS; METRONOME_SCORE (one-shot scrapes; four ticks per pass on the swing extremes at 72 or 120)
+ * [OUTPUT]: metronomeSvg(): METRONOMO · VIII, a pyramid metronome with its front cover off (640×400) for the empty All view; METRONOME_CSS; METRONOME_SCORE (the weight's slide, and the bell as it lands, on a click; four ticks per pass on the swing extremes at 72 or 120)
  * [POS]: music object M8, the counterpart of the type case. The rod turns about the pivot (PIVOT) in front of a scale engraved with Maelzel's marks (40–208);
  *        the slider's height on the rod sets the tempo, and the swing period is 60/bpm per beat. Hover swings it at the slider's tempo (72) with a note per beat at each end of the swing.
  *        Click slides the weight down to 120 and the swing quickens. Behind the scale, the clockwork shows as hidden (dashed) wheels; DETAIL A at the right magnifies the escapement: the anchor rocks with the rod and the escape wheel steps half a tooth each beat.
@@ -122,22 +122,23 @@ export function metronomeSvg() {
 const period = (bpm: number) => r(120 / bpm)
 
 /* ============================================================
-   Tempo cycles · one pass is four beats (two swings; the last beat's note has faded by 2.25 periods), then the rod rests upright. 72 on hover, 120 once the weight is down;
-   each tempo has its own keyframes, so a click restarts the swing at the new tempo. A tick sounds at every end of the swing (a quarter and three quarters of each period),
-   and at 120 a small bell marks the first
+   Tempo cycles · one pass is four beats (two swings; the last beat's note has faded by 2.25 periods), then the rod, the wheel, the anchor and the notes all rest. 72 on hover,
+   120 once the weight is down; each tempo has its own keyframes, so a click restarts the swing at the new tempo. A tick sounds at every end of the swing (a quarter and
+   three quarters of each period). The click slides the weight down with a scrape, and the bell rings as it lands
    ============================================================ */
 const SLIDE = .7, BEATS = 4
 interface Tempo { bpm: number; tag: string; pass: Cycle; cues: Cue[] }
-const tempo = (bpm: number, tag: string, bell: boolean): Tempo => {
-  const p = period(bpm), ticks: Cue[] = Array.from({ length: BEATS }, (_, k) => ({ at: r((k / 2 + .25) * p), dur: .06, part: 'rod', sound: { kind: 'noise', noise: 'tick' }, level: .9 }))
-  return { bpm, tag, pass: cycle(r(2.25 * p)), cues: bell ? [...ticks, { at: ticks[0]!.at, dur: .9, part: 'rod', sound: { kind: 'bell', degree: 0 }, level: .45 }] : ticks }
+const tempo = (bpm: number, tag: string): Tempo => {
+  const p = period(bpm)
+  return { bpm, tag, pass: cycle(r(2.25 * p)), cues: Array.from({ length: BEATS }, (_, k) => ({ at: r((k / 2 + .25) * p), dur: .13, part: 'rod', sound: { kind: 'noise', noise: 'tick' }, level: .9 })) }
 }
-const SLOW_T = tempo(SLOW, '', false), FAST_T = tempo(FAST, '-f', true)
+const SLOW_T = tempo(SLOW, ''), FAST_T = tempo(FAST, '-f')
 
-const scrape: Cue = { at: 0, dur: SLIDE, part: 'weight', sound: { kind: 'noise', noise: 'scrape' }, level: .45 }
+const scrape: Cue = { at: 0, dur: SLIDE, part: 'weight', sound: { kind: 'noise', noise: 'slide' }, level: .45 }
+const bell: Cue = { at: SLIDE, dur: .9, part: 'weight', sound: { kind: 'bell', degree: 0 }, level: .4 }
 const loop = (t: Tempo) => ({ cycle: t.pass, clock: { animation: `${P}swing${t.tag}`, target: `${P}rod`, delay: 0 }, cues: t.cues })
 export const METRONOME_SCORE: Score = {
-  open: [scrape],
+  open: [scrape, bell],
   close: [scrape],
   hoverIn: [],
   loops: [{ when: { hover: true, open: true }, ...loop(FAST_T) }, { when: { hover: true }, ...loop(SLOW_T) }],
@@ -162,6 +163,6 @@ export const METRONOME_CSS = `
 ${frames(SLOW_T)}${frames(FAST_T)}.mu-metronome .${P}n { opacity: 0; }
 .mu-metronome .${P}weight { transform: none; transition: transform ${ms(SLIDE)}ms cubic-bezier(.32,.72,0,1); }
 .iso-host[data-open] .mu-metronome .${P}weight { transform: translateY(${r(markY(FAST) - markY(SLOW))}px); }
-${rules('.iso-host:hover', SLOW_T)}
-${rules('.iso-host[data-open]:hover', FAST_T)}
+${rules('.iso-host[data-hover]', SLOW_T)}
+${rules('.iso-host[data-open][data-hover]', FAST_T)}
 `

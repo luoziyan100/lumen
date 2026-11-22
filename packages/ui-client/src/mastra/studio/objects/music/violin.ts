@@ -90,9 +90,9 @@ ${restFrames(riseFrames(`${P}up`, 60, -118, 70), 3.1, PASS)}
 .mu-violin .${P}rise, .mu-violin .${P}chord { opacity: 0; }
 .mu-violin .${P}bow { transform: none; transition: transform 800ms cubic-bezier(.32,.72,0,1); }
 .iso-host[data-open] .mu-violin .${P}bow { transform: translate(10px, 118px) rotate(2deg); }
-.iso-host:hover:not([data-open]) .mu-violin .${P}bowi { animation: ${P}stroke ${PASS.total}s linear infinite; }
-.iso-host:hover:not([data-open]) .mu-violin .${P}s { animation: ${P}hum ${PASS.total}s linear infinite; }
-.iso-host:hover:not([data-open]) .mu-violin .${P}rise { animation: ${P}up ${PASS.total}s cubic-bezier(.3,.6,.4,1) infinite; }
+.iso-host[data-hover]:not([data-open]) .mu-violin .${P}bowi { animation: ${P}stroke ${PASS.total}s linear infinite; }
+.iso-host[data-hover]:not([data-open]) .mu-violin .${P}s { animation: ${P}hum ${PASS.total}s linear infinite; }
+.iso-host[data-hover]:not([data-open]) .mu-violin .${P}rise { animation: ${P}up ${PASS.total}s cubic-bezier(.3,.6,.4,1) infinite; }
 ${[0, 1, 2, 3].map(pluck).join('\n')}
 .iso-host[data-open] .mu-violin .${P}chord { animation: ${P}chord-up 1.2s 150ms cubic-bezier(.3,.6,.4,1) 1 both; }
 `

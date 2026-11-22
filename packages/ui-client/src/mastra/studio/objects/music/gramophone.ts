@@ -157,26 +157,22 @@ export function gramophoneSvg() {
 }
 
 /* ============================================================
-   Click score · the needle drops, the groove crackles while the arm walks in, and a muffled line of the record's own tune (D major, made here) plays and fades as the needle stops;
-   closing lifts the needle and the crackle stops with the fade
+   Click score · the needle is already down (hover dropped it), so a click adds only the needle's scrape in the groove while the arm walks in; the record's loop plays on.
+   Closing lifts the needle. The loop's line is the record's own tune (D major, made here), played by the solo violin through the horn's band
    ============================================================ */
 const WALK = 1.4
-const LINE: [number, number, number][] = [[4, .19, .5], [5, .19, .5], [4, .19, .5], [2, .19, .48], [1, .19, .44], [2, .19, .38], [0, .24, .3]]
+const LINE: [number, number][] = [[4, .5], [5, .5], [4, .5], [2, .48], [1, .44], [2, .38], [0, .3]]
 /* The record's cycle · four turns (6.4 s, the hover notes rise within it) with the groove's crackle and the line played slowly, then the record stops and rests as long */
 const TURN = 1.6, PASS = cycle(4 * TURN)
 const SIDE: Cue[] = [
   { at: .3, dur: r(PASS.run - .3), part: 'spin', sound: { kind: 'noise', noise: 'crackle' }, level: .3 },
-  ...LINE.map(([degree, , level], i) => ({ at: r(.5 + i * .8), dur: .75, part: 'spin', sound: { kind: 'phono' as const, degree }, level })),
+  ...LINE.map(([degree, level], i) => ({ at: r(.5 + i * .8), dur: .75, part: 'spin', sound: { kind: 'phono' as const, degree }, level })),
 ]
 const SIDE_LOOP = { cycle: PASS, clock: { animation: `${P}turn`, target: `${P}spin`, delay: 0 }, cues: SIDE }
 export const GRAMOPHONE_SCORE: Score = {
-  open: [
-    { at: 0, dur: .12, part: 'sb', sound: { kind: 'noise', noise: 'needle' }, level: .7 },
-    { at: 0, dur: WALK, part: 'arm', sound: { kind: 'noise', noise: 'crackle' }, level: .35 },
-    ...LINE.map(([degree, dur, level], i) => ({ at: r(.14 + i * .17), dur, part: 'spin', sound: { kind: 'phono' as const, degree }, level })),
-  ],
-  close: [{ at: 0, dur: .09, part: 'sb', sound: { kind: 'noise', noise: 'lift' }, level: .6 }],
-  hoverIn: [{ at: .3, dur: .12, part: 'sb', sound: { kind: 'noise', noise: 'needle' }, level: .6 }],
+  open: [{ at: 0, dur: WALK, part: 'arm', sound: { kind: 'noise', noise: 'needle-groove' }, level: .5 }],
+  close: [{ at: 0, dur: .3, part: 'sb', sound: { kind: 'noise', noise: 'needle-lift' }, level: .6 }],
+  hoverIn: [{ at: .3, dur: .36, part: 'sb', sound: { kind: 'noise', noise: 'needle-drop' }, level: .6 }],
   loops: [{ when: { open: true }, ...SIDE_LOOP }, { when: { hover: true }, ...SIDE_LOOP }],
   limit: 1.8,
 }
@@ -187,10 +183,10 @@ ${restFrames(`@keyframes ${P}up { 0% { opacity: 0; transform: translate(0, 0); }
 .mu-gramophone .${P}n { opacity: 0; }
 .mu-gramophone .${P}arm { transform: rotate(${r(GRAMOPHONE_ARM.rest)}deg); transition: transform 900ms cubic-bezier(.32,.72,0,1); }
 .mu-gramophone .${P}sb { transform: rotate(${r(-GRAMOPHONE_ARM.rest)}deg); transition: transform 900ms cubic-bezier(.32,.72,0,1); }
-.iso-host:hover .mu-gramophone .${P}arm { transform: rotate(${r(GRAMOPHONE_ARM.outer)}deg); }
-.iso-host:hover .mu-gramophone .${P}sb { transform: rotate(${r(-GRAMOPHONE_ARM.outer)}deg); }
+.iso-host[data-hover] .mu-gramophone .${P}arm { transform: rotate(${r(GRAMOPHONE_ARM.outer)}deg); }
+.iso-host[data-hover] .mu-gramophone .${P}sb { transform: rotate(${r(-GRAMOPHONE_ARM.outer)}deg); }
 .iso-host[data-open] .mu-gramophone .${P}arm { transform: rotate(${r(GRAMOPHONE_ARM.inner)}deg); transition: transform ${WALK}s cubic-bezier(.45,.05,.35,1); }
 .iso-host[data-open] .mu-gramophone .${P}sb { transform: rotate(${r(-GRAMOPHONE_ARM.inner)}deg); transition: transform ${WALK}s cubic-bezier(.45,.05,.35,1); }
-.iso-host:hover .mu-gramophone .${P}spin, .iso-host[data-open] .mu-gramophone .${P}spin { animation: ${P}turn ${PASS.total}s linear infinite; }
-.iso-host:hover .mu-gramophone .${P}n { animation: ${P}up ${PASS.total}s cubic-bezier(.3,.6,.4,1) infinite; }
+.iso-host[data-hover] .mu-gramophone .${P}spin, .iso-host[data-open] .mu-gramophone .${P}spin { animation: ${P}turn ${PASS.total}s linear infinite; }
+.iso-host[data-hover] .mu-gramophone .${P}n { animation: ${P}up ${PASS.total}s cubic-bezier(.3,.6,.4,1) infinite; }
 `

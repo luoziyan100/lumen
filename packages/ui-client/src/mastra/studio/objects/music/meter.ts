@@ -1,7 +1,7 @@
 /**
  * [INPUT]: nothing; sample arrays
- * [OUTPUT]: peakDb, rmsDb (gated block loudness), onset (first crossing of a fraction of the peak), pitch (strongest FFT peak near a target, parabola-refined)
- * [POS]: the one loudness and timing yardstick of the music set. sound.ts levels each click with rmsDb and peakDb; the unit tests and the browser checks measure with the same functions,
+ * [OUTPUT]: peakDb, rmsDb (gated block loudness), onset (first crossing of a fraction of the peak), pitch (the fundamental near a target, read from its strongest harmonic, parabola-refined)
+ * [POS]: the one loudness and timing yardstick of the music set. sampler.ts levels each part with rmsDb and peakDb and finds a recording's attack with onset; the unit tests and the browser checks measure with the same functions,
  *        so "loud enough" means the same thing everywhere. rmsDb averages the power of 50 ms blocks louder than −70 dBFS and within 20 dB of the loudest block, so a tick and a
  *        sustained tone compare by how loud they sound, not by how much silence surrounds them
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -34,7 +34,8 @@ export function onset(x: Float32Array, rate: number, fraction = .1) {
   return -1
 }
 
-/** The strongest spectral peak within ±6% of `near` Hz, over a Hann window of `size` samples from `from` s, refined by a parabola through the log magnitudes */
+/** The fundamental within ±6% of `near` Hz, over a Hann window of `size` samples from `from` s: the strongest peak among the first three harmonics' bands, refined by a parabola
+ *  through the log magnitudes and divided by its order (a low string's fundamental can lie 20 dB under its second harmonic) */
 export function pitch(x: Float32Array, rate: number, near: number, from = 0, size = 16384) {
   const start = Math.round(from * rate), n = Math.min(size, 2 ** Math.floor(Math.log2(Math.max(2, x.length - start))))
   const re = new Float64Array(n), im = new Float64Array(n)
@@ -57,9 +58,11 @@ export function pitch(x: Float32Array, rate: number, near: number, from = 0, siz
     }
   }
   const mag = (k: number) => Math.log(Math.hypot(re[k]!, im[k]!) + 1e-12)
-  const lo = Math.max(1, Math.floor(near * .94 * n / rate)), hi = Math.min(n / 2 - 2, Math.ceil(near * 1.06 * n / rate))
-  let best = lo
-  for (let k = lo; k <= hi; k++) if (mag(k) > mag(best)) best = k
+  let best = 1, order = 1, top = -Infinity
+  for (let h = 1; h <= 3; h++) {
+    const lo = Math.max(1, Math.floor(near * h * .94 * n / rate)), hi = Math.min(n / 2 - 2, Math.ceil(near * h * 1.06 * n / rate))
+    for (let k = lo; k <= hi; k++) if (mag(k) > top) { top = mag(k); best = k; order = h }
+  }
   const [a, b, c] = [mag(best - 1), mag(best), mag(best + 1)], shift = (a - c) / (2 * (a - 2 * b + c) || 1)
-  return (best + shift) * rate / n
+  return (best + shift) * rate / n / order
 }

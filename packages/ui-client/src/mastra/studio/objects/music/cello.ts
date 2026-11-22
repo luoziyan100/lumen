@@ -49,7 +49,7 @@ const BOW_AT = .9, STROKE = 1.2, HUM = .13
 const HOVER = cycle(4.2), PLAY_PASS = cycle(2 * STROKE)
 export const CELLO_SCORE: Score = {
   open: [],
-  close: [{ at: 0, dur: .14, part: 'bow', sound: { kind: 'noise', noise: 'scrape' }, level: .5 }],
+  close: [{ at: 0, dur: .25, part: 'bow', sound: { kind: 'noise', noise: 'wood-scrape' }, level: .5 }],
   hoverIn: [],
   loops: [
     { when: { open: true }, cycle: PLAY_PASS, clock: { animation: `${P}stroke`, target: `${P}bowi`, delay: BOW_AT }, cues: [0, 1].map(k => ({ at: k * STROKE, dur: STROKE, part: 'bowi', sound: { kind: 'bow' as const, instrument: 'cello' as const, string: 2 }, level: .8 })) },
@@ -67,7 +67,7 @@ ${restFrames(riseFrames(`${P}up`, -70, -120, 72), 2.8, HOVER)}
 .mu-cello .${P}bow { transform: ${pose(LEAN.tip[0], LEAN.tip[1], LEAN_ANGLE)}; transition: transform 900ms cubic-bezier(.32,.72,0,1); }
 .iso-host[data-open] .mu-cello .${P}bow { transform: ${pose(PLAY.x, PLAY.y, 0)}; }
 .iso-host[data-open] .mu-cello .${P}bowi { animation: ${P}stroke ${PLAY_PASS.total}s ${ms(BOW_AT)}ms linear infinite; }
-.iso-host:hover .mu-cello .${P}s { animation: ${P}hum ${HOVER.total}s linear infinite; }
+.iso-host[data-hover] .mu-cello .${P}s { animation: ${P}hum ${HOVER.total}s linear infinite; }
 .iso-host[data-open] .mu-cello .${P}s { animation: ${P}hum-o ${PLAY_PASS.total}s ${ms(BOW_AT)}ms linear infinite; }
-.iso-host:hover .mu-cello .${P}rise { animation: ${P}up ${HOVER.total}s cubic-bezier(.3,.6,.4,1) infinite; }
+.iso-host[data-hover] .mu-cello .${P}rise { animation: ${P}up ${HOVER.total}s cubic-bezier(.3,.6,.4,1) infinite; }
 `

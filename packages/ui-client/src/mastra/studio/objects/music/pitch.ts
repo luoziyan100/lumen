@@ -2,7 +2,8 @@
  * [INPUT]: the Cycle type from ./cycle.ts
  * [OUTPUT]: Sound, Cue, Loop, Motion and Score types (an object's score: its click cues, its hover-in cues and its loops), pitchOf(sound) (part number → MIDI note), hz(midi), inKey(midi),
  *           D_MAJOR, VIOLIN_OPEN, CELLO_OPEN, ms(seconds)
- * [POS]: the score types and the one pitch map of the music set. Every object file writes its score with these types; sound.ts turns a cue into sound and the tests check pitch with the same map.
+ * [POS]: the score types and the one pitch map of the music set. Every object file writes its score with these types; samples.ts picks a recording for a cue by this map and the tests check pitch with it.
+ *        A noise names its recording family (samples/<noise>.m4a; 'pen' picks a long, mid or short stroke by the cue's length).
  *        A part number goes in and a MIDI note comes out, tuned as the real instrument: the piano's white keys from A0 = 0 (a sharp is the black key after it), the harp's strings from
  *        C2 with its pedals in D major (C and F sound sharp), the comb a D major scale from G5, the strings on their open fifths. Click sounds are composed in D major; a drawn key or
  *        string keeps its own pitch even outside it (the piano's hover phrase is on white keys)
@@ -11,7 +12,7 @@
 
 import type { Cycle } from './cycle.ts'
 
-export type Noise = 'wood' | 'thud' | 'paper' | 'flap' | 'needle' | 'crackle' | 'lift' | 'scrape' | 'tick' | 'nib'
+export type Noise = 'lid-open' | 'lid-close' | 'box-open' | 'box-close' | 'page' | 'page-flap' | 'pen' | 'needle-drop' | 'needle-groove' | 'needle-lift' | 'crackle' | 'wood-scrape' | 'slide' | 'tick'
 export type Sound =
   | { kind: 'piano'; white: number; sharp?: boolean }
   | { kind: 'harp'; string: number }

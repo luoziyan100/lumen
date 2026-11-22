@@ -5,7 +5,7 @@
  *        tuning pins, dampers, trichord treble strings that end on a bridge solved from the bent rim, a parallel band of overstrung bass strings crossing them onto their own bridge, hitch pins along the inner rim, the iron frame with its struts and bolts,
  *        hidden lines (dashed) for the music desk, legs and soundboard ribs. Hover plays a phrase: each key goes ink, the string group in line with it shakes, a note rises in the band above.
  *        is-typing keeps playing and draws a staff left to right with the phrase's notes on their pitches. Open raises the lid in the front elevation at the lower right (hinge on the bass side, prop stick);
- *        the prop starts at the chord's time in PIANO_SCORE
+ *        the prop swings up PROP_AT after the lid starts. The click sounds only the lid: the keys play no chord, since none is pressed
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { buzzFrames, circle, curve, dbl, inset, line, note, path, plate, r, rect, riseFrames, screw, shadow, shadowDef, ticks, type Pt } from './line.ts'
@@ -251,13 +251,12 @@ const pressRule = (state: string) => KEYS.map(([k, t]) => `${state} .mu-piano .p
 const buzzRule = (state: string) => STRUCK_GROUPS.map(([g, t]) => `${state} .mu-piano .pn-g${g} { animation: ${named('pn-buzz', g, t)} ${PASS.total}s ${t[0]}s infinite; }`).join('\n')
 
 /* ============================================================
-   Click score · the lid knocks as it lifts; as the prop swings up a pedalled D major chord rings (D2 D3 A3 D4 F♯4); closing, the lid lands with a dull thud
+   Click score · the lid knocks as it lifts (the phrase, if the keys are playing, plays on); closing, the lid lands with a dull thud
    ============================================================ */
 const PROP_AT = .12
-const CHORD: [number, boolean][] = [[10, false], [17, false], [21, false], [24, false], [26, true]]
 export const PIANO_SCORE: Score = {
-  open: [{ at: 0, dur: .22, part: 'lid', sound: { kind: 'noise', noise: 'wood' }, level: .45 }, ...CHORD.map(([white, sharp]) => ({ at: PROP_AT, dur: 1.55, part: `k${white}`, sound: { kind: 'piano' as const, white, sharp }, level: .55 }))],
-  close: [{ at: .3, dur: .4, part: 'lid', sound: { kind: 'noise', noise: 'thud' }, level: 1 }],
+  open: [{ at: 0, dur: .4, part: 'lid', sound: { kind: 'noise', noise: 'lid-open' }, level: .6 }],
+  close: [{ at: .3, dur: .4, part: 'lid', sound: { kind: 'noise', noise: 'lid-close' }, level: 1 }],
   hoverIn: [],
   loops: [{ when: { typing: true }, ...PHRASE_LOOP }, { when: { hover: true }, ...PHRASE_LOOP }],
   limit: 1.8,
@@ -271,11 +270,11 @@ ${restFrames(`@keyframes pn-draw { 0% { stroke-dashoffset: ${SPAN}; opacity: 1; 
 .mu-piano .pn-g { transform-box: fill-box; }
 .mu-piano .pn-rise, .mu-piano .pn-at { opacity: 0; }
 .mu-piano .pn-sl { stroke-dasharray: ${SPAN}; stroke-dashoffset: ${SPAN}; }
-${pressRule('.iso-host:hover')}
+${pressRule('.iso-host[data-hover]')}
 ${pressRule('.iso-host.is-typing')}
-${buzzRule('.iso-host:hover')}
+${buzzRule('.iso-host[data-hover]')}
 ${buzzRule('.iso-host.is-typing')}
-.iso-host:hover:not(.is-typing) .mu-piano .pn-rise { animation: pn-up ${PASS.total}s cubic-bezier(.3,.6,.4,1) infinite; }
+.iso-host[data-hover]:not(.is-typing) .mu-piano .pn-rise { animation: pn-up ${PASS.total}s cubic-bezier(.3,.6,.4,1) infinite; }
 .iso-host.is-typing .mu-piano .pn-sl { animation: pn-draw ${PASS.total}s linear infinite; }
 ${showFrames}
 .mu-piano .pn-lid { transform: rotate(0deg); transition: transform 900ms cubic-bezier(.32,.72,0,1); }
