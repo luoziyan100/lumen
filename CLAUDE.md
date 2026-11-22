@@ -30,6 +30,8 @@ scripts/             # 开发进程组合；旧测试矩阵脚本只保留历史
 
 ## 开发与交付
 
+提交默认只落到本地，**不推送**；何时推 `origin/main` 由负责人逐次决定（先提交后推送是常态，不是异常）。
+
 ```sh
 npm install
 npm run dev          # 默认 ~/.lumen-studio-dev；浏览器 localhost:5180
