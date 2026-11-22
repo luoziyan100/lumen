@@ -1,6 +1,6 @@
 /**
  * [INPUT]: research/arxiv、studio/titles、LibraryStore、backfill、openStudioDb 的真实实现；真实 SQLite 与 library/ 文件；研究网络在 fetch 边界换成可控桩
- * [OUTPUT]: L1 arXiv 识别全形式；L2 标题回退各层（arXiv API、文档信息 Title 的乱码/软件名/文件名排除、首页大字、文件名）、清洗与 API 超时回退；
+ * [OUTPUT]: L1 arXiv 识别全形式；L2 标题回退各层（arXiv API、文档信息 Title 的乱码/软件名/文件名排除、首页大字含小型大写、文件名）、清洗与 API 超时回退；
  *           旧库加列升级；L4 补取幂等、条目 id/引用/阅读进度保留、原件 0400、API 暂失败不降级、重复原件跳过；L5 原件位置核对（符号链接、越界、非普通文件）
  * [POS]: 资料库标题与 arXiv 的单元证据；HTTP 与模型工具入口的行为测试在 arxiv-http.test.ts
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -67,10 +67,31 @@ test('L2 首页大字：取最大字号的横排行（旋转水印不算），�
   assert.equal(headingTitle([]), null)
 })
 
+test('L2 首页大字：小型大写标题收回同行的小字号大写块，贴着的块连成一个词并还原小写（坐标取自真实 arXiv PDF）', () => {
+  const run = (str: string, size: number, x: number, y: number, width: number) => ({ str, transform: [size, 0, 0, size, x, y], width })
+  const roformer = [run('R', 17.22, 102.9, 681.2, 11.5), run('O', 13.77, 114.6, 681.2, 9.9), run('F', 17.22, 125.4, 681.2, 9.6), run('ORMER', 13.77, 135.8, 681.2, 52.4),
+    run(': E', 17.22, 189, 681.2, 21.5), run('NHANCED', 13.77, 211.4, 681.2, 72.4), run('T', 17.22, 289, 681.2, 10.5), run('RANSFORMER WITH', 13.77, 300.4, 681.2, 144.7),
+    run('R', 17.22, 450.2, 681.2, 11.5), run('OTARY', 13.77, 461.9, 681.2, 48.1), run('P', 17.22, 222.4, 661.3, 9.6), run('OSITION', 13.77, 232.8, 661.3, 60.2),
+    run('E', 17.22, 298.1, 661.3, 10.5), run('MBEDDING', 13.77, 309.5, 661.3, 80.2), run('A', 11.96, 277.3, 439.5, 8.6), run('Introduction', 11.96, 89.9, 224.3, 64.9)]
+  assert.equal(headingTitle(roformer), 'RoFormer: Enhanced Transformer with Rotary Position Embedding')
+  const bahdanau = [run('N', 17.22, 108.4, 698.7, 12.4), run('EURAL', 13.77, 121.7, 698.7, 49.3), run('M', 17.22, 176.2, 698.7, 15.3), run('ACHINE', 13.77, 192.3, 698.7, 55.7),
+    run('T', 17.22, 253.2, 698.7, 10.5), run('RANSLATION', 13.77, 264.6, 698.7, 94.1), run('BY', 13.77, 108.4, 678.8, 20), run('J', 17.22, 133.6, 678.8, 6.7),
+    run('OINTLY', 13.77, 141.1, 678.8, 54.1), run('L', 17.22, 200.4, 678.8, 10.5), run('EARNING TO', 13.77, 211.8, 678.8, 91.2), run('A', 17.22, 308.1, 678.8, 12.4),
+    run('LIGN AND', 13.77, 321.4, 678.8, 72.1), run('T', 17.22, 398.7, 678.8, 10.5), run('RANSLATE', 13.77, 410, 678.8, 76.3), run('A', 11.96, 278.3, 556.3, 8.6)]
+  assert.equal(headingTitle(bahdanau), 'Neural Machine Translation by Jointly Learning to Align and Translate')
+  assert.equal(headingTitle([run('Attention Is All You Need', 17.22, 211.5, 630, 188.4), run('scholarly works.', 11.96, 267.6, 682.1, 78.9), run('Ashish Vaswani', 9.96, 132.9, 549.3, 66.9)]),
+    'Attention Is All You Need', '整行同字号：不受影响，别的行的小字不收')
+  assert.equal(headingTitle([run('Deep', 20, 40, 700, 40), run('2', 9, 81, 708, 4), run('Nets', 20, 90, 700, 40)]), 'Deep Nets', '抬高的脚注号不在基线上，不收')
+  assert.equal(headingTitle([run('Feature', 26, 39.69, 656.8, 90.84), run(' ', 26, 130.53, 656.8, 0.09), run('selection', 26, 132.95, 656.8, 107.3), run(' ', 26, 240.25, 656.8, 0.09), run('leads', 26, 242.66, 656.8, 62.11)]),
+    'Feature selection leads', '空格是独立空白块、词间只隔 0.09 宽：同字号的词照旧补空格')
+})
+
 test('L2 PDF 回退链：可用 Info → info；Info 是软件名或缺失 → 首页大字；都没有 → null', async () => {
   assert.deepEqual(await pdfTitle(titledPdf({ info: 'Attention Is All You Need', lines: [[20, 'Some Other Heading']] }), '1706.03762.pdf'), { title: 'Attention Is All You Need', source: 'info' })
   assert.deepEqual(await pdfTitle(titledPdf({ info: 'Microsoft Word - final.docx', lines: [[20, 'Real Heading Here'], [10, 'body']], rotated: 'arXiv:1234.56789v1' }), 'x.pdf'), { title: 'Real Heading Here', source: 'heading' })
   assert.deepEqual(await pdfTitle(titledPdf({ lines: [[18, 'Heading Without Info']] }), 'x.pdf'), { title: 'Heading Without Info', source: 'heading' })
+  assert.deepEqual(await pdfTitle(titledPdf({ lines: [[[18, 'N'], [14.4, 'EURAL '], [18, 'M'], [14.4, 'ACHINE '], [18, 'T'], [14.4, 'RANSLATION']], [[14.4, 'BY '], [18, 'J'], [14.4, 'OINTLY '], [18, 'L'], [14.4, 'EARNING']], [10, 'Dzmitry Bahdanau']] }), 'x.pdf'),
+    { title: 'Neural Machine Translation by Jointly Learning', source: 'heading' }, '真实 PDF 引擎给出的小型大写块')
   assert.equal(await pdfTitle(titledPdf({}), 'x.pdf'), null)
   assert.equal(await pdfTitle(Buffer.from('%PDF-1.4 broken'), 'x.pdf'), null, '解析失败不抛')
 })

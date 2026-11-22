@@ -1,6 +1,6 @@
 /**
  * [INPUT]: PDF 字节与文件名（unpdf：文档信息与首页文字位置，已有依赖）、arXiv 元数据
- * [OUTPUT]: cleanTitle（折叠空白、去 arXiv「[编号] 」前缀、≤200 字）、usableInfoTitle（排除空、乱码、文件名、软件名）、headingTitle（首页最大字号的横排文字行）、
+ * [OUTPUT]: cleanTitle（折叠空白、去 arXiv「[编号] 」前缀、≤200 字）、usableInfoTitle（排除空、乱码、文件名、软件名）、headingTitle（首页最大字号所在的横排行，收回同行的小型大写字形并按间隙拼词）、
  *           pdfTitle（② 文档信息 Title → ③ 首页大字标题，取不到为 null）、TITLE_RANK（补取只升不降）
  * [POS]: 资料库标题的回退链（L2）中与 PDF 有关的两层；纯函数 + 一次只读解析，失败一律返回 null，由调用方回到文件名规则
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -40,16 +40,45 @@ export function usableInfoTitle(raw: unknown, fileName: string): string | null {
   return title
 }
 
-export interface TextItem { str: string; transform: number[] }
+export interface TextItem { str: string; transform: number[]; width?: number }
 
-/** 首页最大字号的横排文字（旋转的侧边水印不算），同字号的相邻行按阅读顺序拼起来 */
+// ---- 小型大写：词首是大号大写，其余字母是约 0.7–0.8 倍字号的大写字形，PDF 里拆成相邻的独立文字块 ----
+const SMALL_CAPS_MIN = 0.6
+/** 同一词内相邻文字块的间隙上限（按字号计）；词间距约 0.3 em */
+const JOIN_GAP = 0.15
+
+type Run = { text: string; size: number; x: number; y: number; width?: number }
+
+/** 一行内按横向位置拼：字号不同又贴着的块直接连（小型大写的词首与词身），其余补空格——同字号的块照旧，空格常是被过滤掉的独立空白块；不知道宽度时一律补空格 */
+function joinRow(row: Run[]): string {
+  let out = ''
+  row.forEach((run, i) => {
+    const prev = row[i - 1]
+    const touching = prev?.width !== undefined && Math.abs(prev.size - run.size) > 0.5 && run.x - (prev.x + prev.width) < JOIN_GAP * Math.max(prev.size, run.size)
+    out += (i === 0 || touching ? '' : ' ') + run.text
+  })
+  return out
+}
+
+/** 首页最大字号所在的横排行（旋转的侧边水印不算），连同这些行上的小型大写字形，按阅读顺序拼起来 */
 export function headingTitle(items: readonly TextItem[]): string | null {
-  const horizontal = items.filter(item => item.str.trim() && Math.abs(item.transform[1] ?? 0) < 1e-6 && Math.abs(item.transform[2] ?? 0) < 1e-6)
-    .map(item => ({ text: item.str, size: Math.hypot(item.transform[2] ?? 0, item.transform[3] ?? 0), x: item.transform[4] ?? 0, y: item.transform[5] ?? 0 }))
+  const horizontal: Run[] = items.filter(item => item.str.trim() && Math.abs(item.transform[1] ?? 0) < 1e-6 && Math.abs(item.transform[2] ?? 0) < 1e-6)
+    .map(item => ({ text: item.str, size: Math.hypot(item.transform[2] ?? 0, item.transform[3] ?? 0), x: item.transform[4] ?? 0, y: item.transform[5] ?? 0,
+      width: typeof item.width === 'number' && item.width > 0 ? item.width : undefined }))
   if (!horizontal.length) return null
   const largest = Math.max(...horizontal.map(item => item.size))
-  const lines = horizontal.filter(item => item.size >= largest - 0.5).sort((a, b) => b.y - a.y || a.x - b.x)
-  const title = cleanTitle(lines.map(item => item.text).join(' '))
+  const tolerance = largest * 0.1
+  const baselines = [...new Set(horizontal.filter(item => item.size >= largest - 0.5).map(item => item.y))].sort((a, b) => b - a)
+  const rows: Run[][] = []
+  for (const run of horizontal) {
+    if (run.size < largest * SMALL_CAPS_MIN) continue
+    const at = baselines.findIndex(y => Math.abs(y - run.y) < tolerance)
+    if (at < 0) continue
+    // 比词首小、却没有小写字母的块是小型大写字形，语义上是小写
+    const small = run.size < largest - 0.5 && /\p{Lu}/u.test(run.text) && !/\p{Ll}/u.test(run.text)
+    ;(rows[at] ??= []).push(small ? { ...run, text: run.text.toLocaleLowerCase('en') } : run)
+  }
+  const title = cleanTitle(rows.filter(Boolean).map(row => joinRow(row.sort((a, b) => a.x - b.x))).join(' '))
   return title && !garbled(title) && !/^arxiv\s*:/i.test(title) ? title : null
 }
 

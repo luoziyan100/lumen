@@ -1,12 +1,15 @@
 /**
  * [INPUT]: none; hand-written PDF objects and arXiv API Atom text
- * [OUTPUT]: titledPdf (a one-page PDF with an optional Info Title, several font sizes and a rotated watermark), pagedPdf (one text line per entry, one page per array), atom (one arXiv API result)
+ * [OUTPUT]: titledPdf (a one-page PDF with an optional Info Title, several font sizes, small-caps lines of mixed-size runs and a rotated watermark), pagedPdf (one text line per entry, one page per array), atom (one arXiv API result)
  * [POS]: shared fixtures for the library title and reading tests; not a test file, no assertions
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
-export function titledPdf({ info, lines = [], rotated }: { info?: string; lines?: [size: number, text: string][]; rotated?: string }): Buffer {
+type Run = [size: number, text: string]
+/** A line is one run, or several runs set one after another on one baseline (small caps: big initial, smaller capitals). */
+export function titledPdf({ info, lines = [], rotated }: { info?: string; lines?: (Run | Run[])[]; rotated?: string }): Buffer {
   const escape = (text: string) => text.replace(/[\\()]/g, match => `\\${match}`)
-  const stream = [...lines.map(([size, text], i) => `BT /F1 ${size} Tf 40 ${700 - i * 40} Td (${escape(text)}) Tj ET`),
+  const runs = (line: Run | Run[]): Run[] => Array.isArray(line[0]) ? line as Run[] : [line as Run]
+  const stream = [...lines.map((line, i) => `BT 40 ${700 - i * 40} Td ${runs(line).map(([size, text]) => `/F1 ${size} Tf (${escape(text)}) Tj`).join(' ')} ET`),
     ...(rotated ? [`BT /F1 30 Tf 0 1 -1 0 20 100 Tm (${escape(rotated)}) Tj ET`] : [])].join('\n')
   const objects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [4 0 R] /Count 1 >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
     '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>',
