@@ -1,6 +1,6 @@
 # Lumen — 本机论文研究工作台
 
-Mastra 1.82.0 + Memory 1.41.0 + LibSQL 1.29.0 + Hono + React 19 + Vite + Tauri 2 + Excalidraw 0.18.0-9fbeaed
+Mastra 1.85.0 + Memory 1.41.2 + LibSQL 1.31.1 + Hono + React 19 + Vite + Tauri 2 + Excalidraw 0.18.0-9fbeaed
 
 产物是可审阅的文件。Mastra 管执行、消息和恢复；Lumen 管主题、资料库、白板、研究工具、材料边界与桌面交互。
 

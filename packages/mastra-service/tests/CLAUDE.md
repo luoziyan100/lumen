@@ -6,14 +6,16 @@ P0 预注册：工具结果必须进入下一轮模型请求；两个会话不�
 - `application.test.ts`：真实循环的文件写入/回灌、会话隔离、存储重开、路径安全、只读子代与取消中关闭验证。
 - `workspace.test.ts`：同主题对话共享主题工作区、两层记忆（主题/关于用户）进入模型、资料库只经主题引用可读（R15），以及跨主题/软链拒绝；模型请求不带 Unicode 正则 pattern，本地仍接受中文记忆名并拒绝越界路径；MEMORY.md 不可读时研究照常运行且模型收到如实说明。
 - `topic-fixture.ts`：经真实 TopicStore 按指定 id 建主题，供以主题身份开会话的测试复用。
-- `provider-fixture.ts`：在 HTTP 边界提供确定性 OpenAI 线格式（单轮可返回多个工具调用），用于框架机制实验；不是实录 fixture。
+- `provider-fixture.ts`：在 HTTP 边界提供确定性 OpenAI 线格式（单轮可返回多个工具调用，可指定 finish_reason 与 usage，`cut` 在首个正文增量后以 ECONNRESET 断流），用于框架机制实验；不是实录 fixture。
 
 - `http.test.ts`：官方客户端经真实本机 HTTP/SSE 完成执行和持久消息补取；超限附件返回 413、残缺附件包返回 400，两者均不落盘且保留先前成功材料。
+- `output-limit.test.ts`：R1（1.85 #30595）经真实 HTTP/SSE 验证：额度用尽且无正文/工具调用时运行失败，错误带 `run.output_limit` 与中文说明，只发一次模型请求，不触发空回复纠正；有截断正文时仍是 Controller 自报的 length 错误。
+- `resumable-streams.test.ts`：B1（1.83 默认续流）守护：裸注册 Agent 默认开启；完整应用含一次委派，主 Agent 与全部专家关闭，agent.stream 主题无发布、服务端缓存无运行记录、关闭后无残留订阅。
 
 - `background.test.ts`：原生后台子代理的单子取消与父运行独立性。
 - `persona.test.ts`：完整应用主 Agent 实际 system 提示包含完整画图规则与共画白板信念/白板工具（AI 判断画什么、用户正看着的地方就是桌面、擦了用户的笔画要说清且一键可恢复；supersede、容量与 blockIds 等旧区块规则不再出现），与界面主题颜色裁决镜像。
 - `permissions.test.ts`：完整应用主 Agent 实际请求中的每个工具都有权限类别或单独放行，防止漏登记触发人工审批。
-- `tool-pairing.test.ts`：并行后台委派后持久历史与下一轮实际请求的 toolCallId 唯一且配对；裸 Agent、纯原生 Controller 与完整应用均验证（1.67.0 重复 id 缺陷已随 1.82.0 关闭）；子专家 workspace 元数据进入父线程为 todo 子用例（台账 F2）。
+- `tool-pairing.test.ts`：并行后台委派后持久历史与下一轮实际请求的 toolCallId 唯一且配对；裸 Agent、纯原生 Controller 与完整应用均验证（1.67.0 重复 id 缺陷已随 1.82.0 关闭，1.85.0 复核仍通过）；子专家 workspace 元数据进入父线程为 todo 子用例（台账 F2，1.85.0 仍复现）。
 
 - `collaboration.test.ts`：产品 HTTP 控制双会话后台子代，核对子任务归属与独立取消。
 

@@ -8,7 +8,7 @@
 - `useSession.ts`：React 外部订阅桥。`useSessionFeed` 持有连接，只在身份变化时改变，切任务时释放前一连接和迟到响应，服务失联时触发重新发现，恢复或卸载取消计时器；`useFeedView` 读完整视图、`useFeedSelect` 读派生值（相等不重渲染），两者一帧最多通知一次（隐藏窗口用 100ms 计时兜底）；`useSession` 是两者组合。
 - `stream-pulse.ts`：说话判定——把「当前助手消息的可见字数」折成开关：字数真的增长才开，停 600ms 关，首个快照只作基线，后续换消息从零计数、不漏掉单段短回复；调工具和思考的静默不算说话。计时器注入，useSpeaking 负责喂字数与卸载清理。
 
-错误边界：`feed.ts` 的 `error` 记录原生运行错误（errorText 优先框架解析的服务商 reason，并附 HTTP 状态与错误码），终态补取和成功重连不能抹掉，只有下一轮 `agent_start` 清除；`connectionError` 记录连接/快照失败，恢复成功后清除。两者独立，连接故障不得覆盖运行失败的原因。
+错误边界：`feed.ts` 的 `error` 记录原生运行错误（errorText 先按错误码查产品目录 `errors`，命中即只显示本地化文本，如 `run.output_limit`；否则优先框架解析的服务商 reason，并附 HTTP 状态与错误码），终态补取和成功重连不能抹掉，只有下一轮 `agent_start` 清除；`connectionError` 记录连接/快照失败，恢复成功后清除。两者独立，连接故障不得覆盖运行失败的原因。
 - `connection.ts`：服务重启后刷新原生私有发现文件；浏览器开发模式重新加载入口，不触发旧服务。恢复按 1 秒起步、30 秒封顶、最多 8 次退避，可取消；入口未就绪时沿用同一恢复策略。keepLiveConnection 在已经持有地址和令牌时丢弃随后的发现失败，成功的新发现仍替换连接。
 
 用量边界：`client.ts` 在原生 DisplayState 之外携带 `childTokenUsage`；`feed.ts` 合入已有 children 轮询返回的派生值，原生 SSE 不覆盖它。该值只用于展示，执行状态仍完全来自 Mastra。

@@ -21,13 +21,13 @@ agents/
 
 - `persona.ts`：人格 v2(2026-11-11)：L0 来路与信念(真实、伪清晰、世界一体、理解先于证明、比喻是梯子、好奇与先猜)→ L1 你和用户：关系/耐心/坚定/愤怒/声音 → L2 读论文、速览、陪人弄懂、白板是两人的草稿纸(S3：先画再说、一块一事、画梯子断点、取代不抹、写用户选中的那张、满了先沉淀且开新白板由用户点 ＋、出处先入资料库)、写一份解读(活解读：一节一节写、第一节要快先落文字、先说为什么值得读、自主决定文字/table/diagram/2D 活结构图 widget，活结构图只给光靠文字说不清的核心机制、首次解读也可出但放第一节文字落地后单独成节，关键断点处可选轻柔先猜后揭（留「直接看」）、小实验写法不常驻（2026-11-20 起只在 L3 写形状 + 先调 `reading_widget_guide`）、每块给出处、推断标明、讲清论文没证明的、引文保留原文语言、就一句问时两三句答且文字讲不清时主动 `reading_insert` 原地补块)、研究任务 → L3 工具（含白板与解读 `reading_view`/`reading_write`/`reading_insert`/`reading_patch`（改一块的局部：先 `reading_view({ itemId, blockId })` 读原文），widget 只写形状与「先调 reading_widget_guide」）与格式；只写信念和理由，不堆禁令，上层压过下层；全文称「用户」不用「他」（负责人 2026-11-12）。分层稿与回测在本地 briefs/active/persona-L0-v2.md。
 - `roles.ts`：旧六类角色的职责、工具白名单（参考类含 list_materials/read_material）与原生步数上限；reader 沿迁移方案只读，写作/计算归 general-purpose。
-- `specialists.ts`：从静态角色快照创建原生 Agent；公开工具名沿角色名，内部 ID 带角色定义哈希（全局一组，不分主题），只传明确任务及 contextFromRefs 证据，隔离父对话与工具轨迹；模型与上下文窗口按父 Session 的启动模型解析；末步强制无工具总结；空总结、过滤和截断附原生终止原因并明确标为未完成，不能当作证据；DOCX/图像/执行始终解析到自身 Workspace。
+- `specialists.ts`：从静态角色快照创建原生 Agent；公开工具名沿角色名，内部 ID 带角色定义哈希（全局一组，不分主题），只传明确任务及 contextFromRefs 证据，隔离父对话与工具轨迹；模型与上下文窗口按父 Session 的启动模型解析；末步强制无工具总结；空总结、过滤和截断附原生终止原因并明确标为未完成，不能当作证据；DOCX/图像/执行始终解析到自身 Workspace；`durable: false`，不开 1.83 起默认的续流。
 - `workspaces.ts`：以受信父任务、原生 runId/toolCallId 派生稳定子目录；同角色并发委派仍相互独立。
 - `sources.ts`：可写专家只读主题工作区文件和复制原件；文件写入仍只能落自身 Workspace。
 - `readonly.ts`：只读专家的 fetch_url/extract_pdf/extract_docx 去掉 save_as 与 to_library 参数与说明，schema 只暴露实际能力，执行复用原工具。
 - `context.ts`：按当前 Session 模型窗口的 80% 配置原生输入 TokenLimiter，缺省窗口 128k；连续保留近期消息，vision=off 同时隐藏视觉工具与图像请求处理器。
 - `catalog/`：读取旧格式 Markdown 自定义角色、分层覆盖和启停配置；只加载白名单能力，不引入插件运行时。
-- `guards/`：主运行步骤/活动时间约束、原生空行动纠正和本会话完整历史回读；不恢复旧循环或事件账。
+- `guards/`：主运行步骤/活动时间约束、原生空行动纠正、输出额度错误转产品码和本会话完整历史回读；不恢复旧循环或事件账。
 - `usage/`：把原生 Controller 未包含的专家步骤用量归属父线程，按原生身份去重后保存在 threadState；主统计仍归 Controller。
 
 组合：主 Agent 的 `agents` 取全局唯一的静态角色组；Mastra 按 `registeredAgents` 注册内部唯一 ID，`accepts(primitiveId)` 路由原生委派钩子，关闭时先取消/排空再调用 `close`。无用户角色时提供六类内建角色。子专家不能看到 ask_user、task_*、write_memory、install_skill 或另一层 agent-*。原生 BackgroundTaskManager 管理全局/每代理并发、超时和零重试；`maxSteps` 是各专家原生步数上限，TokenLimiter 不是全家族 token/费用预算。
