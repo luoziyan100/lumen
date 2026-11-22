@@ -17,7 +17,7 @@ export type Sound =
   | { kind: 'piano'; white: number; sharp?: boolean }
   | { kind: 'harp'; string: number }
   | { kind: 'pizz'; string: number }
-  | { kind: 'bow'; instrument: 'violin' | 'cello'; string: number }
+  | { kind: 'bow'; instrument: 'violin' | 'cello'; string?: number; degree?: number }
   | { kind: 'hum'; string: number }
   | { kind: 'reed'; tooth: number }
   | { kind: 'phono'; degree: number }
@@ -52,7 +52,7 @@ export function pitchOf(sound: Sound): number | null {
     case 'piano': return 21 + 12 * Math.floor(sound.white / 7) + FROM_A[sound.white % 7]! + (sound.sharp ? 1 : 0)
     case 'harp': return 36 + 12 * Math.floor(sound.string / 7) + HARP_LETTERS[sound.string % 7]!
     case 'pizz': return VIOLIN_OPEN[sound.string]!
-    case 'bow': return (sound.instrument === 'violin' ? VIOLIN_OPEN : CELLO_OPEN)[sound.string]!
+    case 'bow': return sound.degree !== undefined ? scale(sound.instrument === 'violin' ? 62 : 50, sound.degree) : (sound.instrument === 'violin' ? VIOLIN_OPEN : CELLO_OPEN)[sound.string!]!
     case 'hum': return CELLO_OPEN[sound.string]!
     case 'reed': return scale(74, 3 + sound.tooth)
     case 'phono': return scale(62, sound.degree)

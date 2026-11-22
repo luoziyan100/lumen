@@ -19,7 +19,7 @@ const FRONT = { x0: 40, x1: 200, top: 122, bottom: 186 }, BAND = 108, D = 26, HI
 export const MUSIC_BOX_TEETH = 18
 const TOOTH = (i: number) => 90 + i * 5
 const TUNE = [2, 5, 8, 10, 13, 15, 11, 6]
-const LOOP = 4, SP = 3.2, OPEN_MS = 900
+const LOOP = 5.2, SP = 3.2, OPEN_MS = 900
 const CYL = { x: 86, y: 100, w: 108, h: 8 }
 
 const poly = (pts: [number, number][], cls: string) => path('M' + pts.map(p => `${r(p[0])} ${r(p[1])}`).join('L') + 'Z', cls)
@@ -107,7 +107,8 @@ export function musicBoxSvg({ words }: { words: BoxWords | null }) {
    Motion · pin k reaches the comb at (k + 1) / N of the loop
    ============================================================ */
 const OPEN = OPEN_MS / 1000, RISE = .4 * LOOP
-const PLUCKS = TUNE.map((t, k) => ({ at: r(((k + 1) / TUNE.length * LOOP) % LOOP), dur: .7, part: `t${t}`, sound: { kind: 'reed' as const, tooth: t }, level: .6 }))
+const BOX_VEL = [.56, .58, .54, .5, .44, .38, .44, .52]
+const PLUCKS = TUNE.map((t, k) => ({ at: r(((k + 1) / TUNE.length * LOOP) % LOOP), dur: .95, part: `t${t}`, sound: { kind: 'reed' as const, tooth: t }, level: BOX_VEL[k]! }))
 const PASS = cycle(r(Math.max(...PLUCKS.map(p => p.at)) + RISE))
 const toothRules = TUNE.map((t, k) => `.iso-host[data-open] .mu-box .${P}t${t} { animation: ${P}pluck ${PASS.total}s ${r(OPEN + PLUCKS[k]!.at)}s linear infinite; }\n.iso-host[data-open] .mu-box .${P}n${k} { animation: ${P}up ${PASS.total}s ${r(OPEN + PLUCKS[k]!.at)}s cubic-bezier(.3,.6,.4,1) infinite; }`).join('\n')
 

@@ -19,9 +19,33 @@ import { SAMPLES, sampleFor } from './samples.ts'
 import type { Engine } from './sound.ts'
 
 export const ONSET_DB = -40
-const FADE_IN = .002, RELEASE = { sustained: .08, other: .03 }, PEAK = { low: -23, high: -15 }
-const SUSTAINED = new Set(['bow', 'hum', 'phono'])
-const HORN = { low: 300, high: 3000, wobble: [{ hz: .55, cents: 9 }, { hz: 6.5, cents: 3 }] }
+const FADE_IN = .002, PEAK = { low: -23, high: -15 }
+const HORN = { low: 280, high: 1850, wobble: [{ hz: .45, cents: 4.5 }, { hz: 5.5, cents: 1.5 }] }
+const ROOM_TAPS: [number, number][] = [[.024, .11], [.054, .075], [.092, .045]]
+const ROOM_KINDS = new Set(['piano', 'harp', 'pizz', 'bow', 'hum', 'reed', 'bell'])
+
+/** Target gated RMS per part: melodic instruments sit warm and calm; pen strokes and cello hum stay whispered */
+function targetRms(slot: MusicSlot, part: string) {
+  if ((slot === 'board' && part === 'loop0') || (slot === 'materials' && part === 'loop1')) return -38
+  if (slot === 'all' && part.startsWith('loop')) return -34
+  if (part === 'close' || part === 'hoverIn') return -34
+  return -31
+}
+
+/** Gentle lowpass warmth per voice to round off shrill highs, bow rosin and sandpaper noise */
+function warmCutoff(cue: Cue): number | null {
+  const s = cue.sound
+  if (s.kind === 'bow') return s.instrument === 'violin' ? 2400 : 1500
+  if (s.kind === 'hum') return 720
+  if (s.kind === 'reed') return 3800
+  if (s.kind === 'bell') return 3400
+  if (s.kind === 'noise') {
+    if (s.noise === 'pen') return 1800
+    if (s.noise === 'page' || s.noise === 'page-flap') return 2600
+    if (s.noise === 'tick' || s.noise === 'slide') return 2600
+  }
+  return null
+}
 
 /** Where a pitched recording's attack begins (s): the first frame at its peak −40 dB */
 export const attackOffset = (data: Float32Array, rate: number) => Math.max(0, onset(data, rate, 10 ** (ONSET_DB / 20)))
@@ -31,7 +55,13 @@ export function cueLength(cue: Cue) {
   const pick = sampleFor(cue)
   return Math.min(cue.dur, SAMPLES[pick.name]!.seconds / pick.rate)
 }
-const releaseOf = (cue: Cue, length: number) => SUSTAINED.has(cue.sound.kind) ? Math.min(RELEASE.sustained, length / 2) : Math.min(RELEASE.other, length / 4)
+function releaseOf(cue: Cue, length: number) {
+  if (cue.sound.kind === 'hum') return Math.min(1.1, length * .4)
+  if (cue.sound.kind === 'bow') return Math.min(.36, length * .35)
+  if (cue.sound.kind === 'phono' || cue.sound.kind === 'piano' || cue.sound.kind === 'harp' || cue.sound.kind === 'reed') return Math.min(.22, length * .3)
+  if (cue.sound.kind === 'noise' && cue.sound.noise === 'pen') return Math.min(.06, length * .35)
+  return Math.min(.04, length / 4)
+}
 
 /** The recordings a slot's score plays */
 export const slotSamples = (slot: MusicSlot) => [...new Set(partsOf(slot).flatMap(part => partCues(slot, part).map(cue => sampleFor(cue).name)))]
@@ -96,7 +126,7 @@ export class Sampler implements Engine {
     }
     let gain = 1
     if (mix.some(v => v !== 0)) {
-      const level = (part === 'close' || part === 'hoverIn' ? -33 : -30) - rmsDb(mix, rate), peak = peakDb(mix) + level
+      const level = targetRms(slot, part) - rmsDb(mix, rate), peak = peakDb(mix) + level
       gain = 10 ** ((level + Math.max(0, PEAK.low - peak) - Math.max(0, peak - PEAK.high)) / 20)
     }
     this.levels.set(key, gain)
@@ -106,7 +136,8 @@ export class Sampler implements Engine {
   start(slot: MusicSlot, part: string, index: number, when: number, out: AudioNode) {
     const cue = partCues(slot, part)[index]!, pick = sampleFor(cue), decoded = this.decoded.get(pick.name)
     if (!decoded) return []
-    const ac = this.ac, source = ac.createBufferSource(), envelope = ac.createGain(), nodes: AudioScheduledSourceNode[] = [source], end = when + cueLength(cue)
+    const ac = this.ac, source = ac.createBufferSource(), envelope = ac.createGain(), nodes: AudioScheduledSourceNode[] = [source]
+    const length = cueLength(cue), end = when + length
     source.buffer = decoded.buffer
     source.playbackRate.value = pick.rate
     let tail: AudioNode = source
@@ -121,12 +152,30 @@ export class Sampler implements Engine {
         lfo.connect(depth); depth.connect(source.detune); lfo.start(when)
         nodes.push(lfo)
       }
+    } else {
+      const cutoff = warmCutoff(cue)
+      if (cutoff !== null) {
+        const lp = ac.createBiquadFilter()
+        lp.type = 'lowpass'; lp.frequency.value = cutoff; lp.Q.value = .65
+        tail.connect(lp); tail = lp
+      }
     }
+    const release = releaseOf(cue, length), sustainEnd = Math.max(when + FADE_IN, end - release)
     envelope.gain.setValueAtTime(0, when)
     envelope.gain.linearRampToValueAtTime(cue.level, when + FADE_IN)
-    envelope.gain.setValueAtTime(cue.level, end - releaseOf(cue, end - when))
+    envelope.gain.setValueAtTime(cue.level, sustainEnd)
     envelope.gain.linearRampToValueAtTime(0, end)
     tail.connect(envelope)
+    if (ROOM_KINDS.has(cue.sound.kind) && length >= .3) {
+      const roomLp = ac.createBiquadFilter()
+      roomLp.type = 'lowpass'; roomLp.frequency.value = 1900; roomLp.Q.value = .6
+      tail.connect(roomLp)
+      for (const [delayTime, wet] of ROOM_TAPS) {
+        const tap = ac.createDelay(.2), gain = ac.createGain()
+        tap.delayTime.value = delayTime; gain.gain.value = wet
+        roomLp.connect(tap); tap.connect(gain); gain.connect(envelope)
+      }
+    }
     envelope.connect(out)
     source.start(when, decoded.offset)
     for (const node of nodes) node.stop(end + .01)

@@ -90,10 +90,11 @@ export class Player {
     const loop = this.loops.get(slot)?.gain.gain
     if (loop) {
       const level = loop.value, back = from + this.engine.length(slot, part)
+      const floor = slot === 'reading' || slot === 'takeaways' ? level * .78 : 0
       loop.cancelScheduledValues(from)
       loop.setValueAtTime(level, from)
-      loop.linearRampToValueAtTime(0, from + .06)
-      loop.setValueAtTime(0, back)
+      loop.linearRampToValueAtTime(floor, from + .06)
+      loop.setValueAtTime(floor, back)
       loop.linearRampToValueAtTime(level, back + .08)
     }
   }

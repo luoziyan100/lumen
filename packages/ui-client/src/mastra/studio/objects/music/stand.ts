@@ -17,7 +17,7 @@ const DESK = { x0: 160, x1: 480, top: 36, bottom: 236 }
 const PAGE = { l: 172, spine: 320, r: 468, top: 48, bottom: 234 }
 const STAVES = [74, 98, 122, 146, 170, 194, 216], GAP = 2.4
 const WRITE = { staff: 216, x0: 342 }
-const LOOP = 6.4, WRITE_PCT = 78
+const LOOP = 7.6, WRITE_PCT = 78
 
 /* ============================================================
    The written phrase · strokes in writing order

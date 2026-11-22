@@ -230,7 +230,8 @@ export function pianoSvg() {
    The phrase's cycle · hover and is-typing play MELODY once (its notes rise until 5.6 s), then rest as long with every key up; one cycle for both, so typing never restarts it
    ============================================================ */
 const PASS = cycle(5.6)
-const PHRASE: Cue[] = MELODY.map((k, i) => ({ at: r(i * STEP), dur: 1, part: `k${k}`, sound: { kind: 'piano', white: k }, level: .5 }))
+const PHRASE_VEL = [.48, .52, .58, .54, .62, .52, .48, .44]
+const PHRASE: Cue[] = MELODY.map((k, i) => ({ at: r(i * STEP), dur: 1.45, part: `k${k}`, sound: { kind: 'piano', white: k }, level: PHRASE_VEL[i]! }))
 const PHRASE_LOOP = { cycle: PASS, clock: { animation: 'pn-press', target: `pn-k${MELODY[0]}`, delay: 0 }, cues: PHRASE }
 const showFrames = SHOW.map((dx, i) => {
   const p = r(dx / SPAN * 92)

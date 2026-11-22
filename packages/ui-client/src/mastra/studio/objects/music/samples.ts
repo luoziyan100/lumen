@@ -80,7 +80,7 @@ export const SAMPLES: Record<string, Sample> = {
   'slide': { url: new URL('./samples/slide.m4a?no-inline', import.meta.url).href, midi: null, seconds: 0.7 },
 }
 
-const FAMILY = { piano: 'piano-', harp: 'harp-', pizz: 'violin-pizz-', violin: 'violin-arco-', cello: 'cello-bow-', hum: 'cello-hum-', reed: 'box-', phono: 'violin-arco-', bell: 'glock-' } as const
+const FAMILY = { piano: 'piano-', harp: 'harp-', pizz: 'violin-pizz-', violin: 'violin-arco-', cello: 'cello-bow-', hum: 'cello-hum-', reed: 'box-', phono: 'piano-', bell: 'glock-' } as const
 const PENS = ['pen-short', 'pen-mid', 'pen-long']
 
 /** The recording a cue plays: its name, the shift from the recording's measured pitch to the cue's pitch (semitones) and the playback rate for it */

@@ -69,14 +69,16 @@ export function violinSvg() {
   return `<svg class="mu mu-violin" viewBox="0 0 640 400" role="img" aria-hidden="true">${body}</svg>`
 }
 
-/* Score · hover bows two round trips (the rising notes finish within them), a long open A on each stroke with the bow change between, then the bow rests on the string.
+/* Score · hover bows two unhurried round trips on a gentle D major phrase (D4 → F♯4 → A4 → F♯4), then rests on the string.
    Click: pizzicato G D A E one after another, each string sounding as its own shake starts; closing makes no sound */
-const STROKE = 1.3, HUM = .12, PASS = cycle(4 * STROKE)
+const STROKE = 1.4, HUM = .12, PASS = cycle(4 * STROKE)
+const BOW_PHRASE: [number, number][] = [[0, .48], [2, .56], [4, .52], [2, .4]]
+const PIZZ_VEL = [.52, .58, .64, .56]
 export const VIOLIN_SCORE: Score = {
-  open: [0, 1, 2, 3].map(i => ({ at: i * .09, dur: .8, part: `s${i}`, sound: { kind: 'pizz' as const, string: i }, level: .8 })),
+  open: [0, 1, 2, 3].map(i => ({ at: i * .09, dur: .8, part: `s${i}`, sound: { kind: 'pizz' as const, string: i }, level: PIZZ_VEL[i]! })),
   close: [],
   hoverIn: [],
-  loops: [{ when: { hover: true, open: false }, cycle: PASS, clock: { animation: `${P}stroke`, target: `${P}bowi`, delay: 0 }, cues: Array.from({ length: 4 }, (_, k) => ({ at: r(k * STROKE), dur: STROKE, part: 'bowi', sound: { kind: 'bow' as const, instrument: 'violin' as const, string: 2 }, level: .7 })) }],
+  loops: [{ when: { hover: true, open: false }, cycle: PASS, clock: { animation: `${P}stroke`, target: `${P}bowi`, delay: 0 }, cues: BOW_PHRASE.map(([degree, level], k) => ({ at: r(k * STROKE), dur: STROKE, part: 'bowi', sound: { kind: 'bow' as const, instrument: 'violin' as const, degree }, level })) }],
   limit: 1.8,
 }
 const pluck = (i: number) => `.iso-host[data-open] .mu-violin .${P}s${i} { animation: ${P}pluck 900ms ${ms(VIOLIN_SCORE.open[i]!.at)}ms ease-out 1 both; }`

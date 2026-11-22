@@ -45,15 +45,17 @@ export function celloSvg() {
    Score · hover: the four strings hum their open fifths while the notes rise (4.2 s), then rest. Open: once the bow lands (0.9 s) it draws one round trip, a long open D on each stroke
    with the bow change between, then rests on the string; that first pass is the click's sound. Closing, the bow lifts off with a short brush
    ============================================================ */
-const BOW_AT = .9, STROKE = 1.2, HUM = .13
+const BOW_AT = .9, STROKE = 1.4, HUM = .13
 const HOVER = cycle(4.2), PLAY_PASS = cycle(2 * STROKE)
+const HUM_VEL = [.16, .32, .44, .22]
+const BOW_STEPS: [number, number][] = [[1, .56], [0, .48]]
 export const CELLO_SCORE: Score = {
   open: [],
-  close: [{ at: 0, dur: .25, part: 'bow', sound: { kind: 'noise', noise: 'wood-scrape' }, level: .5 }],
+  close: [{ at: 0, dur: .25, part: 'bow', sound: { kind: 'noise', noise: 'wood-scrape' }, level: .45 }],
   hoverIn: [],
   loops: [
-    { when: { open: true }, cycle: PLAY_PASS, clock: { animation: `${P}stroke`, target: `${P}bowi`, delay: BOW_AT }, cues: [0, 1].map(k => ({ at: k * STROKE, dur: STROKE, part: 'bowi', sound: { kind: 'bow' as const, instrument: 'cello' as const, string: 2 }, level: .8 })) },
-    { when: { hover: true }, cycle: HOVER, clock: { animation: `${P}hum`, target: `${P}s0`, delay: 0 }, cues: [0, 1, 2, 3].map(i => ({ at: 0, dur: HOVER.run, part: `s${i}`, sound: { kind: 'hum' as const, string: i }, level: .35 })) },
+    { when: { open: true }, cycle: PLAY_PASS, clock: { animation: `${P}stroke`, target: `${P}bowi`, delay: BOW_AT }, cues: BOW_STEPS.map(([degree, level], k) => ({ at: r(k * STROKE), dur: STROKE, part: 'bowi', sound: { kind: 'bow' as const, instrument: 'cello' as const, degree }, level })) },
+    { when: { hover: true }, cycle: HOVER, clock: { animation: `${P}hum`, target: `${P}s0`, delay: 0 }, cues: [0, 1, 2, 3].map(i => ({ at: 0, dur: HOVER.run, part: `s${i}`, sound: { kind: 'hum' as const, string: i }, level: HUM_VEL[i]! })) },
   ],
   limit: 1.8,
 }

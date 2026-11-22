@@ -161,12 +161,15 @@ export function gramophoneSvg() {
    Closing lifts the needle. The loop's line is the record's own tune (D major, made here), played by the solo violin through the horn's band
    ============================================================ */
 const WALK = 1.4
-const LINE: [number, number][] = [[4, .5], [5, .5], [4, .5], [2, .48], [1, .44], [2, .38], [0, .3]]
-/* The record's cycle · four turns (6.4 s, the hover notes rise within it) with the groove's crackle and the line played slowly, then the record stops and rests as long */
+const LINE: [number, number, number, number][] = [
+  [2, .55, 1.45, .44], [4, 1.45, 1.4, .5], [5, 2.2, 1.35, .48],
+  [4, 2.95, 1.45, .44], [2, 3.85, 1.35, .4], [1, 4.55, 1.25, .36], [0, 5.2, 1.2, .32],
+]
+/* The record's cycle · four turns (6.4 s, the hover notes rise within it) with warm vinyl crackle and a slow pedalled waltz phrase through the horn, then the record rests */
 const TURN = 1.6, PASS = cycle(4 * TURN)
 const SIDE: Cue[] = [
-  { at: .3, dur: r(PASS.run - .3), part: 'spin', sound: { kind: 'noise', noise: 'crackle' }, level: .3 },
-  ...LINE.map(([degree, level], i) => ({ at: r(.5 + i * .8), dur: .75, part: 'spin', sound: { kind: 'phono' as const, degree }, level })),
+  { at: .3, dur: r(PASS.run - .3), part: 'spin', sound: { kind: 'noise', noise: 'crackle' }, level: .22 },
+  ...LINE.map(([degree, at, dur, level]) => ({ at, dur, part: 'spin', sound: { kind: 'phono' as const, degree }, level })),
 ]
 const SIDE_LOOP = { cycle: PASS, clock: { animation: `${P}turn`, target: `${P}spin`, delay: 0 }, cues: SIDE }
 export const GRAMOPHONE_SCORE: Score = {
