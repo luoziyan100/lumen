@@ -1,13 +1,15 @@
 /**
- * [INPUT]: bowedBody and bow from ./bowed.ts; the engraving kit of ./line.ts
- * [OUTPUT]: violinSvg(): VIOLINO · VII, a violin upright with its bow laid across the strings (640×400) for the empty Ideas view; VIOLIN_CSS; VIOLIN_STRINGS (4, for the tests)
+ * [INPUT]: bowedBody and bow from ./bowed.ts; the engraving kit of ./line.ts; the Score type and ms from ./pitch.ts
+ * [OUTPUT]: violinSvg(): VIOLINO · VII, a violin upright with its bow laid across the strings (640×400) for the empty Ideas view; VIOLIN_CSS; VIOLIN_SCORE (the click score); VIOLIN_STRINGS (4, for the tests)
  * [POS]: music object M7, the counterpart of the lamp. Right of the violin, DETAIL A magnifies bridge, strings and the E-string fine tuner at 3:1 (mapped from the main view).
  *        Hover bows: the bow slides along its own axis (the hair stays on the contact line between fingerboard end and bridge), the four strings hum, notes rise into the blank upper right.
- *        Click plays a pizzicato chord: the bow lifts off to the lower right, the strings are plucked G → E one after another, a chord rises once
+ *        Click plays a pizzicato chord: the bow lifts off to the lower right, the strings are plucked G → E one after another at their cues in VIOLIN_SCORE, a chord rises once
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { bow, bowedBody } from './bowed.ts'
 import { circle, dbl, detail, ellipse, hatch, knurl, line, note, path, plate, r, rect, riseFrames, screw, shadow, shadowDef } from './line.ts'
+import { cycle, restFrames } from './cycle.ts'
+import { ms, type Score } from './pitch.ts'
 
 const P = 'vn-'
 const CX = 196, TOP = 150, LEN = 160, BOW = 330
@@ -67,20 +69,30 @@ export function violinSvg() {
   return `<svg class="mu mu-violin" viewBox="0 0 640 400" role="img" aria-hidden="true">${body}</svg>`
 }
 
-const pluck = (i: number) => `.iso-host[data-open] .mu-violin .${P}s${i} { animation: ${P}pluck 900ms ${i * 90}ms ease-out 1 both; }`
+/* Score · hover bows two round trips (the rising notes finish within them), a long open A on each stroke with the bow change between, then the bow rests on the string.
+   Click: pizzicato G D A E one after another, each string sounding as its own shake starts; closing makes no sound */
+const STROKE = 1.3, HUM = .12, PASS = cycle(4 * STROKE)
+export const VIOLIN_SCORE: Score = {
+  open: [0, 1, 2, 3].map(i => ({ at: i * .09, dur: .8, part: `s${i}`, sound: { kind: 'pizz' as const, string: i }, level: .8 })),
+  close: [],
+  hoverIn: [],
+  loops: [{ when: { hover: true, open: false }, cycle: PASS, clock: { animation: `${P}stroke`, target: `${P}bowi`, delay: 0 }, cues: Array.from({ length: 4 }, (_, k) => ({ at: r(k * STROKE), dur: STROKE, part: 'bowi', sound: { kind: 'bow' as const, instrument: 'violin' as const, string: 2 }, level: .7 })) }],
+  limit: 1.8,
+}
+const pluck = (i: number) => `.iso-host[data-open] .mu-violin .${P}s${i} { animation: ${P}pluck 900ms ${ms(VIOLIN_SCORE.open[i]!.at)}ms ease-out 1 both; }`
 
 export const VIOLIN_CSS = `
-@keyframes ${P}hum { 0%, 100% { transform: none; } 25% { transform: translateX(.45px); } 75% { transform: translateX(-.45px); } }
-@keyframes ${P}stroke { 0% { transform: translateX(-44px); } 100% { transform: translateX(44px); } }
+${restFrames(`@keyframes ${P}hum { 0%, 100% { transform: none; } 25% { transform: translateX(.45px); } 75% { transform: translateX(-.45px); } }`, HUM, PASS, Math.floor(PASS.run / HUM))}
+${restFrames(`@keyframes ${P}stroke { 0% { transform: translateX(-44px); animation-timing-function: ease-in-out; } 50% { transform: translateX(44px); animation-timing-function: ease-in-out; } 100% { transform: translateX(-44px); } }`, 2 * STROKE, PASS, 2)}
 @keyframes ${P}pluck { 0% { transform: none; } 8% { transform: translateX(1.4px); } 18% { transform: translateX(-1.1px); } 30% { transform: translateX(.8px); } 44% { transform: translateX(-.5px); } 60% { transform: translateX(.25px); } 80%, 100% { transform: none; } }
-${riseFrames(`${P}up`, 60, -118, 70)}
+${restFrames(riseFrames(`${P}up`, 60, -118, 70), 3.1, PASS)}
 @keyframes ${P}chord-up { 0% { opacity: 0; transform: translate(0, 0); } 12% { opacity: 1; } 70% { opacity: .85; } 100% { opacity: 0; transform: translate(70px, -120px); } }
 .mu-violin .${P}rise, .mu-violin .${P}chord { opacity: 0; }
 .mu-violin .${P}bow { transform: none; transition: transform 800ms cubic-bezier(.32,.72,0,1); }
 .iso-host[data-open] .mu-violin .${P}bow { transform: translate(10px, 118px) rotate(2deg); }
-.iso-host:hover:not([data-open]) .mu-violin .${P}bowi { animation: ${P}stroke 1.3s ease-in-out infinite alternate; }
-.iso-host:hover:not([data-open]) .mu-violin .${P}s { animation: ${P}hum .12s linear infinite; }
-.iso-host:hover:not([data-open]) .mu-violin .${P}rise { animation: ${P}up 3.1s cubic-bezier(.3,.6,.4,1) infinite; }
+.iso-host:hover:not([data-open]) .mu-violin .${P}bowi { animation: ${P}stroke ${PASS.total}s linear infinite; }
+.iso-host:hover:not([data-open]) .mu-violin .${P}s { animation: ${P}hum ${PASS.total}s linear infinite; }
+.iso-host:hover:not([data-open]) .mu-violin .${P}rise { animation: ${P}up ${PASS.total}s cubic-bezier(.3,.6,.4,1) infinite; }
 ${[0, 1, 2, 3].map(pluck).join('\n')}
 .iso-host[data-open] .mu-violin .${P}chord { animation: ${P}chord-up 1.2s 150ms cubic-bezier(.3,.6,.4,1) 1 both; }
 `

@@ -1,15 +1,18 @@
 /**
- * [INPUT]: escapeXml from ../iso.ts; BoxWords and BOX_CARD from ../box.ts (the front card keeps the sidebar box's words contract); the engraving kit of ./line.ts
- * [OUTPUT]: musicBoxSvg({ words }): CARILLON · V, a cylinder music box in cabinet oblique (260×220) for the topic sidebar; MUSIC_BOX_CSS; MUSIC_BOX_TEETH (18)
+ * [INPUT]: escapeXml from ../iso.ts; BoxWords and BOX_CARD from ../box.ts (the front card keeps the sidebar box's words contract); the engraving kit of ./line.ts; the Score type and ms from ./pitch.ts
+ * [OUTPUT]: musicBoxSvg({ words }): CARILLON · V, a cylinder music box in cabinet oblique (260×220) for the topic sidebar; MUSIC_BOX_CSS; MUSIC_BOX_SCORE (the click score); MUSIC_BOX_TEETH (18)
  * [POS]: music object M5, the counterpart of the takeaway box; the front card shows the newest takeaway (stamp and two lines, escaped, clipped to the card) or stays blank.
  *        The box recedes up-right by D. The lid's top face turns about its back edge (HINGE); its inner face rises from the box's back edge (BACK). Hover cracks it: the top face shortens toward the hinge and the front band lifts, showing a dark slit.
  *        Click folds the top face onto the hinge, then raises the lid's inner face (an engraved staff of the box's tune). Inside, a pinned strip slides down the cylinder;
- *        each pin reaches the comb at the tooth under it, that tooth twitches and a note rises into the blank upper left. Every timing comes from one table (TUNE)
+ *        each pin reaches the comb at the tooth under it, that tooth twitches and a note rises into the blank upper left. Every timing comes from one table (TUNE):
+ *        it gives the pluck cues of MUSIC_BOX_SCORE, and the teeth, the notes and the strip read their delays from those cues
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { escapeXml } from '../iso.ts'
 import { BOX_CARD, type BoxWords } from '../box.ts'
 import { circle, hatch, knurl, line, note, path, plate, r, rect, rivet, screw, shadow, shadowDef } from './line.ts'
+import { cycle, restFrames } from './cycle.ts'
+import { ms, type Score } from './pitch.ts'
 
 const P = 'mb-'
 const FRONT = { x0: 40, x1: 200, top: 122, bottom: 186 }, BAND = 108, D = 26, HINGE = BAND - D, BACK = FRONT.top - D
@@ -103,13 +106,25 @@ export function musicBoxSvg({ words }: { words: BoxWords | null }) {
 /* ============================================================
    Motion · pin k reaches the comb at (k + 1) / N of the loop
    ============================================================ */
-const at = (k: number) => r(OPEN_MS / 1000 + ((k + 1) / TUNE.length * LOOP) % LOOP)
-const toothRules = TUNE.map((t, k) => `.iso-host[data-open] .mu-box .${P}t${t} { animation: ${P}pluck ${LOOP}s ${at(k)}s linear infinite; }\n.iso-host[data-open] .mu-box .${P}n${k} { animation: ${P}up ${LOOP}s ${at(k)}s cubic-bezier(.3,.6,.4,1) infinite; }`).join('\n')
+const OPEN = OPEN_MS / 1000, RISE = .4 * LOOP
+const PLUCKS = TUNE.map((t, k) => ({ at: r(((k + 1) / TUNE.length * LOOP) % LOOP), dur: .7, part: `t${t}`, sound: { kind: 'reed' as const, tooth: t }, level: .6 }))
+const PASS = cycle(r(Math.max(...PLUCKS.map(p => p.at)) + RISE))
+const toothRules = TUNE.map((t, k) => `.iso-host[data-open] .mu-box .${P}t${t} { animation: ${P}pluck ${PASS.total}s ${r(OPEN + PLUCKS[k]!.at)}s linear infinite; }\n.iso-host[data-open] .mu-box .${P}n${k} { animation: ${P}up ${PASS.total}s ${r(OPEN + PLUCKS[k]!.at)}s cubic-bezier(.3,.6,.4,1) infinite; }`).join('\n')
+
+/* Score · the pointer cracks the lid with a light knock. Open: the strip slides once (from 0.9 s) and each pin's pluck sounds its tooth, one pass of TUNE until the last note
+   has risen, then the cylinder stops and rests; that first pass is the click's sound. Closing, the lid lands with a light knock and the tune fades */
+export const MUSIC_BOX_SCORE: Score = {
+  open: [],
+  close: [{ at: .62, dur: .2, part: 'top', sound: { kind: 'noise', noise: 'wood' }, level: .7 }],
+  hoverIn: [{ at: .06, dur: .12, part: 'top', sound: { kind: 'noise', noise: 'wood' }, level: .35 }],
+  loops: [{ when: { open: true }, cycle: PASS, clock: { animation: `${P}slide`, target: `${P}pins`, delay: OPEN }, cues: [...PLUCKS].sort((a, b) => a.at - b.at) }],
+  limit: 1.8,
+}
 
 export const MUSIC_BOX_CSS = `
-@keyframes ${P}slide { 0% { transform: translateY(0); } 100% { transform: translateY(${r(TUNE.length * SP)}px); } }
-@keyframes ${P}pluck { 0% { transform: none; } 2% { transform: rotate(-9deg); } 5% { transform: rotate(5deg); } 8% { transform: rotate(-3deg); } 11% { transform: rotate(1.4deg); } 14%, 100% { transform: none; } }
-@keyframes ${P}up { 0% { opacity: 0; transform: translate(0, 0); } 6% { opacity: 1; } 40% { opacity: 0; transform: translate(-18px, -60px); } 100% { opacity: 0; transform: translate(-18px, -60px); } }
+${restFrames(`@keyframes ${P}slide { 0% { transform: translateY(0); } 100% { transform: translateY(${r(TUNE.length * SP)}px); } }`, LOOP, PASS)}
+${restFrames(`@keyframes ${P}pluck { 0% { transform: none; } 2% { transform: rotate(-9deg); } 5% { transform: rotate(5deg); } 8% { transform: rotate(-3deg); } 11% { transform: rotate(1.4deg); } 14%, 100% { transform: none; } }`, LOOP, PASS)}
+${restFrames(`@keyframes ${P}up { 0% { opacity: 0; transform: translate(0, 0); } 6% { opacity: 1; } 40% { opacity: 0; transform: translate(-18px, -60px); } 100% { opacity: 0; transform: translate(-18px, -60px); } }`, LOOP, PASS)}
 .mu-box .${P}n { opacity: 0; }
 .mu-box .${P}slit { opacity: 0; transition: opacity 200ms; }
 .iso-host:hover:not([data-open]) .mu-box .${P}slit { opacity: 1; }
@@ -121,6 +136,6 @@ export const MUSIC_BOX_CSS = `
 .iso-host[data-open] .mu-box .${P}top { transform: scaleY(0); transition-delay: 0ms; }
 .iso-host[data-open] .mu-box .${P}band { transform: translateY(-${FRONT.top - BAND}px) scaleY(0); transition-delay: 0ms; }
 .iso-host[data-open] .mu-box .${P}inner { transform: scaleY(1); transition-delay: 360ms; }
-.iso-host[data-open] .mu-box .${P}pins { animation: ${P}slide ${LOOP}s ${OPEN_MS}ms linear infinite; }
+.iso-host[data-open] .mu-box .${P}pins { animation: ${P}slide ${PASS.total}s ${ms(OPEN)}ms linear infinite; }
 ${toothRules}
 `

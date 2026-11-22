@@ -1,12 +1,15 @@
 /**
- * [INPUT]: the engraving kit of ./line.ts
- * [OUTPUT]: metronomeSvg(): METRONOMO · VIII, a pyramid metronome with its front cover off (640×400) for the empty All view; METRONOME_CSS
+ * [INPUT]: the engraving kit of ./line.ts; the Score type and ms from ./pitch.ts
+ * [OUTPUT]: metronomeSvg(): METRONOMO · VIII, a pyramid metronome with its front cover off (640×400) for the empty All view; METRONOME_CSS; METRONOME_SCORE (one-shot scrapes; four ticks per pass on the swing extremes at 72 or 120)
  * [POS]: music object M8, the counterpart of the type case. The rod turns about the pivot (PIVOT) in front of a scale engraved with Maelzel's marks (40–208);
  *        the slider's height on the rod sets the tempo, and the swing period is 60/bpm per beat. Hover swings it at the slider's tempo (72) with a note per beat at each end of the swing.
- *        Click slides the weight down to 120 and the swing quickens. Behind the scale, the clockwork shows as hidden (dashed) wheels; DETAIL A at the right magnifies the escapement: the anchor rocks with the rod and the escape wheel steps half a tooth each beat
+ *        Click slides the weight down to 120 and the swing quickens. Behind the scale, the clockwork shows as hidden (dashed) wheels; DETAIL A at the right magnifies the escapement: the anchor rocks with the rod and the escape wheel steps half a tooth each beat.
+ *        The weight slides for as long as the scrape in METRONOME_SCORE
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { circle, curve, dbl, detail, hatch, knurl, line, note, path, plate, r, rect, screw, shadow, shadowDef, ticks } from './line.ts'
+import { cycle, restFrames, type Cycle } from './cycle.ts'
+import { ms, type Cue, type Score } from './pitch.ts'
 
 const P = 'mt-'
 const CX = 250, BASE = 352, TOP = 58, PIVOT = 300, ROD = 232
@@ -117,27 +120,48 @@ export function metronomeSvg() {
 }
 
 const period = (bpm: number) => r(120 / bpm)
-const noteFrames = `@keyframes ${P}up { 0% { opacity: 0; transform: translate(0, 0); } 6% { opacity: 1; } 44% { opacity: 0; transform: translate(0, -44px); } 100% { opacity: 0; transform: translate(0, -44px); } }`
+
+/* ============================================================
+   Tempo cycles · one pass is four beats (two swings; the last beat's note has faded by 2.25 periods), then the rod rests upright. 72 on hover, 120 once the weight is down;
+   each tempo has its own keyframes, so a click restarts the swing at the new tempo. A tick sounds at every end of the swing (a quarter and three quarters of each period),
+   and at 120 a small bell marks the first
+   ============================================================ */
+const SLIDE = .7, BEATS = 4
+interface Tempo { bpm: number; tag: string; pass: Cycle; cues: Cue[] }
+const tempo = (bpm: number, tag: string, bell: boolean): Tempo => {
+  const p = period(bpm), ticks: Cue[] = Array.from({ length: BEATS }, (_, k) => ({ at: r((k / 2 + .25) * p), dur: .06, part: 'rod', sound: { kind: 'noise', noise: 'tick' }, level: .9 }))
+  return { bpm, tag, pass: cycle(r(2.25 * p)), cues: bell ? [...ticks, { at: ticks[0]!.at, dur: .9, part: 'rod', sound: { kind: 'bell', degree: 0 }, level: .45 }] : ticks }
+}
+const SLOW_T = tempo(SLOW, '', false), FAST_T = tempo(FAST, '-f', true)
+
+const scrape: Cue = { at: 0, dur: SLIDE, part: 'weight', sound: { kind: 'noise', noise: 'scrape' }, level: .45 }
+const loop = (t: Tempo) => ({ cycle: t.pass, clock: { animation: `${P}swing${t.tag}`, target: `${P}rod`, delay: 0 }, cues: t.cues })
+export const METRONOME_SCORE: Score = {
+  open: [scrape],
+  close: [scrape],
+  hoverIn: [],
+  loops: [{ when: { hover: true, open: true }, ...loop(FAST_T) }, { when: { hover: true }, ...loop(SLOW_T) }],
+  limit: 1.8,
+}
 
 const STEP = 360 / 20 / 2
-const stepFrames = `@keyframes ${P}step { 0%, 24% { transform: rotate(0deg); } 27%, 74% { transform: rotate(${STEP}deg); } 77%, 100% { transform: rotate(${STEP * 2}deg); } }`
-const rockFrames = `@keyframes ${P}rock { 0% { transform: rotate(0deg); animation-timing-function: ease-out; } 25% { transform: rotate(6deg); animation-timing-function: ease-in-out; } 75% { transform: rotate(-6deg); animation-timing-function: ease-in; } 100% { transform: rotate(0deg); } }`
+const frames = (t: Tempo) => {
+  const p = period(t.bpm), repeat = (block: string) => restFrames(block, p, t.pass, 2)
+  return repeat(`@keyframes ${P}step${t.tag} { 0%, 24% { transform: rotate(0deg); } 27%, 74% { transform: rotate(${STEP}deg); } 77%, 100% { transform: rotate(${STEP * 2}deg); } }`) +
+    repeat(`@keyframes ${P}rock${t.tag} { 0% { transform: rotate(0deg); animation-timing-function: ease-out; } 25% { transform: rotate(6deg); animation-timing-function: ease-in-out; } 75% { transform: rotate(-6deg); animation-timing-function: ease-in; } 100% { transform: rotate(0deg); } }`) +
+    repeat(`@keyframes ${P}swing${t.tag} { 0% { transform: rotate(0deg); animation-timing-function: ease-out; } 25% { transform: rotate(${SWING}deg); animation-timing-function: ease-in-out; } 75% { transform: rotate(-${SWING}deg); animation-timing-function: ease-in; } 100% { transform: rotate(0deg); } }`) +
+    repeat(`@keyframes ${P}up${t.tag} { 0% { opacity: 0; transform: translate(0, 0); } 6% { opacity: 1; } 44% { opacity: 0; transform: translate(0, -44px); } 100% { opacity: 0; transform: translate(0, -44px); } }`)
+}
+const rules = (state: string, t: Tempo) => `${state} .mu-metronome .${P}wheel { animation: ${P}step${t.tag} ${t.pass.total}s linear infinite; }
+${state} .mu-metronome .${P}anchor { animation: ${P}rock${t.tag} ${t.pass.total}s linear infinite; }
+${state} .mu-metronome .${P}rod { animation: ${P}swing${t.tag} ${t.pass.total}s linear infinite; }
+${state} .mu-metronome .${P}n0 { animation: ${P}up${t.tag} ${t.pass.total}s ${t.cues[0]!.at}s ease-out infinite; }
+${state} .mu-metronome .${P}n1 { animation: ${P}up${t.tag} ${t.pass.total}s ${t.cues[1]!.at}s ease-out infinite; }`
 
 export const METRONOME_CSS = `
-${stepFrames}
-${rockFrames}
-.iso-host:hover .mu-metronome .${P}wheel { animation: ${P}step ${period(SLOW)}s linear infinite; }
-.iso-host:hover .mu-metronome .${P}anchor { animation: ${P}rock ${period(SLOW)}s linear infinite; }
-.iso-host[data-open]:hover .mu-metronome .${P}wheel, .iso-host[data-open]:hover .mu-metronome .${P}anchor { animation-duration: ${period(FAST)}s; }
-@keyframes ${P}swing { 0% { transform: rotate(0deg); animation-timing-function: ease-out; } 25% { transform: rotate(${SWING}deg); animation-timing-function: ease-in-out; } 75% { transform: rotate(-${SWING}deg); animation-timing-function: ease-in; } 100% { transform: rotate(0deg); } }
-${noteFrames}
-.mu-metronome .${P}n { opacity: 0; }
-.mu-metronome .${P}weight { transform: none; transition: transform 700ms cubic-bezier(.32,.72,0,1); }
+${frames(SLOW_T)}${frames(FAST_T)}.mu-metronome .${P}n { opacity: 0; }
+.mu-metronome .${P}weight { transform: none; transition: transform ${ms(SLIDE)}ms cubic-bezier(.32,.72,0,1); }
 .iso-host[data-open] .mu-metronome .${P}weight { transform: translateY(${r(markY(FAST) - markY(SLOW))}px); }
-.iso-host:hover .mu-metronome .${P}rod { animation: ${P}swing ${period(SLOW)}s linear infinite; }
-.iso-host:hover .mu-metronome .${P}n0 { animation: ${P}up ${period(SLOW)}s ${r(period(SLOW) / 4)}s ease-out infinite; }
-.iso-host:hover .mu-metronome .${P}n1 { animation: ${P}up ${period(SLOW)}s ${r(period(SLOW) * .75)}s ease-out infinite; }
-.iso-host[data-open]:hover .mu-metronome .${P}rod { animation-duration: ${period(FAST)}s; }
-.iso-host[data-open]:hover .mu-metronome .${P}n0 { animation-duration: ${period(FAST)}s; animation-delay: ${r(period(FAST) / 4)}s; }
-.iso-host[data-open]:hover .mu-metronome .${P}n1 { animation-duration: ${period(FAST)}s; animation-delay: ${r(period(FAST) * .75)}s; }
+${rules('.iso-host:hover', SLOW_T)}
+${rules('.iso-host[data-open]:hover', FAST_T)}
 `

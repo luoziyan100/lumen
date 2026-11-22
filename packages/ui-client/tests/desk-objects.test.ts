@@ -4,7 +4,7 @@
  * [OUTPUT]: evidence that every slot builds in both kits and unknown kits fall back to instruments; missing or bad preference fields fall back to instruments with sound off;
  *           every music object is well-formed XML with its own id prefix (all eight mount together without a clash) and meets its primitive floor; the box's words are escaped;
  *           the piano draws 52 white and 36 black keys, violin and cello 4 strings, the harp ≥30; the settings group switches and persists the kit and enables sound only under Music;
- *           a click makes sound only in the music kit with the switch on, and a switched-off app creates no AudioContext
+ *           a click makes sound only in the music kit with the switch on (one buffer source per cue of the slot's open score), and a switched-off app creates no AudioContext
  * [POS]: the mechanism tests of the second desk-object kit. Layout, motion, frames and real audio are browser facts, covered by scripts/sprite/ui-assert-objects.mts
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -23,23 +23,24 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 Object.defineProperty(window, 'matchMedia', { configurable: true, value: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }) })
 after(() => dom.window.close())
 
-const audio = { contexts: 0, oscillators: 0 }
+const audio = { contexts: 0, sources: 0 }
 class CountingAudioContext {
   currentTime = 0
   state = 'running'
   destination = {}
   constructor() { audio.contexts++ }
   resume() { return Promise.resolve() }
-  createOscillator() { audio.oscillators++; return { type: 'sine', frequency: { value: 0 }, connect() {}, start() {}, stop() {} } }
-  createGain() { return { gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} } }
-  createBiquadFilter() { return { type: 'lowpass', frequency: { setValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} } }
+  suspend() { return Promise.resolve() }
+  createBufferSource() { audio.sources++; return { buffer: null, connect() {}, start() {}, stop() {} } }
+  createBuffer() { return { copyToChannel() {} } }
+  createGain() { return { gain: { value: 1, cancelScheduledValues() {}, setValueAtTime() {}, linearRampToValueAtTime() {} }, connect() {} } }
 }
 Object.assign(globalThis, { AudioContext: CountingAudioContext })
 
 register('./helpers/tsx-loader.mjs', import.meta.url)
 const { createRoot } = await import('react-dom/client')
 const { buildDeskObject, deskKit, DESK_SLOTS } = await import('../src/mastra/studio/objects/registry.ts')
-const { MUSIC_OBJECTS, PIANO_KEYS, VIOLIN_STRINGS, CELLO_STRINGS, HARP_STRINGS } = await import('../src/mastra/studio/objects/music/index.ts')
+const { MUSIC_OBJECTS, MUSIC_SCORES, PIANO_KEYS, VIOLIN_STRINGS, CELLO_STRINGS, HARP_STRINGS } = await import('../src/mastra/studio/objects/music/index.ts')
 const { count } = await import('../src/mastra/studio/objects/music/line.ts')
 const { normalizeAppearance, useAppearance, APPEARANCE_STORAGE_KEY } = await import('../src/appearance/index.ts')
 const { PreferencePane } = await import('../src/mastra/views/chrome/Appearance.tsx')
@@ -156,8 +157,8 @@ test('sound: a click sounds only in the music kit with the switch on; off never 
   }
   assert.match(await click('music', false), /mu-piano/)
   await click('instruments', true)
-  assert.deepEqual(audio, { contexts: 0, oscillators: 0 }, 'off, or the instrument kit: no AudioContext at all')
+  assert.deepEqual(audio, { contexts: 0, sources: 0 }, 'off, or the instrument kit: no AudioContext at all')
   await click('music', true)
   assert.equal(audio.contexts, 1)
-  assert.ok(audio.oscillators >= 1)
+  assert.equal(audio.sources, MUSIC_SCORES.reading.open.length, 'the opening click plays one source per cue of the piano score')
 })

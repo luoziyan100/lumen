@@ -1,19 +1,20 @@
 /**
- * [INPUT]: the music objects of this directory, MUSIC_BASE from ./line.ts, BoxWords from ../box.ts
- * [OUTPUT]: MUSIC_OBJECTS (slot, label, design-page width, builder for each of the eight), MUSIC_CSS (the one style text of the set: base plus every object's motion), PIANO_KEYS
+ * [INPUT]: the music objects of this directory and their click scores, MUSIC_BASE from ./line.ts, the Score type from ./pitch.ts, BoxWords from ../box.ts
+ * [OUTPUT]: MUSIC_OBJECTS (slot, label, design-page width, builder for each of the eight), MUSIC_SCORES (each slot's click score), MUSIC_CSS (the one style text of the set: base plus every object's motion), PIANO_KEYS
  * [POS]: the single entry of objects/music/. The registry and the design page read the set from here, never from the object files. Slots match the instrument set one to one
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import type { BoxWords } from '../box.ts'
 import { MUSIC_BASE } from './line.ts'
-import { pianoSvg, PIANO_CSS } from './piano.ts'
-import { violinSvg, VIOLIN_CSS } from './violin.ts'
-import { celloSvg, CELLO_CSS } from './cello.ts'
-import { musicBoxSvg, MUSIC_BOX_CSS } from './musicbox.ts'
-import { metronomeSvg, METRONOME_CSS } from './metronome.ts'
-import { harpSvg, HARP_CSS } from './harp.ts'
-import { gramophoneSvg, GRAMOPHONE_CSS } from './gramophone.ts'
-import { standSvg, STAND_CSS } from './stand.ts'
+import type { Score } from './pitch.ts'
+import { pianoSvg, PIANO_CSS, PIANO_SCORE } from './piano.ts'
+import { violinSvg, VIOLIN_CSS, VIOLIN_SCORE } from './violin.ts'
+import { celloSvg, CELLO_CSS, CELLO_SCORE } from './cello.ts'
+import { musicBoxSvg, MUSIC_BOX_CSS, MUSIC_BOX_SCORE } from './musicbox.ts'
+import { metronomeSvg, METRONOME_CSS, METRONOME_SCORE } from './metronome.ts'
+import { harpSvg, HARP_CSS, HARP_SCORE } from './harp.ts'
+import { gramophoneSvg, GRAMOPHONE_CSS, GRAMOPHONE_SCORE } from './gramophone.ts'
+import { standSvg, STAND_CSS, STAND_SCORE } from './stand.ts'
 
 export { PIANO_KEYS } from './piano.ts'
 export { VIOLIN_STRINGS } from './violin.ts'
@@ -38,5 +39,10 @@ export const MUSIC_OBJECTS: MusicObject[] = [
   { slot: 'ideas', label: 'VIOLINO · VII', width: 640, crop: [130, 36, 150, 120], svg: () => violinSvg() },
   { slot: 'all', label: 'METRONOMO · VIII', width: 640, crop: [200, 120, 110, 90], svg: () => metronomeSvg() },
 ]
+
+/** Each object's click score by slot: the one timetable its click motion and its sound both read */
+export const MUSIC_SCORES: Record<MusicSlot, Score> = {
+  reading: PIANO_SCORE, board: STAND_SCORE, takeaways: GRAMOPHONE_SCORE, materials: CELLO_SCORE, box: MUSIC_BOX_SCORE, map: HARP_SCORE, ideas: VIOLIN_SCORE, all: METRONOME_SCORE,
+}
 
 export const MUSIC_CSS = MUSIC_BASE + PIANO_CSS + VIOLIN_CSS + CELLO_CSS + MUSIC_BOX_CSS + METRONOME_CSS + HARP_CSS + GRAMOPHONE_CSS + STAND_CSS

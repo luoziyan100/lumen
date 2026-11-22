@@ -1,12 +1,15 @@
 /**
- * [INPUT]: the engraving kit of ./line.ts
- * [OUTPUT]: harpSvg(): ARPA · VI, a concert pedal harp in side elevation with DETAIL A beside it (640×400) for the empty Map view; HARP_CSS; HARP_STRINGS (40)
+ * [INPUT]: the engraving kit of ./line.ts; the Score type and ms from ./pitch.ts
+ * [OUTPUT]: harpSvg(): ARPA · VI, a concert pedal harp in side elevation with DETAIL A beside it (640×400) for the empty Map view; HARP_CSS; HARP_SCORE (the click score); HARP_STRINGS (40)
  * [POS]: music object M6, the counterpart of the cork board. Each string runs straight down from a tuning pin under the neck (NECK) to an eyelet on the soundboard line (BOARD);
  *        C strings are drawn heavier and F strings dashed, the ink form of the coloured strings. The column carries a fluted shaft and a crown; the base carries seven pedals.
- *        Hover plucks a broken chord string by string, each note rising into the blank between the harp and the detail. DETAIL A magnifies the discs and fork pins under the neck. Click runs a glissando across all forty, low to high, once (finished within 1.3 s)
+ *        Hover plucks a broken chord string by string, each note rising into the blank between the harp and the detail. DETAIL A magnifies the discs and fork pins under the neck. Click runs a glissando across all forty, low to high, once (finished within 1.3 s);
+ *        each string's shake starts at its cue in HARP_SCORE
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { circle, curve, dbl, detail, hatch, inset, knurl, line, note, path, plate, r, rect, rivet, shadow, shadowDef, ticks } from './line.ts'
+import { cycle, restFrames } from './cycle.ts'
+import { ms, type Score } from './pitch.ts'
 
 const P = 'hp-'
 export const HARP_STRINGS = 40
@@ -113,17 +116,28 @@ export function harpSvg() {
   return `<svg class="mu mu-harp" viewBox="0 0 640 400" role="img" aria-hidden="true">${body}</svg>`
 }
 
-const pluckFrames = `@keyframes ${P}pluck { 0% { transform: none; } 3% { transform: translateX(1.2px); } 7% { transform: translateX(-1px); } 11% { transform: translateX(.7px); } 15% { transform: translateX(-.45px); } 20% { transform: translateX(.2px); } 26%, 100% { transform: none; } }`
+/* The hover cycle · ARPEGGIO once, each string sounding as its shake starts (the last note has risen by 3.2 s), then the strings rest */
+const PASS = cycle(LOOP)
+const ARP = ARPEGGIO.map((s, k) => ({ at: r(k * LOOP / 10), dur: r(Math.min(1.2, LOOP - k * LOOP / 10)), part: `s${s}`, sound: { kind: 'harp' as const, string: s }, level: .6 }))
+const pluckFrames = restFrames(`@keyframes ${P}pluck { 0% { transform: none; } 3% { transform: translateX(1.2px); } 7% { transform: translateX(-1px); } 11% { transform: translateX(.7px); } 15% { transform: translateX(-.45px); } 20% { transform: translateX(.2px); } 26%, 100% { transform: none; } }`, LOOP, PASS)
 const glissFrames = `@keyframes ${P}gliss { 0% { transform: none; } 12% { transform: translateX(1.1px); } 24% { transform: translateX(-.9px); } 38% { transform: translateX(.6px); } 52% { transform: translateX(-.35px); } 70%, 100% { transform: none; } }`
-const arp = ARPEGGIO.map((s, k) => `.iso-host:hover:not([data-open]) .mu-harp .${P}s${s} { animation: ${P}pluck ${LOOP}s ${r(k * LOOP / 10)}s linear infinite; }\n` +
-  `.iso-host:hover:not([data-open]) .mu-harp .${P}n${k} { animation: ${P}up ${LOOP}s ${r(k * LOOP / 10)}s cubic-bezier(.3,.6,.4,1) infinite; }`).join('\n')
-const gliss = Array.from({ length: HARP_STRINGS }, (_, i) => `.iso-host[data-open] .mu-harp .${P}s${i} { animation: ${P}gliss 500ms ${i * 18}ms ease-out 1 both; }`).join('\n')
+const arp = ARP.map((cue, k) => `.iso-host:hover:not([data-open]) .mu-harp .${P}${cue.part} { animation: ${P}pluck ${PASS.total}s ${cue.at}s linear infinite; }\n` +
+  `.iso-host:hover:not([data-open]) .mu-harp .${P}n${k} { animation: ${P}up ${PASS.total}s ${cue.at}s cubic-bezier(.3,.6,.4,1) infinite; }`).join('\n')
+/* Click score · the glissando sounds every string low to high, each at the moment its own shake starts; closing makes no motion and no sound */
+export const HARP_SCORE: Score = {
+  open: Array.from({ length: HARP_STRINGS }, (_, i) => ({ at: i * .018, dur: 1, part: `s${i}`, sound: { kind: 'harp' as const, string: i }, level: .5 })),
+  close: [],
+  hoverIn: [],
+  loops: [{ when: { hover: true, open: false }, cycle: PASS, clock: { animation: `${P}pluck`, target: `${P}s${ARPEGGIO[0]}`, delay: 0 }, cues: ARP }],
+  limit: 1.8,
+}
+const gliss = HARP_SCORE.open.map(cue => `.iso-host[data-open] .mu-harp .${P}${cue.part} { animation: ${P}gliss 500ms ${ms(cue.at)}ms ease-out 1 both; }`).join('\n')
 const run = ARPEGGIO.map((_, k) => `.iso-host[data-open] .mu-harp .${P}n${k} { animation: ${P}run 1s ${k * 50}ms cubic-bezier(.3,.6,.4,1) 1 both; }`).join('\n')
 
 export const HARP_CSS = `
 ${pluckFrames}
 ${glissFrames}
-@keyframes ${P}up { 0% { opacity: 0; transform: translate(0, 0); } 4% { opacity: 1; } 30% { opacity: 0; transform: translate(26px, -60px); } 100% { opacity: 0; transform: translate(26px, -60px); } }
+${restFrames(`@keyframes ${P}up { 0% { opacity: 0; transform: translate(0, 0); } 4% { opacity: 1; } 30% { opacity: 0; transform: translate(26px, -60px); } 100% { opacity: 0; transform: translate(26px, -60px); } }`, LOOP, PASS)}
 @keyframes ${P}run { 0% { opacity: 0; transform: translate(0, 0); } 10% { opacity: 1; } 100% { opacity: 0; transform: translate(30px, -70px); } }
 .mu-harp .${P}n { opacity: 0; }
 ${arp}

@@ -1,13 +1,16 @@
 /**
- * [INPUT]: the engraving kit of ./line.ts (curve, inset, ticks, dbl, screw, note, plate, shadow, frames)
- * [OUTPUT]: pianoSvg(): PIANO · I, a concert grand in plan (640×400) for the empty Reading view; PIANO_CSS; PIANO_KEYS (the 52 white and 36 black keys it draws, for the tests)
+ * [INPUT]: the engraving kit of ./line.ts (curve, inset, ticks, dbl, screw, note, plate, shadow, frames); the Score type and ms from ./pitch.ts
+ * [OUTPUT]: pianoSvg(): PIANO · I, a concert grand in plan (640×400) for the empty Reading view; PIANO_CSS; PIANO_SCORE (the click score); PIANO_KEYS (the 52 white and 36 black keys it draws, for the tests)
  * [POS]: music object M1, the counterpart of the typewriter. The plan is one model: 88 keys from A0 at the top (bass on the player's left), a straight bass side and a bent treble side,
  *        tuning pins, dampers, trichord treble strings that end on a bridge solved from the bent rim, a parallel band of overstrung bass strings crossing them onto their own bridge, hitch pins along the inner rim, the iron frame with its struts and bolts,
  *        hidden lines (dashed) for the music desk, legs and soundboard ribs. Hover plays a phrase: each key goes ink, the string group in line with it shakes, a note rises in the band above.
- *        is-typing keeps playing and draws a staff left to right with the phrase's notes on their pitches. Open raises the lid in the front elevation at the lower right (hinge on the bass side, prop stick)
+ *        is-typing keeps playing and draws a staff left to right with the phrase's notes on their pitches. Open raises the lid in the front elevation at the lower right (hinge on the bass side, prop stick);
+ *        the prop starts at the chord's time in PIANO_SCORE
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { buzzFrames, circle, curve, dbl, inset, line, note, path, plate, r, rect, riseFrames, screw, shadow, shadowDef, ticks, type Pt } from './line.ts'
+import { cycle, restFrames } from './cycle.ts'
+import { ms, type Cue, type Score } from './pitch.ts'
 
 const P = 'pn-'
 const X0 = 40, Y0 = 136
@@ -223,19 +226,48 @@ export function pianoSvg() {
    Motion
    ============================================================ */
 /** Each revealed part shows once the drawing head (linear over 92% of the loop) passes its offset, and clears with the staff */
+/* ============================================================
+   The phrase's cycle · hover and is-typing play MELODY once (its notes rise until 5.6 s), then rest as long with every key up; one cycle for both, so typing never restarts it
+   ============================================================ */
+const PASS = cycle(5.6)
+const PHRASE: Cue[] = MELODY.map((k, i) => ({ at: r(i * STEP), dur: 1, part: `k${k}`, sound: { kind: 'piano', white: k }, level: .5 }))
+const PHRASE_LOOP = { cycle: PASS, clock: { animation: 'pn-press', target: `pn-k${MELODY[0]}`, delay: 0 }, cues: PHRASE }
 const showFrames = SHOW.map((dx, i) => {
   const p = r(dx / SPAN * 92)
-  return `@keyframes pn-show${i} { 0%, ${p}% { opacity: 0; } ${r(p + 1.5)}% { opacity: 1; } 92% { opacity: 1; } 97%, 100% { opacity: 0; } }\n.iso-host.is-typing .mu-piano .pn-at${i} { animation: pn-show${i} ${LOOP}s linear infinite; }`
+  return restFrames(`@keyframes pn-show${i} { 0%, ${p}% { opacity: 0; } ${r(p + 1.5)}% { opacity: 1; } 92% { opacity: 1; } 97%, 100% { opacity: 0; } }`, LOOP, PASS) + `.iso-host.is-typing .mu-piano .pn-at${i} { animation: pn-show${i} ${PASS.total}s linear infinite; }`
 }).join('\n')
 
-const pressRule = (state: string) => MELODY.map((k, i) => `${state} .mu-piano .pn-k${k} { animation: pn-press ${LOOP}s ${r(i * STEP)}s infinite; }`).join('\n')
-const buzzRule = (state: string) => MELODY.map((k, i) => `${state} .mu-piano .pn-g${groupOf(k)} { animation: pn-buzz ${LOOP}s ${r(i * STEP)}s infinite; }`).join('\n')
+/* A key (and its string group) that the phrase strikes twice gets its own keyframes with a press at each strike, so every note of MELODY shows on the keyboard */
+const strikes = (part: (k: number) => number) => {
+  const times = new Map<number, number[]>()
+  MELODY.forEach((k, i) => times.set(part(k), [...times.get(part(k)) ?? [], PHRASE[i]!.at]))
+  return [...times]
+}
+const KEYS = strikes(k => k), STRUCK_GROUPS = strikes(groupOf)
+const PRESS = '@keyframes pn-press { 0% { fill: var(--pap); } 3% { fill: var(--ink); } 13% { fill: var(--ink); } 18% { fill: var(--pap); } 100% { fill: var(--pap); } }'
+const named = (base: string, id: number, times: number[]) => times.length > 1 ? `${base}-${id}` : base
+const repeated = (base: string, frames: string, list: [number, number[]][]) => list.filter(([, t]) => t.length > 1).map(([id, t]) => restFrames(frames.replace(`@keyframes ${base} `, `@keyframes ${base}-${id} `), LOOP, PASS, t.map(x => r(x - t[0]!)))).join('')
+const pressRule = (state: string) => KEYS.map(([k, t]) => `${state} .mu-piano .pn-k${k} { animation: ${named('pn-press', k, t)} ${PASS.total}s ${t[0]}s infinite; }`).join('\n')
+const buzzRule = (state: string) => STRUCK_GROUPS.map(([g, t]) => `${state} .mu-piano .pn-g${g} { animation: ${named('pn-buzz', g, t)} ${PASS.total}s ${t[0]}s infinite; }`).join('\n')
+
+/* ============================================================
+   Click score · the lid knocks as it lifts; as the prop swings up a pedalled D major chord rings (D2 D3 A3 D4 F♯4); closing, the lid lands with a dull thud
+   ============================================================ */
+const PROP_AT = .12
+const CHORD: [number, boolean][] = [[10, false], [17, false], [21, false], [24, false], [26, true]]
+export const PIANO_SCORE: Score = {
+  open: [{ at: 0, dur: .22, part: 'lid', sound: { kind: 'noise', noise: 'wood' }, level: .45 }, ...CHORD.map(([white, sharp]) => ({ at: PROP_AT, dur: 1.55, part: `k${white}`, sound: { kind: 'piano' as const, white, sharp }, level: .55 }))],
+  close: [{ at: .3, dur: .4, part: 'lid', sound: { kind: 'noise', noise: 'thud' }, level: 1 }],
+  hoverIn: [],
+  loops: [{ when: { typing: true }, ...PHRASE_LOOP }, { when: { hover: true }, ...PHRASE_LOOP }],
+  limit: 1.8,
+}
 
 export const PIANO_CSS = `
-@keyframes pn-press { 0% { fill: var(--pap); } 3% { fill: var(--ink); } 13% { fill: var(--ink); } 18% { fill: var(--pap); } 100% { fill: var(--pap); } }
-${buzzFrames('pn-buzz', 'Y', 18, .8)}
-${riseFrames('pn-up', 26, -88, 46)}
-@keyframes pn-draw { 0% { stroke-dashoffset: ${SPAN}; opacity: 1; } 92% { stroke-dashoffset: 0; opacity: 1; } 97%, 100% { stroke-dashoffset: 0; opacity: 0; } }
+${restFrames(PRESS, LOOP, PASS)}${repeated('pn-press', PRESS, KEYS)}
+${restFrames(buzzFrames('pn-buzz', 'Y', 18, .8), LOOP, PASS)}${repeated('pn-buzz', buzzFrames('pn-buzz', 'Y', 18, .8), STRUCK_GROUPS)}
+${restFrames(riseFrames('pn-up', 26, -88, 46), LOOP, PASS)}
+${restFrames(`@keyframes pn-draw { 0% { stroke-dashoffset: ${SPAN}; opacity: 1; } 92% { stroke-dashoffset: 0; opacity: 1; } 97%, 100% { stroke-dashoffset: 0; opacity: 0; } }`, LOOP, PASS)}
 .mu-piano .pn-g { transform-box: fill-box; }
 .mu-piano .pn-rise, .mu-piano .pn-at { opacity: 0; }
 .mu-piano .pn-sl { stroke-dasharray: ${SPAN}; stroke-dashoffset: ${SPAN}; }
@@ -243,11 +275,11 @@ ${pressRule('.iso-host:hover')}
 ${pressRule('.iso-host.is-typing')}
 ${buzzRule('.iso-host:hover')}
 ${buzzRule('.iso-host.is-typing')}
-.iso-host:hover:not(.is-typing) .mu-piano .pn-rise { animation: pn-up ${LOOP}s cubic-bezier(.3,.6,.4,1) infinite; }
-.iso-host.is-typing .mu-piano .pn-sl { animation: pn-draw ${LOOP}s linear infinite; }
+.iso-host:hover:not(.is-typing) .mu-piano .pn-rise { animation: pn-up ${PASS.total}s cubic-bezier(.3,.6,.4,1) infinite; }
+.iso-host.is-typing .mu-piano .pn-sl { animation: pn-draw ${PASS.total}s linear infinite; }
 ${showFrames}
 .mu-piano .pn-lid { transform: rotate(0deg); transition: transform 900ms cubic-bezier(.32,.72,0,1); }
-.mu-piano .pn-prop { transform: rotate(0deg); transition: transform 700ms cubic-bezier(.32,.72,0,1) 120ms; }
+.mu-piano .pn-prop { transform: rotate(0deg); transition: transform 700ms cubic-bezier(.32,.72,0,1) ${ms(PROP_AT)}ms; }
 .iso-host[data-open] .mu-piano .pn-lid { transform: rotate(-22deg); }
 .iso-host[data-open] .mu-piano .pn-prop { transform: rotate(-92deg); }
 `

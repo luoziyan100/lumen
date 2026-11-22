@@ -1,13 +1,16 @@
 /**
- * [INPUT]: the engraving kit of ./line.ts
- * [OUTPUT]: standSvg(): LEGGIO · II, an orchestral music stand holding an open score with a dip pen on the right page (640×400) for the empty Board; STAND_CSS; STAND_PHRASE (the written strokes, for the tests)
+ * [INPUT]: the engraving kit of ./line.ts; the Score type and ms from ./pitch.ts
+ * [OUTPUT]: standSvg(): LEGGIO · II, an orchestral music stand holding an open score with a dip pen on the right page (640×400) for the empty Board; STAND_CSS; STAND_SCORE (the click score); STAND_PHRASE (the written strokes, for the tests)
  * [POS]: music object M2, the counterpart of the easel, same viewBox so the board host's layout holds. The pen's path is solved from the phrase it writes:
  *        every stroke (a note head loop, a stem, a flag, a beam) is one curve; its ink is revealed by stroke-dashoffset over its own share of the write time,
  *        and the pen's keyframes are sampled from the same curves by arc length, so the nib always sits on the drawing head and lifts between strokes.
- *        Click turns the right-hand leaf over the spine: its printed face hides at the half-turn, the pre-mirrored back face shows, and a fresh page lies beneath
+ *        Click turns the right-hand leaf over the spine: its printed face hides at the half-turn, the pre-mirrored back face shows, and a fresh page lies beneath.
+ *        The half-turn time is the flap's time in STAND_SCORE
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { circle, curve, hatch, knurl, line, note, path, plate, r, rect, screw, shadow, shadowDef, type Curve, type Seg } from './line.ts'
+import { cycle, restFrames } from './cycle.ts'
+import { ms, type Cue, type Score } from './pitch.ts'
 
 const P = 'ms-'
 const DESK = { x0: 160, x1: 480, top: 36, bottom: 236 }
@@ -146,32 +149,47 @@ export function standSvg() {
 /* ============================================================
    Motion · one table of strokes drives the ink and the pen
    ============================================================ */
+const PASS = cycle(LOOP)
 const motion = (() => {
   let done = 0, penFrames = '', inkRules = '', inkFrames = ''
+  const strokes: Cue[] = []
   STAND_PHRASE.forEach((c, i) => {
     const from = done / TOTAL * WRITE_PCT, to = (done + c.length) / TOTAL * WRITE_PCT
     for (const s of c.every(Math.max(1.2, c.length / 14))) penFrames += `${r((done + s.s) / TOTAL * WRITE_PCT)}% { transform: translate(${r(s.p[0])}px, ${r(s.p[1])}px); } `
     const end = c.at(c.length).p
     penFrames += `${r(to)}% { transform: translate(${r(end[0])}px, ${r(end[1])}px); } `
     const L = r(c.length + .5)
-    inkFrames += `@keyframes ${P}w${i} { 0%, ${r(from)}% { stroke-dashoffset: ${L}; opacity: 1; } ${r(to)}% { stroke-dashoffset: 0; } 94% { stroke-dashoffset: 0; opacity: 1; } 99%, 100% { stroke-dashoffset: 0; opacity: 0; } }\n`
-    inkRules += `.iso-host:hover .mu-stand .${P}ink${i} { animation: ${P}w${i} ${LOOP}s linear infinite; }\n`
+    inkFrames += restFrames(`@keyframes ${P}w${i} { 0%, ${r(from)}% { stroke-dashoffset: ${L}; opacity: 1; } ${r(to)}% { stroke-dashoffset: 0; } 94% { stroke-dashoffset: 0; opacity: 1; } 99%, 100% { stroke-dashoffset: 0; opacity: 0; } }`, LOOP, PASS)
+    inkRules += `.iso-host:hover .mu-stand .${P}ink${i} { animation: ${P}w${i} ${PASS.total}s linear infinite; }\n`
+    strokes.push({ at: r(from / 100 * LOOP), dur: r(Math.max(.04, (to - from) / 100 * LOOP - .02)), part: `ink${i}`, sound: { kind: 'noise', noise: 'nib' }, level: .5 })
     done += c.length
   })
   const [sx, sy] = STAND_PHRASE[0]!.at(0).p
-  penFrames = `@keyframes ${P}write { 0% { transform: translate(${r(sx)}px, ${r(sy)}px); } ${penFrames}94% { transform: translate(${r(sx + 118)}px, ${r(sy - 6)}px); } 100% { transform: translate(${r(sx)}px, ${r(sy)}px); } }`
-  return { penFrames, inkFrames, inkRules }
+  penFrames = restFrames(`@keyframes ${P}write { 0% { transform: translate(${r(sx)}px, ${r(sy)}px); } ${penFrames}94% { transform: translate(${r(sx + 118)}px, ${r(sy - 6)}px); } 100% { transform: translate(${r(sx)}px, ${r(sy)}px); } }`, LOOP, PASS)
+  return { penFrames, inkFrames, inkRules, strokes }
 })()
+
+/* ============================================================
+   Click score · the leaf rustles over (a swept noise, no tone), with a soft flap as it passes upright and swaps faces; turning back is shorter
+   ============================================================ */
+const UPRIGHT = .45
+export const STAND_SCORE: Score = {
+  open: [{ at: 0, dur: .9, part: 'leaf', sound: { kind: 'noise', noise: 'paper' }, level: .8 }, { at: UPRIGHT, dur: .14, part: 'front', sound: { kind: 'noise', noise: 'flap' }, level: .5 }],
+  close: [{ at: 0, dur: .6, part: 'leaf', sound: { kind: 'noise', noise: 'paper' }, level: .8 }, { at: UPRIGHT, dur: .14, part: 'front', sound: { kind: 'noise', noise: 'flap' }, level: .4 }],
+  hoverIn: [],
+  loops: [{ when: { hover: true }, cycle: PASS, clock: { animation: `${P}write`, target: `${P}pen`, delay: 0 }, cues: motion.strokes }],
+  limit: 1.8,
+}
 
 export const STAND_CSS = `
 ${motion.penFrames}
 ${motion.inkFrames}
-.iso-host:hover .mu-stand .${P}pen { animation: ${P}write ${LOOP}s linear infinite; }
+.iso-host:hover .mu-stand .${P}pen { animation: ${P}write ${PASS.total}s linear infinite; }
 ${motion.inkRules}
 .mu-stand .${P}leaf { transform: scaleX(1); transition: transform 900ms cubic-bezier(.45,.05,.35,1); }
 .iso-host[data-open] .mu-stand .${P}leaf { transform: scaleX(-1); }
-.mu-stand .${P}front { opacity: 1; transition: opacity 0s 450ms; }
-.mu-stand .${P}back { opacity: 0; transition: opacity 0s 450ms; }
+.mu-stand .${P}front { opacity: 1; transition: opacity 0s ${ms(UPRIGHT)}ms; }
+.mu-stand .${P}back { opacity: 0; transition: opacity 0s ${ms(UPRIGHT)}ms; }
 .iso-host[data-open] .mu-stand .${P}front { opacity: 0; }
 .iso-host[data-open] .mu-stand .${P}back { opacity: 1; }
 `

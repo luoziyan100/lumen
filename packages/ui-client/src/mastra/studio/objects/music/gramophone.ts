@@ -1,6 +1,6 @@
 /**
- * [INPUT]: the engraving kit of ./line.ts; the 3D horn of ./horn.ts (hornSvg, hornAt)
- * [OUTPUT]: gramophoneSvg(): GRAMMOFONO · III, a horn gramophone (640×400) for the empty Takeaways view; GRAMOPHONE_CSS; GRAMOPHONE_ARM (pivot, arm length and the solved angles, for the tests)
+ * [INPUT]: the engraving kit of ./line.ts; the 3D horn of ./horn.ts (hornSvg, hornAt); the Score type from ./pitch.ts
+ * [OUTPUT]: gramophoneSvg(): GRAMMOFONO · III, a horn gramophone (640×400) for the empty Takeaways view; GRAMOPHONE_CSS; GRAMOPHONE_SCORE (the click score); GRAMOPHONE_ARM (pivot, arm length and the solved angles, for the tests)
  * [POS]: music object M3, the counterpart of the press. A near-cubic wooden case (mouldings, corner posts, panelled front and side, winding crank on the right) in cabinet oblique;
  *        the record nearly fills the top face. The top face, the record, the turntable and the tone arm share one plane, projected by one matrix (depth recedes up-right by kx, ky).
  *        The tapered tone arm turns about a swivel at the back right; its angle for a groove radius is solved from two circles (pivot, ARM) and (centre, radius), so the needle lands on the groove.
@@ -8,11 +8,13 @@
  *        The horn is a 3D surface on one spine (SPINE): its gooseneck rises from the swivel and bends into a petalled bell that opens toward the viewer's left, so the mouth shows its throat.
  *        A bracket from the back of the case holds the tube in a cradle solved from the spine (hornAt). DETAIL A magnifies the soundbox at 3:1.
  *        At rest the arm sits on its post off the record. Hover lowers it onto the outer groove, spins the record and sends notes out of the horn into the blank upper left.
- *        Click walks the needle inward to the run-out groove in 1.4 s
+ *        Click walks the needle inward to the run-out groove; the walk lasts as long as the crackle in GRAMOPHONE_SCORE (1.4 s)
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { circle, curve, dbl, detail, ellipse, hatch, knurl, line, note, path, plate, r, rect, screw, shadow, shadowDef, ticks, type Pt } from './line.ts'
 import { hornAt, hornSvg, type HornSpine } from './horn.ts'
+import { cycle, restFrames } from './cycle.ts'
+import type { Cue, Score } from './pitch.ts'
 
 const P = 'gr-'
 const DECK = { cx: 330, cy: 200, kx: .32, ky: .34, w: 100, d: 100, h: 118 }
@@ -154,16 +156,41 @@ export function gramophoneSvg() {
   return `<svg class="mu mu-gramophone" viewBox="0 0 640 400" role="img" aria-hidden="true">${body}</svg>`
 }
 
+/* ============================================================
+   Click score · the needle drops, the groove crackles while the arm walks in, and a muffled line of the record's own tune (D major, made here) plays and fades as the needle stops;
+   closing lifts the needle and the crackle stops with the fade
+   ============================================================ */
+const WALK = 1.4
+const LINE: [number, number, number][] = [[4, .19, .5], [5, .19, .5], [4, .19, .5], [2, .19, .48], [1, .19, .44], [2, .19, .38], [0, .24, .3]]
+/* The record's cycle · four turns (6.4 s, the hover notes rise within it) with the groove's crackle and the line played slowly, then the record stops and rests as long */
+const TURN = 1.6, PASS = cycle(4 * TURN)
+const SIDE: Cue[] = [
+  { at: .3, dur: r(PASS.run - .3), part: 'spin', sound: { kind: 'noise', noise: 'crackle' }, level: .3 },
+  ...LINE.map(([degree, , level], i) => ({ at: r(.5 + i * .8), dur: .75, part: 'spin', sound: { kind: 'phono' as const, degree }, level })),
+]
+const SIDE_LOOP = { cycle: PASS, clock: { animation: `${P}turn`, target: `${P}spin`, delay: 0 }, cues: SIDE }
+export const GRAMOPHONE_SCORE: Score = {
+  open: [
+    { at: 0, dur: .12, part: 'sb', sound: { kind: 'noise', noise: 'needle' }, level: .7 },
+    { at: 0, dur: WALK, part: 'arm', sound: { kind: 'noise', noise: 'crackle' }, level: .35 },
+    ...LINE.map(([degree, dur, level], i) => ({ at: r(.14 + i * .17), dur, part: 'spin', sound: { kind: 'phono' as const, degree }, level })),
+  ],
+  close: [{ at: 0, dur: .09, part: 'sb', sound: { kind: 'noise', noise: 'lift' }, level: .6 }],
+  hoverIn: [{ at: .3, dur: .12, part: 'sb', sound: { kind: 'noise', noise: 'needle' }, level: .6 }],
+  loops: [{ when: { open: true }, ...SIDE_LOOP }, { when: { hover: true }, ...SIDE_LOOP }],
+  limit: 1.8,
+}
+
 export const GRAMOPHONE_CSS = `
-@keyframes ${P}turn { to { transform: rotate(360deg); } }
-@keyframes ${P}up { 0% { opacity: 0; transform: translate(0, 0); } 10% { opacity: 1; } 60% { opacity: .8; } 80%, 100% { opacity: 0; transform: translate(-56px, -60px); } }
+${restFrames(`@keyframes ${P}turn { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`, TURN, PASS, 4)}
+${restFrames(`@keyframes ${P}up { 0% { opacity: 0; transform: translate(0, 0); } 10% { opacity: 1; } 60% { opacity: .8; } 80%, 100% { opacity: 0; transform: translate(-56px, -60px); } }`, 3.2, PASS)}
 .mu-gramophone .${P}n { opacity: 0; }
 .mu-gramophone .${P}arm { transform: rotate(${r(GRAMOPHONE_ARM.rest)}deg); transition: transform 900ms cubic-bezier(.32,.72,0,1); }
 .mu-gramophone .${P}sb { transform: rotate(${r(-GRAMOPHONE_ARM.rest)}deg); transition: transform 900ms cubic-bezier(.32,.72,0,1); }
 .iso-host:hover .mu-gramophone .${P}arm { transform: rotate(${r(GRAMOPHONE_ARM.outer)}deg); }
 .iso-host:hover .mu-gramophone .${P}sb { transform: rotate(${r(-GRAMOPHONE_ARM.outer)}deg); }
-.iso-host[data-open] .mu-gramophone .${P}arm { transform: rotate(${r(GRAMOPHONE_ARM.inner)}deg); transition: transform 1.4s cubic-bezier(.45,.05,.35,1); }
-.iso-host[data-open] .mu-gramophone .${P}sb { transform: rotate(${r(-GRAMOPHONE_ARM.inner)}deg); transition: transform 1.4s cubic-bezier(.45,.05,.35,1); }
-.iso-host:hover .mu-gramophone .${P}spin, .iso-host[data-open] .mu-gramophone .${P}spin { animation: ${P}turn 1.6s linear infinite; }
-.iso-host:hover .mu-gramophone .${P}n { animation: ${P}up 3.2s cubic-bezier(.3,.6,.4,1) infinite; }
+.iso-host[data-open] .mu-gramophone .${P}arm { transform: rotate(${r(GRAMOPHONE_ARM.inner)}deg); transition: transform ${WALK}s cubic-bezier(.45,.05,.35,1); }
+.iso-host[data-open] .mu-gramophone .${P}sb { transform: rotate(${r(-GRAMOPHONE_ARM.inner)}deg); transition: transform ${WALK}s cubic-bezier(.45,.05,.35,1); }
+.iso-host:hover .mu-gramophone .${P}spin, .iso-host[data-open] .mu-gramophone .${P}spin { animation: ${P}turn ${PASS.total}s linear infinite; }
+.iso-host:hover .mu-gramophone .${P}n { animation: ${P}up ${PASS.total}s cubic-bezier(.3,.6,.4,1) infinite; }
 `

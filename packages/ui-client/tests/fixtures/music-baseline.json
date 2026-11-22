@@ -1,0 +1,20 @@
+{
+ "words": {
+  "stamp": "No. 3",
+  "lines": [
+   "A takeaway",
+   "two lines"
+  ]
+ },
+ "svg": {
+  "all": "c089ae780362d18b38fc9eb4a7ff2bd1f85d22ba4460785e49b6626c7db8eb6e",
+  "board": "ea298d0a3d7f3fab8bd51b251770e5ebdcd0fb4a458845cdc6808a51a170632e",
+  "box": "3bbba6d0eebf1fb1b445f989ba9645d098c0da3a215c51168dbc813a6854c94a",
+  "ideas": "7bb428510cc87fda6e2adbe048933c3c4511814e45c66f8aaeef8ea0cb497f3a",
+  "map": "4fc28952ed286988f38299d0273b4ccce051e07241145280a0f34e5350d08c77",
+  "materials": "d5ed7243580f9f458fd71e336b3406594c2f3771e55af81fd7997b8a165e1b38",
+  "reading": "a456435933f8ce7e47afc3eddfaa3e6976e512fbe18bd37a11d1ac9f6fc981e4",
+  "takeaways": "39c289e3dc817c9443611da98c48d7e02a73bb62385bd3f73369f2fac46372f6"
+ },
+ "css": "e2f0305ad1507ae6e000398785b35f740ffa271f8db0923513b6226b4566013c"
+}
