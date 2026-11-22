@@ -3,14 +3,16 @@
  *          the browser's Web Audio (AudioContext, GainNode), Web Animations (getAnimations, read only) and IntersectionObserver
  * [OUTPUT]: Engine (the one seam to the sound source), Player (schedules shots and loop passes on any context through an Engine, e.g. an OfflineAudioContext),
  *           shotFor / loopFor (the one rule for which shot a state change plays and which loop a state runs), planMotion / renderPlan (a timed run of states as the engine would sound it),
- *           motionMusic(slot, motion, host) (the host's state changed: hover, open, typing, or null when it unmounts), unlockMusic() (make or resume the AudioContext inside a user gesture),
- *           armMusic() (unlock on the next pointerdown or keydown), muteMusic() (fade everything and suspend)
+ *           motionMusic(slot, motion, host) (the host's state changed: hover, open, typing, or null when it unmounts), unlockMusic(make?) (make or resume the AudioContext inside a user gesture;
+ *           `make` builds the engine on it, the Sampler by default),
+ *           armMusic() (sound is wanted again; unlock on the next pointerdown or keydown unless muted before it), muteMusic() (fade everything and suspend)
  * [POS]: the music set's scheduling, the only place that decides when a sound starts and stops; what a cue sounds like is the Engine's (sampler.ts plays recordings; the tests use a fake).
  *        Every sound is a named part of an object's score: open, close, hoverIn (one-shots) and loop0…n (one pass of a loop); each slot has a shot bus and a loop bus into one master.
  *        motionMusic plays the one-shot of a state change (a new shot fades the last within 50 ms and ducks the loop for its length) and keeps the loop of the first matching state:
  *        before each pass it reads the clock animation's currentTime, delay and duration, so every pass starts on the animation's own iteration and never drifts; a pass's cues count
  *        from the end of its cycle's lead, which lets the first cue be scheduled ahead of the motion. A changed state fades the old loop within 80 ms; a loop whose animation runs on
- *        (the same clock and cycle) plays on. Only one object sounds at a time: the one under the pointer, else the one that most recently began to sound; the others move on muted
+ *        (the same clock and cycle) plays on. Only one object sounds at a time: the one under the pointer, else the one that most recently began to sound (a click's one-shot
+ *        counts while it rings, so a click before the hover is confirmed still sounds); the others move on muted
  *        (80 ms fade) and, when their turn comes back, sound again from the start of their next pass, never from the middle.
  *        Nothing is fetched and nothing sounds before a context exists: only unlockMusic makes one (the switch turned on, or the first pointerdown/keydown after armMusic). From then
  *        on each object's recordings load as soon as its host is in view; a pass whose recordings are not ready is skipped, never replayed late. Reduced motion is silent
@@ -23,8 +25,9 @@ import { Sampler } from './sampler.ts'
 
 const SHOT_FADE = .05, LOOP_FADE = .08, HIDDEN = .08, LATE = .03, AHEAD = .3, FRESH = 50
 
-/** What a cue sounds like: whether a part's sounds are ready, its levelling gain, how long it sounds (s), and starting one cue at a context time into a bus */
+/** What a cue sounds like: loading a slot's sounds, whether a part's sounds are ready, its levelling gain, how long it sounds (s), and starting one cue at a context time into a bus */
 export interface Engine {
+  prepare(slot: MusicSlot): Promise<void>
   ready(slot: MusicSlot, part: string): boolean
   level(slot: MusicSlot, part: string): number
   length(slot: MusicSlot, part: string): number
@@ -165,9 +168,9 @@ export function renderPlan(ac: BaseAudioContext, engine: Engine, slot: MusicSlot
 /* ============================================================
    Motion · the app's host states drive shots and loop passes on the live context
    ============================================================ */
-interface Watch { motion: Motion; host: Element | null; loop: number; key: string; token: number; timer: ReturnType<typeof setTimeout> | null; last: number; since: number; resume: boolean }
+interface Watch { motion: Motion; host: Element | null; loop: number; key: string; token: number; timer: ReturnType<typeof setTimeout> | null; last: number; since: number; ringing: number; resume: boolean }
 const watches = new Map<MusicSlot, Watch>()
-let context: AudioContext | null = null, sampler: Sampler | null = null, player: Player | null = null, muted = false, owner: MusicSlot | null = null
+let context: AudioContext | null = null, engine: Engine | null = null, player: Player | null = null, muted = false, owner: MusicSlot | null = null
 let sight: IntersectionObserver | null = null
 const seen = new WeakMap<Element, MusicSlot>()
 
@@ -176,14 +179,14 @@ const live = () => !!player && !muted && !reduced() && !(typeof document !== 'un
 
 /** Load a slot's recordings once its host is in view (at once where IntersectionObserver is missing) */
 function look(slot: MusicSlot, host: Element | null) {
-  if (!sampler || !host || seen.has(host)) return
+  if (!engine || !host || seen.has(host)) return
   seen.set(host, slot)
-  if (typeof IntersectionObserver === 'undefined') { void sampler.prepare(slot); return }
+  if (typeof IntersectionObserver === 'undefined') { void engine.prepare(slot); return }
   sight ??= new IntersectionObserver(entries => {
     for (const entry of entries) {
       if (!entry.isIntersecting) continue
       sight!.unobserve(entry.target)
-      void sampler!.prepare(seen.get(entry.target)!)
+      void engine!.prepare(seen.get(entry.target)!)
     }
   })
   sight.observe(host)
@@ -237,12 +240,12 @@ function retune(slot: MusicSlot, w: Watch) {
   requestAnimationFrame(() => requestAnimationFrame(() => pump(slot, w, token)))
 }
 
-/** Give the turn to the slot under the pointer, else to the one that most recently began to sound; the one losing it fades, the one regaining it resumes at its next pass */
+/** Give the turn to the slot under the pointer, else to the one that most recently began to sound (a loop, or a one-shot still ringing); the one losing it fades, the one regaining it resumes at its next pass */
 function elect() {
   let next: MusicSlot | null = null, latest = -Infinity
   for (const [slot, w] of watches) {
     if (w.motion.hover) { next = slot; break }
-    if (w.loop >= 0 && w.since > latest) { latest = w.since; next = slot }
+    if ((w.loop >= 0 || w.ringing > performance.now()) && w.since > latest) { latest = w.since; next = slot }
   }
   if (next === owner) return
   if (owner && player) { player.stopLoop(owner); player.stopShot(owner, LOOP_FADE) }
@@ -254,30 +257,32 @@ function elect() {
 }
 
 export function motionMusic(slot: MusicSlot, motion: Motion | null, host: Element | null = null) {
-  const w = watches.get(slot) ?? { motion: REST, host, loop: -1, key: '', token: 0, timer: null, last: -Infinity, since: -Infinity, resume: false }
+  const w = watches.get(slot) ?? { motion: REST, host, loop: -1, key: '', token: 0, timer: null, last: -Infinity, since: -Infinity, ringing: -Infinity, resume: false }
   watches.set(slot, w)
   const before = w.motion
   w.motion = motion ?? REST
   w.host = host
   look(slot, host)
   if (!motion) { retune(slot, w); player?.stopShot(slot, LOOP_FADE); watches.delete(slot); elect(); return }
-  if (motion.hover && !before.hover) w.since = performance.now()
+  const change = live() ? shotFor(before, motion) : null
+  if ((motion.hover && !before.hover) || (change && change !== 'stop')) w.since = performance.now()
+  if (change && change !== 'stop') w.ringing = w.since + player!.engine.length(slot, change) * 1000
   retune(slot, w)
   elect()
-  const shot = live() && owner === slot ? shotFor(before, motion) : null
+  const shot = owner === slot ? change : null
   if (shot === 'stop') player!.stopShot(slot, LOOP_FADE)
   else if (shot) player!.shot(slot, shot, context!.currentTime)
 }
 
 function retuneAll() { for (const [slot, w] of watches) { w.key = '\u0000'; retune(slot, w) } elect() }
 
-export function unlockMusic() {
+export function unlockMusic(make: (ac: AudioContext) => Engine = ac => new Sampler(ac)) {
   if (typeof AudioContext === 'undefined') return
   muted = false
   if (!context) {
     context = new AudioContext()
-    sampler = new Sampler(context)
-    player = new Player(context, sampler)
+    engine = make(context)
+    player = new Player(context, engine)
     document.addEventListener('visibilitychange', () => { if (document.hidden) player?.silence(HIDDEN); retuneAll() })
   }
   if (context.state === 'suspended') void context.resume()
@@ -287,6 +292,7 @@ export function unlockMusic() {
 
 export function armMusic() {
   if (typeof window === 'undefined') return
+  muted = false
   const once = () => { window.removeEventListener('pointerdown', once, true); window.removeEventListener('keydown', once, true); if (!muted) unlockMusic() }
   window.addEventListener('pointerdown', once, true)
   window.addEventListener('keydown', once, true)

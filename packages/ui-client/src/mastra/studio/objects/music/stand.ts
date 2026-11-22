@@ -161,7 +161,7 @@ const motion = (() => {
     const L = r(c.length + .5)
     inkFrames += restFrames(`@keyframes ${P}w${i} { 0%, ${r(from)}% { stroke-dashoffset: ${L}; opacity: 1; } ${r(to)}% { stroke-dashoffset: 0; } 94% { stroke-dashoffset: 0; opacity: 1; } 99%, 100% { stroke-dashoffset: 0; opacity: 0; } }`, LOOP, PASS)
     inkRules += `.iso-host[data-hover] .mu-stand .${P}ink${i} { animation: ${P}w${i} ${PASS.total}s linear infinite; }\n`
-    strokes.push({ at: r(from / 100 * LOOP), dur: r(Math.max(.04, (to - from) / 100 * LOOP - .02)), part: `ink${i}`, sound: { kind: 'noise', noise: 'pen' }, level: .5 })
+    strokes.push({ at: Math.round(from * LOOP * 10) / 1000, dur: r(Math.max(.04, (to - from) / 100 * LOOP - .02)), part: `ink${i}`, sound: { kind: 'noise', noise: 'pen' }, level: .5 })
     done += c.length
   })
   const [sx, sy] = STAND_PHRASE[0]!.at(0).p
