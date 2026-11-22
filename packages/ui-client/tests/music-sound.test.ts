@@ -2,7 +2,7 @@
  * [INPUT]: MUSIC_SCORES, MUSIC_OBJECTS, MUSIC_CSS, partsOf and partCues from objects/music/index.ts; the pitch map of music/pitch.ts; LEAD of music/cycle.ts; SAMPLES, MAX_SHIFT and
  *          sampleFor of music/samples.ts; attackOffset of music/sampler.ts; Player, shotFor, loopFor, planMotion, motionMusic, unlockMusic and muteMusic of music/sound.ts under a recording
  *          AudioContext stand-in and a fake Engine; samples/ and samples/SOURCES.md; the baseline in fixtures/music-baseline.json
- * [OUTPUT]: evidence that one score drives both readers: every loop's clock rule carries its cycle and delay, and every part's loop delay equals its first cue; every loop rests at least
+ * [OUTPUT]: evidence that one score drives both readers: every loop's clock rule carries its cycle and delay, and every part starts at its first cue, by its CSS delay or by its keyframes (within 1.5 ms); every loop rests at least
  *           max(run, 4 s) with its motion and its cues inside the pass; the eight SVGs and every rule without an animation (the click's one-shots and the static styles) match the
  *           pre-task baseline; pitched cues follow the one map (D major, except the drawn piano keys and the open strings); every cue finds a registered CC0 recording within ±3 semitones,
  *           SOURCES.md and samples/ match one to one, the set stays under 2 MB; the attack offset finds padded silence within 1 ms; and the scheduling, through a fake engine (no sound),
