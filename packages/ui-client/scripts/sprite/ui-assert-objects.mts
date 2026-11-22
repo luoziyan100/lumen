@@ -25,7 +25,7 @@ import { spawn } from 'node:child_process'
 import { assertPortFree, assertRoot } from './assert-env.ts'
 import { compactNav, spriteUnderNav, tipChecks } from './nav-tips.ts'
 import { KITS, listenAudio, notesClear, pickKit, pixelDiff, seedKit, still, type Kit } from './music-checks.ts'
-import { headChecks, soundChecks } from './music-sound-checks.ts'
+import { headChecks, soundChecks, webkitSound } from './music-sound-checks.ts'
 import { writeFile } from 'node:fs/promises'
 import { createHttpService } from '../../../mastra-service/src/server.ts'
 import { acquireServiceLock } from '../../../mastra-service/src/deployment/lock.ts'
@@ -548,9 +548,11 @@ try {
 }
 
 // ---- WebKit: rest and open of the four objects ----
-if (FOCUS) { console.log(results.join('\n')); console.log(`\n${results.length - failed}/${results.length} passed`); process.exit(failed ? 1 : 0) }
+if (SWITCH_ONLY) { console.log(results.join('\n')); console.log(`\n${results.length - failed}/${results.length} passed`); process.exit(failed ? 1 : 0) }
 const wk = await webkit.launch()
 try {
+  if (MUSIC) await webkitSound({ open, pick, view, check, sleep, catalogs, browser: wk, out, BLANK, READ })
+  if (!SOUND_ONLY) {
   // Taller than the Chromium passes: the boundary check above left more topics than a 900px panel has room for beside the box
   const { context, page, errors } = await open(wk, { locale: 'zh', w: 1440, h: 1400 })
   const S = catalogs.zh.studio
@@ -580,6 +582,7 @@ try {
   check('WebKit 无控制台错误', errors.length === 0, errors.slice(0, 2).join(' | '))
   await context.close()
   for (const locale of ['zh', 'en']) await tooltips(wk, 'webkit', locale, 'Alt+Tab')
+  }
 } finally {
   await wk.close()
 }

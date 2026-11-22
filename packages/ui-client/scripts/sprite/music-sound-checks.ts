@@ -1,12 +1,13 @@
 /**
  * [INPUT]: the studio page helpers of ui-assert-objects.mts (open, pick, view, check, sleep, the locale catalogs, the seeded topic titles); window.__audio from listenAudio and pixelDiff of
  *          ./music-checks.ts; MUSIC_SCORES of objects/music/index.ts and slotSamples of objects/music/sampler.ts (which recordings each object plays)
- * [OUTPUT]: soundChecks(ctx) (the live sound of the music kit in Chromium), headChecks(ctx) (the header speaker button: kit, sync with Settings, title, no overlap and a centred navigation)
+ * [OUTPUT]: soundChecks(ctx) (the live sound of the music kit in Chromium), webkitSound(ctx) (WebKit: off makes no context, on a click sounds), headChecks(ctx) (the header speaker button: kit, sync with Settings, title, no overlap and a centred navigation)
  * [POS]: the music kit's R4 browser checks, called by ui-assert-objects.mts under KIT=music; kept apart so that script stays one flow under its size limit. Sound is read from what the page
  *        schedules (every recording source and its start, heard time and stop, every gain ramp to 0), never from a speaker; onset and pitch of the recordings are measured offline by
  *        scripts/objects/music-audio.mts. Checks: off → no recording requested and no AudioContext; on at start → nothing before the first pointerdown, then the recordings of the objects
  *        in view, each once; on in the session (the header button) → a hover within 500 ms sounds its first pass; a missing recording → no page error, one console line, that object
- *        silent and the others not; leaving fades every source within 80 ms; the harp's sound over three passes keeps within 20 ms of its animation, nothing starts in a rest and the
+ *        silent and the others not; leaving fades every source within 80 ms; a second click within 300 ms fades the first shot within 60 ms; a hidden window
+ *        fades within 100 ms; the switch turned off leaves later clicks silent and the context suspended; the harp's sound over three passes keeps within 20 ms of its animation, nothing starts in a rest and the
  *        picture holds still; reduced motion starts nothing
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -97,6 +98,26 @@ export async function soundChecks(c: Ctx) {
     await page.mouse.move(4, 450); await sleep(400)
     const faded = await audio(page), worst = Math.max(0, ...faded.sources.map(s => s.stop - leave))
     check('鼠标离开：每个已开始与已排定的声音 80ms 内淡出（停止 ≤ 离开 + 80ms 淡出 + 10ms 尾 + 20ms 读数余量）', faded.sources.length > 0 && worst <= .11 && faded.ramps.some(r => r.now >= leave - .01 && r.end - leave <= .1), `${(worst * 1000).toFixed(0)} ms over ${faded.sources.length}`)
+    const clicked = (await audio(page)).sources.length
+    await page.click(piano); await sleep(120)
+    const opened = (await audio(page)).sources.slice(clicked).map((_, i) => clicked + i), second = await now(page)
+    await page.click(piano); await sleep(300)
+    const twice = await audio(page), fade = twice.ramps.find(r => r.now >= second && r.end - r.now <= .06)
+    const cut = fade ? Math.max(...opened.map(i => twice.sources[i]!.stop - fade.now)) : Infinity
+    check('连点（300ms 内两次）：第一个声音从第二次点击起 60ms 内降到 −60 dB 以下（斜坡到 0 ≤ 60ms，源停止 ≤ 60ms + 10ms 尾）', opened.length > 0 && !!fade && cut <= .07 + 1e-3, `${opened.length} 个，斜坡 ${fade ? ((fade.end - fade.now) * 1000).toFixed(0) : '—'} ms，停止 ${(cut * 1000).toFixed(0)} ms`)
+    await page.hover(piano); await sleep(1500)
+    const shown = (await audio(page)).sources.length, hiding = await now(page)
+    await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange')) })
+    await sleep(300)
+    const hidden = await audio(page), tail = Math.max(0, ...hidden.sources.map(s => s.stop - hiding))
+    check('隐藏窗口：发声中切到 hidden，100ms 内降到 −60 dB 以下（斜坡 ≤ 80ms，源停止 ≤ 100ms）', shown > 0 && hidden.ramps.some(r => r.now >= hiding - .01 && r.end - r.now <= .08 + .005) && tail <= .1, `${(tail * 1000).toFixed(0)} ms`)
+    await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); document.dispatchEvent(new Event('visibilitychange')) })
+    await page.hover(piano); await sleep(1200)
+    await page.click('.studio-center-head .head-sound'); await sleep(300)
+    const muted = (await audio(page)).sources.length
+    await page.click(piano); await sleep(300); await page.click(piano); await page.hover(cello); await sleep(1200)
+    const after = await audio(page), state = await page.evaluate(() => (window as unknown as { __audio: { ac: AudioContext | null } }).__audio.ac?.state)
+    check('关开关（头部喇叭）：之后点击与悬停不再发声，上下文为 suspended', after.sources.length === muted && state === 'suspended', JSON.stringify({ more: after.sources.length - muted, state }))
     check('会话中打开：无控制台错误', errors.length === 0, errors.slice(0, 2).join(' | '))
     await context.close()
   }
@@ -159,6 +180,21 @@ export async function soundChecks(c: Ctx) {
     const heard = await audio(page)
     check('减弱动效：悬停与点击都不起任何声音节点', heard.sources.length === 0, String(heard.sources.length))
     check('减弱动效（声音开）：无控制台错误', errors.length === 0, errors.slice(0, 2).join(' | '))
+    await context.close()
+  }
+}
+
+/** WebKit's real page: off makes no context; on, a click after the first gesture sounds */
+export async function webkitSound(c: Ctx) {
+  const { open, pick, check, sleep, BLANK } = c, piano = '.reading-typewriter'
+  for (const sounds of [false, true]) {
+    const { context, page, errors } = await open(c.browser, { locale: 'zh', w: 1440, h: 900, sounds })
+    await pick(page, BLANK); await page.waitForSelector(`${piano} svg.mu-piano`); await sleep(1500)
+    await page.click(piano); await sleep(600)
+    const heard = await audio(page)
+    if (sounds) check('WebKit 声音开：点击能发声（录音解码并起了声音节点）', heard.contexts === 1 && heard.sources.length > 0, JSON.stringify({ contexts: heard.contexts, sources: heard.sources.length }))
+    else check('WebKit 声音关：点击与悬停都是 0 个 AudioContext', heard.contexts === 0, String(heard.contexts))
+    check(`WebKit 声音${sounds ? '开' : '关'}：无控制台错误`, errors.length === 0, errors.slice(0, 2).join(' | '))
     await context.close()
   }
 }
