@@ -4,7 +4,8 @@
  * [POS]: the bridge between the appearance preference and the views. StudioApp provides the preference; a view names only its slot and its data.
  *        The markup is rebuilt only when the kit, the slot or the data changes, so polling never restarts an animation. The host is keyed by kit, so a switch starts
  *        from rest. Only in the music kit with the switch on does a host report its motion (hover, open, typing) to the sound engine; without a provider the kit is instruments and silent.
- *        Turned on in this session (a user gesture), it unlocks the AudioContext at once and the recordings of the objects in view start loading; found on at start, it waits
+ *        Turned on in this session (it was off before: a user gesture), it unlocks the AudioContext at once and the recordings of the objects in view start loading; found on at mount
+ *        (the app's start, a remount, or an effect run again by React's StrictMode), it waits
  *        for the first pointerdown or keydown, so nothing loads or sounds before that. Switched off, not one recording is requested. Leaving it (switch off or kit changed) mutes: every sound fades and the AudioContext, if any, is suspended
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -23,13 +24,13 @@ const DeskKitContext = createContext<DeskKit>({ kit: 'instruments', sounds: fals
 export function DeskKitProvider({ kit, sounds, children }: { kit: unknown; sounds: boolean; children: ReactNode }) {
   const value = useMemo(() => ({ kit: deskKit(kit), sounds }), [kit, sounds])
   const audible = value.kit === 'music' && sounds
-  const restored = useRef(true)
+  const last = useRef<boolean | null>(null)
   useEffect(() => {
-    const atStart = restored.current
-    restored.current = false
+    const before = last.current
+    last.current = audible
     if (!audible) { muteMusic(); return }
     armMusic()
-    if (!atStart) unlockMusic()
+    if (before === false) unlockMusic()
   }, [audible])
   return <DeskKitContext.Provider value={value}>{children}</DeskKitContext.Provider>
 }

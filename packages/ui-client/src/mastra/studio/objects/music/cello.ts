@@ -4,7 +4,7 @@
  * [POS]: music object M4, the counterpart of the cabinet, same viewBox so the pane's layout holds. The bow has two poses on one group: leaning (tip on the upper bout, frog on the floor)
  *        and playing (horizontal on the contact line between fingerboard end and bridge). Hover: the four strings hum and notes leave the left f-hole into the blank upper left.
  *        Click swings the bow to the playing pose, then it strokes along its own axis, so the hair never leaves the strings.
- *        The stroke starts at the bowed note's time in CELLO_SCORE
+ *        The stroke starts at the bowed note's time in CELLO_SCORE; its two strokes sound E3, then D3
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { bow, bowedBody } from './bowed.ts'

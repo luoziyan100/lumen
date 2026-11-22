@@ -8,7 +8,8 @@
  *           armMusic() (sound is wanted again; unlock on the next pointerdown or keydown unless muted before it), muteMusic() (fade everything and suspend)
  * [POS]: the music set's scheduling, the only place that decides when a sound starts and stops; what a cue sounds like is the Engine's (sampler.ts plays recordings; the tests use a fake).
  *        Every sound is a named part of an object's score: open, close, hoverIn (one-shots) and loop0…n (one pass of a loop); each slot has a shot bus and a loop bus into one master.
- *        motionMusic plays the one-shot of a state change (a new shot fades the last within 50 ms and ducks the loop for its length) and keeps the loop of the first matching state:
+ *        motionMusic plays the one-shot of a state change (a new shot fades the last within 50 ms and ducks the loop for its length:
+ *        to silence, or to 78% for the piano and the gramophone, whose phrase should carry under a click) and keeps the loop of the first matching state:
  *        before each pass it reads the clock animation's currentTime, delay and duration, so every pass starts on the animation's own iteration and never drifts; a pass's cues count
  *        from the end of its cycle's lead, which lets the first cue be scheduled ahead of the motion. A changed state fades the old loop within 80 ms; a loop whose animation runs on
  *        (the same clock and cycle) plays on. Only one object sounds at a time: the one under the pointer, else the one that most recently began to sound (a click's one-shot
@@ -77,7 +78,7 @@ export class Player {
     for (const source of bus.sources) source.stop(at + seconds + .01)
   }
 
-  /** A one-shot (open, close, hoverIn) at `when`: the slot's last shot fades, its loop ducks under this one for its length; a part with no cues leaves both alone */
+  /** A one-shot (open, close, hoverIn) at `when`: the slot's last shot fades, its loop ducks under this one for its length (to 78% for the piano and the gramophone, else to silence); a part with no cues leaves both alone */
   shot(slot: MusicSlot, part: string, when: number, only?: number) {
     if (!partCues(slot, part).length) return
     const from = Math.max(this.ac.currentTime, when)

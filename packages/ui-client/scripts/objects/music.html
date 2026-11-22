@@ -1567,7 +1567,7 @@ ${motion.inkRules}
       gain.linearRampToValueAtTime(0, at2 + seconds);
       for (const source of bus.sources) source.stop(at2 + seconds + 0.01);
     }
-    /** A one-shot (open, close, hoverIn) at `when`: the slot's last shot fades, its loop ducks under this one for its length; a part with no cues leaves both alone */
+    /** A one-shot (open, close, hoverIn) at `when`: the slot's last shot fades, its loop ducks under this one for its length (to 78% for the piano and the gramophone, else to silence); a part with no cues leaves both alone */
     shot(slot, part, when, only) {
       if (!partCues(slot, part).length) return;
       const from = Math.max(this.ac.currentTime, when);

@@ -1,6 +1,7 @@
 /**
  * [INPUT]: yan-design-system/icons geometry (static SVG markup) and React refs; doc/ui-design.md §3.1 rules for pure strokes, sizes, motion and action meaning
- * [OUTPUT]: currentColor stroke icons for actions, view navigation (Reading · Board · Takeaways · Concept map · Ideas · All), file kinds and Kumo menus (Phosphor Icon compatible), ICON_SM/MD/LG
+ * [OUTPUT]: currentColor stroke icons for actions, view navigation (Reading · Board · Takeaways · Concept map · Ideas · All), file kinds and Kumo menus (Phosphor Icon compatible), ICON_SM/MD/LG;
+ *           SoundOnIcon / SoundOffIcon (speaker with waves / with a slash), the only outlines drawn here rather than in yan-design-system
  * [POS]: the only entry for product icons; one wrapper constrains JSX and menu use alike, and file kinds carry no format-text badges
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -14,14 +15,15 @@ export const ICON_MD = 18
 export const ICON_LG = 20
 
 /** Kumo menus take Phosphor's Icon type, so the same props are accepted; only size, style and mirroring are used. */
-function makeIcon(name: GlyphName, defaultSize = ICON_MD): Icon {
+function drawIcon(name: string, markup: string, defaultSize = ICON_MD): Icon {
   return forwardRef<SVGSVGElement, IconProps>(({ size = defaultSize, className = '', mirrored, style, weight: _w, color: _c, alt: _a, children: _ch, ...props }, ref) => (
     <svg {...props} ref={ref} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}
       strokeLinecap="round" strokeLinejoin="round" className={`lumen-icon li li-${name} ${className}`.trim()}
       style={mirrored ? { ...style, transform: `${style?.transform ?? ''} scaleX(-1)`.trim() } : style} aria-hidden="true" focusable="false"
-      dangerouslySetInnerHTML={{ __html: GLYPHS[name] }} />
+      dangerouslySetInnerHTML={{ __html: markup }} />
   )) as Icon
 }
+const makeIcon = (name: GlyphName, defaultSize = ICON_MD) => drawIcon(name, GLYPHS[name], defaultSize)
 
 // ---- Actions: one meaning keeps one outline everywhere ----
 export const PanelIcon = makeIcon('panel', ICON_LG)
@@ -55,6 +57,11 @@ export const CollapseIcon = makeIcon('collapse', ICON_SM)
 export const ZoomInIcon = makeIcon('zoomIn', ICON_SM)
 export const ZoomOutIcon = makeIcon('zoomOut', ICON_SM)
 export const ManageSkillsIcon = makeIcon('briefcase', ICON_SM)
+
+// ---- Local outlines: not in yan-design-system yet; same 24 grid, pure strokes, to move up later ----
+const SPEAKER = '<path d="M4.5 9.5 H7.5 L12 5.5 V18.5 L7.5 14.5 H4.5 Z"></path>'
+export const SoundOnIcon = drawIcon('soundOn', SPEAKER + '<path d="M15.5 9.5 Q17 12 15.5 14.5"></path><path d="M18 7 Q21.5 12 18 17"></path>')
+export const SoundOffIcon = drawIcon('soundOff', SPEAKER + '<path d="M15.5 9 L20.5 15"></path><path d="M20.5 9 L15.5 15"></path>')
 
 // ---- View navigation, 16 inline ----
 export const ReadingViewIcon = makeIcon('book', ICON_SM)

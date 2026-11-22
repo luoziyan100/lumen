@@ -26,8 +26,8 @@ components/
 - `clipboard.ts`：唯一的剪贴板写入 `copyText`；WebKit 无权限时退回点击内的 execCommand，失败抛出可读错误。消息复制与「⋯」菜单的复制 ID 共用。
 - `Tips.tsx`：全应用唯一提示层，StudioApp 挂一次。组件照写原生 `title`；指针或键盘焦点（:focus-visible）找到最近带 title 的元素，250ms 后用 Kumo tooltip 的类名与箭头画在元素下方（下方放不下翻到上方，夹在视口内）。显示期间 title 移到 `data-tip`，WKWebView 的灰色原生框不出现；隐藏时还原，React 改 title（复制→已复制）由 MutationObserver 接住。iframe、输入框和 svg 内的 title 不接管。样式在 `styles.css` 的 `.lumen-tip`。
 - `ExternalLinkDialog.tsx`：由用户确认外链并保存受信域名，实际打开统一走 openExternalUrl。
-- `icons.tsx`：业务图标唯一入口，统一16/18/20尺寸与导航/菜单 ref 合同(兼容 Kumo 的 Phosphor Icon 类型)；视图导航六个图标(解读 book、白板 presentation、沉淀 stack、概念图 conceptMap、灵感 lightbulb、全部 grid，16)；文件按类别使用简洁轮廓，附件不冒充 PDF。
-- 图标几何与动效在 `yan-design-system`(icons/glyphs.ts、icons/motion.css)；icons.tsx 只做 React 包装与语义映射。
+- `icons.tsx`：业务图标唯一入口，统一16/18/20尺寸与导航/菜单 ref 合同(兼容 Kumo 的 Phosphor Icon 类型)；视图导航六个图标(解读 book、白板 presentation、沉淀 stack、概念图 conceptMap、灵感 lightbulb、全部 grid，16)；文件按类别使用简洁轮廓，附件不冒充 PDF。喇叭 SoundOnIcon/SoundOffIcon(带声波/带斜线)是唯一一组不来自 `yan-design-system` 的图形，本地按同一 24 栅格纯线条绘制，留待上移。
+- 图标几何与动效在 `yan-design-system`(icons/glyphs.ts、icons/motion.css)；icons.tsx 只做 React 包装与语义映射(喇叭两图除外)。
 - `hljs-celadon.css`：消费 token 的代码语法配色。
 - `widget/`：show-widget 解析、HTML/脚本处理、CSP iframe 与跨窗消息边界，见自身地图。
 - `disclosure/`：侧栏、思考、过程、目录和详情共用原卷帘；关闭保留DOM播放退出，焦点由 inert 隔离。

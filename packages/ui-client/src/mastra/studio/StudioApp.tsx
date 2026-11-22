@@ -1,8 +1,9 @@
 /**
- * [INPUT]: components/Tips (the app's one tooltip layer, mounted once here), the service connection, topic/session/board/material/reading data hooks, the one conversation feed (useSessionFeed, read through useFeedSelect), the sprite and reader, settings (specialists pane included), the appearance subscription (it also provides the desk-object kit and sound switch to every DeskObject), the newest takeaway (useSediment.newestTakeaway)
+ * [INPUT]: components/Tips (the app's one tooltip layer, mounted once here), the service connection, topic/session/board/material/reading data hooks, the one conversation feed (useSessionFeed, read through useFeedSelect), the sprite and reader, settings (specialists pane included), the appearance subscription (it also provides the desk-object kit and sound switch to every DeskObject, and the header speaker flips the switch; deskKit from objects/registry, SoundOnIcon/SoundOffIcon from components/icons), the newest takeaway (useSediment.newestTakeaway)
  * [OUTPUT]: StudioApp: the new shell — the prototype v7 skeleton: rounded panels with 8px gaps over the canvas (topics left, center, materials right, docked sprite), every panel's
- *           first row on one 50px header line; the center header holds only the centered view navigation (icon + text, icons alone when narrow; the topic name goes to aria-label and
- *           the window title), and in split view the reader header shares the board header's line; the sprite positions itself on the whole window (no longer inside the board area);
+ *           first row on one 50px header line; the center header holds the centered view navigation (icon + text, icons alone when narrow; the topic name goes to aria-label and
+ *           the window title) and, in the music kit only, a speaker button at its right end before the right pane's reopen button (aria-pressed; the same instrumentSounds
+ *           preference as Settings, so either changes both), and in split view the reader header shares the board header's line; the sprite positions itself on the whole window (no longer inside the board area);
  *           both side panes collapse to width 0 (reopen buttons at the center header's ends, ⌘B / ⌘⌥B); the reader has three states: closed / split (draggable divider) / full center
  *           (the board hides but stays mounted with its camera; Esc restores); the Reading view (first in the navigation, the default) with its material action and selection window
  *           (whether the conversation is open decides where an answer shows; a sent question or a footprint reveals it there, switching to the footprint's conversation first);
@@ -19,6 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { ExternalLinkGate } from '../../components/ExternalLinkDialog'
 import { Tips } from '../../components/Tips'
+import { SoundOffIcon, SoundOnIcon } from '../../components/icons'
 import { useAppearance } from '../../appearance'
 import { useT } from '../../i18n/index.ts'
 import { LumenApi, type Connection, type Identity, type SedimentInvite, type TopicMaterial } from '../data/client.ts'
@@ -38,7 +40,7 @@ import { Takeaways } from './Takeaways'
 import { TopicPanel, useTopics } from './TopicPanel'
 import { useBoard } from './useBoard'
 import { DeskKitProvider, DeskObject } from './objects/DeskObject'
-import type { DeskSlot } from './objects/registry.ts'
+import { deskKit, type DeskSlot } from './objects/registry.ts'
 import { newestTakeaway, useSediment } from './useSediment'
 import { PaneToggle, Splitter, usePanes, type Side } from './Panes'
 import { ViewNav, type View } from './ViewNav'
@@ -220,6 +222,9 @@ export function StudioApp({ connection }: { connection: Connection }) {
   const reopenLeft = panes.left && <PaneToggle side="left" open={false} onToggle={() => flip('left')} className="head-lead" />
   const reopenRight = topic && panes.right && <PaneToggle side="right" open={false} onToggle={() => flip('right')} className="head-trail" />
   const split = topic && reading
+  const sounds = appearance.state.instrumentSounds, trail = !split && reopenRight
+  const soundToggle = deskKit(appearance.state.deskObjects) === 'music' && <button type="button" className="icon-btn head-sound" aria-pressed={sounds}
+    title={sounds ? S.sounds.off : S.sounds.on} onClick={() => appearance.setAppearance({ instrumentSounds: !sounds })}>{sounds ? <SoundOnIcon /> : <SoundOffIcon />}</button>
 
   return <ExternalLinkGate><DeskKitProvider kit={appearance.state.deskObjects} sounds={appearance.state.instrumentSounds}><Tips /><main className={`app studio${docked ? ' studio-docked' : ''}${topic ? '' : ' studio-no-topic'}${panes.left ? ' studio-left-collapsed' : ''}${panes.right ? ' studio-right-collapsed' : ''}`}>
     <TopicPanel api={api} topics={topics} error={topicsError} selected={topic?.id ?? null} takeaway={newestTakeaway(sediment.items, topic?.id ?? null)} collapsed={panes.left} onToggle={() => flip('left')} onSelect={setTopicId} onEdit={editTopics}
@@ -230,7 +235,7 @@ export function StudioApp({ connection }: { connection: Connection }) {
         <header className="studio-head studio-center-head">
           {reopenLeft}
           {topic && <ViewNav view={view} onView={setView} />}
-          {!split && reopenRight}
+          {(soundToggle || trail) && <div className="head-trail head-tools">{soundToggle}{trail}</div>}
         </header>
         <div className="studio-stage">
           {!topic ? <div className="studio-later studio-pick"><p>{S.pickTopic}</p></div>

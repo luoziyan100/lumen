@@ -11,7 +11,7 @@ index.ts → store.ts / systemMode.ts → resolve.ts → apply.ts
 ```
 
 - `index.ts`：整合启动恢复和 React 订阅，给应用提供唯一外观入口；Mastra 工作台挂载 useAppearance，恢复系统主题变更订阅与设置即时应用。
-- `types.ts`：偏好、明暗配色与玻璃/纸面材质合同；偏好含桌面物件套组 `deskObjects`(`instruments` | `music`)与乐器声音 `instrumentSounds`(默认关)；颜色、反光、模糊与阴影共用白名单(含强调墨 --accent-ink)，别名仍不可覆盖；代码关键字别名走强调墨。
+- `types.ts`：偏好、明暗配色与玻璃/纸面材质合同；偏好含桌面物件套组 `deskObjects`(`instruments` | `music`)与乐器声音 `instrumentSounds`(默认关；开时音乐物件一动就有声，关时不请求录音、不建音频上下文；设置与中栏头部喇叭共用此字段)；颜色、反光、模糊与阴影共用白名单(含强调墨 --accent-ink)，别名仍不可覆盖；代码关键字别名走强调墨。
 - `registry.ts`：十二套内置皮肤的汇总注册表与未知皮肤回退(回退到默认「清透」`yan-clear`)；旧默认青瓷保留 id `default`。
 - `skins/`：皮肤配色真源。`define.ts` 放共用构造(`fromDesignSystem` 直接读 `yan-design-system/themes`，不在本地复制取值)，`light.ts` 四套浅色(清透、冰川、暖白纸面、海盐)，`dark.ts` 八套暗色。新增皮肤进对应文件，单文件逼近 800 行再按主题族拆。
 - `store.ts`：读取、归一并持久化本地偏好(`lumen:appearance.v2`)，损坏值退回确定的默认状态；桌面物件套组未知值回到 `instruments`，乐器声音非 `true` 即关；首次读取 v1 时，停留在旧默认青瓷的偏好迁到清透，其余选择保留。

@@ -1,5 +1,5 @@
 /**
- * [INPUT]: ./nav-tips.ts for the V6 measurement; ./music-checks.ts for the music kit; a self-contained isolated fixture service (real Controller + controllable model: writes one reading section, holding it until the script releases it) and the vite
+ * [INPUT]: ./nav-tips.ts for the V6 measurement; ./music-checks.ts and ./music-sound-checks.ts for the music kit; a self-contained isolated fixture service (real Controller + controllable model: writes one reading section, holding it until the script releases it) and the vite
  *          dev page on PORT (default 5191, refused when already taken); data root LUMEN_ASSERT_ROOT (default /tmp/lumen-obj-data, /tmp/lumen-* only, wiped at start); seeded topics: one with a material, takeaways and no sheet, one empty, one already read and drawn on
  * [OUTPUT]: browser evidence for the objects in the product (1440x900 and 1280x800, light and dark, zh and en): each object shows only in its empty state (typewriter: no
  *           reading, alone and centred; cabinet: no material, alone and centred; box: room under the topic list; easel: no sheet, or a live sheet with no stroke (V0), alone and centred on the canvas;
@@ -14,8 +14,8 @@
  *           the navigation, every tab shows its name within 600ms by hover and by keyboard Tab, under the tab, inside the window, on top of the sprite, its name in title drawn by Tips (title borrowed while shown, so no native box); a pane toggle's title shows the same tip and comes back on leave.
  *           WebKit: rest and open captures of every object (zh 1440×1400 light). KIT=music (./music-checks.ts) seeds the music kit and runs the same checks on the music objects, then adds:
  *           the switch in Settings › Appearance without a reload, persistence after a reload, and the return to Instruments (every visible SVG byte-identical; the Ideas view pixel-identical,
- *           since most original instruments rasterize differently on any remount); ONLY=switch runs only that block; the piano playing and its staff drawing while a reading is written;
- *           notes inside their object and clear of text and controls over 10 frames on hover and click; sound off → no AudioContext, sound on → no oscillator on hover, ≥1 on click; a WebKit capture of the appearance pane
+ *           since most original instruments rasterize differently on any remount); ONLY=switch runs only that block, ONLY=sound only the sound and speaker checks; the piano playing and its staff drawing while a reading is written;
+ *           notes inside their object and clear of text and controls over 10 frames on hover and click; the live sound and the header speaker of ./music-sound-checks.ts; a WebKit capture of the appearance pane
  * [POS]: an acceptance script that swaps the model network only and touches no product protocol; Chromium runs with --disable-gpu. Screenshots land in the evidence directory, never in the repo. Usage: node --experimental-strip-types ui-assert-objects.mts <evidence-dir> [--no-easel]. Prints BOX_BOUNDARY for the report
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -24,7 +24,8 @@ import { mkdir, rm } from 'node:fs/promises'
 import { spawn } from 'node:child_process'
 import { assertPortFree, assertRoot } from './assert-env.ts'
 import { compactNav, spriteUnderNav, tipChecks } from './nav-tips.ts'
-import { KITS, countAudio, notesClear, pickKit, pixelDiff, seedKit, still, type Kit } from './music-checks.ts'
+import { KITS, listenAudio, notesClear, pickKit, pixelDiff, seedKit, still, type Kit } from './music-checks.ts'
+import { headChecks, soundChecks } from './music-sound-checks.ts'
 import { writeFile } from 'node:fs/promises'
 import { createHttpService } from '../../../mastra-service/src/server.ts'
 import { acquireServiceLock } from '../../../mastra-service/src/deployment/lock.ts'
@@ -37,7 +38,7 @@ const out = process.argv[2]
 if (!out) throw new Error('evidence dir required')
 const EASEL = !process.argv.includes('--no-easel')
 const KIT: Kit = process.env.KIT === 'music' ? 'music' : 'instruments', SVG = KITS[KIT], MUSIC = KIT === 'music'
-const SWITCH_ONLY = MUSIC && process.env.ONLY === 'switch'
+const SWITCH_ONLY = MUSIC && process.env.ONLY === 'switch', SOUND_ONLY = MUSIC && process.env.ONLY === 'sound', FOCUS = SWITCH_ONLY || SOUND_ONLY
 const catalogs = { zh: (await import('../../src/i18n/locales/zh.ts')).zh, en: (await import('../../src/i18n/locales/en.ts')).en }
 const seedLocale = locale => localStorage.setItem('lumen:locale.v1', JSON.stringify({ version: 1, locale }))
 const seedDark = () => localStorage.setItem('lumen:appearance.v2', JSON.stringify({ version: 1, mode: 'dark', skinId: 'yan-clear', overlay: 0, blurPx: 0, latinFont: 'source-serif', cjkFont: 'wenkai', justify: false }))
@@ -152,7 +153,7 @@ async function open(browser, { locale, w, h, dark = false, reduced = false, soun
   // The vite dev page has no favicon; that 404 belongs to the dev server, not to the app
   page.on('console', message => { const at = message.location()?.url ?? ''; if (message.type() === 'error' && !at.endsWith('/favicon.ico')) errors.push(`${step}: ${message.text()} @ ${at}`) })
   await page.addInitScript(seedLocale, locale)
-  await page.addInitScript(countAudio)
+  await page.addInitScript(listenAudio)
   if (kit === 'music') await page.addInitScript(seedKit, [kit, sounds, dark])
   else if (dark) await page.addInitScript(seedDark)
   await page.goto(`http://localhost:${port}/`)
@@ -257,7 +258,7 @@ async function tooltips(browser, name, locale, key = 'Tab') {
 if (process.env.ONLY !== 'webkit') {
 const chrome = await chromium.launch({ executablePath: exe, args: ['--disable-gpu'] })
 try {
-  if (!SWITCH_ONLY) for (const locale of ['zh', 'en']) for (const [w, h] of [[1440, 900], [1280, 800]]) for (const dark of [false, true]) {
+  if (!FOCUS) for (const locale of ['zh', 'en']) for (const [w, h] of [[1440, 900], [1280, 800]]) for (const dark of [false, true]) {
     const M = catalogs[locale], S = M.studio, tag = `${locale} ${w} ${dark ? 'dark' : 'light'}`
     const { context, page, errors } = await open(chrome, { locale, w, h, dark })
 
@@ -384,7 +385,7 @@ try {
   }
 
   // ---- Reduced motion: every object's transitions are at most 100ms ----
-  if (!SWITCH_ONLY) {
+  if (!FOCUS) {
     const { context, page, errors } = await open(chrome, { locale: 'zh', w: 1440, h: 900, reduced: true })
     await pick(page, BLANK)
     await page.waitForSelector('.materials-cabinet')
@@ -407,8 +408,9 @@ try {
     await context.close()
   }
 
-  // ---- The music kit only: switching without a reload, persistence, pixel-identical return; notes inside the frame; sound only on a click with the switch on ----
+  // ---- The music kit only: switching without a reload, persistence, pixel-identical return; notes inside the frame; the live sound and the header speaker (./music-sound-checks.ts) ----
   if (MUSIC) {
+    if (!SOUND_ONLY) {
     for (const locale of ['zh', 'en']) {
       const { context, page, errors } = await open(chrome, { locale, w: 1440, h: 900, kit: 'instruments' })
       const catalog = catalogs[locale], S = catalog.studio, tag = `${locale} 切换`
@@ -458,23 +460,16 @@ try {
       check(`${tag}：无控制台错误`, errors.length === 0, errors.slice(0, 2).join(' | '))
       await context.close()
     }
-    for (const sounds of [false, true]) {
-      const { context, page, errors } = await open(chrome, { locale: 'zh', w: 1440, h: 900, sounds })
-      await pick(page, BLANK); await page.waitForSelector('.reading-typewriter svg.mu-piano')
-      const count = () => page.evaluate(() => ({ ...(window as unknown as { __audio: { contexts: number; oscillators: number } }).__audio }))
-      await page.hover('.reading-typewriter'); await sleep(800)
-      const hovered = await count()
-      await page.click('.reading-typewriter'); await sleep(400)
-      const clicked = await count()
-      if (sounds) check('声音开：悬停 0 个振荡器，点击 ≥1 个', hovered.oscillators === 0 && clicked.oscillators >= 1, JSON.stringify({ hovered, clicked }))
-      else check('声音关：悬停与点击都是 0 个 AudioContext', hovered.contexts === 0 && clicked.contexts === 0, JSON.stringify({ hovered, clicked }))
-      check(`声音${sounds ? '开' : '关'}：无控制台错误`, errors.length === 0, errors.slice(0, 2).join(' | '))
-      await context.close()
+    }
+    if (!SWITCH_ONLY) {
+      const ctx = { open, pick, view, check, sleep, catalogs, browser: chrome, out, BLANK, READ }
+      await soundChecks(ctx)
+      await headChecks(ctx)
     }
   }
 
   // ---- V8: LIVE's only sheet is empty, so its 「⋯」 deletes it with no dialog and the no-sheet state follows, easel included ----
-  if (!SWITCH_ONLY) {
+  if (!FOCUS) {
     const { context, page, errors } = await open(chrome, { locale: 'zh', w: 1440, h: 900 })
     const S = catalogs.zh.studio
     await pick(page, LIVE); await view(page, S, 'board'); await page.waitForSelector('.board-tab')
@@ -487,11 +482,11 @@ try {
     await context.close()
   }
 
-  if (!SWITCH_ONLY) for (const locale of ['zh', 'en']) await tooltips(chrome, 'chromium', locale)
+  if (!FOCUS) for (const locale of ['zh', 'en']) await tooltips(chrome, 'chromium', locale)
 
   // ---- The box's boundary (Q1): at 1440×900 and 1440×700, the last topic count that still shows the box and the next that folds it, both measured, not assumed.
   //      Folding and coming back moves neither the first nor the last topic row nor Settings (0px); dragging 900→700→900 folds and restores it with no flicker ----
-  if (!SWITCH_ONLY) {
+  if (!FOCUS) {
     const { context, page, errors } = await open(chrome, { locale: 'zh', w: 1440, h: 900 })
     await pick(page, READ)
     const settings = catalogs.zh.studio.settings
@@ -553,7 +548,7 @@ try {
 }
 
 // ---- WebKit: rest and open of the four objects ----
-if (SWITCH_ONLY) { console.log(results.join('\n')); console.log(`\n${results.length - failed}/${results.length} passed`); process.exit(failed ? 1 : 0) }
+if (FOCUS) { console.log(results.join('\n')); console.log(`\n${results.length - failed}/${results.length} passed`); process.exit(failed ? 1 : 0) }
 const wk = await webkit.launch()
 try {
   // Taller than the Chromium passes: the boundary check above left more topics than a 900px panel has room for beside the box

@@ -101,6 +101,7 @@ export const en = {
       left: { collapse: 'Collapse topics', expand: 'Expand topics' },
       right: { collapse: 'Collapse materials', expand: 'Expand materials' },
     },
+    sounds: { off: 'Turn instrument sounds off', on: 'Turn instrument sounds on' },
     reader: {
       full: 'Fill the middle', restore: 'Restore split (Esc)', open: 'Open in default app', close: 'Close reader', copy: 'Copy source', copied: 'Copied',
       splitter: 'Drag to resize the board and the document. Double-click to split evenly.',

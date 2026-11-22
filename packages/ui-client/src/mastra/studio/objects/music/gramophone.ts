@@ -7,8 +7,9 @@
  *        The soundbox at the arm's end is drawn upright: its group cancels the plane's shear and counter-rotates with the arm, so its face (diaphragm rings, rim screws, needle clamp, needle) always faces the viewer.
  *        The horn is a 3D surface on one spine (SPINE): its gooseneck rises from the swivel and bends into a petalled bell that opens toward the viewer's left, so the mouth shows its throat.
  *        A bracket from the back of the case holds the tube in a cradle solved from the spine (hornAt). DETAIL A magnifies the soundbox at 3:1.
- *        At rest the arm sits on its post off the record. Hover lowers it onto the outer groove, spins the record and sends notes out of the horn into the blank upper left.
- *        Click walks the needle inward to the run-out groove; the walk lasts as long as the crackle in GRAMOPHONE_SCORE (1.4 s)
+ *        At rest the arm sits on its post off the record. Hover lowers it onto the outer groove, spins the record and sends notes out of the horn into the blank upper left;
+ *        the record sounds crackle and a slow waltz phrase in D major, played on the piano through the horn.
+ *        Click walks the needle inward to the run-out groove; the walk lasts as long as the needle's scrape in GRAMOPHONE_SCORE (1.4 s)
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 import { circle, curve, dbl, detail, ellipse, hatch, knurl, line, note, path, plate, r, rect, screw, shadow, shadowDef, ticks, type Pt } from './line.ts'
@@ -158,7 +159,7 @@ export function gramophoneSvg() {
 
 /* ============================================================
    Click score · the needle is already down (hover dropped it), so a click adds only the needle's scrape in the groove while the arm walks in; the record's loop plays on.
-   Closing lifts the needle. The loop's line is the record's own tune (D major, made here), played by the solo violin through the horn's band
+   Closing lifts the needle. The loop's line is the record's own tune (D major, made here), played on the piano through the horn's band, a slow pedalled waltz
    ============================================================ */
 const WALK = 1.4
 const LINE: [number, number, number, number][] = [

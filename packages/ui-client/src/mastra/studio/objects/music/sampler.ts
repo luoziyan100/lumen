@@ -1,14 +1,16 @@
 /**
  * [INPUT]: MUSIC_SCORES, partsOf, partCues and MusicSlot from ./index.ts; SAMPLES and sampleFor from ./samples.ts; onset, peakDb and rmsDb from ./meter.ts; the Cue type from ./pitch.ts;
- *          the Engine type from ./sound.ts; the browser's fetch and Web Audio (decodeAudioData, AudioBufferSourceNode, BiquadFilterNode, OscillatorNode, GainNode)
+ *          the Engine type from ./sound.ts; the browser's fetch and Web Audio (decodeAudioData, AudioBufferSourceNode, BiquadFilterNode, DelayNode, OscillatorNode, GainNode)
  * [OUTPUT]: Sampler (the Engine that plays the recordings on one context: prepare(slot) loads a slot's recordings, ready / level / length / start serve the Player),
  *           slotSamples(slot), cueLength(cue), attackOffset(data, rate), ONSET_DB
  * [POS]: the music set's only sound source: every cue is a recording from samples/, nothing is synthesized. Bytes are fetched once per page (only when the sound switch is on and a
  *        slot is prepared) and decoded once per context. A pitched recording starts at its attack (the first frame at its peak −40 dB, so an encoder's priming silence never delays
  *        the cue) with a 2 ms fade-in; a noise starts at 0. A pitched cue is re-pitched by playbackRate. Every cue sounds for its length in the score at most (a recording that ends
- *        sooner ends there) and releases inside it: 80 ms for a bowed, humming or gramophone note (the bow change), a quarter of the length up to 30 ms for the rest. The gramophone's
- *        line passes the horn's band (300 Hz–3 kHz) with a slow wow and a faster flutter on the detune. A part is levelled from its own mix once all its recordings are decoded
- *        (gated loudness −30 dBFS for open and loop passes, −33 for close and hover-in, peak held in −23…−15 dBFS). A recording that fails to load leaves its parts silent; the first
+ *        sooner ends there) and releases inside it: a long, soft release for a humming string (up to 1.1 s) and a bowed note (up to 0.36 s), up to 0.22 s for a piano, harp,
+ *        comb or gramophone note, 60 ms for a pen stroke, up to 40 ms for the rest. A gentle lowpass warms the bow, hum, comb, bell and the bright noises. The gramophone's line
+ *        passes the horn's band (280 Hz–1.85 kHz) with a slow wow and a faster flutter on the detune; any other tonal cue of 0.3 s or more gets a short room (three lowpassed
+ *        early reflections, 24–92 ms). A part is levelled from its own mix once all its recordings are decoded (gated loudness −31 dBFS for open and loop passes, −34 for close,
+ *        hover-in and the metronome's loops, −38 for the pen and the cello's hum, peak held in −23…−15 dBFS). These voicings are the owner's listening tuning of round 2. A recording that fails to load leaves its parts silent; the first
  *        failure writes one console line
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */

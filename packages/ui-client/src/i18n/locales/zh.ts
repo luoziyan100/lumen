@@ -96,6 +96,7 @@ export const zh: Messages = {
       left: { collapse: '收起主题栏', expand: '展开主题栏' },
       right: { collapse: '收起素材栏', expand: '展开素材栏' },
     },
+    sounds: { off: '关闭乐器声音', on: '打开乐器声音' },
     reader: {
       full: '铺满中栏', restore: '还原分屏 Esc', open: '用系统打开', close: '关闭阅读器', copy: '复制源码', copied: '已复制',
       splitter: '拖动调整白板与原文的宽度，双击回到各一半',

@@ -1,7 +1,7 @@
 /**
  * [INPUT]: the view names of i18n studio.views, this file's VIEWS/VIEW_AVAILABLE (reading, board and takeaways open), the six view icons (16, currentColor); icon-only tabs carry `title` for components/Tips
  * [OUTPUT]: ViewNav: the center header's main navigation (Reading · Board · Takeaways · Concept map · Ideas · All), icon left, text right; icons alone when narrow (aria-label always,
- *           a `title` on each tab only when compact, shown by the app's tooltip layer); navFits: does the full navigation fit when centered with equal room reserved for the pane toggles
+ *           a `title` on each tab only when compact, shown by the app's tooltip layer); navFits: does the full navigation fit when centered with equal room reserved for the edge controls
  * [POS]: part of StudioApp's center header; the full width is measured by an invisible twin navigation (same header, same styles), so toggling compact never jitters
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
@@ -16,20 +16,20 @@ export type View = typeof VIEWS[number]
 export const VIEW_AVAILABLE: Record<View, boolean> = { reading: true, board: true, settled: true, map: false, ideas: false, all: false }
 export const VIEW_ICONS: Record<View, Icon> = { reading: ReadingViewIcon, board: BoardViewIcon, settled: SettledViewIcon, map: MapViewIcon, ideas: IdeasViewIcon, all: AllViewIcon }
 /** Well inside the 600ms in which a name must appear; the provider makes neighbouring tabs open at once */
-/** At least this much air between the navigation and either toggle */
+/** At least this much air between the navigation and the edge controls */
 const BREATH = 8
 
-/** The navigation centers: both sides yield the width of the wider toggle */
+/** The navigation centers: both sides yield the width of the wider edge */
 export function navFits(head: number, nav: number, reserve: number) {
   return nav + 2 * (reserve + BREATH) <= head
 }
 
-/** What the pane toggles claim from their nearer edge (0 when absent) */
+/** What the edge controls (every direct child of the header except the navigation and its twin) claim from their nearer edge (0 when absent) */
 function edgeReserve(head: HTMLElement) {
   const width = head.clientWidth
-  return [...head.querySelectorAll<HTMLElement>(':scope > .pane-toggle')].reduce((most, toggle) => {
-    const left = toggle.offsetLeft, right = left + toggle.offsetWidth
-    return Math.max(most, left + toggle.offsetWidth / 2 < width / 2 ? right : width - left)
+  return [...head.querySelectorAll<HTMLElement>(':scope > :not(.studio-seg)')].reduce((most, edge) => {
+    const left = edge.offsetLeft, right = left + edge.offsetWidth
+    return Math.max(most, left + edge.offsetWidth / 2 < width / 2 ? right : width - left)
   }, 0)
 }
 

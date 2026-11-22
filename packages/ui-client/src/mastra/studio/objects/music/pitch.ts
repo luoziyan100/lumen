@@ -5,7 +5,7 @@
  * [POS]: the score types and the one pitch map of the music set. Every object file writes its score with these types; samples.ts picks a recording for a cue by this map and the tests check pitch with it.
  *        A noise names its recording family (samples/<noise>.m4a; 'pen' picks a long, mid or short stroke by the cue's length).
  *        A part number goes in and a MIDI note comes out, tuned as the real instrument: the piano's white keys from A0 = 0 (a sharp is the black key after it), the harp's strings from
- *        C2 with its pedals in D major (C and F sound sharp), the comb a D major scale from G5, the strings on their open fifths. Click sounds are composed in D major; a drawn key or
+ *        C2 with its pedals in D major (C and F sound sharp), the comb a D major scale from G5, the strings on their open fifths, or a bowed note by its degree in D major (violin from D4, cello from D3). Click sounds are composed in D major; a drawn key or
  *        string keeps its own pitch even outside it (the piano's hover phrase is on white keys)
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */

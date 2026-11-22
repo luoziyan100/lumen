@@ -19,7 +19,7 @@ export interface AppearanceState {
   latinFont: string
   cjkFont: string
   justify: boolean
-  /** 桌面物件套组：仪器（默认）或音乐；instrumentSounds 只在音乐套组下生效，点击才发声 */
+  /** 桌面物件套组：仪器（默认）或音乐；instrumentSounds 只在音乐套组下生效：开时物件一动就有声（悬停、点开、合上、输入中与循环），关时不请求录音、不建音频上下文；设置与中栏头部喇叭共用此字段 */
   deskObjects: DeskObjects
   instrumentSounds: boolean
 }

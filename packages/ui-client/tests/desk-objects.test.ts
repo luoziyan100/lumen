@@ -6,7 +6,7 @@
  *           every music object is well-formed XML with its own id prefix (all eight mount together without a clash) and meets its primitive floor; the box's words are escaped;
  *           the piano draws 52 white and 36 black keys, violin and cello 4 strings, the harp ≥30; the settings group switches and persists the kit and enables sound only under Music;
  *           data-hover appears only after the pointer stays 100 ms and a shorter pass leaves none; switched off (or the instrument kit) nothing is requested and no AudioContext is made;
- *           found on at start, nothing loads before the first pointerdown, which unlocks and loads each recording of the slot in view once; a missing recording writes one console line;
+ *           found on at start (under StrictMode, which runs effects twice), nothing loads before the first pointerdown, which unlocks and loads each recording of the slot in view once; a missing recording writes one console line;
  *           motion before the unlock is never replayed; a click (even before the hover is confirmed) plays one source per cue of the slot's open score
  * [POS]: the mechanism tests of the second desk-object kit. Layout, motion, frames and real audio are browser facts, covered by scripts/sprite/ui-assert-objects.mts
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
@@ -14,7 +14,7 @@
 import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
 import { register } from 'node:module'
-import { createElement, act } from 'react'
+import { createElement, act, StrictMode } from 'react'
 import { JSDOM } from 'jsdom'
 import { zh } from './helpers/zh.ts'
 
@@ -195,11 +195,11 @@ test('sound: off requests nothing; on at start waits for the first gesture; reco
   assert.deepEqual([audio.contexts, audio.sources, audio.fetched.length], [0, 0, 0], 'off, or the instrument kit: no AudioContext, no request')
   const opening = MUSIC_SCORES.reading.open.map((cue: any) => sampleFor(cue).name), names = slotSamples('reading'), lost = names.find(name => !opening.includes(name))!
   audio.missing = SAMPLES[lost]!.url
-  const { host, unmount } = await mount(desk('music', true))
+  const { host, unmount } = await mount(createElement(StrictMode, null, desk('music', true)))
   const object = host.querySelector('.iso-host') as HTMLElement
   await click(object)
   await click(object)
-  assert.deepEqual([audio.contexts, audio.fetched.length], [0, 0], 'found on at start: nothing before the first pointerdown')
+  assert.deepEqual([audio.contexts, audio.fetched.length], [0, 0], 'found on at start (effects run twice under StrictMode): nothing before the first pointerdown')
   await act(async () => { window.dispatchEvent(new window.MouseEvent('pointerdown')) })
   await wait(20)
   assert.equal(audio.contexts, 1, 'the first gesture unlocks')

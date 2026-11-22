@@ -1,14 +1,14 @@
 /**
  * [INPUT]: a Playwright page of the studio (vite dev page) and the locale catalog; called by ui-assert-objects.mts
- * [OUTPUT]: KITS (each kit's svg class per slot), seedKit (init script: the appearance preference with a kit and the sound switch), countAudio (init script: an AudioContext
- *           wrapper that counts contexts and oscillators on window.__audio), pickKit (Settings › Appearance › Desk objects, closing the dialog), notesClear (10 frames:
+ * [OUTPUT]: KITS (each kit's svg class per slot), seedKit (init script: the appearance preference with a kit and the sound switch), listenAudio (init script: on window.__audio, the contexts made and every
+ *           recording source started: its context time, the performance time it is heard (from the output timestamp) and its last stop; every gain ramp to 0), pickKit (Settings › Appearance › Desk objects, closing the dialog), notesClear (10 frames:
  *           every visible note inside its object's frame, overlapping no text and no control), pixelDiff (two PNG captures decoded in the page: size match and differing pixels), still (a capture with every animation and transition stopped by a style override, so a spin's last frame cannot leak into the pixels)
  * [POS]: the music kit's browser checks, kept out of the main script so it stays one flow. Pure page helpers; the caller owns the checks and the evidence
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */
 export const KITS = {
   instruments: { reading: 'iso-typewriter', takeaways: 'iso-press', materials: 'iso-cabinet', box: 'iso-box', board: 'iso-easel', map: 'iso-cork', ideas: 'iso-lamp', all: 'iso-case' },
-  music: { reading: 'mu-piano', takeaways: 'mu-gramophone', materials: 'mu-cello', box: 'mu-musicbox', board: 'mu-stand', map: 'mu-harp', ideas: 'mu-violin', all: 'mu-metronome' },
+  music: { reading: 'mu-piano', takeaways: 'mu-gramophone', materials: 'mu-cello', box: 'mu-box', board: 'mu-stand', map: 'mu-harp', ideas: 'mu-violin', all: 'mu-metronome' },
 } as const
 export type Kit = keyof typeof KITS
 
@@ -18,14 +18,30 @@ export const seedKit = ([kit, sounds, dark]: [string, boolean, boolean]) => {
   localStorage.setItem('lumen:appearance.v2', JSON.stringify({ version: 1, mode: dark ? 'dark' : 'light', skinId: 'yan-clear', overlay: 0, blurPx: 0, latinFont: 'source-serif', cjkFont: 'wenkai', justify: false, deskObjects: kit, instrumentSounds: sounds }))
 }
 
-export const countAudio = () => {
-  const audio = { contexts: 0, oscillators: 0 }
+export const listenAudio = () => {
+  const audio = { contexts: 0, ac: null as AudioContext | null, sources: [] as { when: number; now: number; perf: number; stop: number }[], ramps: [] as { end: number; now: number }[] }
   Object.defineProperty(window, '__audio', { value: audio })
   const Base = window.AudioContext
   if (!Base) return
   window.AudioContext = class extends Base {
-    constructor(...args: ConstructorParameters<typeof AudioContext>) { super(...args); audio.contexts++ }
-    createOscillator() { audio.oscillators++; return super.createOscillator() }
+    constructor(...args: ConstructorParameters<typeof AudioContext>) { super(...args); audio.contexts++; audio.ac = this }
+  }
+  const index = new WeakMap<AudioScheduledSourceNode, number>()
+  const start = AudioBufferSourceNode.prototype.start, stop = AudioScheduledSourceNode.prototype.stop, ramp = AudioParam.prototype.linearRampToValueAtTime
+  AudioBufferSourceNode.prototype.start = function (this: AudioBufferSourceNode, when = 0, ...rest: number[]) {
+    const ac = this.context as AudioContext, at = Math.max(when, ac.currentTime), stamp = typeof ac.getOutputTimestamp === 'function' ? ac.getOutputTimestamp() : null
+    const perf = stamp?.performanceTime ? stamp.performanceTime + (at - stamp.contextTime!) * 1000 : performance.now() + (at - ac.currentTime) * 1000
+    index.set(this, audio.sources.push({ when: at, now: ac.currentTime, perf, stop: Infinity }) - 1)
+    return start.call(this, when, ...rest)
+  } as typeof start
+  AudioScheduledSourceNode.prototype.stop = function (this: AudioScheduledSourceNode, when = 0) {
+    const i = index.get(this)
+    if (i !== undefined) audio.sources[i]!.stop = Math.max(when, (this.context as AudioContext).currentTime)
+    return stop.call(this, when)
+  }
+  AudioParam.prototype.linearRampToValueAtTime = function (this: AudioParam, value: number, end: number) {
+    if (value === 0 && audio.ac) audio.ramps.push({ end, now: audio.ac.currentTime })
+    return ramp.call(this, value, end)
   }
 }
 

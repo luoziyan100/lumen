@@ -95,6 +95,9 @@ html[data-material="paper"] .studio :is(.studio-topics, .studio-materials) { bac
 /* Reopen toggles sit at the center header's ends, their icon boxes 8px in, symmetric with the right side */
 .studio-head .head-lead { margin-left: -6px; margin-right: auto; }
 .studio-head .head-trail { margin-left: auto; }
+/* The trailing group: the speaker (music kit only) then the right reopen toggle, flush with the right end in either state */
+.studio-head .head-tools { display: flex; align-items: center; gap: 2px; }
+.studio-head .head-tools > .head-trail { margin-left: 0; }
 .studio-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .studio-stage { position: relative; flex: 1; min-height: 0; display: flex; }
 .studio-later { margin: auto; width: 100%; max-width: min(620px, 100%); text-align: center; color: var(--text-muted); font-size: var(--st-note); padding: 24px; box-sizing: border-box; }

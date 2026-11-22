@@ -3,6 +3,7 @@
  * [OUTPUT]: violinSvg(): VIOLINO · VII, a violin upright with its bow laid across the strings (640×400) for the empty Ideas view; VIOLIN_CSS; VIOLIN_SCORE (the click score); VIOLIN_STRINGS (4, for the tests)
  * [POS]: music object M7, the counterpart of the lamp. Right of the violin, DETAIL A magnifies bridge, strings and the E-string fine tuner at 3:1 (mapped from the main view).
  *        Hover bows: the bow slides along its own axis (the hair stays on the contact line between fingerboard end and bridge), the four strings hum, notes rise into the blank upper right.
+ *        Each stroke sounds one note of a D major phrase, D4 → F♯4 → A4 → F♯4.
  *        Click plays a pizzicato chord: the bow lifts off to the lower right, the strings are plucked G → E one after another at their cues in VIOLIN_SCORE, a chord rises once
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */

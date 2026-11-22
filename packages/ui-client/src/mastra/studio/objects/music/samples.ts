@@ -5,7 +5,7 @@
  * [POS]: the music set's sample manifest, pure data plus one rule; sampler.ts loads and plays what it names, the tests check it against samples/ and every score.
  *        A pitched cue plays the nearest recording of its instrument family, re-pitched by playbackRate from the recording's measured pitch (not its nominal note), never more than
  *        MAX_SHIFT semitones: piano (VCSL Steinway B), harp, solo violin arco and pizzicato, cello section (VSCO 2 CE), the music box's comb (one CC0 note per tooth group) and the
- *        metronome's bell (VCSL glockenspiel). The gramophone's line plays the violin. A noise names its recording; 'pen' picks the stroke nearest the cue's length.
+ *        metronome's bell (VCSL glockenspiel). The gramophone's line plays the piano (heard through the horn's band). A noise names its recording; 'pen' picks the stroke nearest the cue's length.
  *        Each URL carries ?no-inline, so Vite always emits the file as an asset and never a data: URL (the CSP's connect-src does not allow data:)
  * [PROTOCOL]: Update this header on change, then check CLAUDE.md
  */

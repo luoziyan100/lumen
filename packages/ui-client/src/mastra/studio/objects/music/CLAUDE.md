@@ -28,6 +28,7 @@ Sound follows the running animation, never a separate timer. Every sound is a re
   - A near-cubic panelled case with mouldings and corner posts; the record nearly fills the top. The deck is drawn in plan and projected by one oblique matrix, the same projection as the case top. The crank sits on the right face.
   - The horn lives in `horn.ts`. The tapered tone arm swings from a swivel that carries the horn. The soundbox at its end cancels the plane transform and counter-rotates with the arm, so it always faces the viewer. A bracket from the back of the case holds the horn. DETAIL A magnifies the soundbox.
   - The arm angle for a groove radius is solved from two intersecting circles. Hover sets the needle on the outer groove. Click walks it inward.
+  - The record plays crackle and a slow waltz phrase in D major on the piano, heard through the horn band.
 - `horn.ts`: the gramophone's 3D horn.
   - It sweeps a petalled profile along a 3D cubic spine, projects the mesh orthographically and paints it far to near, so the near wall hides the far one.
   - Shade is hatch density only: meridian hatching inside, darker toward the throat; ring hatching outside, darker away from the light. The rim is one smooth scalloped ring drawn last.
@@ -41,7 +42,7 @@ Sound follows the running animation, never a separate timer. Every sound is a re
   - Hover plays a broken chord. Click plays one glissando.
   - DETAIL A magnifies the disc action under the neck.
 - `violin.ts` (`vn-`, 640×400): VIOLINO · VII in Ideas.
-  - Hover bows. Click lifts the bow and plucks a pizzicato chord.
+  - Hover bows a D major phrase, one note per stroke. Click lifts the bow and plucks a pizzicato chord.
   - DETAIL A magnifies the bridge, the strings and the fine tuner. Its coordinates come from the main view.
 - `metronome.ts` (`mt-`, 640×400): METRONOMO · VIII in All.
   - The swing period is 60/bpm from the slider's mark. Click moves the slider from 72 to 120.
@@ -54,10 +55,11 @@ Sound follows the running animation, never a separate timer. Every sound is a re
   - The license pages and raw downloads stay in the task's evidence, never in the repo.
 - `samples.ts`: the generated manifest. `SAMPLES` gives each recording's asset URL (`?no-inline`, so Vite never inlines it), measured pitch and length. `sampleFor(cue)` picks the nearest recording of the cue's family, at most ±3 semitones (`MAX_SHIFT`) by playbackRate.
 - `sampler.ts`: `Sampler`, the only `Engine`. It fetches each recording once per page and decodes once per context. A pitched cue starts at its attack (peak −40 dB) with a 2 ms fade-in. Each part is levelled from its own mix.
-  - A cue sounds for its score length at most and releases inside it. The gramophone's line runs through the horn band (300 Hz–3 kHz) with wow and flutter.
+  - A cue sounds for its score length at most and releases inside it. A gentle lowpass warms the bright voices; tonal cues get a short room (three early reflections). The gramophone's line runs through the horn band (280 Hz–1.85 kHz) with wow and flutter.
+  - Each part has its own loudness target: −31 dBFS for open and loop passes, −34 for close, hover-in and the metronome, −38 for the pen and the cello's hum. The voicing is the owner's listening tuning of round 2; change it only after listening.
   - A missing recording leaves its parts silent. The first failure writes one console line.
 - `sound.ts`: the scheduling. It decides when a sound starts and stops; the `Engine` seam decides what it sounds like (the tests use a fake).
-  - `Player` gives each slot a shot bus and a loop bus. A state change plays its one-shot (open, close, hoverIn). A new shot fades the last in 50 ms and ducks the loop.
+  - `Player` gives each slot a shot bus and a loop bus. A state change plays its one-shot (open, close, hoverIn). A new shot fades the last in 50 ms and ducks the loop (to 78% for the piano and the gramophone, else to silence).
   - A loop plays one pass per CSS iteration. Before each pass it reads the clock animation's own phase, so sound and picture never drift. A changed state fades the old loop in 80 ms.
   - One object sounds at a time: the one under the pointer, else the one that most recently began to sound (a loop, or a click's one-shot while it rings). The others go silent and come back at their next pass start.
   - Nothing is fetched and no AudioContext exists before `unlockMusic`: the switch turned on, or the first pointerdown/keydown after `armMusic` when the switch was on at start. Then each slot loads when its host comes into view. A pass whose recordings are not ready is skipped, never replayed late.
