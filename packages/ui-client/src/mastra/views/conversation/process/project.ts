@@ -1,7 +1,7 @@
 /**
  * [INPUT]: 原生Mastra持久/流式消息parts、当前DisplayState与轮次摘要投影
  * [OUTPUT]: processTimeline 与 createConversationProjection：思考、工具叙事、白板卡片（R6）、正文和轮次导航的有序投影；流式更新复用稳定历史
- * [POS]: 纯呈现投影，不保存第二份消息；只采用服务公开reasoning，工具按callId去重，工具名在渲染时经 i18n 取（toolLabel），投影缓存不存文案；计时只采用本轮真实用户消息时间
+ * [POS]: 纯呈现投影，不保存第二份消息；只采用服务公开reasoning；正文按位置分：同一消息里最后一次工具调用之前是旁白（进 Thought），之后是回答（1.85 把整轮存成一条消息）；工具按callId去重，工具名在渲染时经 i18n 取（toolLabel），投影缓存不存文案；计时只采用本轮真实用户消息时间
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import type { MastraDBMessage } from '@mastra/client-js'
@@ -43,11 +43,11 @@ export function processTimeline(messages: MastraDBMessage[], display: DisplaySta
     if (role === 'user') { turn = message.id; startedAt = turnStartedAt([message]); process = undefined; thought = undefined; rows.push({ kind: 'message', id: message.id, message }); continue }
     if (role !== 'assistant' && role !== 'tool') continue
     let textIndex = 0
-    const hasTools = message.content.parts.some(part => part.type === 'tool-invocation')
-    const hasText = message.content.parts.some(part => part.type === 'text' && part.text.trim())
-    if (hasTools) finished.delete(`${turn}:process`)
-    else if (hasText && (!display?.isRunning || turn !== activeTurn)) finished.add(`${turn}:process`)
-    for (const part of message.content.parts) {
+    const lastTool = message.content.parts.map(part => part.type).lastIndexOf('tool-invocation')
+    const answered = message.content.parts.some((part, index) => index > lastTool && part.type === 'text' && part.text.trim())
+    if (lastTool >= 0 && !answered) finished.delete(`${turn}:process`)
+    else if (answered && (!display?.isRunning || turn !== activeTurn)) finished.add(`${turn}:process`)
+    for (const [index, part] of message.content.parts.entries()) {
       if (part.type === 'reasoning') {
         const value = record(part)
         const text = typeof value.reasoning === 'string' ? value.reasoning : Array.isArray(value.details) ? value.details.flatMap(detail => { const item = record(detail); return item.type === 'text' && typeof item.text === 'string' ? [item.text] : [] }).join('') : ''
@@ -74,7 +74,7 @@ export function processTimeline(messages: MastraDBMessage[], display: DisplaySta
         if (existing < 0) process.steps.push(step); else process.steps[existing] = step
         process.running = process.steps.some(item => item.status === 'running')
       } else if (part.type === 'text' && part.text.trim() && role === 'assistant') {
-        if (hasTools) {
+        if (index < lastTool) {
           if (!thought) { thought = { kind: 'thought', id: `${turn}:thought`, text: '', running: false, startedAt }; rows.push(thought) }
           thought.text += `${thought.text ? '\n\n' : ''}${part.text}`
           continue

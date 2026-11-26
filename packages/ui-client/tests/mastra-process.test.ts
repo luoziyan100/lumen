@@ -37,6 +37,20 @@ test('原生推理/工具/正文按来源顺序呈现，轮次合卡和callId去
   assert.ok(active.some(row => row.kind === 'process' && row.running))
   assert.equal(processTimeline([message('redacted', [{ type: 'reasoning', reasoning: '', details: [{ type: 'redacted', data: 'not public' }] }])], null).length, 0)
 })
+test('1.85 整轮存成一条消息：最后工具之后的正文是回答，之前的是旁白，过程卡落定收起', () => {
+  const user = message('user-185', [{ type: 'text', text: '这篇论文讲什么' }], 'user')
+  const step = { type: 'step-start' } as MastraDBMessage['content']['parts'][number]
+  const run = message('run-185', [tool('a', true), step, { type: 'text', text: '先读第二段' }, tool('b', true), step, { type: 'text', text: '最终回答' }])
+  const rows = processTimeline([user, run], null)
+  assert.deepEqual(rows.map(row => row.kind), ['message', 'thought', 'message'])
+  assert.equal(rows[1].kind === 'thought' && rows[1].text, '先读第二段')
+  assert.equal(rows[2].kind === 'message' && rows[2].message.content.parts[0].type === 'text' && rows[2].message.content.parts[0].text, '最终回答')
+  const running = processTimeline([user, run], { isRunning: true, activeTools: {} } as DisplayState)
+  assert.ok(running.some(row => row.kind === 'process'))
+  assert.ok(running.some(row => row.kind === 'message' && row.id.startsWith('run-185:text')))
+  const next = processTimeline([user, run, message('more-185', [tool('c', true)])], null)
+  assert.ok(next.some(row => row.kind === 'process' && row.steps.length === 3))
+})
 test('工具卡运行首次展开、更新不推翻手动关闭，历史只显示最近六步；思考完成自动收口', async () => {
   const element = document.createElement('div'); document.body.append(element); const root = createRoot(element)
   const messages = [message('user', [{ type: 'text', text: '研究' }], 'user'), message('tools', Array.from({ length: 8 }, (_, index) => tool(String(index))))]

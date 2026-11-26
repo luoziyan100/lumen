@@ -52,7 +52,7 @@ tests/
 - `sprite-move.test.ts`：真实 useSpriteMove + 假 Element.animate（假计时器逐帧推进）：≤4px 打开、>4px 拖动只写 transform 且不重渲染、拖后 click 即使迟到也不打开（下一次按下清标记）、pointercancel 后与键盘激活从不被吞（复核 R1）、松手才写锚点；pointercancel 停在最后位置与视口夹取；拖浮窗标题栏带着锚点走；Alt+方向键；展开中途收起倒放同一组动画不叠第二层、收起中点头像又倒回；减弱动效 120ms 只淡；卸载取消动画。
 - `pdf-fit.test.ts`：真实 PdfViewer + pdf.js（Node 同进程 worker）读按规范拼的两页 Letter PDF：不传 fit 初始 130% 且宽度变化不改；传 fit 按宽适配（显示宽度封顶 960）、宽度变化重新适配、懒渲染的页也跟着缩放；手动放大后停止适配，「适配宽度」回到适配。
 - `mastra-transcript.test.ts`：真实消息组件的资料库附件（只认 itemId）受控打开、内嵌图片预览、长正文折叠、剪贴板回退与轮次焦点/跳转、解读划句提问气泡（引文 + 用户的话，出处只在 title，引文里的公式由 KaTeX 画）；不把 DOM 验证视为 WebKit 验收。
-- `mastra-process.test.ts`：原生reasoning与工具投影、定稿隐藏成功过程、未完成保留、六步窗口与流式手动开合；不展示redacted数据和原始JSON。
+- `mastra-process.test.ts`：原生reasoning与工具投影、定稿隐藏成功过程、未完成保留、1.85 整轮一条消息时按最后工具调用的位置分旁白与回答、六步窗口与流式手动开合；不展示redacted数据和原始JSON。
 - `mastra-composer.test.ts`：（以主题身份；旧 WorkspaceApp 导航用例随外壳在 S2 退场）欢迎页准备失败留稿并重试，切主题后已确认提交不改目标或抢回页面，斜杠技能准备真实会话但不发送研究，准备期间新增文本/附件不进入已确认快照、不同服务同名主题草稿隔离；输入高度增长/上限/收缩与草稿恢复重算，真实Conversation的松开跟随/近底上滑/轮次跳转/回到最新；真实 React Composer 与 HTTP/Mastra 验证草稿/上传竞赛恢复、提交期间当前稿冻结且不串会话、StrictMode 重挂载、斜杠技能过滤和键盘激活；选择技能或空结果回车不误发模型请求；Conversation/Specialists 轮询不重叠且完成后显示最新状态；进行中专家任务挂输入坞上方、完成即移除，专家目录不在对话流内。
 - `stick-scroll.test.ts`：滚动判定的上滑离钉、程序近底不恢复、塌缩不吸回、手势窗内不追高。
 - `connection-hold.test.ts`：已连接后的发现失败保留连接，冷启动失败和成功的新令牌仍替换。
